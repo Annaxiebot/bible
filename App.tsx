@@ -196,7 +196,7 @@ const App: React.FC = () => {
         const relativeY = clientY - containerRect.top;
         const percentage = (relativeY / containerRect.height) * 100;
         console.log('Horizontal resize:', percentage);
-        if (percentage >= 10 && percentage <= 95) {
+        if (percentage >= 10 && percentage <= 100) {
           setSplitOffset(percentage);
         }
       } else if (isBottomResizing) {
@@ -352,7 +352,7 @@ const App: React.FC = () => {
       </header>
 
       <main ref={containerRef} className="flex-1 flex flex-col relative overflow-hidden">
-        <div className="overflow-hidden" style={{ height: splitOffset >= 95 ? 'calc(100% - 24px)' : `${splitOffset}%` }}>
+        <div className="overflow-hidden" style={{ height: splitOffset >= 100 ? 'calc(100% - 24px)' : `${splitOffset}%` }}>
           <BibleViewer 
             notes={notes}
             onSelectionChange={setCurrentSelection}
@@ -408,11 +408,11 @@ const App: React.FC = () => {
               <div className="w-6 h-0.5 bg-slate-500 rounded"></div>
             </div>
             
-            {/* Down arrow - maximize Bible (95%) */}
+            {/* Down arrow - maximize Bible (100%) */}
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                setSplitOffset(95);
+                setSplitOffset(100);
               }}
               className="p-0.5 hover:bg-slate-100 rounded transition-colors"
               title="Maximize Bible reading"
@@ -424,7 +424,7 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex-1 flex overflow-hidden min-h-0" style={{ display: splitOffset >= 95 ? 'none' : 'flex' }}>
+        <div className="flex-1 flex overflow-hidden min-h-0" style={{ display: splitOffset >= 100 ? 'none' : 'flex' }}>
           <div style={{ width: `${bottomSplitOffset}%` }} className="h-full overflow-hidden">
              <ChatInterface incomingText={selectionPayload} />
           </div>
