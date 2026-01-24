@@ -361,21 +361,28 @@ const App: React.FC = () => {
         </div>
 
         <div 
-          className={`relative w-full flex items-center justify-center select-none z-30 transition-all group bg-gradient-to-b from-slate-200 to-slate-300`}
+          className={`relative w-full flex items-center justify-center select-none z-30 transition-all group`}
           style={{ 
             height: '40px', 
             touchAction: 'none',
             WebkitTouchCallout: 'none',
             WebkitUserSelect: 'none',
-            userSelect: 'none',
-            boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15), 0 -2px 8px rgba(0, 0, 0, 0.15)'
+            userSelect: 'none'
           }}
         >
+          {/* Visible divider bar */}
+          <div 
+            className={`absolute w-full ${isResizing ? 'h-6 bg-indigo-500' : 'h-4 bg-slate-500 hover:bg-indigo-400 hover:h-5'} transition-all`}
+            style={{
+              boxShadow: '0 2px 4px rgba(0, 0, 0, 0.2), 0 -2px 4px rgba(0, 0, 0, 0.2)'
+            }}
+          ></div>
+          
           <div 
             onMouseDown={startResizing}
             onTouchStart={startResizing}
             onPointerDown={startResizing}
-            className={`absolute w-full h-full cursor-row-resize ${isResizing ? 'bg-indigo-500/30' : 'hover:bg-indigo-400/20'} transition-all`}
+            className="absolute w-full h-full cursor-row-resize"
           ></div>
           
           {/* Arrow buttons for quick positioning */}
