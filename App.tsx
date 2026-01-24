@@ -1,0 +1,304 @@
+
+import React, { useState, useCallback, useRef, useEffect } from 'react';
+import BibleViewer from './components/BibleViewer';
+import ChatInterface from './components/ChatInterface';
+import VoiceSession from './components/VoiceSession';
+import Notebook from './components/Notebook';
+import ErrorBoundary from './components/ErrorBoundary';
+import { SelectionInfo } from './types';
+import { exportAllNotes, readLibraryFile } from './services/fileSystem';
+import { notesStorage } from './services/notesStorage';
+
+const App: React.FC = () => {
+  const [splitOffset, setSplitOffset] = useState(50);
+  const [bottomSplitOffset, setBottomSplitOffset] = useState(65);
+  const [isResizing, setIsResizing] = useState(false);
+  const [isBottomResizing, setIsBottomResizing] = useState(false);
+  const [isVoiceOpen, setIsVoiceOpen] = useState(false);
+  const [hasKey, setHasKey] = useState<boolean | null>(null);
+  const [selectionPayload, setSelectionPayload] = useState<{ text: string; id: number } | null>(null);
+  
+  const containerRef = useRef<HTMLDivElement>(null);
+  const libraryInputRef = useRef<HTMLInputElement>(null);
+
+  // Note state management
+  const [currentSelection, setCurrentSelection] = useState<SelectionInfo | null>(null);
+  const [notes, setNotes] = useState<Record<string, string>>({});
+  const [notesLoading, setNotesLoading] = useState(true);
+
+  // Load notes from IndexedDB on mount and migrate from localStorage if needed
+  useEffect(() => {
+    const loadNotes = async () => {
+      try {
+        // First try to migrate from localStorage
+        await notesStorage.migrateFromLocalStorage();
+        // Then load all notes from IndexedDB
+        const loadedNotes = await notesStorage.getAllNotes();
+        setNotes(loadedNotes);
+      } catch (error) {
+        console.error('Failed to load notes from IndexedDB:', error);
+      } finally {
+        setNotesLoading(false);
+      }
+    };
+    loadNotes();
+  }, []);
+
+  useEffect(() => {
+    const checkKey = async () => {
+      try {
+        // Check if running in AI Studio environment
+        if ((window as any).aistudio) {
+          const selected = await (window as any).aistudio.hasSelectedApiKey();
+          setHasKey(selected);
+        } else {
+          // Not in AI Studio, assume we have an API key from .env
+          setHasKey(true);
+        }
+      } catch (error) {
+        console.error('Error checking API key:', error);
+        setHasKey(true); // Assume key exists to proceed
+      }
+    };
+    checkKey();
+  }, []);
+
+  const handleSelectKey = async () => {
+    try {
+      if ((window as any).aistudio) {
+        await (window as any).aistudio.openSelectKey();
+      }
+      setHasKey(true);
+    } catch (error) {
+      console.error('Error selecting API key:', error);
+    }
+  };
+
+  const handleSaveNote = useCallback(async (id: string, content: string) => {
+    try {
+      if (!content || content.trim() === "") {
+        // Delete note from IndexedDB
+        await notesStorage.deleteNote(id);
+        setNotes(prev => {
+          const updated = { ...prev };
+          delete updated[id];
+          return updated;
+        });
+      } else {
+        // Save note to IndexedDB
+        await notesStorage.saveNote(id, content);
+        setNotes(prev => ({ ...prev, [id]: content }));
+      }
+    } catch (error) {
+      console.error('Failed to save note to IndexedDB:', error);
+    }
+  }, []);
+
+  const handleBackupAll = () => {
+    if (Object.keys(notes).length === 0) {
+      alert("当前没有可备份的笔记。");
+      return;
+    }
+    exportAllNotes(notes);
+  };
+
+  const handleClearAll = async () => {
+    if (Object.keys(notes).length === 0) {
+      alert("当前没有笔记可以清除。");
+      return;
+    }
+    
+    const noteCount = Object.keys(notes).length;
+    if (confirm(`确定要清除所有 ${noteCount} 条笔记吗？此操作无法撤销。建议先备份您的笔记。`)) {
+      if (confirm(`再次确认：您真的要删除所有笔记吗？`)) {
+        try {
+          await notesStorage.clearAllNotes();
+          setNotes({});
+          alert("所有笔记已清除。");
+        } catch (error) {
+          console.error('Failed to clear notes from IndexedDB:', error);
+          alert("清除笔记时出错，请重试。");
+        }
+      }
+    }
+  };
+
+  const handleRestoreClick = () => {
+    libraryInputRef.current?.click();
+  };
+
+  const handleLibraryImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (confirm("恢复备份将合并您的笔记。是否继续？")) {
+      try {
+        const importedNotes = await readLibraryFile(file);
+        // Import to IndexedDB and update state
+        await notesStorage.importNotes(importedNotes);
+        const allNotes = await notesStorage.getAllNotes();
+        setNotes(allNotes);
+        alert("笔记库恢复成功！");
+      } catch (err: any) {
+        alert("恢复失败: " + err.message);
+      }
+    }
+    e.target.value = "";
+  };
+
+  const startResizing = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  const startBottomResizing = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsBottomResizing(true);
+  }, []);
+
+  const stopResizing = useCallback(() => {
+    setIsResizing(false);
+    setIsBottomResizing(false);
+  }, []);
+
+  const resize = useCallback((e: MouseEvent) => {
+    if (containerRef.current) {
+      const containerRect = containerRef.current.getBoundingClientRect();
+      
+      if (isResizing) {
+        const relativeY = e.clientY - containerRect.top;
+        const percentage = (relativeY / containerRect.height) * 100;
+        if (percentage > 15 && percentage < 85) setSplitOffset(percentage);
+      } else if (isBottomResizing) {
+        const relativeX = e.clientX - containerRect.left;
+        const percentage = (relativeX / containerRect.width) * 100;
+        if (percentage > 20 && percentage < 80) setBottomSplitOffset(percentage);
+      }
+    }
+  }, [isResizing, isBottomResizing]);
+
+  useEffect(() => {
+    if (isResizing || isBottomResizing) {
+      window.addEventListener('mousemove', resize);
+      window.addEventListener('mouseup', stopResizing);
+    } else {
+      window.removeEventListener('mousemove', resize);
+      window.removeEventListener('mouseup', stopResizing);
+    }
+    return () => {
+      window.removeEventListener('mousemove', resize);
+      window.removeEventListener('mouseup', stopResizing);
+    };
+  }, [isResizing, isBottomResizing, resize, stopResizing]);
+
+  if (hasKey === false) {
+    return (
+      <div className="flex flex-col items-center justify-center h-screen bg-slate-50 p-6 text-center">
+        <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center text-white text-3xl font-bold mb-6 shadow-lg">圣</div>
+        <h1 className="text-2xl font-bold text-slate-800 mb-2">欢迎使用圣经学研</h1>
+        <p className="text-slate-600 max-w-md mb-8">为了使用高级图像和视频创作功能，您需要选择一个已开启结算的 API 密钥。</p>
+        <button onClick={handleSelectKey} className="px-8 py-3 bg-indigo-600 text-white rounded-xl font-bold shadow-lg hover:bg-indigo-700 transition-all active:scale-95">选择 API 密钥</button>
+        <div className="mt-4"><a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noreferrer" className="text-xs text-indigo-500 hover:underline">了解关于结算的更多信息</a></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-slate-50">
+      <input 
+        type="file" 
+        ref={libraryInputRef} 
+        onChange={handleLibraryImport} 
+        accept=".bible-library" 
+        className="hidden" 
+      />
+      
+      <header className="flex items-center justify-between px-6 py-3 bg-white border-b border-slate-200 shrink-0 z-40 shadow-sm">
+        <div className="flex items-center gap-2">
+          <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold shadow-sm">圣</div>
+          <h1 className="text-xl font-bold tracking-tight text-slate-800">经学研 · Scripture Scholar</h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 mr-2">
+            <button 
+              onClick={handleBackupAll} 
+              className="text-[10px] font-black uppercase text-slate-400 hover:text-indigo-600 transition-colors flex items-center gap-1 border border-slate-200 px-2 py-1 rounded"
+              title="下载全部笔记到一个文件"
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" /></svg>
+              全量备份
+            </button>
+            <button 
+              onClick={handleRestoreClick} 
+              className="text-[10px] font-black uppercase text-slate-400 hover:text-indigo-600 transition-colors flex items-center gap-1 border border-slate-200 px-2 py-1 rounded"
+              title="从备份文件恢复全部笔记"
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" /></svg>
+              恢复库
+            </button>
+            <button 
+              onClick={handleClearAll} 
+              className="text-[10px] font-black uppercase text-slate-400 hover:text-red-600 transition-colors flex items-center gap-1 border border-slate-200 px-2 py-1 rounded"
+              title="清除所有笔记"
+            >
+              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+              清空库
+            </button>
+          </div>
+          <button onClick={() => setIsVoiceOpen(true)} className="flex items-center gap-2 px-3 py-1.5 bg-indigo-50 text-indigo-600 rounded-full text-xs font-bold hover:bg-indigo-100 transition-all border border-indigo-100 shadow-sm">
+            <span className="relative flex h-2 w-2"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span></span>
+            语音学者
+          </button>
+          <div className="h-4 w-[1px] bg-slate-200"></div>
+          <span className="text-[10px] font-bold text-slate-500 bg-slate-100 px-2 py-1 rounded uppercase tracking-tighter">Bible Workspace</span>
+        </div>
+      </header>
+
+      <main ref={containerRef} className="flex-1 flex flex-col relative overflow-hidden">
+        <div className="shrink-0 overflow-hidden min-h-0" style={{ height: `${splitOffset}%` }}>
+          <BibleViewer 
+            notes={notes}
+            onSelectionChange={setCurrentSelection}
+            onVersesSelectedForChat={(text) => setSelectionPayload({ text, id: Date.now() })} 
+          />
+        </div>
+
+        <div 
+          onMouseDown={startResizing} 
+          className={`h-2 w-full flex items-center justify-center cursor-row-resize z-30 transition-all ${isResizing ? 'bg-indigo-600' : 'bg-slate-300 hover:bg-indigo-400'}`}
+        >
+          <div className="w-16 h-1 bg-white/50 rounded-full"></div>
+        </div>
+
+        <div className="flex-1 flex overflow-hidden min-h-0">
+          <div style={{ width: `${bottomSplitOffset}%` }} className="h-full overflow-hidden">
+             <ChatInterface incomingText={selectionPayload} />
+          </div>
+          
+          <div 
+            onMouseDown={startBottomResizing}
+            className={`w-2 h-full flex items-center justify-center cursor-col-resize z-30 transition-all ${isBottomResizing ? 'bg-indigo-600 shadow-[0_0_15px_rgba(79,70,229,0.4)]' : 'bg-slate-200 hover:bg-indigo-400'}`}
+          >
+            <div className="h-16 w-1 bg-white/60 rounded-full"></div>
+          </div>
+
+          <div style={{ width: `${100 - bottomSplitOffset}%` }} className="h-full overflow-hidden">
+            <Notebook 
+              selection={currentSelection} 
+              onSaveNote={handleSaveNote}
+              initialContent={currentSelection ? (notes[currentSelection.id] || '') : ''}
+            />
+          </div>
+        </div>
+      </main>
+
+      <VoiceSession isOpen={isVoiceOpen} onClose={() => setIsVoiceOpen(false)} />
+
+      {(isResizing || isBottomResizing) && (
+        <style>{`* { user-select: none !important; cursor: inherit !important; }`}</style>
+      )}
+    </div>
+  );
+};
+
+export default App;

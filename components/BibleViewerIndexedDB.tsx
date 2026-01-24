@@ -1,0 +1,759 @@
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { Verse, Book, SelectionInfo } from '../types';
+import { BIBLE_BOOKS } from '../constants';
+import { toSimplified } from '../services/chineseConverter';
+import { bibleStorage } from '../services/bibleStorage';
+
+interface BibleViewerProps {
+  onSelectionChange: (info: SelectionInfo) => void;
+  onVersesSelectedForChat: (text: string) => void;
+  notes: Record<string, string>;
+}
+
+const BibleViewer: React.FC<BibleViewerProps> = ({ onSelectionChange, onVersesSelectedForChat, notes }) => {
+  const [selectedBook, setSelectedBook] = useState<Book>(BIBLE_BOOKS[0]);
+  const [selectedChapter, setSelectedChapter] = useState(1);
+  const [leftVerses, setLeftVerses] = useState<Verse[]>([]);
+  const [rightVerses, setRightVerses] = useState<Verse[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedVerses, setSelectedVerses] = useState<number[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [isSimplified, setIsSimplified] = useState(() => {
+    const saved = localStorage.getItem('bibleChineseMode');
+    return saved === 'simplified';
+  });
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState(0);
+  const [isOffline, setIsOffline] = useState(false);
+  const [touchStartX, setTouchStartX] = useState<number | null>(null);
+  const [isSwiping, setIsSwiping] = useState(false);
+  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
+  const [offlineChapters, setOfflineChapters] = useState<Set<string>>(new Set());
+  const [autoDownloadInProgress, setAutoDownloadInProgress] = useState(false);
+  const downloadCancelRef = useRef(false);
+  
+  const [vSplitOffset, setVSplitOffset] = useState(50);
+  const [isResizing, setIsResizing] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const leftScrollRef = useRef<HTMLDivElement>(null);
+  const rightScrollRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetchChapter();
+  }, [selectedBook, selectedChapter]);
+
+  // Initialize storage and check offline status on mount
+  useEffect(() => {
+    initializeStorage();
+  }, []);
+
+  const initializeStorage = async () => {
+    try {
+      await bibleStorage.init();
+      await checkOfflineStatus();
+      await checkAndStartAutoDownload();
+    } catch (error) {
+      console.error('Error initializing storage:', error);
+    }
+  };
+
+  const checkOfflineStatus = async () => {
+    try {
+      const offline = await bibleStorage.getAllOfflineChapters();
+      setOfflineChapters(offline);
+    } catch (error) {
+      console.error('Error checking offline status:', error);
+    }
+  };
+
+  const checkAndStartAutoDownload = async () => {
+    try {
+      const hasDownloadedBefore = await bibleStorage.getMetadata('bible_offline_downloaded');
+      const hasDownloadProgress = await bibleStorage.getMetadata('download_progress');
+      const offlineChapters = await bibleStorage.getAllOfflineChapters();
+      
+      if (!hasDownloadedBefore && offlineChapters.size === 0 && !hasDownloadProgress && !isDownloading) {
+        // Start auto-download after delay
+        setTimeout(() => {
+          handleAutoDownloadBible();
+        }, 2000);
+      } else if (hasDownloadProgress && !isDownloading) {
+        // Resume incomplete download
+        setTimeout(() => {
+          handleResumeDownload();
+        }, 1000);
+      }
+    } catch (error) {
+      console.error('Error checking auto-download status:', error);
+    }
+  };
+
+  const fetchChapter = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      // Try to get from IndexedDB first
+      const cachedCuv = await bibleStorage.getChapter(selectedBook.id, selectedChapter, 'cuv');
+      const cachedWeb = await bibleStorage.getChapter(selectedBook.id, selectedChapter, 'web');
+      
+      if (cachedCuv && cachedWeb) {
+        setLeftVerses(cachedCuv.verses);
+        setRightVerses(cachedWeb.verses);
+        setIsOffline(true);
+      } else {
+        setIsOffline(false);
+        // Fetch from API if not in cache
+        const cuvRes = await fetch(`https://bible-api.com/${selectedBook.id}${selectedChapter}?translation=cuv`);
+        const cuvData = await cuvRes.json();
+        const engRes = await fetch(`https://bible-api.com/${selectedBook.id}${selectedChapter}?translation=web`);
+        const engData = await engRes.json();
+        
+        if (cuvData?.verses && engData?.verses) {
+          setLeftVerses(cuvData.verses);
+          setRightVerses(engData.verses);
+        } else {
+          setError("无法加载经文内容。");
+        }
+      }
+      setSelectedVerses([]);
+    } catch (err) {
+      setError("连接圣经服务器时出错。");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleChineseMode = () => {
+    const newMode = !isSimplified;
+    setIsSimplified(newMode);
+    localStorage.setItem('bibleChineseMode', newMode ? 'simplified' : 'traditional');
+  };
+
+  const processChineseText = (text: string): string => {
+    return isSimplified ? toSimplified(text) : text;
+  };
+
+  const handleDownloadCurrentChapter = async () => {
+    setIsDownloading(true);
+    setDownloadProgress(0);
+    
+    try {
+      // Download current chapter with retry logic
+      let cuvSuccess = false;
+      for (let retry = 0; retry < 3 && !cuvSuccess; retry++) {
+        try {
+          const cuvRes = await fetch(`https://bible-api.com/${selectedBook.id}${selectedChapter}?translation=cuv`);
+          if (cuvRes.ok) {
+            const cuvData = await cuvRes.json();
+            if (cuvData?.verses) {
+              await bibleStorage.saveChapter(selectedBook.id, selectedChapter, 'cuv', cuvData);
+              cuvSuccess = true;
+            }
+          }
+        } catch (e) {
+          if (retry === 2) throw e;
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+      setDownloadProgress(50);
+      
+      let webSuccess = false;
+      for (let retry = 0; retry < 3 && !webSuccess; retry++) {
+        try {
+          const webRes = await fetch(`https://bible-api.com/${selectedBook.id}${selectedChapter}?translation=web`);
+          if (webRes.ok) {
+            const webData = await webRes.json();
+            if (webData?.verses) {
+              await bibleStorage.saveChapter(selectedBook.id, selectedChapter, 'web', webData);
+              webSuccess = true;
+            }
+          }
+        } catch (e) {
+          if (retry === 2) throw e;
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+      }
+      setDownloadProgress(100);
+      
+      await checkOfflineStatus();
+      fetchChapter(); // Refresh to show offline status
+      alert(`${selectedBook.name} ${selectedChapter} 章已下载！`);
+    } catch (err) {
+      console.error('Download error:', err);
+      alert('下载失败，请检查网络连接后重试。');
+    } finally {
+      setIsDownloading(false);
+      setDownloadProgress(0);
+      setShowDownloadMenu(false);
+    }
+  };
+
+  const downloadBibleInternal = async (startBookIndex = 0, startChapter = 0, startCompleted = 0, existingFailedChapters: string[] = [], saveProgress = true, isAuto = false) => {
+    const books = BIBLE_BOOKS;
+    let completed = startCompleted;
+    const total = books.reduce((sum, book) => sum + (book.chapters || 0), 0) * 2; // *2 for both translations
+    let failedChapters = [...existingFailedChapters];
+    
+    for (let bookIndex = startBookIndex; bookIndex < books.length; bookIndex++) {
+      const book = books[bookIndex];
+      const startChapterForBook = bookIndex === startBookIndex ? startChapter : 1;
+      
+      for (let chapter = startChapterForBook; chapter <= (book.chapters || 1); chapter++) {
+        // Check if download was cancelled
+        if (downloadCancelRef.current) {
+          if (saveProgress) {
+            await bibleStorage.saveMetadata('download_progress', {
+              bookIndex,
+              chapter,
+              completed,
+              totalChapters: total,
+              failedChapters,
+              timestamp: Date.now()
+            });
+          }
+          return { cancelled: true, failedChapters };
+        }
+
+        // Skip if already downloaded
+        const hasChapter = await bibleStorage.hasChapter(book.id, chapter);
+        if (hasChapter) {
+          completed += 2;
+          setDownloadProgress(Math.round((completed / total) * 100));
+          continue;
+        }
+
+        // Skip if previously failed
+        if (failedChapters.includes(`${book.id} ${chapter}`)) {
+          completed += 2;
+          setDownloadProgress(Math.round((completed / total) * 100));
+          continue;
+        }
+
+        try {
+          // Download CUV with retry logic
+          let cuvSuccess = false;
+          for (let retry = 0; retry < 3 && !cuvSuccess; retry++) {
+            try {
+              const cuvRes = await fetch(`https://bible-api.com/${book.id}${chapter}?translation=cuv`);
+              if (cuvRes.ok) {
+                const cuvData = await cuvRes.json();
+                if (cuvData?.verses) {
+                  await bibleStorage.saveChapter(book.id, chapter, 'cuv', cuvData);
+                  cuvSuccess = true;
+                }
+              } else if (retry < 2) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
+              }
+            } catch (e) {
+              if (retry === 2) throw e;
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+          }
+          if (!cuvSuccess) throw new Error('Failed to download CUV after retries');
+          completed++;
+          setDownloadProgress(Math.round((completed / total) * 100));
+          
+          // Download WEB with retry logic
+          let webSuccess = false;
+          for (let retry = 0; retry < 3 && !webSuccess; retry++) {
+            try {
+              const webRes = await fetch(`https://bible-api.com/${book.id}${chapter}?translation=web`);
+              if (webRes.ok) {
+                const webData = await webRes.json();
+                if (webData?.verses) {
+                  await bibleStorage.saveChapter(book.id, chapter, 'web', webData);
+                  webSuccess = true;
+                }
+              } else if (retry < 2) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
+              }
+            } catch (e) {
+              if (retry === 2) throw e;
+              await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+          }
+          if (!webSuccess) throw new Error('Failed to download WEB after retries');
+          completed++;
+          setDownloadProgress(Math.round((completed / total) * 100));
+          
+        } catch (chapterErr) {
+          console.error(`Failed to download ${book.id} ${chapter}:`, chapterErr);
+          failedChapters.push(`${book.id} ${chapter}`);
+          completed += 2; // Skip both translations
+          setDownloadProgress(Math.round((completed / total) * 100));
+        }
+        
+        // Save progress periodically
+        if (saveProgress && completed % 10 === 0) {
+          await bibleStorage.saveMetadata('download_progress', {
+            bookIndex,
+            chapter,
+            completed,
+            totalChapters: total,
+            failedChapters,
+            timestamp: Date.now()
+          });
+        }
+        
+        // Delay between chapters to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, isAuto ? 800 : 500));
+      }
+    }
+    
+    if (saveProgress) {
+      await bibleStorage.deleteMetadata('download_progress');
+    }
+    
+    return { cancelled: false, failedChapters };
+  };
+
+  const handleDownloadBible = async () => {
+    setIsDownloading(true);
+    setDownloadProgress(0);
+    downloadCancelRef.current = false;
+    
+    try {
+      const result = await downloadBibleInternal();
+      
+      if (!result.cancelled) {
+        if (result.failedChapters.length > 0) {
+          alert(`部分章节下载失败：${result.failedChapters.join(', ')}。其他章节已成功下载。`);
+        } else {
+          await bibleStorage.saveMetadata('bible_offline_downloaded', true);
+          alert('圣经已成功下载供离线使用！');
+        }
+      }
+    } catch (err) {
+      console.error('Download error:', err);
+      alert('下载失败，请检查网络连接后重试。');
+    } finally {
+      setIsDownloading(false);
+      setDownloadProgress(0);
+      setShowDownloadMenu(false);
+      await checkOfflineStatus();
+    }
+  };
+
+  const handleAutoDownloadBible = async () => {
+    if (autoDownloadInProgress) return;
+    
+    setAutoDownloadInProgress(true);
+    setDownloadProgress(0);
+    downloadCancelRef.current = false;
+    
+    try {
+      const result = await downloadBibleInternal(0, 0, 0, [], true, true);
+      
+      if (!result.cancelled) {
+        await bibleStorage.saveMetadata('bible_offline_downloaded', true);
+      }
+    } catch (err) {
+      console.error('Auto-download error:', err);
+    } finally {
+      setAutoDownloadInProgress(false);
+      setDownloadProgress(0);
+      await checkOfflineStatus();
+    }
+  };
+
+  const handleResumeDownload = async () => {
+    const progress = await bibleStorage.getMetadata('download_progress');
+    if (!progress) return;
+    
+    try {
+      const { bookIndex, chapter, completed, failedChapters } = progress;
+      setIsDownloading(true);
+      setDownloadProgress(Math.round((completed / progress.totalChapters) * 100));
+      downloadCancelRef.current = false;
+      
+      const result = await downloadBibleInternal(bookIndex, chapter + 1, completed, failedChapters || []);
+      
+      if (!result.cancelled) {
+        if (result.failedChapters.length > 0) {
+          alert(`部分章节下载失败：${result.failedChapters.join(', ')}。其他章节已成功下载。`);
+        } else {
+          await bibleStorage.saveMetadata('bible_offline_downloaded', true);
+          alert('圣经已成功下载供离线使用！');
+        }
+      }
+    } catch (err) {
+      console.error('Resume download error:', err);
+      alert('恢复下载失败，请重试。');
+    } finally {
+      setIsDownloading(false);
+      setDownloadProgress(0);
+      setShowDownloadMenu(false);
+      await checkOfflineStatus();
+    }
+  };
+
+  const notifySelection = useCallback((verseNums: number[], manualText?: string) => {
+    const id = verseNums.length > 0 
+      ? `${selectedBook.id}:${selectedChapter}:${verseNums[0]}`
+      : `${selectedBook.id}:${selectedChapter}`;
+    
+    let fullText = "";
+    if (manualText) {
+      fullText = manualText;
+    } else if (verseNums.length > 0) {
+      fullText = verseNums.map(vNum => {
+        const leftV = leftVerses.find(v => v.verse === vNum);
+        const rightV = rightVerses.find(v => v.verse === vNum);
+        return `[${selectedBook.name} ${selectedChapter}:${vNum}]\n和合本: ${leftV?.text || ''}\nWEB: ${rightV?.text || ''}`;
+      }).join('\n\n');
+    }
+
+    onSelectionChange({
+      bookId: selectedBook.id,
+      bookName: selectedBook.name,
+      chapter: selectedChapter,
+      verseNums,
+      id,
+      selectedRawText: fullText
+    });
+
+    onVersesSelectedForChat(fullText);
+  }, [selectedBook, selectedChapter, leftVerses, rightVerses, onSelectionChange, onVersesSelectedForChat]);
+
+  const handleVerseClick = (verseNum: number, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const selection = window.getSelection()?.toString();
+    if (selection && selection.length > 0) return;
+
+    const newSelection = [verseNum];
+    setSelectedVerses(newSelection);
+    notifySelection(newSelection);
+  };
+
+  const handleEmptySpaceClick = (e: React.MouseEvent) => {
+    const selection = window.getSelection()?.toString();
+    if (selection && selection.length > 0) return;
+
+    const allVerses = leftVerses.map(v => v.verse);
+    setSelectedVerses(allVerses);
+    notifySelection(allVerses);
+  };
+
+  const handleMouseUp = (e: React.MouseEvent) => {
+    const selection = window.getSelection();
+    const text = selection?.toString().trim();
+    if (text && text.length > 0) {
+      const anchorVerses = selectedVerses.length > 0 ? selectedVerses : [1];
+      notifySelection(anchorVerses, text);
+    }
+  };
+
+  const handleScroll = (source: 'left' | 'right') => {
+    const src = source === 'left' ? leftScrollRef.current : rightScrollRef.current;
+    const dest = source === 'left' ? rightScrollRef.current : leftScrollRef.current;
+    if (src && dest) {
+      dest.scrollTop = src.scrollTop;
+    }
+  };
+
+  const startResizing = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    setIsResizing(true);
+  }, []);
+
+  const stopResizing = useCallback(() => setIsResizing(false), []);
+
+  const resize = useCallback((e: MouseEvent) => {
+    if (isResizing && containerRef.current) {
+      const rect = containerRef.current.getBoundingClientRect();
+      const percentage = ((e.clientX - rect.left) / rect.width) * 100;
+      if (percentage > 20 && percentage < 80) setVSplitOffset(percentage);
+    }
+  }, [isResizing]);
+
+  useEffect(() => {
+    if (isResizing) {
+      window.addEventListener('mousemove', resize);
+      window.addEventListener('mouseup', stopResizing);
+    } else {
+      window.removeEventListener('mousemove', resize);
+      window.removeEventListener('mouseup', stopResizing);
+    }
+    return () => {
+      window.removeEventListener('mousemove', resize);
+      window.removeEventListener('mouseup', stopResizing);
+    };
+  }, [isResizing, resize, stopResizing]);
+
+  const hasNoteMark = (verseNum: number) => {
+    const id = `${selectedBook.id}:${selectedChapter}:${verseNum}`;
+    return !!notes[id];
+  };
+
+  const navigateChapter = (direction: 'prev' | 'next') => {
+    if (direction === 'prev') {
+      if (selectedChapter > 1) {
+        setSelectedChapter(selectedChapter - 1);
+      } else {
+        const currentIndex = BIBLE_BOOKS.findIndex(b => b.id === selectedBook.id);
+        if (currentIndex > 0) {
+          const prevBook = BIBLE_BOOKS[currentIndex - 1];
+          setSelectedBook(prevBook);
+          setSelectedChapter(prevBook.chapters || 1);
+        }
+      }
+    } else {
+      if (selectedChapter < (selectedBook.chapters || 1)) {
+        setSelectedChapter(selectedChapter + 1);
+      } else {
+        const currentIndex = BIBLE_BOOKS.findIndex(b => b.id === selectedBook.id);
+        if (currentIndex < BIBLE_BOOKS.length - 1) {
+          const nextBook = BIBLE_BOOKS[currentIndex + 1];
+          setSelectedBook(nextBook);
+          setSelectedChapter(1);
+        }
+      }
+    }
+    setSelectedVerses([]);
+  };
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchStartX(e.touches[0].clientX);
+    setIsSwiping(false);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (touchStartX === null) return;
+    const diff = e.touches[0].clientX - touchStartX;
+    if (Math.abs(diff) > 10) {
+      setIsSwiping(true);
+    }
+  };
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (touchStartX === null || !isSwiping) return;
+    const diff = e.changedTouches[0].clientX - touchStartX;
+    if (Math.abs(diff) > 50) {
+      navigateChapter(diff > 0 ? 'prev' : 'next');
+    }
+    setTouchStartX(null);
+    setIsSwiping(false);
+  };
+
+  const canNavigatePrev = selectedChapter > 1 || BIBLE_BOOKS.findIndex(b => b.id === selectedBook.id) > 0;
+  const canNavigateNext = selectedChapter < (selectedBook.chapters || 1) || BIBLE_BOOKS.findIndex(b => b.id === selectedBook.id) < BIBLE_BOOKS.length - 1;
+
+  // Check if there's incomplete download
+  const [hasIncompleteDownload, setHasIncompleteDownload] = useState(false);
+  useEffect(() => {
+    bibleStorage.getMetadata('download_progress').then(progress => {
+      setHasIncompleteDownload(!!progress);
+    });
+  }, [isDownloading]);
+
+  return (
+    <div 
+      className="h-full flex flex-col bg-white overflow-hidden select-text" 
+      ref={containerRef} 
+      onClick={handleEmptySpaceClick}
+      onMouseUp={handleMouseUp}
+    >
+      <div className="flex items-center justify-between p-3 border-b bg-slate-50 sticky top-0 z-10 shrink-0 shadow-sm" onClick={e => e.stopPropagation()}>
+        <div className="flex gap-2 items-center">
+          <button 
+            onClick={() => navigateChapter('prev')}
+            disabled={!canNavigatePrev}
+            className="p-1.5 rounded hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            title="上一章"
+          >
+            <svg className="w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <select 
+            className="p-1.5 rounded border bg-white text-sm focus:ring-2 focus:ring-indigo-500 font-medium"
+            value={selectedBook.id}
+            onChange={(e) => {
+              const book = BIBLE_BOOKS.find(b => b.id === e.target.value);
+              if (book) { setSelectedBook(book); setSelectedChapter(1); }
+            }}
+          >
+            {BIBLE_BOOKS.map(book => <option key={book.id} value={book.id}>{book.name}</option>)}
+          </select>
+          <select 
+            className="p-1.5 rounded border bg-white text-sm focus:ring-2 focus:ring-indigo-500 font-medium w-24"
+            value={selectedChapter}
+            onChange={(e) => setSelectedChapter(Number(e.target.value))}
+          >
+            {Array.from({ length: selectedBook.chapters || 1 }, (_, i) => i + 1).map(num => {
+              const isOffline = offlineChapters.has(`${selectedBook.id}_${num}`);
+              return (
+                <option key={num} value={num}>
+                  {isOffline ? '✓ ' : ''}第 {num} 章
+                </option>
+              );
+            })}
+          </select>
+          <button 
+            onClick={() => navigateChapter('next')}
+            disabled={!canNavigateNext}
+            className="p-1.5 rounded hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+            title="下一章"
+          >
+            <svg className="w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={toggleChineseMode}
+            className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-full border border-slate-200 hover:border-indigo-300 transition-colors shadow-sm"
+            title="切换简繁体"
+          >
+            <span className="text-xs font-medium text-slate-600">{isSimplified ? '简' : '繁'}</span>
+          </button>
+          <div className="relative">
+            <button
+              onClick={() => setShowDownloadMenu(!showDownloadMenu)}
+              disabled={isDownloading || autoDownloadInProgress}
+              className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-full border border-slate-200 hover:border-indigo-300 transition-colors shadow-sm disabled:opacity-50"
+              title="下载圣经供离线使用"
+            >
+              {(isDownloading || autoDownloadInProgress) ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
+                  <span className="text-xs font-medium text-slate-600">
+                    {autoDownloadInProgress ? '自动 ' : ''}{downloadProgress}%
+                  </span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10" />
+                  </svg>
+                  <span className="text-xs font-medium text-slate-600">离线</span>
+                  <svg className="w-3 h-3 text-slate-400 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                  </svg>
+                </>
+              )}
+            </button>
+            {showDownloadMenu && !isDownloading && !autoDownloadInProgress && (
+              <div className="absolute right-0 top-full mt-2 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-20">
+                <button
+                  onClick={handleDownloadCurrentChapter}
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-indigo-50 text-slate-700 whitespace-nowrap"
+                >
+                  下载当前章节
+                </button>
+                <button
+                  onClick={handleDownloadBible}
+                  className="w-full px-4 py-2 text-left text-sm hover:bg-indigo-50 text-slate-700 whitespace-nowrap"
+                >
+                  下载全部圣经
+                </button>
+                {hasIncompleteDownload && (
+                  <button
+                    onClick={handleResumeDownload}
+                    className="w-full px-4 py-2 text-left text-sm hover:bg-indigo-50 text-orange-600 whitespace-nowrap border-t"
+                  >
+                    继续下载
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hidden sm:block">
+            {selectedVerses.length === leftVerses.length && leftVerses.length > 0 ? '已选全章' : (selectedVerses.length > 0 ? `已选 ${selectedVerses.length} 节` : '点击经文或高亮文字')}
+          </div>
+          <div className="h-4 w-[1px] bg-slate-200 hidden sm:block"></div>
+          <div className="flex items-center gap-1.5 px-3 py-1 bg-white rounded-full border border-slate-200 shadow-sm">
+             <div className={`w-1.5 h-1.5 rounded-full ${isOffline ? 'bg-green-500' : 'bg-indigo-500 animate-pulse'}`}></div>
+             <span className="text-[10px] font-bold text-slate-500">{isOffline ? '离线模式' : '在线'}</span>
+          </div>
+        </div>
+      </div>
+
+      <div 
+        className="flex-1 flex overflow-hidden relative"
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+      >
+        <div 
+          ref={leftScrollRef}
+          onScroll={() => handleScroll('left')}
+          className="overflow-y-auto p-4 md:p-6 space-y-4 font-serif-sc border-r border-slate-100"
+          style={{ width: `${vSplitOffset}%` }}
+        >
+          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">和合本 CUV</div>
+          {loading ? (
+            <div className="animate-pulse space-y-4">
+              {[1,2,3,4,5].map(n => <div key={n} className="h-4 bg-slate-100 rounded w-full"></div>)}
+            </div>
+          ) : (
+            leftVerses.map(v => (
+              <div 
+                key={`left-${v.verse}`}
+                onClick={(e) => handleVerseClick(v.verse, e)}
+                className={`p-2.5 rounded-lg transition-all border relative ${
+                  selectedVerses.includes(v.verse) ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'border-transparent hover:bg-slate-50'
+                }`}
+              >
+                <span className="text-indigo-500 font-bold mr-3 text-xs">{v.verse}</span>
+                <span className="text-lg leading-relaxed text-slate-800">{processChineseText(v.text)}</span>
+                {hasNoteMark(v.verse) && (
+                  <div className="absolute top-1 right-1 text-amber-500" title="已有笔记">
+                    <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14h-4v-2h4v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+
+        <div 
+          onMouseDown={startResizing}
+          className={`w-1.5 h-full cursor-col-resize z-20 transition-colors flex items-center justify-center ${isResizing ? 'bg-indigo-500' : 'bg-slate-200 hover:bg-indigo-400'}`}
+        >
+          <div className="h-8 w-0.5 bg-white/50 rounded-full"></div>
+        </div>
+
+        <div 
+          ref={rightScrollRef}
+          onScroll={() => handleScroll('right')}
+          className="overflow-y-auto p-4 md:p-6 space-y-4 font-sans"
+          style={{ width: `${100 - vSplitOffset}%` }}
+        >
+          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">English (WEB)</div>
+          {loading ? (
+            <div className="animate-pulse space-y-4">
+              {[1,2,3,4,5].map(n => <div key={n} className="h-4 bg-slate-100 rounded w-full"></div>)}
+            </div>
+          ) : (
+            rightVerses.map(v => (
+              <div 
+                key={`right-${v.verse}`}
+                onClick={(e) => handleVerseClick(v.verse, e)}
+                className={`p-2.5 rounded-lg transition-all border ${
+                  selectedVerses.includes(v.verse) ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 'border-transparent hover:bg-slate-50'
+                }`}
+              >
+                <span className="text-indigo-400 font-bold mr-3 text-xs">{v.verse}</span>
+                <span className="text-base leading-relaxed text-slate-700 italic">{v.text}</span>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+      
+      {error && (
+        <div className="absolute inset-0 flex items-center justify-center bg-white/80 backdrop-blur-sm z-50">
+          <div className="p-6 bg-white rounded-xl shadow-xl border border-red-100 text-center">
+            <p className="text-red-500 font-bold mb-4">{error}</p>
+            <button onClick={fetchChapter} className="px-6 py-2 bg-indigo-600 text-white rounded-full">重试</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default BibleViewer;
