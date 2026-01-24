@@ -251,7 +251,7 @@ const App: React.FC = () => {
 
   if (hasKey === false) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen bg-slate-50 p-6 text-center">
+      <div className="flex flex-col items-center justify-center h-screen p-6 text-center" style={{ backgroundColor: '#FAF8F3' }}>
         <div className="w-16 h-16 bg-indigo-600 rounded-2xl flex items-center justify-center text-white text-3xl font-bold mb-6 shadow-lg">圣</div>
         <h1 className="text-2xl font-bold text-slate-800 mb-2">欢迎使用圣经学研</h1>
         <p className="text-slate-600 max-w-md mb-8">为了使用高级图像和视频创作功能，您需要选择一个已开启结算的 API 密钥。</p>
@@ -263,7 +263,7 @@ const App: React.FC = () => {
 
   return (
     <div 
-      className="flex flex-col h-screen w-screen overflow-hidden bg-slate-50"
+      className="flex flex-col h-screen w-screen overflow-hidden"
       style={{
         display: '-webkit-box',
         display: '-webkit-flex',
@@ -278,7 +278,8 @@ const App: React.FC = () => {
         top: 0,
         left: 0,
         right: 0,
-        bottom: 0
+        bottom: 0,
+        backgroundColor: '#FAF8F3' // Paper-like color similar to iOS Books
       }}
     >
       <input 
@@ -373,11 +374,11 @@ const App: React.FC = () => {
             onMouseDown={startResizing}
             onTouchStart={startResizing}
             onPointerDown={startResizing}
-            className={`absolute w-full cursor-row-resize ${isResizing ? 'h-3 bg-indigo-600' : 'h-2 bg-slate-300 hover:bg-indigo-400 hover:h-3'} transition-all`}
+            className={`absolute w-full cursor-row-resize ${isResizing ? 'h-3 bg-indigo-500' : 'h-1 bg-slate-400 hover:bg-indigo-400 hover:h-2'} transition-all shadow-sm`}
           ></div>
           
           {/* Arrow buttons for quick positioning */}
-          <div className="relative flex items-center gap-1 bg-white px-1.5 py-0.5 rounded-full shadow-sm border border-slate-200 z-40">
+          <div className="relative flex items-center gap-1 bg-white/90 px-1.5 py-0.5 rounded-full shadow-md border border-slate-300 z-40">
             {/* Up arrow - show more chat/notes (67% for Bible) */}
             <button
               onClick={(e) => {
@@ -434,8 +435,8 @@ const App: React.FC = () => {
               userSelect: 'none'
             }}
           >
-            <div className={`absolute h-full ${isBottomResizing ? 'w-3 bg-indigo-600 shadow-[0_0_15px_rgba(79,70,229,0.4)]' : 'w-2 bg-slate-300 hover:bg-indigo-400 hover:w-3'} transition-all`}></div>
-            <div className="relative flex flex-col gap-0.5 bg-white px-0.5 py-1 rounded-full shadow-sm border border-slate-200 z-40">
+            <div className={`absolute h-full ${isBottomResizing ? 'w-3 bg-indigo-500 shadow-[0_0_15px_rgba(79,70,229,0.4)]' : 'w-1 bg-slate-400 hover:bg-indigo-400 hover:w-2'} transition-all shadow-sm`}></div>
+            <div className="relative flex flex-col gap-0.5 bg-white/90 px-0.5 py-1 rounded-full shadow-md border border-slate-300 z-40">
               <div className="w-0.5 h-8 bg-slate-400 rounded"></div>
               <div className="w-0.5 h-8 bg-slate-400 rounded"></div>
             </div>
