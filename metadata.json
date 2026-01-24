@@ -1,0 +1,9 @@
+{
+  "name": "The Bible App",
+  "description": "A sophisticated Bible application with a split-view reader and integrated AI researcher with multimodal generation and live audio capabilities.",
+  "requestFramePermissions": [
+    "camera",
+    "microphone",
+    "geolocation"
+  ]
+}
