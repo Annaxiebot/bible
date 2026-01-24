@@ -372,9 +372,9 @@ const App: React.FC = () => {
         >
           {/* Visible divider bar */}
           <div 
-            className={`absolute w-full ${isResizing ? 'h-1.5 bg-slate-400' : 'h-0.5 bg-slate-300 hover:bg-slate-400 hover:h-1'} transition-all`}
+            className={`absolute w-full ${isResizing ? 'h-2 bg-blue-500' : 'h-0.5 bg-slate-300 hover:bg-blue-400 hover:h-1.5'} transition-all`}
             style={{
-              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.05)'
+              boxShadow: isResizing ? '0 2px 4px rgba(59, 130, 246, 0.3)' : '0 1px 2px rgba(0, 0, 0, 0.05)'
             }}
           ></div>
           
@@ -390,7 +390,7 @@ const App: React.FC = () => {
             onMouseDown={startResizing}
             onTouchStart={startResizing}
             onPointerDown={startResizing}
-            className="relative flex items-center gap-0.5 bg-white/95 px-1 py-px rounded-full shadow-sm border border-slate-200 z-40 cursor-row-resize" 
+            className="relative flex items-center gap-0.5 bg-white/95 px-1 py-px rounded-full shadow-sm border border-slate-200 hover:border-blue-300 z-40 cursor-row-resize transition-colors" 
             style={{ height: '12px' }}
           >
             {/* Up arrow - show more chat/notes (67% for Bible) */}
@@ -450,9 +450,9 @@ const App: React.FC = () => {
           >
             {/* Visible divider bar */}
             <div 
-              className={`absolute h-full ${isBottomResizing ? 'w-1.5 bg-slate-400' : 'w-0.5 bg-slate-300 hover:bg-slate-400 hover:w-1'} transition-all`}
+              className={`absolute h-full ${isBottomResizing ? 'w-2 bg-blue-500' : 'w-0.5 bg-slate-300 hover:bg-blue-400 hover:w-1.5'} transition-all`}
               style={{
-                boxShadow: '1px 0 2px rgba(0, 0, 0, 0.05)'
+                boxShadow: isBottomResizing ? '2px 0 4px rgba(59, 130, 246, 0.3), -2px 0 4px rgba(59, 130, 246, 0.3)' : '1px 0 2px rgba(0, 0, 0, 0.05)'
               }}
             ></div>
             
@@ -467,7 +467,7 @@ const App: React.FC = () => {
               onMouseDown={startBottomResizing}
               onTouchStart={startBottomResizing}
               onPointerDown={startBottomResizing}
-              className="relative flex flex-row gap-px bg-white/95 px-px py-0.5 rounded-full shadow-sm border border-slate-200 z-40 cursor-col-resize" 
+              className="relative flex flex-row gap-px bg-white/95 px-px py-0.5 rounded-full shadow-sm border border-slate-200 hover:border-blue-300 z-40 cursor-col-resize transition-colors" 
               style={{ width: '12px' }}
             >
               <div className="w-px h-3 bg-slate-300"></div>
