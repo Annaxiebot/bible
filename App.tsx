@@ -146,12 +146,12 @@ const App: React.FC = () => {
     e.target.value = "";
   };
 
-  const startResizing = useCallback((e: React.MouseEvent) => {
+  const startResizing = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
     setIsResizing(true);
   }, []);
 
-  const startBottomResizing = useCallback((e: React.MouseEvent) => {
+  const startBottomResizing = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     e.preventDefault();
     setIsBottomResizing(true);
   }, []);
@@ -161,16 +161,22 @@ const App: React.FC = () => {
     setIsBottomResizing(false);
   }, []);
 
-  const resize = useCallback((e: MouseEvent) => {
+  const resize = useCallback((e: MouseEvent | TouchEvent) => {
     if (containerRef.current) {
       const containerRect = containerRef.current.getBoundingClientRect();
       
+      // Get coordinates from either mouse or touch event
+      const clientX = 'touches' in e ? e.touches[0]?.clientX : e.clientX;
+      const clientY = 'touches' in e ? e.touches[0]?.clientY : e.clientY;
+      
+      if (!clientX || !clientY) return;
+      
       if (isResizing) {
-        const relativeY = e.clientY - containerRect.top;
+        const relativeY = clientY - containerRect.top;
         const percentage = (relativeY / containerRect.height) * 100;
         if (percentage > 15 && percentage < 85) setSplitOffset(percentage);
       } else if (isBottomResizing) {
-        const relativeX = e.clientX - containerRect.left;
+        const relativeX = clientX - containerRect.left;
         const percentage = (relativeX / containerRect.width) * 100;
         if (percentage > 20 && percentage < 80) setBottomSplitOffset(percentage);
       }
@@ -179,15 +185,29 @@ const App: React.FC = () => {
 
   useEffect(() => {
     if (isResizing || isBottomResizing) {
+      // Mouse events
       window.addEventListener('mousemove', resize);
       window.addEventListener('mouseup', stopResizing);
+      // Touch events for iPad/mobile
+      window.addEventListener('touchmove', resize, { passive: false });
+      window.addEventListener('touchend', stopResizing);
+      window.addEventListener('touchcancel', stopResizing);
     } else {
+      // Remove mouse events
       window.removeEventListener('mousemove', resize);
       window.removeEventListener('mouseup', stopResizing);
+      // Remove touch events
+      window.removeEventListener('touchmove', resize);
+      window.removeEventListener('touchend', stopResizing);
+      window.removeEventListener('touchcancel', stopResizing);
     }
     return () => {
+      // Cleanup all events
       window.removeEventListener('mousemove', resize);
       window.removeEventListener('mouseup', stopResizing);
+      window.removeEventListener('touchmove', resize);
+      window.removeEventListener('touchend', stopResizing);
+      window.removeEventListener('touchcancel', stopResizing);
     };
   }, [isResizing, isBottomResizing, resize, stopResizing]);
 
@@ -264,8 +284,9 @@ const App: React.FC = () => {
         </div>
 
         <div 
-          onMouseDown={startResizing} 
-          className={`h-2 w-full flex items-center justify-center cursor-row-resize z-30 transition-all ${isResizing ? 'bg-indigo-600' : 'bg-slate-300 hover:bg-indigo-400'}`}
+          onMouseDown={startResizing}
+          onTouchStart={startResizing}
+          className={`h-2 w-full flex items-center justify-center cursor-row-resize touch-none z-30 transition-all ${isResizing ? 'bg-indigo-600' : 'bg-slate-300 hover:bg-indigo-400'}`}
         >
           <div className="w-16 h-1 bg-white/50 rounded-full"></div>
         </div>
@@ -277,7 +298,8 @@ const App: React.FC = () => {
           
           <div 
             onMouseDown={startBottomResizing}
-            className={`w-2 h-full flex items-center justify-center cursor-col-resize z-30 transition-all ${isBottomResizing ? 'bg-indigo-600 shadow-[0_0_15px_rgba(79,70,229,0.4)]' : 'bg-slate-200 hover:bg-indigo-400'}`}
+            onTouchStart={startBottomResizing}
+            className={`w-2 h-full flex items-center justify-center cursor-col-resize touch-none z-30 transition-all ${isBottomResizing ? 'bg-indigo-600 shadow-[0_0_15px_rgba(79,70,229,0.4)]' : 'bg-slate-200 hover:bg-indigo-400'}`}
           >
             <div className="h-16 w-1 bg-white/60 rounded-full"></div>
           </div>
