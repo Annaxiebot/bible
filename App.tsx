@@ -430,24 +430,36 @@ const App: React.FC = () => {
           </div>
           
           <div 
-            onMouseDown={startBottomResizing}
-            onTouchStart={startBottomResizing}
-            onPointerDown={startBottomResizing}
-            className={`relative h-full flex items-center justify-center cursor-col-resize select-none z-30 transition-all group`}
+            className={`relative h-full flex items-center justify-center select-none z-30 transition-all group`}
             style={{ 
-              width: '24px', 
-              marginLeft: '-12px', 
-              marginRight: '-12px',
+              width: '40px', 
+              marginLeft: '-20px', 
+              marginRight: '-20px',
               touchAction: 'none',
               WebkitTouchCallout: 'none',
               WebkitUserSelect: 'none',
               userSelect: 'none'
             }}
           >
-            <div className={`absolute h-full ${isBottomResizing ? 'w-3 bg-indigo-500 shadow-[0_0_15px_rgba(79,70,229,0.4)]' : 'w-2 bg-slate-500 hover:bg-indigo-400 hover:w-3'} transition-all`}></div>
-            <div className="relative flex flex-col gap-0.5 bg-white px-1 py-2 rounded-lg shadow-lg border border-slate-400 z-40">
-              <div className="w-1 h-10 bg-slate-500 rounded"></div>
-              <div className="w-1 h-10 bg-slate-500 rounded"></div>
+            {/* Visible divider bar */}
+            <div 
+              className={`absolute h-full ${isBottomResizing ? 'w-6 bg-indigo-500' : 'w-4 bg-slate-500 hover:bg-indigo-400 hover:w-5'} transition-all`}
+              style={{
+                boxShadow: '2px 0 4px rgba(0, 0, 0, 0.2), -2px 0 4px rgba(0, 0, 0, 0.2)'
+              }}
+            ></div>
+            
+            <div 
+              onMouseDown={startBottomResizing}
+              onTouchStart={startBottomResizing}
+              onPointerDown={startBottomResizing}
+              className="absolute w-full h-full cursor-col-resize"
+            ></div>
+            
+            <div className="relative flex flex-row gap-1 bg-white px-2 py-3 rounded-xl shadow-xl border-2 border-slate-500 z-40">
+              <div className="w-1 h-10 bg-slate-700 rounded-full"></div>
+              <div className="w-1 h-10 bg-slate-700 rounded-full"></div>
+              <div className="w-1 h-10 bg-slate-700 rounded-full"></div>
             </div>
           </div>
 
