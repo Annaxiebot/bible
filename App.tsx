@@ -10,7 +10,7 @@ import { exportAllNotes, readLibraryFile } from './services/fileSystem';
 import { notesStorage } from './services/notesStorage';
 
 const App: React.FC = () => {
-  const [splitOffset, setSplitOffset] = useState(100); // Default to full-screen Bible view
+  const [splitOffset, setSplitOffset] = useState(50); // Default to 50/50 split to show dividers
   const [bottomSplitOffset, setBottomSplitOffset] = useState(67); // Default to 2/3 for chat, 1/3 for notebook
   const [isResizing, setIsResizing] = useState(false);
   const [isBottomResizing, setIsBottomResizing] = useState(false);
@@ -196,7 +196,7 @@ const App: React.FC = () => {
         const relativeY = clientY - containerRect.top;
         const percentage = (relativeY / containerRect.height) * 100;
         console.log('Horizontal resize:', percentage);
-        if (percentage >= 0 && percentage <= 100) {
+        if (percentage >= 10 && percentage <= 95) {
           setSplitOffset(percentage);
         }
       } else if (isBottomResizing) {
@@ -352,7 +352,7 @@ const App: React.FC = () => {
       </header>
 
       <main ref={containerRef} className="flex-1 flex flex-col relative overflow-hidden">
-        <div className="shrink-0 overflow-hidden min-h-0" style={{ height: `${splitOffset}%` }}>
+        <div className="overflow-hidden" style={{ height: splitOffset >= 95 ? 'calc(100% - 40px)' : `${splitOffset}%` }}>
           <BibleViewer 
             notes={notes}
             onSelectionChange={setCurrentSelection}
@@ -411,11 +411,11 @@ const App: React.FC = () => {
               <div className="w-10 h-1 bg-slate-700 rounded-full"></div>
             </div>
             
-            {/* Down arrow - maximize Bible (100%) */}
+            {/* Down arrow - maximize Bible (95%) */}
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                setSplitOffset(100);
+                setSplitOffset(95);
               }}
               className="p-1 hover:bg-slate-100 rounded-lg transition-colors"
               title="Maximize Bible reading"
@@ -427,7 +427,7 @@ const App: React.FC = () => {
           </div>
         </div>
 
-        <div className="flex-1 flex overflow-hidden min-h-0">
+        <div className="flex-1 flex overflow-hidden min-h-0" style={{ display: splitOffset >= 95 ? 'none' : 'flex' }}>
           <div style={{ width: `${bottomSplitOffset}%` }} className="h-full overflow-hidden">
              <ChatInterface incomingText={selectionPayload} />
           </div>
