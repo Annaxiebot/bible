@@ -22,6 +22,9 @@ const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialConte
   const [drawingSize, setDrawingSize] = useState(2);
   const [isWritingMode, setIsWritingMode] = useState(true);
   
+  // Device detection
+  const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+  
   const editorRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<DrawingCanvasHandle>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -522,15 +525,28 @@ const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialConte
         className="hidden" 
       />
       
-      {/* Camera input for taking photos */}
-      <input
-        type="file"
-        ref={cameraInputRef}
-        onChange={handleCameraCapture}
-        accept="image/*"
-        capture="environment"
-        className="hidden"
-      />
+      {/* Camera input for mobile devices */}
+      {isMobile && (
+        <input
+          type="file"
+          ref={cameraInputRef}
+          onChange={handleCameraCapture}
+          accept="image/*"
+          capture
+          className="hidden"
+        />
+      )}
+      
+      {/* Regular photo input for desktop */}
+      {!isMobile && (
+        <input
+          type="file"
+          ref={cameraInputRef}
+          onChange={handleCameraCapture}
+          accept="image/*"
+          className="hidden"
+        />
+      )}
       
       {/* Media input for files */}
       <input
@@ -569,9 +585,13 @@ const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialConte
             {/* Media buttons */}
             <div className="flex gap-1">
               <button
-                onClick={() => cameraInputRef.current?.click()}
+                onClick={() => {
+                  if (cameraInputRef.current) {
+                    cameraInputRef.current.click();
+                  }
+                }}
                 className="p-1.5 rounded-lg bg-slate-100 hover:bg-indigo-100 hover:text-indigo-600 transition-all"
-                title="Take photo"
+                title={isMobile ? "Take photo" : "Add photo"}
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
