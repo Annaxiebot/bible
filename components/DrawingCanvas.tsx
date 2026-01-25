@@ -91,27 +91,61 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(({ ini
     onChange(canvas.toDataURL());
   };
 
+  // Setup canvas size only once or when size changes
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Handle high DPI screens
-    const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    ctx.scale(dpr, dpr);
+    const setupCanvas = () => {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      
+      // Only resize if dimensions actually changed
+      if (canvas.width !== rect.width * dpr || canvas.height !== rect.height * dpr) {
+        // Save current canvas content
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        
+        canvas.width = rect.width * dpr;
+        canvas.height = rect.height * dpr;
+        ctx.scale(dpr, dpr);
+        
+        // Restore canvas content
+        ctx.putImageData(imageData, 0, 0);
+        
+        // Redraw all paths
+        if (paths.length > 0) {
+          redrawCanvas(paths);
+        }
+      }
+    };
     
+    setupCanvas();
+    
+    // Handle resize
+    const resizeObserver = new ResizeObserver(setupCanvas);
+    resizeObserver.observe(canvas);
+    
+    return () => resizeObserver.disconnect();
+  }, [paths]);
+  
+  // Load initial data
+  useEffect(() => {
     if (initialData && !paths.length) {
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      
       const img = new Image();
       img.onload = () => {
+        const rect = canvas.getBoundingClientRect();
         ctx.drawImage(img, 0, 0, rect.width, rect.height);
       };
       img.src = initialData;
     }
-  }, [initialData]);
+  }, [initialData, paths.length]);
 
   const drawSegment = (
     ctx: CanvasRenderingContext2D,
@@ -191,8 +225,10 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(({ ini
   };
 
   const startDrawing = (e: React.MouseEvent | React.TouchEvent | React.PointerEvent) => {
-    if (!('isPrimary' in e) || !e.isPrimary) return;
+    // Only check isPrimary for pointer events
+    if ('isPrimary' in e && !e.isPrimary) return;
     
+    e.preventDefault();
     setIsDrawing(true);
     
     const canvas = canvasRef.current;
@@ -238,15 +274,20 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(({ ini
       setPaths(newPaths);
       setCurrentPath([]);
       
+      // Ensure the drawing is saved
       const canvas = canvasRef.current;
       if (canvas) {
-        onChange(canvas.toDataURL());
+        // Small delay to ensure canvas is updated
+        setTimeout(() => {
+          onChange(canvas.toDataURL());
+        }, 10);
       }
     }
   };
 
   const draw = (e: React.MouseEvent | React.TouchEvent | React.PointerEvent) => {
     if (!isDrawing) return;
+    // Only check isPrimary for pointer events
     if ('isPrimary' in e && !e.isPrimary) return;
     
     e.preventDefault();
@@ -313,7 +354,7 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(({ ini
         WebkitTouchCallout: 'none',
         WebkitUserSelect: 'none',
         userSelect: 'none',
-        pointerEvents: overlayMode && !isDrawing ? 'none' : 'auto'
+        pointerEvents: 'auto'
       }}
     />
   );
