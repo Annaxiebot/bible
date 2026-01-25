@@ -50,9 +50,8 @@ const App: React.FC = () => {
       if (splitOffset >= 90) {
         setSplitOffset(50);
       }
-      // Maximize notes view (right side) and minimize chat (left side)
-      // Set to 5% to give almost all space to notes
-      setBottomSplitOffset(5);
+      // Give full width to notes view, completely hide chat
+      setBottomSplitOffset(0);
     }
   }, [splitOffset]);
   
