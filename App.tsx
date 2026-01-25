@@ -58,6 +58,14 @@ const App: React.FC = () => {
   
   // Load notes from IndexedDB on mount and migrate from localStorage if needed
   useEffect(() => {
+    // Check if we're on HTTP and redirect to HTTPS (except localhost)
+    if (window.location.protocol === 'http:' && 
+        !window.location.hostname.includes('localhost') && 
+        !window.location.hostname.includes('127.0.0.1')) {
+      window.location.href = window.location.href.replace('http:', 'https:');
+      return;
+    }
+    
     const loadNotes = async () => {
       try {
         // First try to migrate from localStorage
