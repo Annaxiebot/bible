@@ -35,6 +35,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({ onSelectionChange, onVersesSe
   const [vSplitOffset, setVSplitOffset] = useState(50);
   const [isResizing, setIsResizing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  const panelContainerRef = useRef<HTMLDivElement>(null);
 
   const leftScrollRef = useRef<HTMLDivElement>(null);
   const rightScrollRef = useRef<HTMLDivElement>(null);
@@ -516,10 +517,12 @@ const BibleViewer: React.FC<BibleViewerProps> = ({ onSelectionChange, onVersesSe
   const stopResizing = useCallback(() => setIsResizing(false), []);
 
   const resize = useCallback((e: MouseEvent) => {
-    if (isResizing && containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
+    if (isResizing && panelContainerRef.current) {
+      const rect = panelContainerRef.current.getBoundingClientRect();
       const percentage = ((e.clientX - rect.left) / rect.width) * 100;
-      if (percentage > 20 && percentage < 80) setVSplitOffset(percentage);
+      if (percentage >= 0 && percentage <= 100) {
+        setVSplitOffset(percentage);
+      }
     }
   }, [isResizing]);
 
@@ -742,6 +745,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({ onSelectionChange, onVersesSe
       </div>
 
       <div 
+        ref={panelContainerRef}
         className="flex-1 flex overflow-hidden relative"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
@@ -751,7 +755,9 @@ const BibleViewer: React.FC<BibleViewerProps> = ({ onSelectionChange, onVersesSe
           ref={leftScrollRef}
           onScroll={() => handleScroll('left')}
           className="overflow-y-auto p-4 md:p-6 space-y-4 font-serif-sc border-r border-slate-100"
-          style={{ width: `${vSplitOffset}%` }}
+          style={{ 
+            width: vSplitOffset >= 99 ? 'calc(100% - 16px)' : vSplitOffset <= 1 ? '0' : `calc(${vSplitOffset}% - 8px)`
+          }}
         >
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">和合本 CUV</div>
           {loading ? (
@@ -780,17 +786,92 @@ const BibleViewer: React.FC<BibleViewerProps> = ({ onSelectionChange, onVersesSe
         </div>
 
         <div 
-          onMouseDown={startResizing}
-          className={`w-1.5 h-full cursor-col-resize z-20 transition-colors flex items-center justify-center ${isResizing ? 'bg-indigo-500' : 'bg-slate-200 hover:bg-indigo-400'}`}
+          className={`relative h-full flex items-center justify-center select-none z-30 transition-all group hover:bg-blue-50 flex-shrink-0`}
+          style={{ 
+            width: '16px',
+            marginLeft: '-8px',
+            marginRight: '-8px',
+            touchAction: 'none',
+            WebkitTouchCallout: 'none',
+            WebkitUserSelect: 'none',
+            userSelect: 'none'
+          }}
         >
-          <div className="h-8 w-0.5 bg-white/50 rounded-full"></div>
+          {/* Visible divider bar */}
+          <div 
+            className={`absolute h-full ${isResizing ? 'w-2 bg-indigo-500' : 'w-1 bg-slate-200 group-hover:bg-indigo-400 group-hover:w-2'} transition-all`}
+            style={{
+              boxShadow: isResizing ? '2px 0 4px rgba(99, 102, 241, 0.3), -2px 0 4px rgba(99, 102, 241, 0.3)' : '1px 0 2px rgba(0, 0, 0, 0.05)'
+            }}
+          />
+          
+          <div 
+            onMouseDown={startResizing}
+            className="absolute w-full h-full cursor-col-resize"
+          />
+          
+          {/* Arrow buttons and drag indicator */}
+          <div 
+            className="relative flex flex-col gap-0.5 bg-white/95 py-1 px-px rounded-full shadow-sm border border-slate-200 hover:border-blue-300 z-40 cursor-col-resize transition-colors" 
+            style={{ width: '12px' }}
+          >
+            {/* Left arrow - toggle between middle (50%) and maximize English (0%) */}
+            <button
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                // If on right side (>50%), go to middle (50%)
+                // If at middle or left side (<=50%), maximize English (0%)
+                setVSplitOffset(vSplitOffset > 50 ? 50 : 0);
+              }}
+              className="p-px hover:bg-slate-200 rounded transition-colors flex items-center justify-center group"
+              title={vSplitOffset > 50 ? "Center divider" : "Maximize English"}
+              style={{ height: '10px', width: '10px' }}
+            >
+              <svg className="w-2 h-2 text-slate-500 group-hover:text-slate-700 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+            
+            {/* Drag indicator */}
+            <div 
+              onMouseDown={startResizing}
+              className="flex flex-row gap-px px-0.5 justify-center cursor-col-resize" 
+              style={{ width: '10px' }}
+            >
+              <div className="w-px h-3 bg-slate-300"></div>
+              <div className="w-px h-3 bg-slate-300"></div>
+            </div>
+            
+            {/* Right arrow - toggle between middle (50%) and maximize Chinese (100%) */}
+            <button
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                // If on left side (<50%), go to middle (50%)
+                // If at middle or right side (>=50%), maximize Chinese (100%)
+                setVSplitOffset(vSplitOffset < 50 ? 50 : 100);
+              }}
+              className="p-px hover:bg-slate-200 rounded transition-colors flex items-center justify-center group"
+              title={vSplitOffset < 50 ? "Center divider" : "Maximize Chinese"}
+              style={{ height: '10px', width: '10px' }}
+            >
+              <svg className="w-2 h-2 text-slate-500 group-hover:text-slate-700 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
         </div>
 
         <div 
           ref={rightScrollRef}
           onScroll={() => handleScroll('right')}
           className="overflow-y-auto p-4 md:p-6 space-y-4 font-sans"
-          style={{ width: `${100 - vSplitOffset}%` }}
+          style={{ 
+            width: vSplitOffset <= 1 ? 'calc(100% - 16px)' : vSplitOffset >= 99 ? '0' : `calc(${100 - vSplitOffset}% - 8px)`
+          }}
         >
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">English (WEB)</div>
           {loading ? (

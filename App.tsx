@@ -10,7 +10,7 @@ import { exportAllNotes, readLibraryFile } from './services/fileSystem';
 import { notesStorage } from './services/notesStorage';
 
 const App: React.FC = () => {
-  const [splitOffset, setSplitOffset] = useState(50); // Default to 50/50 split to show dividers
+  const [splitOffset, setSplitOffset] = useState(100); // Default to bottom (Bible view maximized)
   const [bottomSplitOffset, setBottomSplitOffset] = useState(67); // Default to 2/3 for chat, 1/3 for notebook
   const [isResizing, setIsResizing] = useState(false);
   const [isBottomResizing, setIsBottomResizing] = useState(false);
@@ -196,14 +196,14 @@ const App: React.FC = () => {
         const relativeY = clientY - containerRect.top;
         const percentage = (relativeY / containerRect.height) * 100;
         console.log('Horizontal resize:', percentage);
-        if (percentage >= 10 && percentage <= 100) {
+        if (percentage >= 0 && percentage <= 100) {
           setSplitOffset(percentage);
         }
       } else if (isBottomResizing) {
         const relativeX = clientX - containerRect.left;
         const percentage = (relativeX / containerRect.width) * 100;
         console.log('Vertical resize:', percentage);
-        if (percentage > 20 && percentage < 80) {
+        if (percentage >= 0 && percentage <= 100) {
           setBottomSplitOffset(percentage);
         }
       }
@@ -361,7 +361,7 @@ const App: React.FC = () => {
         </div>
 
         <div 
-          className={`relative w-full flex items-center justify-center select-none z-30 transition-all group`}
+          className={`relative w-full flex items-center justify-center select-none z-30 transition-all group hover:bg-blue-50`}
           style={{ 
             height: '16px', 
             touchAction: 'none',
@@ -372,9 +372,9 @@ const App: React.FC = () => {
         >
           {/* Visible divider bar */}
           <div 
-            className={`absolute w-full ${isResizing ? 'h-2 bg-blue-500' : 'h-0.5 bg-slate-300 hover:bg-blue-400 hover:h-1.5'} transition-all`}
+            className={`absolute w-full ${isResizing ? 'h-2 bg-indigo-500' : 'h-1 bg-slate-200 group-hover:bg-indigo-400 group-hover:h-2'} transition-all`}
             style={{
-              boxShadow: isResizing ? '0 2px 4px rgba(59, 130, 246, 0.3)' : '0 1px 2px rgba(0, 0, 0, 0.05)'
+              boxShadow: isResizing ? '0 2px 4px rgba(99, 102, 241, 0.3)' : '0 1px 2px rgba(0, 0, 0, 0.05)'
             }}
           ></div>
           
@@ -393,14 +393,23 @@ const App: React.FC = () => {
             className="relative flex items-center gap-0.5 bg-white/95 px-1 py-px rounded-full shadow-sm border border-slate-200 hover:border-blue-300 z-40 cursor-row-resize transition-colors" 
             style={{ height: '12px' }}
           >
-            {/* Up arrow - show more chat/notes (67% for Bible) */}
+            {/* Up arrow - toggle between 67% and 0% (minimize Bible) */}
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                setSplitOffset(67);
+                // If at bottom (100%), go to 67%
+                // If at 67%, go to 0% (minimize Bible)
+                // Otherwise go to 67%
+                if (splitOffset >= 100) {
+                  setSplitOffset(67);
+                } else if (splitOffset >= 67) {
+                  setSplitOffset(0);
+                } else {
+                  setSplitOffset(67);
+                }
               }}
               className="p-px hover:bg-slate-200 rounded transition-colors flex items-center justify-center group"
-              title="Show chat and notes (⅔ screen)"
+              title={splitOffset >= 100 ? "Show chat and notes (⅔ screen)" : splitOffset >= 67 ? "Minimize Bible view" : "Show chat and notes (⅔ screen)"}
               style={{ height: '10px', width: '10px' }}
             >
               <svg className="w-2 h-2 text-slate-500 group-hover:text-slate-700 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -432,12 +441,12 @@ const App: React.FC = () => {
         </div>
 
         <div className="flex-1 flex overflow-hidden min-h-0" style={{ display: splitOffset >= 100 ? 'none' : 'flex' }}>
-          <div style={{ width: `${bottomSplitOffset}%` }} className="h-full overflow-hidden">
+          <div style={{ width: bottomSplitOffset >= 100 ? 'calc(100% - 16px)' : `${bottomSplitOffset}%` }} className="h-full overflow-hidden">
              <ChatInterface incomingText={selectionPayload} />
           </div>
           
           <div 
-            className={`relative h-full flex items-center justify-center select-none z-30 transition-all group`}
+            className={`relative h-full flex items-center justify-center select-none z-30 transition-all group hover:bg-blue-50`}
             style={{ 
               width: '16px', 
               marginLeft: '-8px', 
@@ -450,9 +459,9 @@ const App: React.FC = () => {
           >
             {/* Visible divider bar */}
             <div 
-              className={`absolute h-full ${isBottomResizing ? 'w-2 bg-blue-500' : 'w-0.5 bg-slate-300 hover:bg-blue-400 hover:w-1.5'} transition-all`}
+              className={`absolute h-full ${isBottomResizing ? 'w-2 bg-indigo-500' : 'w-1 bg-slate-200 group-hover:bg-indigo-400 group-hover:w-2'} transition-all`}
               style={{
-                boxShadow: isBottomResizing ? '2px 0 4px rgba(59, 130, 246, 0.3), -2px 0 4px rgba(59, 130, 246, 0.3)' : '1px 0 2px rgba(0, 0, 0, 0.05)'
+                boxShadow: isBottomResizing ? '2px 0 4px rgba(99, 102, 241, 0.3), -2px 0 4px rgba(99, 102, 241, 0.3)' : '1px 0 2px rgba(0, 0, 0, 0.05)'
               }}
             ></div>
             
@@ -467,15 +476,52 @@ const App: React.FC = () => {
               onMouseDown={startBottomResizing}
               onTouchStart={startBottomResizing}
               onPointerDown={startBottomResizing}
-              className="relative flex flex-row gap-px bg-white/95 px-px py-0.5 rounded-full shadow-sm border border-slate-200 hover:border-blue-300 z-40 cursor-col-resize transition-colors" 
+              className="relative flex flex-col gap-0.5 bg-white/95 py-1 px-px rounded-full shadow-sm border border-slate-200 hover:border-blue-300 z-40 cursor-col-resize transition-colors" 
               style={{ width: '12px' }}
             >
-              <div className="w-px h-3 bg-slate-300"></div>
-              <div className="w-px h-3 bg-slate-300"></div>
+              {/* Left arrow - toggle between middle (50%) and maximize notes (5%) */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // If on right side (>50%), go to middle (50%)
+                  // If at middle or left side (<=50%), maximize notes (0%)
+                  setBottomSplitOffset(bottomSplitOffset > 50 ? 50 : 0);
+                }}
+                className="p-px hover:bg-slate-200 rounded transition-colors flex items-center justify-center group"
+                title={bottomSplitOffset > 50 ? "Center divider" : "Maximize notes"}
+                style={{ height: '10px', width: '10px' }}
+              >
+                <svg className="w-2 h-2 text-slate-500 group-hover:text-slate-700 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M15 19l-7-7 7-7" />
+                </svg>
+              </button>
+              
+              {/* Drag indicator */}
+              <div className="flex flex-row gap-px px-0.5 justify-center" style={{ width: '10px' }}>
+                <div className="w-px h-3 bg-slate-300"></div>
+                <div className="w-px h-3 bg-slate-300"></div>
+              </div>
+              
+              {/* Right arrow - toggle between middle (50%) and maximize chat (95%) */}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  // If on left side (<50%), go to middle (50%)
+                  // If at middle or right side (>=50%), maximize chat (100%)
+                  setBottomSplitOffset(bottomSplitOffset < 50 ? 50 : 100);
+                }}
+                className="p-px hover:bg-slate-200 rounded transition-colors flex items-center justify-center group"
+                title={bottomSplitOffset < 50 ? "Center divider" : "Maximize chat"}
+                style={{ height: '10px', width: '10px' }}
+              >
+                <svg className="w-2 h-2 text-slate-500 group-hover:text-slate-700 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M9 5l7 7-7 7" />
+                </svg>
+              </button>
             </div>
           </div>
 
-          <div style={{ width: `${100 - bottomSplitOffset}%` }} className="h-full overflow-hidden">
+          <div style={{ width: bottomSplitOffset <= 0 ? 'calc(100% - 16px)' : `${100 - bottomSplitOffset}%` }} className="h-full overflow-hidden">
             <Notebook 
               selection={currentSelection} 
               onSaveNote={handleSaveNote}
