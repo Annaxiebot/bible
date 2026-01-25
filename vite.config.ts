@@ -41,9 +41,9 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: "0.0.0.0",
-        https: true, // Enable HTTPS for camera access
+        // https: true, // Disabled due to SSL certificate issues on some devices
       },
-      plugins: [httpsRedirect(), react()],
+      plugins: [react()],
       define: {
         "process.env.API_KEY": JSON.stringify(env.GEMINI_API_KEY),
         "process.env.GEMINI_API_KEY": JSON.stringify(env.GEMINI_API_KEY)
