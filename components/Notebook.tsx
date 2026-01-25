@@ -21,6 +21,8 @@ const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialConte
   const [drawingColor, setDrawingColor] = useState('#000000');
   const [drawingSize, setDrawingSize] = useState(2);
   const [isWritingMode, setIsWritingMode] = useState(true);
+  const [isCameraOpen, setIsCameraOpen] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   
   // Device detection
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -30,6 +32,8 @@ const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialConte
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const mediaInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const cameraCanvasRef = useRef<HTMLCanvasElement>(null);
   const autoSaveTimer = useRef<number | null>(null);
   const lastActivityTime = useRef<number>(Date.now());
   const hasInsertedTimestamp = useRef(false);
@@ -359,7 +363,7 @@ const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialConte
     fileInputRef.current?.click();
   };
   
-  // Handle camera capture
+  // Handle camera capture from file input (mobile)
   const handleCameraCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !selection) return;
@@ -401,6 +405,96 @@ const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialConte
       e.target.value = "";
     }
   };
+  
+  // Open webcam for desktop
+  const openWebcam = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'user' },
+        audio: false 
+      });
+      setCameraStream(stream);
+      setIsCameraOpen(true);
+      
+      // Wait for video element to be available
+      setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+        }
+      }, 100);
+    } catch (err) {
+      console.error('Error accessing webcam:', err);
+      alert('Unable to access camera. Please check your camera permissions.');
+    }
+  };
+  
+  // Capture photo from webcam
+  const captureWebcamPhoto = () => {
+    if (!videoRef.current || !cameraCanvasRef.current || !selection) return;
+    
+    const video = videoRef.current;
+    const canvas = cameraCanvasRef.current;
+    const context = canvas.getContext('2d');
+    
+    if (!context) return;
+    
+    // Set canvas dimensions to match video
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    
+    // Draw video frame to canvas
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+    
+    // Convert to base64
+    const imageData = canvas.toDataURL('image/jpeg');
+    
+    const newMedia: MediaAttachment = {
+      id: `media_${Date.now()}`,
+      type: 'image',
+      data: imageData,
+      filename: `webcam_${Date.now()}.jpg`,
+      mimeType: 'image/jpeg',
+      timestamp: new Date().toISOString(),
+      caption: ''
+    };
+    
+    // Insert image into editor
+    if (editorRef.current && mode === 'text') {
+      const img = `<img src="${imageData}" alt="Webcam photo" style="max-width: 100%; height: auto; margin: 10px 0; border-radius: 8px;" />`;
+      document.execCommand('insertHTML', false, img);
+      onEditorInput();
+    }
+    
+    // Add to media array
+    setNoteData(prev => ({
+      ...prev,
+      media: [...(prev.media || []), newMedia]
+    }));
+    
+    setIsSaved(false);
+    isDirtyRef.current = true;
+    
+    // Close webcam
+    closeWebcam();
+  };
+  
+  // Close webcam
+  const closeWebcam = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      setCameraStream(null);
+    }
+    setIsCameraOpen(false);
+  };
+  
+  // Cleanup webcam on unmount
+  useEffect(() => {
+    return () => {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach(track => track.stop());
+      }
+    };
+  }, [cameraStream]);
   
   // Handle media upload (images, videos, documents)
   const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -586,12 +680,14 @@ const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialConte
             <div className="flex gap-1">
               <button
                 onClick={() => {
-                  if (cameraInputRef.current) {
+                  if (isMobile && cameraInputRef.current) {
                     cameraInputRef.current.click();
+                  } else {
+                    openWebcam();
                   }
                 }}
                 className="p-1.5 rounded-lg bg-slate-100 hover:bg-indigo-100 hover:text-indigo-600 transition-all"
-                title={isMobile ? "Take photo" : "Add photo"}
+                title="Take photo"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
@@ -633,6 +729,53 @@ const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialConte
       </div>
 
       <div className="flex-1 relative overflow-hidden bg-white">
+        {/* Webcam overlay for desktop */}
+        {isCameraOpen && !isMobile && (
+          <div className="absolute inset-0 z-50 bg-black bg-opacity-90 flex items-center justify-center">
+            <div className="bg-white rounded-lg p-4 max-w-2xl">
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-lg font-bold">Take Photo</h3>
+                <button
+                  onClick={closeWebcam}
+                  className="p-1 hover:bg-slate-100 rounded"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <video
+                ref={videoRef}
+                autoPlay
+                playsInline
+                className="w-full rounded-lg mb-4"
+                style={{ maxHeight: '400px' }}
+              />
+              <canvas
+                ref={cameraCanvasRef}
+                className="hidden"
+              />
+              <div className="flex gap-2 justify-center">
+                <button
+                  onClick={captureWebcamPhoto}
+                  className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                  </svg>
+                  Capture
+                </button>
+                <button
+                  onClick={closeWebcam}
+                  className="px-6 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         {!selection && (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300 gap-4 z-50 pointer-events-none p-8 text-center">
             <svg className="w-12 h-12 opacity-20" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" /></svg>
