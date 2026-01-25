@@ -40,6 +40,23 @@ const App: React.FC = () => {
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [notesLoading, setNotesLoading] = useState(true);
   
+  // Handle selection change - auto-position divider for note-taking
+  const handleSelectionChange = useCallback((selection: SelectionInfo | null) => {
+    setCurrentSelection(selection);
+    
+    // When a verse is selected, move horizontal divider to middle for note-taking
+    if (selection) {
+      // If Bible is maximized, move to 50% to show notes area
+      if (splitOffset >= 90) {
+        setSplitOffset(50);
+      }
+      // If notes area is hidden, show it
+      if (bottomSplitOffset >= 95 || bottomSplitOffset <= 5) {
+        setBottomSplitOffset(50);
+      }
+    }
+  }, [splitOffset, bottomSplitOffset]);
+  
   
   // Load notes from IndexedDB on mount and migrate from localStorage if needed
   useEffect(() => {
@@ -343,7 +360,7 @@ const App: React.FC = () => {
         }}>
           <BibleViewer 
             notes={notes}
-            onSelectionChange={setCurrentSelection}
+            onSelectionChange={handleSelectionChange}
             onVersesSelectedForChat={(text) => setSelectionPayload({ text, id: Date.now() })}
             sidebarOpen={isSidebarOpen}
             showSidebarToggle={!isIPhone} // Pass iPhone detection to BibleViewer
