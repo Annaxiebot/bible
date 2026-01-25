@@ -14,9 +14,12 @@ interface NotebookProps {
 const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialContent }) => {
   const [noteData, setNoteData] = useState<NoteData>({ text: "", drawing: "" });
   const [isSaved, setIsSaved] = useState(true);
-  const [mode, setMode] = useState<'text' | 'draw'>('text');
+  const [mode, setMode] = useState<'text' | 'draw' | 'overlay'>('text');
   const [timestamps, setTimestamps] = useState<{created?: string, modified?: string}>({});
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [drawingTool, setDrawingTool] = useState<'pen' | 'marker' | 'highlighter' | 'eraser'>('pen');
+  const [drawingColor, setDrawingColor] = useState('#000000');
+  const [drawingSize, setDrawingSize] = useState(2);
   
   const editorRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<DrawingCanvasHandle>(null);
@@ -414,11 +417,18 @@ const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialConte
             <button 
               onClick={() => setMode('text')}
               className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${mode === 'text' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}
+              title="Text mode"
             >文字</button>
             <button 
               onClick={() => setMode('draw')}
               className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${mode === 'draw' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}
+              title="Drawing mode"
             >绘图</button>
+            <button 
+              onClick={() => setMode('overlay')}
+              className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${mode === 'overlay' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}
+              title="Overlay drawing on text"
+            >叠加</button>
           </div>
         </div>
         
@@ -451,7 +461,7 @@ const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialConte
           </div>
         )}
         
-        <div className={`absolute inset-0 flex flex-col transition-opacity duration-300 ${mode === 'text' && selection ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
+        <div className={`absolute inset-0 flex flex-col transition-opacity duration-300 ${(mode === 'text' || mode === 'overlay') && selection ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
           <div className="flex items-center gap-1 p-2 bg-slate-50 border-b shrink-0 overflow-x-auto no-scrollbar">
             <button onClick={() => execCommand('bold')} className="p-1.5 hover:bg-indigo-50 hover:text-indigo-600 rounded transition-colors"><svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M15.6 11.8c1-.7 1.6-1.8 1.6-2.8 0-2.3-1.8-4.1-4-4.1H8v14h5.2c2.2 0 4-1.8 4-4 0-1.3-.7-2.4-1.6-3.1zM10.1 7.1h2.9c1.1 0 2 .9 2 2s-.9 2-2 2h-2.9V7.1zm3.2 9.8h-3.2v-3.9h3.2c1.1 0 2 .9 2 2s-.9 1.9-2 1.9z"/></svg></button>
             <button onClick={() => execCommand('italic')} className="p-1.5 hover:bg-indigo-50 hover:text-indigo-600 rounded transition-colors"><svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M10 5v3h2.21l-3.42 8H6v3h8v-3h-2.21l3.42-8H18V5z"/></svg></button>
@@ -484,20 +494,101 @@ const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialConte
           />
         </div>
 
+        {/* Overlay drawing canvas */}
+        {mode === 'overlay' && selection && (
+          <div className="absolute inset-0 z-20 pointer-events-auto">
+            <DrawingCanvas
+              ref={canvasRef}
+              initialData={noteData.drawing}
+              onChange={handleDrawingChange}
+              overlayMode={true}
+            />
+            {/* Floating drawing tools for overlay mode */}
+            <div className="absolute bottom-4 right-4 bg-white rounded-xl shadow-lg p-2 flex gap-1">
+              <button
+                onClick={() => { setDrawingTool('pen'); canvasRef.current?.setTool('pen'); }}
+                className={`p-1.5 rounded ${drawingTool === 'pen' ? 'bg-indigo-100' : 'hover:bg-slate-100'}`}
+                title="Pen"
+              >✏️</button>
+              <button
+                onClick={() => { setDrawingTool('eraser'); canvasRef.current?.setTool('eraser'); }}
+                className={`p-1.5 rounded ${drawingTool === 'eraser' ? 'bg-red-100' : 'hover:bg-slate-100'}`}
+                title="Eraser"
+              >🧹</button>
+              <button
+                onClick={() => canvasRef.current?.clear()}
+                className="p-1.5 rounded hover:bg-slate-100"
+                title="Clear"
+              >🗑️</button>
+            </div>
+          </div>
+        )}
+        
         <div className={`absolute inset-0 p-4 transition-opacity duration-300 ${mode === 'draw' && selection ? 'opacity-100 z-10' : 'opacity-0 z-0 pointer-events-none'}`}>
           <div className="w-full h-full border border-slate-100 rounded-xl relative overflow-hidden bg-slate-50/50">
              <DrawingCanvas 
                ref={canvasRef}
                initialData={noteData.drawing} 
-               onChange={handleDrawingChange} 
+               onChange={handleDrawingChange}
+               overlayMode={false}
              />
-             <div className="absolute top-4 left-4 flex gap-2">
-               <button 
-                 onClick={() => canvasRef.current?.clear()}
-                 className="p-2 bg-white shadow-sm rounded-lg text-slate-400 hover:text-red-500 transition-colors border border-slate-100"
-               >
-                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
-               </button>
+             {/* Drawing tools palette */}
+             <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 bg-white rounded-xl shadow-lg p-3 flex flex-col gap-2">
+               <div className="flex gap-1">
+                 <button
+                   onClick={() => { setDrawingTool('pen'); canvasRef.current?.setTool('pen'); }}
+                   className={`p-2 rounded-lg ${drawingTool === 'pen' ? 'bg-indigo-100 text-indigo-600' : 'hover:bg-slate-100'}`}
+                   title="Pen"
+                 >✏️</button>
+                 <button
+                   onClick={() => { setDrawingTool('marker'); canvasRef.current?.setTool('marker'); }}
+                   className={`p-2 rounded-lg ${drawingTool === 'marker' ? 'bg-indigo-100 text-indigo-600' : 'hover:bg-slate-100'}`}
+                   title="Marker"
+                 >🖊️</button>
+                 <button
+                   onClick={() => { setDrawingTool('highlighter'); canvasRef.current?.setTool('highlighter'); }}
+                   className={`p-2 rounded-lg ${drawingTool === 'highlighter' ? 'bg-indigo-100 text-indigo-600' : 'hover:bg-slate-100'}`}
+                   title="Highlighter"
+                 >🖍️</button>
+                 <button
+                   onClick={() => { setDrawingTool('eraser'); canvasRef.current?.setTool('eraser'); }}
+                   className={`p-2 rounded-lg ${drawingTool === 'eraser' ? 'bg-red-100 text-red-600' : 'hover:bg-slate-100'}`}
+                   title="Eraser"
+                 >🧹</button>
+                 <div className="w-px bg-slate-200 mx-1" />
+                 <button
+                   onClick={() => canvasRef.current?.undo()}
+                   className="p-2 rounded-lg hover:bg-slate-100"
+                   title="Undo"
+                 >↩️</button>
+                 <button
+                   onClick={() => canvasRef.current?.clear()}
+                   className="p-2 rounded-lg hover:bg-slate-100"
+                   title="Clear"
+                 >🗑️</button>
+               </div>
+               <div className="flex gap-1 items-center">
+                 {['#000000', '#007AFF', '#FF3B30', '#34C759', '#FFCC00'].map(color => (
+                   <button
+                     key={color}
+                     onClick={() => { setDrawingColor(color); canvasRef.current?.setColor(color); }}
+                     className={`w-6 h-6 rounded-full border-2 ${drawingColor === color ? 'border-indigo-500' : 'border-transparent'}`}
+                     style={{ backgroundColor: color }}
+                   />
+                 ))}
+                 <input
+                   type="range"
+                   min="1"
+                   max="20"
+                   value={drawingSize}
+                   onChange={(e) => { 
+                     const size = Number(e.target.value);
+                     setDrawingSize(size);
+                     canvasRef.current?.setSize(size);
+                   }}
+                   className="ml-2 w-20 h-1"
+                 />
+               </div>
              </div>
           </div>
         </div>
