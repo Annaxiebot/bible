@@ -49,9 +49,20 @@ export interface SelectionInfo {
   selectedRawText?: string;
 }
 
+export interface MediaAttachment {
+  id: string;
+  type: 'image' | 'video' | 'audio' | 'file';
+  data: string; // base64 or blob URL
+  filename?: string;
+  mimeType?: string;
+  timestamp: string;
+  caption?: string;
+}
+
 export interface NoteData {
   text: string; 
   drawing: string;
+  media?: MediaAttachment[]; // Array of attached media files
   version?: number;
   timestamp?: string;
   lastModified?: string;

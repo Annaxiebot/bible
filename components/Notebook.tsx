@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { SelectionInfo, NoteData } from '../types';
+import { SelectionInfo, NoteData, MediaAttachment } from '../types';
 import DrawingCanvas, { DrawingCanvasHandle } from './DrawingCanvas';
 import { downloadNote, readNoteFile } from '../services/fileSystem';
 import * as aiService from '../services/gemini';
@@ -12,7 +12,7 @@ interface NotebookProps {
 }
 
 const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialContent }) => {
-  const [noteData, setNoteData] = useState<NoteData>({ text: "", drawing: "" });
+  const [noteData, setNoteData] = useState<NoteData>({ text: "", drawing: "", media: [] });
   const [isSaved, setIsSaved] = useState(true);
   const [mode, setMode] = useState<'text' | 'draw' | 'overlay'>('text');
   const [timestamps, setTimestamps] = useState<{created?: string, modified?: string}>({});
@@ -25,6 +25,8 @@ const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialConte
   const editorRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<DrawingCanvasHandle>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const mediaInputRef = useRef<HTMLInputElement>(null);
   const autoSaveTimer = useRef<number | null>(null);
   const lastActivityTime = useRef<number>(Date.now());
   const hasInsertedTimestamp = useRef(false);
@@ -104,7 +106,7 @@ const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialConte
       const hasExistingNote = !!initialContent && initialContent.trim() !== "";
 
       try {
-        data = hasExistingNote ? JSON.parse(initialContent) : { text: "", drawing: "" };
+        data = hasExistingNote ? JSON.parse(initialContent) : { text: "", drawing: "", media: [] };
         // Extract timestamps from loaded data
         if (data.timestamp || data.lastModified) {
           setTimestamps({
@@ -114,8 +116,12 @@ const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialConte
         } else {
           setTimestamps({});
         }
+        // Ensure media array exists
+        if (!data.media) {
+          data.media = [];
+        }
       } catch {
-        data = { text: initialContent || "", drawing: "" };
+        data = { text: initialContent || "", drawing: "", media: [] };
         setTimestamps({});
       }
       
@@ -349,6 +355,114 @@ const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialConte
   const handleImportClick = () => {
     fileInputRef.current?.click();
   };
+  
+  // Handle camera capture
+  const handleCameraCapture = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selection) return;
+    
+    try {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const imageData = event.target?.result as string;
+        const newMedia: MediaAttachment = {
+          id: `media_${Date.now()}`,
+          type: 'image',
+          data: imageData,
+          filename: file.name,
+          mimeType: file.type,
+          timestamp: new Date().toISOString(),
+          caption: ''
+        };
+        
+        // Insert image into editor at cursor position
+        if (editorRef.current && mode === 'text') {
+          const img = `<img src="${imageData}" alt="${file.name}" style="max-width: 100%; height: auto; margin: 10px 0; border-radius: 8px;" />`;
+          document.execCommand('insertHTML', false, img);
+          onEditorInput();
+        }
+        
+        // Add to media array
+        setNoteData(prev => ({
+          ...prev,
+          media: [...(prev.media || []), newMedia]
+        }));
+        
+        setIsSaved(false);
+        isDirtyRef.current = true;
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('Error capturing photo:', err);
+    } finally {
+      e.target.value = "";
+    }
+  };
+  
+  // Handle media upload (images, videos, documents)
+  const handleMediaUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || !selection) return;
+    
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      
+      try {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const fileData = event.target?.result as string;
+          const mediaType = file.type.startsWith('image/') ? 'image' :
+                           file.type.startsWith('video/') ? 'video' :
+                           file.type.startsWith('audio/') ? 'audio' : 'file';
+          
+          const newMedia: MediaAttachment = {
+            id: `media_${Date.now()}_${i}`,
+            type: mediaType,
+            data: fileData,
+            filename: file.name,
+            mimeType: file.type,
+            timestamp: new Date().toISOString(),
+            caption: ''
+          };
+          
+          // Insert into editor based on type
+          if (editorRef.current && mode === 'text') {
+            let element = '';
+            if (mediaType === 'image') {
+              element = `<img src="${fileData}" alt="${file.name}" style="max-width: 100%; height: auto; margin: 10px 0; border-radius: 8px;" />`;
+            } else if (mediaType === 'video') {
+              element = `<video controls style="max-width: 100%; margin: 10px 0; border-radius: 8px;"><source src="${fileData}" type="${file.type}">Your browser does not support video.</video>`;
+            } else if (mediaType === 'audio') {
+              element = `<audio controls style="width: 100%; margin: 10px 0;"><source src="${fileData}" type="${file.type}">Your browser does not support audio.</audio>`;
+            } else {
+              element = `<div style="padding: 10px; margin: 10px 0; background: #f5f5f5; border-radius: 8px; display: flex; align-items: center; gap: 10px;">
+                <svg style="width: 24px; height: 24px;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <span>${file.name}</span>
+              </div>`;
+            }
+            document.execCommand('insertHTML', false, element);
+            onEditorInput();
+          }
+          
+          // Add to media array
+          setNoteData(prev => ({
+            ...prev,
+            media: [...(prev.media || []), newMedia]
+          }));
+          
+          setIsSaved(false);
+          isDirtyRef.current = true;
+        };
+        reader.readAsDataURL(file);
+      } catch (err) {
+        console.error(`Error uploading file ${file.name}:`, err);
+      }
+    }
+    
+    e.target.value = "";
+  };
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -407,6 +521,26 @@ const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialConte
         accept=".bible-note,.json" 
         className="hidden" 
       />
+      
+      {/* Camera input for taking photos */}
+      <input
+        type="file"
+        ref={cameraInputRef}
+        onChange={handleCameraCapture}
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+      />
+      
+      {/* Media input for files */}
+      <input
+        type="file"
+        ref={mediaInputRef}
+        onChange={handleMediaUpload}
+        accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt"
+        multiple
+        className="hidden"
+      />
 
       <div className="p-3 border-b bg-white flex justify-between items-center shadow-sm shrink-0">
         <div className="flex items-center gap-3">
@@ -414,22 +548,46 @@ const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialConte
             <svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg>
             {getTitle()}
           </h3>
-          <div className="flex bg-slate-100 p-0.5 rounded-lg">
-            <button 
-              onClick={() => setMode('text')}
-              className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${mode === 'text' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}
-              title="Text mode"
-            >文字</button>
-            <button 
-              onClick={() => setMode('draw')}
-              className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${mode === 'draw' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}
-              title="Drawing mode"
-            >绘图</button>
-            <button 
-              onClick={() => setMode('overlay')}
-              className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${mode === 'overlay' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}
-              title="Overlay drawing on text"
-            >叠加</button>
+          <div className="flex gap-2">
+            <div className="flex bg-slate-100 p-0.5 rounded-lg">
+              <button 
+                onClick={() => setMode('text')}
+                className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${mode === 'text' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}
+                title="Text mode"
+              >文字</button>
+              <button 
+                onClick={() => setMode('draw')}
+                className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${mode === 'draw' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}
+                title="Drawing mode"
+              >绘图</button>
+              <button 
+                onClick={() => setMode('overlay')}
+                className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${mode === 'overlay' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}
+                title="Overlay drawing on text"
+              >叠加</button>
+            </div>
+            {/* Media buttons */}
+            <div className="flex gap-1">
+              <button
+                onClick={() => cameraInputRef.current?.click()}
+                className="p-1.5 rounded-lg bg-slate-100 hover:bg-indigo-100 hover:text-indigo-600 transition-all"
+                title="Take photo"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+              </button>
+              <button
+                onClick={() => mediaInputRef.current?.click()}
+                className="p-1.5 rounded-lg bg-slate-100 hover:bg-indigo-100 hover:text-indigo-600 transition-all"
+                title="Add image or file"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
         
