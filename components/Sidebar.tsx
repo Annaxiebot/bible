@@ -11,8 +11,11 @@ interface SidebarProps {
   notesCount: number;
   onDownloadBible?: (() => void) | null;
   onDownloadChapter?: (() => void) | null;
+  onDownloadBook?: (() => void) | null;
   downloadProgress?: number;
   isDownloading?: boolean;
+  downloadStatus?: string;
+  downloadTimeRemaining?: string;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ 
@@ -25,8 +28,11 @@ const Sidebar: React.FC<SidebarProps> = ({
   notesCount,
   onDownloadBible,
   onDownloadChapter,
+  onDownloadBook,
   downloadProgress = 0,
   isDownloading = false,
+  downloadStatus = '',
+  downloadTimeRemaining = '',
   showToggle = true
 }) => {
   return (
@@ -179,8 +185,14 @@ const Sidebar: React.FC<SidebarProps> = ({
               <div className="px-4 py-3">
                 <div className="flex items-center gap-2">
                   <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-                  <span className="text-sm text-slate-600">下载中 {downloadProgress}%</span>
+                  <span className="text-sm text-slate-600">
+                    下载中 {downloadProgress}%
+                    {downloadTimeRemaining && ` • ${downloadTimeRemaining}`}
+                  </span>
                 </div>
+                {downloadStatus && (
+                  <p className="text-xs text-slate-500 mt-1">{downloadStatus}</p>
+                )}
                 <div className="w-full bg-slate-200 rounded-full h-1.5 mt-2">
                   <div 
                     className="bg-indigo-500 h-1.5 rounded-full transition-all"
@@ -205,6 +217,25 @@ const Sidebar: React.FC<SidebarProps> = ({
                       </span>
                       <span className="block text-xs text-slate-500">
                         Save current chapter
+                      </span>
+                    </div>
+                  </button>
+                )}
+                {onDownloadBook && (
+                  <button 
+                    onClick={() => onDownloadBook && onDownloadBook()}
+                    className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-50 transition-colors group"
+                    disabled={isDownloading}
+                  >
+                    <svg className="w-4 h-4 text-slate-400 group-hover:text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                    </svg>
+                    <div className="flex-1 text-left">
+                      <span className="text-sm font-medium text-slate-700 group-hover:text-indigo-600">
+                        下载当前书卷
+                      </span>
+                      <span className="block text-xs text-slate-500">
+                        Save current book
                       </span>
                     </div>
                   </button>

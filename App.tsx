@@ -34,6 +34,9 @@ const App: React.FC = () => {
   // Download functions that will be connected to BibleViewer
   const [downloadBible, setDownloadBible] = useState<(() => void) | null>(null);
   const [downloadChapter, setDownloadChapter] = useState<(() => void) | null>(null);
+  const [downloadBook, setDownloadBook] = useState<(() => void) | null>(null);
+  const [downloadStatus, setDownloadStatus] = useState<string>('');
+  const [downloadTimeRemaining, setDownloadTimeRemaining] = useState<string>('');
   
   const containerRef = useRef<HTMLDivElement>(null);
   const libraryInputRef = useRef<HTMLInputElement>(null);
@@ -360,8 +363,11 @@ const App: React.FC = () => {
         notesCount={Object.keys(notes).length}
         onDownloadBible={downloadBible}
         onDownloadChapter={downloadChapter}
+        onDownloadBook={downloadBook}
         downloadProgress={downloadProgress}
         isDownloading={isDownloading}
+        downloadStatus={downloadStatus}
+        downloadTimeRemaining={downloadTimeRemaining}
       />
 
       <main ref={containerRef} className="flex-1 flex flex-col relative overflow-hidden" style={{
@@ -387,13 +393,23 @@ const App: React.FC = () => {
             isIPhone={isIPhone}
             isReadingMode={appMode === 'reading'}
             isResearchMode={appMode === 'research'}
-            onDownloadStateChange={(downloading, progress) => {
+            onDownloadStateChange={(downloading, progress, status, timeRemaining) => {
               setIsDownloading(downloading);
               setDownloadProgress(progress);
+              setDownloadStatus(status || '');
+              setDownloadTimeRemaining(timeRemaining || '');
             }}
-            onDownloadFunctionsReady={(downloadBibleFn, downloadChapterFn) => {
-              setDownloadBible(() => downloadBibleFn);
-              setDownloadChapter(() => downloadChapterFn);
+            onDownloadFunctionsReady={(downloadBibleFn, downloadChapterFn, downloadBookFn) => {
+              // Only update if the functions have changed
+              if (downloadBible !== downloadBibleFn) {
+                setDownloadBible(() => downloadBibleFn);
+              }
+              if (downloadChapter !== downloadChapterFn) {
+                setDownloadChapter(() => downloadChapterFn);
+              }
+              if (downloadBook !== downloadBookFn) {
+                setDownloadBook(() => downloadBookFn);
+              }
             }}
           />
         </div>

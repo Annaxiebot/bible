@@ -14,8 +14,8 @@ interface BibleViewerProps {
   isIPhone?: boolean;
   isReadingMode?: boolean;
   isResearchMode?: boolean;
-  onDownloadStateChange?: (isDownloading: boolean, progress: number) => void;
-  onDownloadFunctionsReady?: (downloadBible: () => void, downloadChapter: () => void) => void;
+  onDownloadStateChange?: (isDownloading: boolean, progress: number, status?: string, timeRemaining?: string) => void;
+  onDownloadFunctionsReady?: (downloadBible: () => void, downloadChapter: () => void, downloadBook: () => void) => void;
 }
 
 
@@ -45,9 +45,17 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   });
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
+  const [downloadStatus, setDownloadStatus] = useState<string>('');
+  const [downloadStartTime, setDownloadStartTime] = useState<number>(0);
+  const [downloadTimeRemaining, setDownloadTimeRemaining] = useState<string>('');
   const [isOffline, setIsOffline] = useState(false);
   const [touchStartX, setTouchStartX] = useState<number | null>(null);
   const [isSwiping, setIsSwiping] = useState(false);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+  const [isPageFlipping, setIsPageFlipping] = useState(false);
+  const [flipDirection, setFlipDirection] = useState<'left' | 'right' | null>(null);
+  const [nextChapterVerses, setNextChapterVerses] = useState<Verse[]>([]);
+  const [prevChapterVerses, setPrevChapterVerses] = useState<Verse[]>([]);
   const [showDownloadMenu, setShowDownloadMenu] = useState(false);
   const [offlineChapters, setOfflineChapters] = useState<Set<string>>(new Set());
   const [autoDownloadInProgress, setAutoDownloadInProgress] = useState(false);
@@ -65,9 +73,48 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
 
   const leftScrollRef = useRef<HTMLDivElement>(null);
   const rightScrollRef = useRef<HTMLDivElement>(null);
+  
+  // Better iOS detection that works for modern iPads
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || 
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
   useEffect(() => {
     fetchChapter();
+    // Always preload adjacent chapters for smooth navigation
+    // Preload next chapter
+    if (selectedChapter < (selectedBook.chapters || 1)) {
+      fetchChapterData(selectedBook.id, selectedChapter + 1).then(data => {
+        if (data) setNextChapterVerses(data.left);
+      });
+    } else {
+      // Next book first chapter
+      const currentIndex = BIBLE_BOOKS.findIndex(b => b.id === selectedBook.id);
+      if (currentIndex < BIBLE_BOOKS.length - 1) {
+        const nextBook = BIBLE_BOOKS[currentIndex + 1];
+        fetchChapterData(nextBook.id, 1).then(data => {
+          if (data) setNextChapterVerses(data.left);
+        });
+      }
+    }
+    
+    // Preload previous chapter
+    if (selectedChapter > 1) {
+      fetchChapterData(selectedBook.id, selectedChapter - 1).then(data => {
+        if (data) setPrevChapterVerses(data.left);
+      });
+    } else {
+      // Previous book last chapter
+      const currentIndex = BIBLE_BOOKS.findIndex(b => b.id === selectedBook.id);
+      if (currentIndex > 0) {
+        const prevBook = BIBLE_BOOKS[currentIndex - 1];
+        fetchChapterData(prevBook.id, prevBook.chapters || 1).then(data => {
+          if (data) setPrevChapterVerses(data.left);
+        });
+      }
+    }
+    
+    // Don't aggressively preload to avoid rate limiting
+    // Only adjacent chapters are preloaded above
   }, [selectedBook, selectedChapter]);
   
   // Handle clicking outside book dropdown
@@ -116,10 +163,9 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     try {
       const hasDownloadProgress = await bibleStorage.getMetadata('download_progress');
       
-      // Only auto-resume if there's an incomplete download
-      // Don't auto-start new downloads - let user initiate
+      // Don't auto-download to avoid rate limiting
+      // User can manually download if needed
       if (hasDownloadProgress && !isDownloading) {
-        // Show resume option but don't auto-start
         console.log('Incomplete download detected. Use download menu to resume.');
       }
     } catch (error) {
@@ -127,41 +173,89 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     }
   };
 
+  // Helper function to fetch chapter data without setting loading state
+  const fetchChapterData = async (bookId: string, chapter: number) => {
+    // Always check cache first to avoid unnecessary API calls
+    try {
+      const cachedCuv = await bibleStorage.getChapter(bookId, chapter, 'cuv');
+      const cachedWeb = await bibleStorage.getChapter(bookId, chapter, 'web');
+      if (cachedCuv && cachedWeb && cachedCuv.verses && cachedWeb.verses) {
+        return {
+          left: cachedCuv.verses,
+          right: cachedWeb.verses
+        };
+      }
+    } catch {}
+    
+    // For preloading, don't fetch from network to avoid rate limiting
+    // Only fetch when explicitly needed (in fetchChapter function)
+    return null;
+  };
+
   const fetchChapter = async () => {
     setLoading(true);
     setError(null);
     
-    // Check if chapter is available offline first
-    let isChapterOffline = false;
+    // First, try to load from cache for instant display
+    let loadedFromCache = false;
     try {
       const cachedCuv = await bibleStorage.getChapter(selectedBook.id, selectedChapter, 'cuv');
       const cachedWeb = await bibleStorage.getChapter(selectedBook.id, selectedChapter, 'web');
-      isChapterOffline = !!(cachedCuv && cachedWeb);
+      
+      if (cachedCuv && cachedWeb && cachedCuv.verses && cachedWeb.verses) {
+        // Use cached data immediately for instant loading
+        setLeftVerses(cachedCuv.verses);
+        setRightVerses(cachedWeb.verses);
+        loadedFromCache = true;
+        setLoading(false);
+        setError(null); // Clear any previous errors
+        
+        // Try to update from network in background (don't show loading)
+        fetch(`https://bible-api.com/${selectedBook.id}${selectedChapter}?translation=cuv`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.verses) {
+              setLeftVerses(data.verses);
+              bibleStorage.saveChapter(selectedBook.id, selectedChapter, 'cuv', data).catch(() => {});
+            }
+          })
+          .catch(() => {}); // Silent fail for background update
+          
+        fetch(`https://bible-api.com/${selectedBook.id}${selectedChapter}?translation=web`)
+          .then(res => res.json())
+          .then(data => {
+            if (data.verses) {
+              setRightVerses(data.verses);
+              bibleStorage.saveChapter(selectedBook.id, selectedChapter, 'web', data).catch(() => {});
+            }
+          })
+          .catch(() => {}); // Silent fail for background update
+      }
     } catch (err) {
-      console.error('Error checking offline status:', err);
+      console.error('Cache check error:', err);
     }
     
-    // Always try to fetch from API first for fresh content
-    try {
-      console.log(`Fetching ${selectedBook.id} chapter ${selectedChapter} from API...`);
-      
-      const [cuvRes, engRes] = await Promise.all([
-        fetch(`https://bible-api.com/${selectedBook.id}${selectedChapter}?translation=cuv`),
-        fetch(`https://bible-api.com/${selectedBook.id}${selectedChapter}?translation=web`)
-      ]);
-      
-      const [cuvData, engData] = await Promise.all([
-        cuvRes.json(),
-        engRes.json()
-      ]);
-      
-      if (cuvData?.verses && engData?.verses) {
-        setLeftVerses(cuvData.verses);
-        setRightVerses(engData.verses);
-        setIsOffline(false);
+    // If not loaded from cache, try to fetch from API
+    if (!loadedFromCache) {
+      try {
+        console.log(`Fetching ${selectedBook.id} chapter ${selectedChapter} from API...`);
         
-        // Save to IndexedDB in background (non-blocking)
-        if (!isChapterOffline) {
+        const [cuvRes, engRes] = await Promise.all([
+          fetch(`https://bible-api.com/${selectedBook.id}${selectedChapter}?translation=cuv`),
+          fetch(`https://bible-api.com/${selectedBook.id}${selectedChapter}?translation=web`)
+        ]);
+        
+        const [cuvData, engData] = await Promise.all([
+          cuvRes.json(),
+          engRes.json()
+        ]);
+      
+        if (cuvData?.verses && engData?.verses) {
+          setLeftVerses(cuvData.verses);
+          setRightVerses(engData.verses);
+          setIsOffline(false);
+          
+          // Save to IndexedDB in background (non-blocking)
           console.log(`Saving ${selectedBook.id} chapter ${selectedChapter} to offline storage...`);
           Promise.all([
             bibleStorage.saveChapter(selectedBook.id, selectedChapter, 'cuv', cuvData),
@@ -172,35 +266,35 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
             checkOfflineStatus();
           }).catch(err => console.error('Failed to cache chapter:', err));
         }
-      }
-    } catch (fetchErr) {
-      // If online fetch fails, try IndexedDB
-      console.log("Online fetch failed, trying offline cache:", fetchErr.message);
-      
-      try {
-        const cachedCuv = await bibleStorage.getChapter(selectedBook.id, selectedChapter, 'cuv');
-        const cachedWeb = await bibleStorage.getChapter(selectedBook.id, selectedChapter, 'web');
+      } catch (fetchErr: any) {
+        // If online fetch fails, try IndexedDB
+        console.log("Online fetch failed, trying offline cache:", fetchErr.message || fetchErr);
         
-        if (cachedCuv && cachedWeb) {
-          console.log(`Loading ${selectedBook.id} chapter ${selectedChapter} from offline cache`);
-          setLeftVerses(cachedCuv.verses);
-          setRightVerses(cachedWeb.verses);
-          setIsOffline(true);
-        } else {
-          console.log(`Chapter ${selectedBook.id} ${selectedChapter} not available offline`);
+        try {
+          const cachedCuv = await bibleStorage.getChapter(selectedBook.id, selectedChapter, 'cuv');
+          const cachedWeb = await bibleStorage.getChapter(selectedBook.id, selectedChapter, 'web');
+          
+          if (cachedCuv && cachedWeb) {
+            console.log(`Loading ${selectedBook.id} chapter ${selectedChapter} from offline cache`);
+            setLeftVerses(cachedCuv.verses);
+            setRightVerses(cachedWeb.verses);
+            setIsOffline(true);
+          } else {
+            console.log(`Chapter ${selectedBook.id} ${selectedChapter} not available offline`);
+            setLeftVerses([]);
+            setRightVerses([]);
+            // More helpful error message with retry option
+            setError(`无法加载 ${selectedBook.name} 第 ${selectedChapter} 章。请检查网络连接。`);
+          }
+        } catch (storageErr) {
+          console.error("Storage error:", storageErr);
           setLeftVerses([]);
           setRightVerses([]);
-          // Show a message that chapter is not available
-          setError(`章节未缓存，需要网络连接`);
         }
-      } catch (storageErr) {
-        console.error("Storage error:", storageErr);
-        setLeftVerses([]);
-        setRightVerses([]);
+      } finally {
+        setSelectedVerses([]);
+        setLoading(false);
       }
-    } finally {
-      setSelectedVerses([]);
-      setLoading(false);
     }
   };
 
@@ -220,9 +314,35 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     book.id.toLowerCase().includes(bookSearchTerm.toLowerCase())
   );
 
-  const handleDownloadCurrentChapter = async () => {
+  // Calculate estimated time remaining for download
+  const calculateTimeRemaining = (progress: number, startTime: number): string => {
+    if (progress === 0 || progress === 100) return '';
+    
+    const elapsed = Date.now() - startTime;
+    const estimatedTotal = (elapsed / progress) * 100;
+    const remaining = estimatedTotal - elapsed;
+    
+    if (remaining < 1000) return '即将完成';
+    
+    const seconds = Math.floor(remaining / 1000);
+    const minutes = Math.floor(seconds / 60);
+    const hours = Math.floor(minutes / 60);
+    
+    if (hours > 0) {
+      return `约 ${hours} 小时 ${minutes % 60} 分钟`;
+    } else if (minutes > 0) {
+      return `约 ${minutes} 分钟 ${seconds % 60} 秒`;
+    } else {
+      return `约 ${seconds} 秒`;
+    }
+  };
+
+  const handleDownloadCurrentChapter = useCallback(async () => {
     setIsDownloading(true);
     setDownloadProgress(0);
+    setDownloadStartTime(Date.now());
+    setDownloadTimeRemaining('');
+    setDownloadStatus(`正在下载: ${selectedBook.name} 第 ${selectedChapter} 章`);
     
     try {
       // Download current chapter with retry logic
@@ -264,16 +384,98 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       
       await checkOfflineStatus();
       fetchChapter(); // Refresh to show offline status
-      alert(`${selectedBook.name} ${selectedChapter} 章已下载！`);
+      alert(`${selectedBook.name} 第 ${selectedChapter} 章已下载！`);
     } catch (err) {
       console.error('Download error:', err);
       alert('下载失败，请检查网络连接后重试。');
     } finally {
       setIsDownloading(false);
       setDownloadProgress(0);
+      setDownloadStatus('');
+      setDownloadTimeRemaining('');
       setShowDownloadMenu(false);
     }
-  };
+  }, [selectedBook, selectedChapter]);
+
+  const handleDownloadCurrentBook = useCallback(async () => {
+    setIsDownloading(true);
+    setDownloadProgress(0);
+    setDownloadStartTime(Date.now());
+    setDownloadTimeRemaining('');
+    
+    try {
+      const totalChapters = selectedBook.chapters || 1;
+      let completed = 0;
+      const total = totalChapters * 2; // *2 for both translations
+      
+      for (let chapter = 1; chapter <= totalChapters; chapter++) {
+        // Check if download was cancelled
+        if (downloadCancelRef.current) {
+          alert('下载已取消');
+          return;
+        }
+
+        // Update status
+        setDownloadStatus(`正在下载: ${selectedBook.name} 第 ${chapter} 章`);
+
+        // Skip if already downloaded
+        const hasChapter = await bibleStorage.hasChapter(selectedBook.id, chapter);
+        if (hasChapter) {
+          completed += 2;
+          setDownloadProgress(Math.round((completed / total) * 100));
+          continue;
+        }
+
+        // Add delay to avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // Download CUV
+        try {
+          const cuvRes = await fetch(`https://bible-api.com/${selectedBook.id}${chapter}?translation=cuv`);
+          if (cuvRes.ok) {
+            const cuvData = await cuvRes.json();
+            if (cuvData?.verses) {
+              await bibleStorage.saveChapter(selectedBook.id, chapter, 'cuv', cuvData);
+            }
+          }
+        } catch (e) {
+          console.error(`Failed to download ${selectedBook.id} ${chapter} CUV:`, e);
+        }
+        completed++;
+        setDownloadProgress(Math.round((completed / total) * 100));
+
+        // Add delay between translations
+        await new Promise(resolve => setTimeout(resolve, 2000));
+
+        // Download WEB
+        try {
+          const webRes = await fetch(`https://bible-api.com/${selectedBook.id}${chapter}?translation=web`);
+          if (webRes.ok) {
+            const webData = await webRes.json();
+            if (webData?.verses) {
+              await bibleStorage.saveChapter(selectedBook.id, chapter, 'web', webData);
+            }
+          }
+        } catch (e) {
+          console.error(`Failed to download ${selectedBook.id} ${chapter} WEB:`, e);
+        }
+        completed++;
+        setDownloadProgress(Math.round((completed / total) * 100));
+      }
+
+      await checkOfflineStatus();
+      alert(`${selectedBook.name} 已下载完成！`);
+    } catch (err) {
+      console.error('Download error:', err);
+      alert('下载失败，请检查网络连接后重试。');
+    } finally {
+      setIsDownloading(false);
+      setDownloadProgress(0);
+      setDownloadStatus('');
+      setDownloadTimeRemaining('');
+      setShowDownloadMenu(false);
+    }
+  }, [selectedBook]);
 
   const downloadBibleInternal = async (startBookIndex = 0, startChapter = 0, startCompleted = 0, existingFailedChapters: string[] = [], saveProgress = true, isAuto = false) => {
     const books = BIBLE_BOOKS;
@@ -317,8 +519,11 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         }
 
         try {
-          // Add rate limiting delay between requests (500ms)
-          await new Promise(resolve => setTimeout(resolve, 500));
+          // Update download status
+          setDownloadStatus(`正在下载: ${book.name} 第 ${chapter} 章`);
+          
+          // Add longer rate limiting delay between requests (2 seconds)
+          await new Promise(resolve => setTimeout(resolve, 2000));
           
           // Download CUV with retry logic
           let cuvSuccess = false;
@@ -332,23 +537,29 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
                   cuvSuccess = true;
                 }
               } else if (cuvRes.status === 429) {
-                // Rate limited - wait longer
-                console.log(`Rate limited on ${book.id} ${chapter}, waiting ${2 + retry}s...`);
-                await new Promise(resolve => setTimeout(resolve, (2 + retry) * 1000));
+                // Rate limited - wait much longer
+                const waitTime = (5 + retry * 5);
+                console.log(`Rate limited on ${book.id} ${chapter}, waiting ${waitTime} seconds...`);
+                await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
               } else if (retry < 2) {
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                await new Promise(resolve => setTimeout(resolve, 2000));
               }
             } catch (e) {
-              if (retry === 2) throw e;
-              await new Promise(resolve => setTimeout(resolve, 1000));
+              if (retry === 2) {
+                console.error(`Failed to download ${book.id} ${chapter} CUV after retries:`, e);
+                break; // Don't throw, just skip this chapter
+              }
+              await new Promise(resolve => setTimeout(resolve, 3000));
             }
           }
-          if (!cuvSuccess) throw new Error('Failed to download CUV after retries');
+          if (!cuvSuccess) {
+            failedChapters.push(`${book.id} ${chapter} CUV`);
+          }
           completed++;
           setDownloadProgress(Math.round((completed / total) * 100));
           
-          // Add delay between translations too
-          await new Promise(resolve => setTimeout(resolve, 500));
+          // Add delay between translations too (2 seconds)
+          await new Promise(resolve => setTimeout(resolve, 2000));
           
           // Download WEB with retry logic
           let webSuccess = false;
@@ -362,18 +573,24 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
                   webSuccess = true;
                 }
               } else if (webRes.status === 429) {
-                // Rate limited - wait longer
-                console.log(`Rate limited on ${book.id} ${chapter}, waiting ${2 + retry}s...`);
-                await new Promise(resolve => setTimeout(resolve, (2 + retry) * 1000));
+                // Rate limited - wait much longer
+                const waitTime = (5 + retry * 5);
+                console.log(`Rate limited on ${book.id} ${chapter} WEB, waiting ${waitTime} seconds...`);
+                await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
               } else if (retry < 2) {
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                await new Promise(resolve => setTimeout(resolve, 2000));
               }
             } catch (e) {
-              if (retry === 2) throw e;
-              await new Promise(resolve => setTimeout(resolve, 1000));
+              if (retry === 2) {
+                console.error(`Failed to download ${book.id} ${chapter} WEB after retries:`, e);
+                break; // Don't throw, just skip this chapter
+              }
+              await new Promise(resolve => setTimeout(resolve, 3000));
             }
           }
-          if (!webSuccess) throw new Error('Failed to download WEB after retries');
+          if (!webSuccess) {
+            failedChapters.push(`${book.id} ${chapter} WEB`);
+          }
           completed++;
           setDownloadProgress(Math.round((completed / total) * 100));
           
@@ -408,9 +625,16 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     return { cancelled: false, failedChapters };
   };
 
-  const handleDownloadBible = async () => {
+  const handleDownloadBible = useCallback(async () => {
+    // Warn user about download time due to rate limiting
+    if (!confirm('下载整本圣经需要较长时间（约30-60分钟）以避免服务器限制。是否继续？\n\nDownloading the entire Bible will take 30-60 minutes to avoid server rate limits. Continue?')) {
+      return;
+    }
+    
     setIsDownloading(true);
     setDownloadProgress(0);
+    setDownloadStartTime(Date.now());
+    setDownloadTimeRemaining('');
     downloadCancelRef.current = false;
     
     try {
@@ -430,16 +654,19 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     } finally {
       setIsDownloading(false);
       setDownloadProgress(0);
+      setDownloadStatus('');
       setShowDownloadMenu(false);
       await checkOfflineStatus();
     }
-  };
+  }, []);
 
   const handleAutoDownloadBible = async () => {
     if (autoDownloadInProgress) return;
     
     setAutoDownloadInProgress(true);
     setDownloadProgress(0);
+    setDownloadStartTime(Date.now());
+    setDownloadTimeRemaining('');
     downloadCancelRef.current = false;
     
     try {
@@ -453,6 +680,8 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     } finally {
       setAutoDownloadInProgress(false);
       setDownloadProgress(0);
+      setDownloadStatus('');
+      setDownloadTimeRemaining('');
       await checkOfflineStatus();
     }
   };
@@ -483,6 +712,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     } finally {
       setIsDownloading(false);
       setDownloadProgress(0);
+      setDownloadStatus('');
       setShowDownloadMenu(false);
       await checkOfflineStatus();
     }
@@ -623,26 +853,54 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    setTouchStartX(e.touches[0].clientX);
-    setIsSwiping(false);
+    // Only enable page flip in reading mode on iOS
+    if (isReadingMode && isIOS) {
+      setTouchStartX(e.touches[0].clientX);
+      setIsSwiping(false);
+      setSwipeOffset(0);
+    }
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (touchStartX === null) return;
+    if (touchStartX === null || !isReadingMode) return;
     const diff = e.touches[0].clientX - touchStartX;
+    
     if (Math.abs(diff) > 10) {
       setIsSwiping(true);
+      // Update swipe offset for visual feedback
+      const maxOffset = window.innerWidth * 0.4;
+      const clampedDiff = Math.max(-maxOffset, Math.min(maxOffset, diff));
+      setSwipeOffset(clampedDiff);
+      setFlipDirection(diff > 0 ? 'right' : 'left');
     }
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX === null || !isSwiping) return;
+    if (touchStartX === null || !isSwiping || !isReadingMode) return;
     const diff = e.changedTouches[0].clientX - touchStartX;
+    
     if (Math.abs(diff) > 50) {
-      navigateChapter(diff > 0 ? 'prev' : 'next');
+      // Complete the page flip animation
+      setIsPageFlipping(true);
+      const targetOffset = diff > 0 ? window.innerWidth : -window.innerWidth;
+      setSwipeOffset(targetOffset); // Animate to full width
+      
+      setTimeout(() => {
+        navigateChapter(diff > 0 ? 'prev' : 'next');
+        // Reset immediately after navigation
+        setSwipeOffset(0);
+        setIsPageFlipping(false);
+        setFlipDirection(null);
+        setIsSwiping(false);
+      }, 300);
+    } else {
+      // Snap back if swipe wasn't far enough
+      setSwipeOffset(0);
+      setFlipDirection(null);
+      setIsSwiping(false);
     }
+    
     setTouchStartX(null);
-    setIsSwiping(false);
   };
 
   const canNavigatePrev = selectedChapter > 1 || BIBLE_BOOKS.findIndex(b => b.id === selectedBook.id) > 0;
@@ -659,16 +917,24 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   // Expose download functions to parent
   useEffect(() => {
     if (onDownloadFunctionsReady) {
-      onDownloadFunctionsReady(handleDownloadBible, handleDownloadCurrentChapter);
+      onDownloadFunctionsReady(handleDownloadBible, handleDownloadCurrentChapter, handleDownloadCurrentBook);
     }
-  }, [handleDownloadBible, handleDownloadCurrentChapter, onDownloadFunctionsReady]);
+  }, [handleDownloadBible, handleDownloadCurrentChapter, handleDownloadCurrentBook, onDownloadFunctionsReady]);
+
+  // Calculate time remaining whenever progress updates
+  useEffect(() => {
+    if ((isDownloading || autoDownloadInProgress) && downloadStartTime > 0 && downloadProgress > 0) {
+      const timeRemaining = calculateTimeRemaining(downloadProgress, downloadStartTime);
+      setDownloadTimeRemaining(timeRemaining);
+    }
+  }, [downloadProgress, downloadStartTime, isDownloading, autoDownloadInProgress]);
 
   // Notify parent of download state changes
   useEffect(() => {
     if (onDownloadStateChange) {
-      onDownloadStateChange(isDownloading || autoDownloadInProgress, downloadProgress);
+      onDownloadStateChange(isDownloading || autoDownloadInProgress, downloadProgress, downloadStatus, downloadTimeRemaining);
     }
-  }, [isDownloading, autoDownloadInProgress, downloadProgress, onDownloadStateChange]);
+  }, [isDownloading, autoDownloadInProgress, downloadProgress, downloadStatus, downloadTimeRemaining, onDownloadStateChange]);
 
   return (
     <div 
@@ -785,6 +1051,8 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
                   downloadCancelRef.current = true;
                   setIsDownloading(false);
                   setAutoDownloadInProgress(false);
+                  setDownloadStatus('');
+                  setDownloadTimeRemaining('');
                   setDownloadProgress(0);
                 }}
                 className="flex items-center gap-1 px-2 py-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-sm"
@@ -797,9 +1065,17 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
               </button>
               <div className="flex items-center gap-2 px-2 py-1 bg-white rounded-full border border-slate-200 shadow-sm">
                 <div className="w-3 h-3 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-                <span className="text-xs font-medium text-slate-600">
-                  {autoDownloadInProgress ? '自动 ' : ''}{downloadProgress}%
-                </span>
+                <div className="flex flex-col items-start">
+                  <span className="text-xs font-medium text-slate-600">
+                    {autoDownloadInProgress ? '自动 ' : ''}{downloadProgress}%
+                    {downloadTimeRemaining && ` • ${downloadTimeRemaining}`}
+                  </span>
+                  {downloadStatus && (
+                    <span className="text-[10px] text-slate-500">
+                      {downloadStatus}
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
           )}
@@ -820,7 +1096,36 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
+        style={{
+          perspective: isReadingMode && isIOS ? '1000px' : undefined,
+          backgroundColor: isPageFlipping && isReadingMode && isIOS ? '#FFFEF8' : 'transparent'
+        }}
       >
+        {/* Show next/previous page during flip animation */}
+        {isReadingMode && isIOS && (isSwiping || isPageFlipping) && flipDirection && (
+          <div 
+            className="absolute inset-0 overflow-y-auto p-4 md:p-6 space-y-4 font-serif-sc"
+            style={{
+              transform: flipDirection === 'left' 
+                ? `translateX(${window.innerWidth + swipeOffset}px) rotateY(${-swipeOffset * 0.03}deg)`
+                : `translateX(${-window.innerWidth + swipeOffset}px) rotateY(${-swipeOffset * 0.03}deg)`,
+              transition: isPageFlipping ? 'all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1)' : 'none',
+              transformOrigin: flipDirection === 'left' ? 'left center' : 'right center',
+              zIndex: 5,
+              backgroundColor: '#FFFEF8',
+              backgroundImage: 'linear-gradient(180deg, #FFFEF8 0%, #FFF9F0 100%)',
+              boxShadow: `${flipDirection === 'left' ? -5 : 5}px 0 15px rgba(0,0,0,0.2), inset 0 0 40px rgba(249, 235, 195, 0.2)`
+            }}
+          >
+            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">和合本 CUV</div>
+            {(flipDirection === 'left' ? nextChapterVerses : prevChapterVerses).map((v: Verse) => (
+              <div key={`preview-${v.verse}`} className="p-2.5 rounded-lg border-transparent">
+                <span className="text-indigo-500 font-bold mr-3 text-xs">{v.verse}</span>
+                <span className="text-lg leading-relaxed text-slate-800">{processChineseText(v.text)}</span>
+              </div>
+            ))}
+          </div>
+        )}
         <div 
           ref={leftScrollRef}
           onScroll={() => handleScroll('left')}
@@ -830,7 +1135,20 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
             flexShrink: isResearchMode || vSplitOffset >= 100 ? 1 : 0,
             flexBasis: isResearchMode ? '100%' : vSplitOffset >= 100 ? 'calc(100% - 20px)' : vSplitOffset <= 0 ? '0%' : `calc(${vSplitOffset}% - 10px)`,
             minWidth: 0,
-            display: vSplitOffset <= 0 && !isResearchMode ? 'none' : 'block'
+            display: vSplitOffset <= 0 && !isResearchMode ? 'none' : 'block',
+            // Paper-like background for iOS
+            ...(isReadingMode && isIOS && {
+              backgroundColor: '#FFFEF8',
+              backgroundImage: 'linear-gradient(180deg, #FFFEF8 0%, #FFF9F0 100%)',
+              boxShadow: 'inset 0 0 40px rgba(249, 235, 195, 0.2)'
+            }),
+            // Page flip animation for iOS in reading mode
+            ...(isReadingMode && isIOS && {
+              transform: `translateX(${swipeOffset}px) rotateY(${swipeOffset * 0.05}deg)`,
+              transition: isPageFlipping ? 'all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1)' : 'none',
+              transformOrigin: swipeOffset > 0 ? 'right center' : 'left center',
+              boxShadow: isSwiping || isPageFlipping ? `${-swipeOffset * 0.02}px 0 20px rgba(0,0,0,0.3)` : 'inset 0 0 40px rgba(249, 235, 195, 0.2)'
+            })
           }}
         >
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">和合本 CUV</div>
@@ -981,12 +1299,23 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       
       {/* Non-blocking error notification */}
       {error && (
-        <div className="absolute bottom-4 right-4 bg-red-500 text-white px-4 py-2 rounded-lg shadow-lg flex items-center gap-2 animate-in slide-in-from-bottom-2">
-          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <div className="absolute bottom-4 right-4 bg-red-500 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-in slide-in-from-bottom-2 max-w-md">
+          <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <span className="text-sm">{error}</span>
-          <button onClick={() => setError(null)} className="ml-2 hover:text-red-100">
+          <div className="flex-1">
+            <span className="text-sm block">{error}</span>
+            <button 
+              onClick={() => {
+                setError(null);
+                fetchChapter(); // Retry loading
+              }}
+              className="text-xs mt-1 underline hover:no-underline"
+            >
+              点击重试
+            </button>
+          </div>
+          <button onClick={() => setError(null)} className="ml-2 hover:text-red-100 shrink-0">
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
             </svg>
