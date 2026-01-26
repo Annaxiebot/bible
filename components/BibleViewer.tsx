@@ -760,9 +760,10 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
 
   const handleVerseClick = (verseNum: number, e: React.MouseEvent) => {
     e.stopPropagation();
+    e.preventDefault();
     
-    // In reading mode, don't respond to verse clicks
-    if (isReadingMode) return;
+    // In reading mode, don't respond to verse clicks unless text is being selected
+    if (isReadingMode && !window.getSelection()?.toString()) return;
     
     const selection = window.getSelection()?.toString();
     if (selection && selection.length > 0) return;
@@ -865,6 +866,23 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   const handleTouchStart = (e: React.TouchEvent) => {
     // Only enable page flip in reading mode on iOS
     if (isReadingMode && isIOS) {
+      // Don't start swipe if user is selecting text
+      const selection = window.getSelection();
+      if (selection && selection.toString().length > 0) return;
+      
+      // Don't start swipe if verses are selected (user might be trying to copy)
+      if (selectedVerses.length > 0) return;
+      
+      // Check if touch started on a verse element
+      const target = e.target as HTMLElement;
+      const isOnVerse = target.closest('.p-1.rounded-lg') || 
+                        target.tagName === 'SPAN' ||
+                        target.closest('[onclick]');
+      if (isOnVerse) {
+        // User is likely trying to select verse text, don't start swipe
+        return;
+      }
+      
       setTouchStartX(e.touches[0].clientX);
       setIsSwiping(false);
       setSwipeOffset(0);
@@ -873,6 +891,24 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
 
   const handleTouchMove = (e: React.TouchEvent) => {
     if (touchStartX === null || !isReadingMode) return;
+    
+    // Stop if text is being selected
+    const selection = window.getSelection();
+    if (selection && selection.toString().length > 0) {
+      setTouchStartX(null);
+      setIsSwiping(false);
+      setSwipeOffset(0);
+      return;
+    }
+    
+    // Stop if verses are selected
+    if (selectedVerses.length > 0) {
+      setTouchStartX(null);
+      setIsSwiping(false);
+      setSwipeOffset(0);
+      return;
+    }
+    
     const diff = e.touches[0].clientX - touchStartX;
     
     if (Math.abs(diff) > 10) {
@@ -893,21 +929,25 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       // Complete the page flip animation
       setIsPageFlipping(true);
       const targetOffset = diff > 0 ? window.innerWidth : -window.innerWidth;
-      setSwipeOffset(targetOffset); // Animate to full width
+      setSwipeOffset(targetOffset);
       
+      // Wait for animation to complete, then navigate
       setTimeout(() => {
         navigateChapter(diff > 0 ? 'prev' : 'next');
-        // Reset immediately after navigation
         setSwipeOffset(0);
         setIsPageFlipping(false);
         setFlipDirection(null);
         setIsSwiping(false);
-      }, 300);
+      }, 400); // Match the CSS transition duration
     } else {
       // Snap back if swipe wasn't far enough
+      setIsPageFlipping(true);
       setSwipeOffset(0);
-      setFlipDirection(null);
-      setIsSwiping(false);
+      setTimeout(() => {
+        setIsPageFlipping(false);
+        setFlipDirection(null);
+        setIsSwiping(false);
+      }, 400);
     }
     
     setTouchStartX(null);
@@ -1131,7 +1171,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         onTouchEnd={handleTouchEnd}
         style={{
           perspective: isReadingMode && isIOS ? '1000px' : undefined,
-          backgroundColor: isPageFlipping && isReadingMode && isIOS ? '#FFFEF8' : 'transparent'
+          backgroundColor: isPageFlipping && isReadingMode && isIOS ? '#FDF8F0' : 'transparent'
         }}
       >
         {/* Show next/previous page during flip animation */}
@@ -1142,19 +1182,29 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
               transform: flipDirection === 'left' 
                 ? `translateX(${window.innerWidth + swipeOffset}px) rotateY(${-swipeOffset * 0.03}deg)`
                 : `translateX(${-window.innerWidth + swipeOffset}px) rotateY(${-swipeOffset * 0.03}deg)`,
-              transition: isPageFlipping ? 'all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1)' : 'none',
+              transition: isPageFlipping ? 'all 0.4s ease-out' : 'none',
               transformOrigin: flipDirection === 'left' ? 'left center' : 'right center',
               zIndex: 5,
-              backgroundColor: '#FFFEF8',
-              backgroundImage: 'linear-gradient(180deg, #FFFEF8 0%, #FFF9F0 100%)',
-              boxShadow: `${flipDirection === 'left' ? -5 : 5}px 0 15px rgba(0,0,0,0.2), inset 0 0 40px rgba(249, 235, 195, 0.2)`
+              backgroundColor: '#FDF8F0',
+              backgroundImage: `
+                linear-gradient(180deg, #FFFEF9 0%, #FDF6E8 50%, #FAF3E5 100%),
+                radial-gradient(ellipse at center, rgba(252, 243, 223, 0.3) 0%, transparent 60%)
+              `,
+              boxShadow: `
+                ${flipDirection === 'left' ? -8 : 8}px 0 20px rgba(0,0,0,0.25),
+                inset 0 0 50px rgba(245, 225, 185, 0.2),
+                inset 1px 1px 3px rgba(255, 255, 255, 0.5)
+              `
             }}
           >
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">和合本 CUV</div>
             {(flipDirection === 'left' ? nextChapterVerses : prevChapterVerses).map((v: Verse) => (
               <div key={`preview-${v.verse}`} className="p-1 rounded-lg border-transparent">
-                <span className="text-indigo-500 font-bold mr-3 text-xs">{v.verse}</span>
-                <span className="leading-relaxed text-slate-800" style={{ fontSize: `${fontSize}px` }}>{processChineseText(v.text)}</span>
+                <span className="font-bold mr-3 text-xs" style={{ color: isReadingMode ? '#8B7355' : '#6366f1' }}>{v.verse}</span>
+                <span className="leading-relaxed" style={{ 
+                  fontSize: `${fontSize}px`,
+                  color: isReadingMode ? '#3A3028' : '#1e293b'
+                }}>{processChineseText(v.text)}</span>
               </div>
             ))}
           </div>
@@ -1169,16 +1219,43 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
             flexBasis: isResearchMode ? '100%' : vSplitOffset >= 100 ? 'calc(100% - 20px)' : vSplitOffset <= 0 ? '0%' : `calc(${vSplitOffset}% - 10px)`,
             minWidth: 0,
             display: vSplitOffset <= 0 && !isResearchMode ? 'none' : 'block',
-            // Paper-like background for iOS
-            ...(isReadingMode && isIOS && {
-              backgroundColor: '#FFFEF8',
-              backgroundImage: 'linear-gradient(180deg, #FFFEF8 0%, #FFF9F0 100%)',
-              boxShadow: 'inset 0 0 40px rgba(249, 235, 195, 0.2)'
+            // Paper-like background in reading mode
+            ...(isReadingMode && {
+              backgroundColor: '#FDF8F0',
+              backgroundImage: `
+                linear-gradient(180deg, #FFFEF9 0%, #FDF6E8 50%, #FAF3E5 100%),
+                radial-gradient(ellipse at top left, rgba(252, 243, 223, 0.4) 0%, transparent 50%),
+                radial-gradient(ellipse at bottom right, rgba(249, 235, 195, 0.3) 0%, transparent 50%)
+              `,
+              boxShadow: `
+                inset 0 0 60px rgba(245, 225, 185, 0.25),
+                inset 0 0 30px rgba(249, 235, 195, 0.15),
+                inset 2px 2px 5px rgba(0, 0, 0, 0.02)
+              `,
+              position: 'relative' as const,
+              '&::before': {
+                content: '""',
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundImage: `
+                  repeating-linear-gradient(
+                    90deg,
+                    transparent,
+                    transparent 100px,
+                    rgba(245, 225, 185, 0.03) 100px,
+                    rgba(245, 225, 185, 0.03) 101px
+                  )
+                `,
+                pointerEvents: 'none'
+              }
             }),
             // Page flip animation for iOS in reading mode
             ...(isReadingMode && isIOS && {
               transform: `translateX(${swipeOffset}px) rotateY(${swipeOffset * 0.05}deg)`,
-              transition: isPageFlipping ? 'all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1)' : 'none',
+              transition: isPageFlipping ? 'all 0.4s ease-out' : 'none',
               transformOrigin: swipeOffset > 0 ? 'right center' : 'left center',
               boxShadow: isSwiping || isPageFlipping ? `${-swipeOffset * 0.02}px 0 20px rgba(0,0,0,0.3)` : 'inset 0 0 40px rgba(249, 235, 195, 0.2)'
             })
@@ -1200,8 +1277,11 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
                 }`}
                 style={{ cursor: isReadingMode ? 'default' : 'pointer' }}
               >
-                <span className="text-indigo-500 font-bold mr-3 text-xs">{v.verse}</span>
-                <span className="leading-relaxed text-slate-800" style={{ fontSize: `${fontSize}px` }}>{processChineseText(v.text)}</span>
+                <span className="font-bold mr-3 text-xs" style={{ color: isReadingMode ? '#8B7355' : '#6366f1' }}>{v.verse}</span>
+                <span className="leading-relaxed" style={{ 
+                  fontSize: `${fontSize}px`,
+                  color: isReadingMode ? '#3A3028' : '#1e293b'
+                }}>{processChineseText(v.text)}</span>
                 {hasNoteMark(v.verse) && (
                   <div className="absolute top-1 right-1 text-amber-500" title="已有笔记">
                     <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14h-4v-2h4v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
