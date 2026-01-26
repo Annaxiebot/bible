@@ -53,6 +53,11 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   const [autoDownloadInProgress, setAutoDownloadInProgress] = useState(false);
   const downloadCancelRef = useRef(false);
   
+  // Book search state
+  const [bookSearchTerm, setBookSearchTerm] = useState('');
+  const [showBookDropdown, setShowBookDropdown] = useState(false);
+  const bookSearchRef = useRef<HTMLDivElement>(null);
+  
   const [vSplitOffset, setVSplitOffset] = useState(100); // Start with Chinese maximized
   const [isResizing, setIsResizing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -64,6 +69,17 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   useEffect(() => {
     fetchChapter();
   }, [selectedBook, selectedChapter]);
+  
+  // Handle clicking outside book dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (bookSearchRef.current && !bookSearchRef.current.contains(event.target as Node)) {
+        setShowBookDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Initialize storage and check offline status on mount
   useEffect(() => {
@@ -197,6 +213,12 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   const processChineseText = (text: string): string => {
     return isSimplified ? toSimplified(text) : text;
   };
+  
+  // Filter books based on search term
+  const filteredBooks = BIBLE_BOOKS.filter(book => 
+    book.name.toLowerCase().includes(bookSearchTerm.toLowerCase()) ||
+    book.id.toLowerCase().includes(bookSearchTerm.toLowerCase())
+  );
 
   const handleDownloadCurrentChapter = async () => {
     setIsDownloading(true);
@@ -686,16 +708,43 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          <select 
-            className="p-1.5 rounded border bg-white text-sm focus:ring-2 focus:ring-indigo-500 font-medium"
-            value={selectedBook.id}
-            onChange={(e) => {
-              const book = BIBLE_BOOKS.find(b => b.id === e.target.value);
-              if (book) { setSelectedBook(book); setSelectedChapter(1); }
-            }}
-          >
-            {BIBLE_BOOKS.map(book => <option key={book.id} value={book.id}>{book.name}</option>)}
-          </select>
+          <div className="relative" ref={bookSearchRef}>
+            <input
+              type="text"
+              className="p-1.5 rounded border bg-white text-sm focus:ring-2 focus:ring-indigo-500 font-medium w-40"
+              value={showBookDropdown ? bookSearchTerm : selectedBook.name}
+              onChange={(e) => setBookSearchTerm(e.target.value)}
+              onFocus={() => {
+                setShowBookDropdown(true);
+                setBookSearchTerm('');
+              }}
+              placeholder="搜索书卷..."
+            />
+            {showBookDropdown && (
+              <div className="absolute top-full mt-1 w-full max-h-60 overflow-y-scroll bg-white border border-slate-200 rounded-lg shadow-lg z-50 book-dropdown-scroll">
+                {filteredBooks.length > 0 ? (
+                  filteredBooks.map(book => (
+                    <button
+                      key={book.id}
+                      onClick={() => {
+                        setSelectedBook(book);
+                        setSelectedChapter(1);
+                        setShowBookDropdown(false);
+                        setBookSearchTerm('');
+                      }}
+                      className={`w-full text-left px-3 py-2 text-sm hover:bg-indigo-50 transition-colors ${
+                        book.id === selectedBook.id ? 'bg-indigo-100 font-semibold' : ''
+                      }`}
+                    >
+                      {book.name}
+                    </button>
+                  ))
+                ) : (
+                  <div className="px-3 py-2 text-sm text-slate-500">没有找到匹配的书卷</div>
+                )}
+              </div>
+            )}
+          </div>
           <select 
             className="p-1.5 rounded border bg-white text-sm focus:ring-2 focus:ring-indigo-500 font-medium w-24"
             value={selectedChapter}

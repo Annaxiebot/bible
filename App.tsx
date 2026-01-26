@@ -162,16 +162,14 @@ const App: React.FC = () => {
     }
     
     const noteCount = Object.keys(notes).length;
-    if (confirm(`确定要清除所有 ${noteCount} 条笔记吗？此操作无法撤销。建议先备份您的笔记。`)) {
-      if (confirm(`再次确认：您真的要删除所有笔记吗？`)) {
-        try {
-          await notesStorage.clearAllNotes();
-          setNotes({});
-          alert("所有笔记已清除。");
-        } catch (error) {
-          console.error('Failed to clear notes from IndexedDB:', error);
-          alert("清除笔记时出错，请重试。");
-        }
+    if (confirm(`确定要清除所有 ${noteCount} 条笔记吗？此操作无法撤销。`)) {
+      try {
+        await notesStorage.clearAllNotes();
+        setNotes({});
+        alert("所有笔记已清除。");
+      } catch (error) {
+        console.error('Failed to clear notes from IndexedDB:', error);
+        alert("清除笔记时出错，请重试。");
       }
     }
   };
