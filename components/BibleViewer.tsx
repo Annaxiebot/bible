@@ -43,6 +43,10 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     const saved = localStorage.getItem('bibleChineseMode');
     return saved === 'simplified';
   });
+  const [fontSize, setFontSize] = useState(() => {
+    const saved = localStorage.getItem('bibleFontSize');
+    return saved ? parseInt(saved) : 18;
+  });
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [downloadStatus, setDownloadStatus] = useState<string>('');
@@ -302,6 +306,12 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     const newMode = !isSimplified;
     setIsSimplified(newMode);
     localStorage.setItem('bibleChineseMode', newMode ? 'simplified' : 'traditional');
+  };
+
+  const adjustFontSize = (delta: number) => {
+    const newSize = Math.min(Math.max(fontSize + delta, 12), 36);
+    setFontSize(newSize);
+    localStorage.setItem('bibleFontSize', newSize.toString());
   };
 
   const processChineseText = (text: string): string => {
@@ -1044,6 +1054,29 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           >
             <span className="text-xs font-medium text-slate-600">{isSimplified ? '简' : '繁'}</span>
           </button>
+          <div className="flex items-center gap-1 px-2 py-1 bg-white rounded-full border border-slate-200 shadow-sm">
+            <button
+              onClick={() => adjustFontSize(-2)}
+              className="p-0.5 hover:bg-slate-100 rounded transition-colors"
+              title="缩小字体"
+              disabled={fontSize <= 12}
+            >
+              <svg className="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+              </svg>
+            </button>
+            <span className="text-xs font-medium text-slate-600 px-1 min-w-[20px] text-center">{fontSize}</span>
+            <button
+              onClick={() => adjustFontSize(2)}
+              className="p-0.5 hover:bg-slate-100 rounded transition-colors"
+              title="放大字体"
+              disabled={fontSize >= 36}
+            >
+              <svg className="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+          </div>
           {(isDownloading || autoDownloadInProgress) && (
             <div className="flex items-center gap-2">
               <button
@@ -1104,7 +1137,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         {/* Show next/previous page during flip animation */}
         {isReadingMode && isIOS && (isSwiping || isPageFlipping) && flipDirection && (
           <div 
-            className="absolute inset-0 overflow-y-auto p-4 md:p-6 space-y-4 font-serif-sc"
+            className="absolute inset-0 overflow-y-auto p-4 md:p-6 space-y-0.5 font-serif-sc"
             style={{
               transform: flipDirection === 'left' 
                 ? `translateX(${window.innerWidth + swipeOffset}px) rotateY(${-swipeOffset * 0.03}deg)`
@@ -1119,9 +1152,9 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           >
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">和合本 CUV</div>
             {(flipDirection === 'left' ? nextChapterVerses : prevChapterVerses).map((v: Verse) => (
-              <div key={`preview-${v.verse}`} className="p-2.5 rounded-lg border-transparent">
+              <div key={`preview-${v.verse}`} className="p-1 rounded-lg border-transparent">
                 <span className="text-indigo-500 font-bold mr-3 text-xs">{v.verse}</span>
-                <span className="text-lg leading-relaxed text-slate-800">{processChineseText(v.text)}</span>
+                <span className="leading-relaxed text-slate-800" style={{ fontSize: `${fontSize}px` }}>{processChineseText(v.text)}</span>
               </div>
             ))}
           </div>
@@ -1129,7 +1162,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         <div 
           ref={leftScrollRef}
           onScroll={() => handleScroll('left')}
-          className="overflow-y-auto p-4 md:p-6 space-y-4 font-serif-sc border-r border-slate-100"
+          className="overflow-y-auto p-4 md:p-6 space-y-0.5 font-serif-sc border-r border-slate-100"
           style={{ 
             flexGrow: isResearchMode || vSplitOffset >= 100 ? 1 : 0,
             flexShrink: isResearchMode || vSplitOffset >= 100 ? 1 : 0,
@@ -1153,7 +1186,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         >
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">和合本 CUV</div>
           {loading ? (
-            <div className="animate-pulse space-y-4">
+            <div className="animate-pulse space-y-2">
               {[1,2,3,4,5].map(n => <div key={n} className="h-4 bg-slate-100 rounded w-full"></div>)}
             </div>
           ) : (
@@ -1161,14 +1194,14 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
               <div 
                 key={`left-${v.verse}`}
                 onClick={(e) => handleVerseClick(v.verse, e)}
-                className={`p-2.5 rounded-lg transition-all border relative ${
+                className={`p-1 rounded-lg transition-all border relative ${
                   selectedVerses.includes(v.verse) && !isReadingMode ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 
                   isReadingMode ? 'border-transparent' : 'border-transparent hover:bg-slate-50'
                 }`}
                 style={{ cursor: isReadingMode ? 'default' : 'pointer' }}
               >
                 <span className="text-indigo-500 font-bold mr-3 text-xs">{v.verse}</span>
-                <span className="text-lg leading-relaxed text-slate-800">{processChineseText(v.text)}</span>
+                <span className="leading-relaxed text-slate-800" style={{ fontSize: `${fontSize}px` }}>{processChineseText(v.text)}</span>
                 {hasNoteMark(v.verse) && (
                   <div className="absolute top-1 right-1 text-amber-500" title="已有笔记">
                     <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-5 14h-4v-2h4v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/></svg>
@@ -1264,7 +1297,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         <div 
           ref={rightScrollRef}
           onScroll={() => handleScroll('right')}
-          className="overflow-y-auto p-4 md:p-6 space-y-4 font-sans"
+          className="overflow-y-auto p-4 md:p-6 space-y-0.5 font-sans"
           style={{ 
             flexGrow: vSplitOffset <= 0 ? 1 : 0,
             flexShrink: vSplitOffset <= 0 ? 1 : 0,
@@ -1275,7 +1308,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         >
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">English (WEB)</div>
           {loading ? (
-            <div className="animate-pulse space-y-4">
+            <div className="animate-pulse space-y-2">
               {[1,2,3,4,5].map(n => <div key={n} className="h-4 bg-slate-100 rounded w-full"></div>)}
             </div>
           ) : (
@@ -1283,14 +1316,14 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
               <div 
                 key={`right-${v.verse}`}
                 onClick={(e) => handleVerseClick(v.verse, e)}
-                className={`p-2.5 rounded-lg transition-all border ${
+                className={`p-1 rounded-lg transition-all border ${
                   selectedVerses.includes(v.verse) && !isReadingMode ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 
                   isReadingMode ? 'border-transparent' : 'border-transparent hover:bg-slate-50'
                 }`}
                 style={{ cursor: isReadingMode ? 'default' : 'pointer' }}
               >
                 <span className="text-indigo-400 font-bold mr-3 text-xs">{v.verse}</span>
-                <span className="text-base leading-relaxed text-slate-700 italic">{v.text}</span>
+                <span className="leading-relaxed text-slate-700 italic" style={{ fontSize: `${fontSize}px` }}>{v.text}</span>
               </div>
             ))
           )}
