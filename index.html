@@ -52,6 +52,40 @@
         canvas {
           touch-action: none;
         }
+        /* Book dropdown scrollbar styles */
+        .book-dropdown-scroll {
+          -webkit-overflow-scrolling: touch;
+          position: relative;
+        }
+        .book-dropdown-scroll::-webkit-scrollbar {
+          width: 8px;
+        }
+        .book-dropdown-scroll::-webkit-scrollbar-track {
+          background: #f1f5f9;
+          border-radius: 4px;
+        }
+        .book-dropdown-scroll::-webkit-scrollbar-thumb {
+          background: #94a3b8;
+          border-radius: 4px;
+        }
+        .book-dropdown-scroll::-webkit-scrollbar-thumb:hover {
+          background: #64748b;
+        }
+        /* iOS specific 3-dots indicator */
+        @supports (-webkit-touch-callout: none) {
+          .book-dropdown-scroll::after {
+            content: '⋮';
+            position: absolute;
+            right: 8px;
+            bottom: 8px;
+            color: #94a3b8;
+            font-size: 20px;
+            font-weight: bold;
+            pointer-events: none;
+            background: white;
+            padding: 0 4px;
+          }
+        }
     </style>
 <script type="importmap">
 {

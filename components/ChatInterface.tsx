@@ -460,51 +460,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText }) => {
         </div>
       </div>
 
-      {/* Studio & Input */}
-      {showStudio && (
-        <div className="absolute bottom-24 left-4 right-4 bg-white p-5 rounded-2xl shadow-2xl border border-indigo-100 z-50 animate-in zoom-in duration-200">
-          <div className="flex justify-between items-center mb-4">
-            <h4 className="font-bold text-slate-700 text-sm flex items-center gap-2">
-              <svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" /></svg>
-              圣经影像工坊
-            </h4>
-            <button onClick={() => setShowStudio(false)} className="text-slate-400 hover:text-slate-600 p-1">
-               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
-            </button>
-          </div>
-          <div className="grid grid-cols-2 gap-3 text-xs">
-            <div className="space-y-1">
-              <span className="text-slate-400 font-bold ml-1">创作类型</span>
-              <select className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500" onChange={e => setStudioConfig({...studioConfig, type: e.target.value as any})}>
-                <option value="image">超清图像 (Pro 4.0)</option>
-                <option value="video">史诗视频 (Veo 3.1)</option>
-              </select>
-            </div>
-            <div className="space-y-1">
-              <span className="text-slate-400 font-bold ml-1">比例</span>
-              <select className="w-full p-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-indigo-500" onChange={e => setStudioConfig({...studioConfig, aspect: e.target.value as any})}>
-                <option value="1:1">1:1 正方形</option>
-                <option value="16:9">16:9 宽屏</option>
-                <option value="9:16">9:16 竖屏</option>
-              </select>
-            </div>
-          </div>
-          <button onClick={startMediaGen} className="w-full mt-4 py-3 bg-indigo-600 text-white rounded-xl text-sm font-bold shadow-lg hover:bg-indigo-700 active:scale-95 transition-all">生成视觉启发</button>
-        </div>
-      )}
-
+      {/* Input area */}
       <div className="p-4 bg-white border-t border-slate-200 z-10 shadow-lg">
         <div className="max-w-5xl mx-auto flex flex-col gap-2">
-          <div className="flex items-center gap-2 px-1">
-            <button onClick={() => setIsThinking(!isThinking)} className={`p-1.5 rounded-lg transition-all ${isThinking ? 'bg-amber-100 text-amber-600 border border-amber-200' : 'bg-slate-100 text-slate-400 hover:text-indigo-500'}`} title="深度学术思考">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.989-2.386l-.548-.547z" /></svg>
-            </button>
-            <button onClick={() => setShowStudio(!showStudio)} className="p-1.5 bg-slate-100 text-slate-400 hover:text-indigo-500 rounded-lg transition-all" title="开启工坊">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-            </button>
-            <div className="h-4 w-[1px] bg-slate-200 mx-1"></div>
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-widest">{isThinking ? 'Pro Deep Research' : 'Standard Analysis'}</span>
-          </div>
           <div className="relative">
             <textarea
               value={input}
