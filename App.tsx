@@ -385,7 +385,7 @@ const App: React.FC = () => {
         }}>
           <BibleViewer 
             notes={notes}
-            onSelectionChange={appMode !== 'reading' ? handleSelectionChange : undefined}
+            onSelectionChange={handleSelectionChange}
             onVersesSelectedForChat={(text) => setSelectionPayload({ text, id: Date.now() })}
             sidebarOpen={isSidebarOpen}
             showSidebarToggle={!isIPhone} // Pass iPhone detection to BibleViewer

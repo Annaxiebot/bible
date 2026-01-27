@@ -3,6 +3,7 @@ import { Verse, Book, SelectionInfo } from '../types';
 import { BIBLE_BOOKS } from '../constants';
 import { toSimplified } from '../services/chineseConverter';
 import { bibleStorage } from '../services/bibleStorage';
+import { readingHistory } from '../services/readingHistory';
 
 interface BibleViewerProps {
   onSelectionChange?: (info: SelectionInfo) => void;
@@ -38,6 +39,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
 }) => {
   const [selectedBook, setSelectedBook] = useState<Book>(BIBLE_BOOKS[0]);
   const [selectedChapter, setSelectedChapter] = useState(1);
+  const [hasInitialized, setHasInitialized] = useState(false);
   const [leftVerses, setLeftVerses] = useState<Verse[]>([]);
   const [rightVerses, setRightVerses] = useState<Verse[]>([]);
   const [loading, setLoading] = useState(false);
@@ -68,6 +70,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   const [offlineChapters, setOfflineChapters] = useState<Set<string>>(new Set());
   const [autoDownloadInProgress, setAutoDownloadInProgress] = useState(false);
   const downloadCancelRef = useRef(false);
+  const [currentSelectedText, setCurrentSelectedText] = useState<string>('');
   
   // Book search state
   const [bookSearchTerm, setBookSearchTerm] = useState('');
@@ -89,6 +92,13 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   // Better iOS detection that works for modern iPads
   const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || 
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  // Save reading position when book or chapter changes
+  useEffect(() => {
+    if (hasInitialized) {
+      readingHistory.saveReadingPosition(selectedBook.id, selectedChapter);
+    }
+  }, [selectedBook.id, selectedChapter, hasInitialized]);
 
   useEffect(() => {
     fetchChapter();
@@ -143,8 +153,40 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Track text selection globally
+  useEffect(() => {
+    const handleSelectionChange = () => {
+      const selection = window.getSelection();
+      const text = selection?.toString().trim();
+      if (text && text.length > 0 && currentMode === 'reading') {
+        setCurrentSelectedText(text);
+      }
+    };
+    
+    document.addEventListener('selectionchange', handleSelectionChange);
+    return () => {
+      document.removeEventListener('selectionchange', handleSelectionChange);
+    };
+  }, [currentMode]);
+
   // Initialize storage and check offline status on mount
   useEffect(() => {
+    // Load last reading position on mount
+    const loadLastPosition = async () => {
+      if (!hasInitialized) {
+        const lastPosition = await readingHistory.getLastReadingPosition();
+        if (lastPosition) {
+          const book = BIBLE_BOOKS.find(b => b.id === lastPosition.bookId);
+          if (book) {
+            setSelectedBook(book);
+            setSelectedChapter(lastPosition.chapter);
+          }
+        }
+        setHasInitialized(true);
+      }
+    };
+    loadLastPosition();
+    
     // Run initialization in background without blocking UI
     const timer = setTimeout(() => {
       initializeStorage();
@@ -797,9 +839,53 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     const selection = window.getSelection();
     const text = selection?.toString().trim();
     if (text && text.length > 0) {
+      setCurrentSelectedText(text); // Track the selected text
       const anchorVerses = selectedVerses.length > 0 ? selectedVerses : [1];
       notifySelection(anchorVerses, text);
     }
+  };
+
+  // Helper function to handle mode change with verse selection
+  const handleModeChangeWithSelection = (mode: 'reading' | 'notes' | 'research') => {
+    // When switching from reading mode to notes/research with selected text
+    if (currentMode === 'reading' && currentSelectedText && (mode === 'notes' || mode === 'research')) {
+      // Find the verse containing the selected text
+      const verseContainingText = leftVerses.find(verse => 
+        verse.text.includes(currentSelectedText)
+      );
+      
+      if (verseContainingText) {
+        // Select the verse containing the text
+        setSelectedVerses([verseContainingText.verse]);
+        
+        // For notes mode, we need to properly notify the selection with all required info
+        if (mode === 'notes') {
+          const selectionInfo: SelectionInfo = {
+            id: `${selectedBook.id}_${selectedChapter}_${verseContainingText.verse}`,
+            bookName: selectedBook.name,
+            bookId: selectedBook.id,
+            chapter: selectedChapter,
+            verseNums: [verseContainingText.verse],
+            selectedRawText: currentSelectedText,
+            verses: [verseContainingText]
+          };
+          onSelectionChange?.(selectionInfo);
+        } else {
+          // For research mode, notify and send text to chat
+          notifySelection([verseContainingText.verse], currentSelectedText);
+          onVersesSelectedForChat(currentSelectedText);
+        }
+      }
+    }
+    
+    // Clear selected text when switching back to reading mode
+    if (mode === 'reading') {
+      setCurrentSelectedText('');
+      window.getSelection()?.removeAllRanges();
+      setSelectedVerses([]);
+    }
+    
+    onModeChange?.(mode);
   };
 
   const handleScroll = (source: 'left' | 'right') => {
@@ -1094,7 +1180,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           {onModeChange && !isIPhone && (
             <div className="flex items-center gap-1 px-1 py-1 bg-white rounded-full border border-slate-200 shadow-sm">
               <button
-                onClick={() => onModeChange('reading')}
+                onClick={() => handleModeChangeWithSelection('reading')}
                 className={`px-2 py-1 rounded-full text-xs font-medium transition-colors ${
                   currentMode === 'reading' 
                     ? 'bg-indigo-500 text-white' 
@@ -1105,7 +1191,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
                 📖
               </button>
               <button
-                onClick={() => onModeChange('notes')}
+                onClick={() => handleModeChangeWithSelection('notes')}
                 className={`px-2 py-1 rounded-full text-xs font-medium transition-colors ${
                   currentMode === 'notes' 
                     ? 'bg-indigo-500 text-white' 
@@ -1116,7 +1202,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
                 ✏️
               </button>
               <button
-                onClick={() => onModeChange('research')}
+                onClick={() => handleModeChangeWithSelection('research')}
                 className={`px-2 py-1 rounded-full text-xs font-medium transition-colors ${
                   currentMode === 'research' 
                     ? 'bg-indigo-500 text-white' 
@@ -1222,7 +1308,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
                       <div className="flex gap-1">
                         <button
                           onClick={() => {
-                            onModeChange('reading');
+                            handleModeChangeWithSelection('reading');
                             setShowMobileMenu(false);
                           }}
                           className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
@@ -1235,7 +1321,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
                         </button>
                         <button
                           onClick={() => {
-                            onModeChange('notes');
+                            handleModeChangeWithSelection('notes');
                             setShowMobileMenu(false);
                           }}
                           className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
@@ -1248,7 +1334,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
                         </button>
                         <button
                           onClick={() => {
-                            onModeChange('research');
+                            handleModeChangeWithSelection('research');
                             setShowMobileMenu(false);
                           }}
                           className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
