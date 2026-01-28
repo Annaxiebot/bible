@@ -46,11 +46,9 @@ class VerseDataStorage {
     const db = await this.ensureDB();
     const id = this.createId(bookId, chapter, verses);
     
-    console.log('[VerseDataStorage] Getting verse data for:', { id, bookId, chapter, verses });
     
     try {
       const data = await db.get('verseData', id);
-      console.log('[VerseDataStorage] Retrieved data:', data);
       return data || null;
     } catch (error) {
       console.error('Failed to get verse data:', error);
@@ -67,6 +65,7 @@ class VerseDataStorage {
   ): Promise<void> {
     const db = await this.ensureDB();
     const id = this.createId(bookId, chapter, verses);
+    
     
     try {
       const existing = await db.get('verseData', id);
@@ -123,11 +122,9 @@ class VerseDataStorage {
     const id = this.createId(bookId, chapter, verses);
     const researchId = `ai_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     
-    console.log('[VerseDataStorage] Adding AI research to:', { id, bookId, chapter, verses, research });
     
     try {
       const existing = await db.get('verseData', id);
-      console.log('[VerseDataStorage] Existing data:', existing);
       
       const verseData: VerseData = existing || {
         id,
@@ -146,7 +143,6 @@ class VerseDataStorage {
       verseData.aiResearch.push(aiEntry);
       await db.put('verseData', verseData);
       
-      console.log('[VerseDataStorage] Saved verse data:', verseData);
       
       return researchId;
     } catch (error) {
@@ -309,12 +305,72 @@ class VerseDataStorage {
     }
   }
 
-  // Helper to create consistent IDs
+  // Helper to create consistent IDs (using colons to match the rest of the app)
   private createId(bookId: string, chapter: number, verses: number[]): string {
     const versesStr = verses.sort((a, b) => a - b).join('_');
-    const id = `${bookId}_${chapter}_${versesStr}`;
-    console.log('[VerseDataStorage] Creating ID:', id, { bookId, chapter, verses });
+    const id = `${bookId}:${chapter}:${versesStr}`;
     return id;
+  }
+
+  // Migrate old IDs from underscore to colon format
+  async migrateIds(): Promise<void> {
+    const db = await this.ensureDB();
+    
+    try {
+      const tx = db.transaction('verseData', 'readwrite');
+      const store = tx.objectStore('verseData');
+      const allData = await store.getAll();
+      
+      for (const data of allData) {
+        // Check if ID uses old underscore format
+        if (data.id && data.id.includes('_') && !data.id.includes(':')) {
+          // Convert EXO_1_2 to EXO:1:2
+          const parts = data.id.split('_');
+          if (parts.length >= 3) {
+            const newId = `${parts[0]}:${parts[1]}:${parts.slice(2).join('_')}`;
+            
+            // Delete old entry
+            await store.delete(data.id);
+            
+            // Add with new ID
+            data.id = newId;
+            await store.put(data);
+          }
+        }
+      }
+      
+      await tx.complete;
+    } catch (error) {
+      console.error('Failed to migrate IDs:', error);
+    }
+  }
+
+  // Clear all personal notes
+  async clearAllPersonalNotes(): Promise<void> {
+    const db = await this.ensureDB();
+    
+    try {
+      const tx = db.transaction('verseData', 'readwrite');
+      const store = tx.objectStore('verseData');
+      const allData = await store.getAll();
+      
+      for (const data of allData) {
+        if (data.personalNote) {
+          delete data.personalNote;
+          // If no AI research either, delete the entire entry
+          if (!data.aiResearch || data.aiResearch.length === 0) {
+            await store.delete(data.id);
+          } else {
+            await store.put(data);
+          }
+        }
+      }
+      
+      await tx.complete;
+    } catch (error) {
+      console.error('Failed to clear all personal notes:', error);
+      throw error;
+    }
   }
 
   // Export all data for backup

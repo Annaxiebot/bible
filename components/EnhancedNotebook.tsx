@@ -3,6 +3,10 @@ import { SelectionInfo } from '../types';
 import { VerseData, PersonalNote, AIResearchEntry } from '../types/verseData';
 import { verseDataStorage } from '../services/verseDataStorage';
 import DrawingCanvas, { DrawingCanvasHandle } from './DrawingCanvas';
+import ReactMarkdown from 'react-markdown';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 
 interface EnhancedNotebookProps {
   selection: SelectionInfo | null;
@@ -10,14 +14,14 @@ interface EnhancedNotebookProps {
   initialContent: string;
 }
 
-type TabType = 'notes' | 'research' | 'all';
+type TabType = 'research' | 'notes' | 'all';
 
 const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({ 
   selection, 
   onSaveNote, 
   initialContent 
 }) => {
-  const [activeTab, setActiveTab] = useState<TabType>('notes');
+  const [activeTab, setActiveTab] = useState<TabType>('research');
   const [verseData, setVerseData] = useState<VerseData | null>(null);
   const [personalNote, setPersonalNote] = useState<string>('');
   const [isSaved, setIsSaved] = useState(true);
@@ -32,23 +36,23 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
     if (!selection) return;
     
     loadVerseData();
-  }, [selection]);
+  }, [selection, initialContent]);
 
   const loadVerseData = async () => {
     if (!selection) return;
     
+    // Reset save state when loading new verse
+    setIsSaved(true);
+    
     const parts = selection.id.split(':');
-    console.log('[EnhancedNotebook] Loading data for selection:', selection.id, 'parts:', parts);
     
     if (parts.length >= 3) {
       const bookId = parts[0];
       const chapter = parseInt(parts[1]);
       const verses = [parseInt(parts[2])];
       
-      console.log('[EnhancedNotebook] Parsed:', { bookId, chapter, verses });
       
       const data = await verseDataStorage.getVerseData(bookId, chapter, verses);
-      console.log('[EnhancedNotebook] Loaded verse data:', data);
       setVerseData(data);
       
       if (data?.personalNote) {
@@ -62,12 +66,22 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
         if (editorRef.current) {
           editorRef.current.innerHTML = initialContent;
         }
+      } else {
+        // Clear the editor when switching to a verse without notes
+        setPersonalNote('');
+        setDrawingData('');
+        if (editorRef.current) {
+          editorRef.current.innerHTML = '';
+        }
       }
     }
   };
 
   const handleSaveNote = async () => {
-    if (!selection) return;
+    if (!selection) {
+      alert('Please select a verse first before saving a note');
+      return;
+    }
     
     const parts = selection.id.split(':');
     if (parts.length >= 3) {
@@ -76,6 +90,7 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
       const verses = [parseInt(parts[2])];
       
       const noteText = editorRef.current?.innerHTML || '';
+      const plainText = editorRef.current?.textContent || '';
       
       if (noteText.trim() || drawingData) {
         const note: PersonalNote = {
@@ -125,6 +140,29 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
       await verseDataStorage.deleteAIResearch(bookId, chapter, verses, researchId);
       loadVerseData();
     }
+  };
+
+  // Preprocess text to handle Greek/Hebrew wrapped in unnecessary LaTeX
+  const preprocessResearchText = (text: string): string => {
+    let processed = text;
+    
+    // Replace $\text{...}$ with just the content when it contains Greek/Hebrew/special characters
+    processed = processed.replace(/\$\\text\{([^}]+)\}\$/g, (match, content) => {
+      // Check if content contains Greek, Hebrew, or other special characters
+      // Greek: U+0370-U+03FF, U+1F00-U+1FFF
+      // Hebrew: U+0590-U+05FF
+      // Extended Greek: U+1F00-U+1FFF
+      if (/[\u0370-\u03FF\u1F00-\u1FFF\u0590-\u05FF]/.test(content)) {
+        return content; // Return just the text without LaTeX wrapping
+      }
+      return match; // Keep LaTeX for actual math
+    });
+    
+    // Also handle italic formatting around Greek/Hebrew (e.g., *humin*)
+    // This will italicize transliterations properly
+    processed = processed.replace(/\*([a-zA-Z]+)\*/g, '_$1_');
+    
+    return processed;
   };
 
   const formatTimestamp = (timestamp: number) => {
@@ -184,16 +222,22 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
           {mode === 'text' ? '✏️ Draw' : '📝 Text'}
         </button>
         
+        <button
+          onClick={handleSaveNote}
+          className="toolbar-btn"
+          style={{ background: '#4CAF50', color: 'white' }}
+        >
+          💾 Save
+        </button>
+        
         {!isSaved && (
-          <span className="save-indicator">Saving...</span>
+          <span className="save-indicator">Auto-saving...</span>
         )}
       </div>
     </div>
   );
 
   const renderResearchTab = () => {
-    console.log('[EnhancedNotebook] Rendering research tab, verseData:', verseData);
-    console.log('[EnhancedNotebook] AI Research items:', verseData?.aiResearch);
     
     return (
     <div className="research-tab">
@@ -218,7 +262,45 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
               </div>
               
               <div className="research-response">
-                {research.response}
+                <ReactMarkdown
+                  remarkPlugins={[remarkMath]}
+                  rehypePlugins={[rehypeKatex]}
+                  components={{
+                    // Custom rendering for better formatting
+                    p: ({ children }) => <p style={{ marginBottom: '0.5em' }}>{children}</p>,
+                    strong: ({ children }) => <strong style={{ fontWeight: 600 }}>{children}</strong>,
+                    code: ({ inline, className, children }) => {
+                      // Check if this is a math expression
+                      const match = /language-(\w+)/.exec(className || '');
+                      const isMath = match && match[1] === 'math';
+                      
+                      if (isMath || inline === false) {
+                        return (
+                          <pre style={{ 
+                            backgroundColor: '#f5f5f5', 
+                            padding: '8px', 
+                            borderRadius: '4px',
+                            overflowX: 'auto'
+                          }}>
+                            <code>{children}</code>
+                          </pre>
+                        );
+                      }
+                      
+                      return (
+                        <code style={{ 
+                          backgroundColor: '#f0f0f0', 
+                          padding: '1px 4px', 
+                          borderRadius: '3px',
+                          fontFamily: 'monospace',
+                          fontSize: '0.9em'
+                        }}>{children}</code>
+                      );
+                    }
+                  }}
+                >
+                  {preprocessResearchText(research.response)}
+                </ReactMarkdown>
               </div>
               
               {research.tags && research.tags.length > 0 && (
@@ -297,7 +379,45 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
                   ) : (
                     <div className="research-preview">
                       <div className="research-q">Q: {item.content.query}</div>
-                      <div className="research-a">{item.content.response}</div>
+                      <div className="research-a">
+                        <ReactMarkdown
+                          remarkPlugins={[remarkMath]}
+                          rehypePlugins={[rehypeKatex]}
+                          components={{
+                            p: ({ children }) => <p style={{ marginBottom: '0.5em' }}>{children}</p>,
+                            strong: ({ children }) => <strong style={{ fontWeight: 600 }}>{children}</strong>,
+                            code: ({ inline, className, children }) => {
+                              const match = /language-(\w+)/.exec(className || '');
+                              const isMath = match && match[1] === 'math';
+                              
+                              if (isMath || inline === false) {
+                                return (
+                                  <pre style={{ 
+                                    backgroundColor: '#f5f5f5', 
+                                    padding: '8px', 
+                                    borderRadius: '4px',
+                                    overflowX: 'auto'
+                                  }}>
+                                    <code>{children}</code>
+                                  </pre>
+                                );
+                              }
+                              
+                              return (
+                                <code style={{ 
+                                  backgroundColor: '#f0f0f0', 
+                                  padding: '1px 4px', 
+                                  borderRadius: '3px',
+                                  fontFamily: 'monospace',
+                                  fontSize: '0.9em'
+                                }}>{children}</code>
+                              );
+                            }
+                          }}
+                        >
+                          {preprocessResearchText(item.content.response)}
+                        </ReactMarkdown>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -328,27 +448,24 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
         
         <div className="tab-selector">
           <button
-            className={`tab ${activeTab === 'notes' ? 'active' : ''}`}
-            onClick={() => {
-              console.log('[EnhancedNotebook] Switching to notes tab');
-              setActiveTab('notes');
-            }}
-          >
-            📝 My Notes
-          </button>
-          <button
             className={`tab ${activeTab === 'research' ? 'active' : ''}`}
             onClick={() => {
-              console.log('[EnhancedNotebook] Switching to research tab, verseData:', verseData);
               setActiveTab('research');
             }}
           >
             🤖 AI Research {verseData?.aiResearch?.length ? `(${verseData.aiResearch.length})` : ''}
           </button>
           <button
+            className={`tab ${activeTab === 'notes' ? 'active' : ''}`}
+            onClick={() => {
+              setActiveTab('notes');
+            }}
+          >
+            📝 My Notes
+          </button>
+          <button
             className={`tab ${activeTab === 'all' ? 'active' : ''}`}
             onClick={() => {
-              console.log('[EnhancedNotebook] Switching to all tab');
               setActiveTab('all');
             }}
           >
@@ -496,7 +613,35 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
           font-size: 13px;
           line-height: 1.6;
           color: #555;
-          white-space: pre-wrap;
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', 'Noto Sans Hebrew', 'Noto Sans Arabic', system-ui, sans-serif;
+        }
+        
+        .research-response p {
+          margin: 0 0 0.5em 0;
+        }
+        
+        .research-response p:last-child {
+          margin-bottom: 0;
+        }
+        
+        .research-response ul, .research-response ol {
+          margin: 0.5em 0;
+          padding-left: 1.5em;
+        }
+        
+        .research-response li {
+          margin: 0.25em 0;
+        }
+        
+        /* KaTeX math styling */
+        .research-response .katex,
+        .research-a .katex {
+          font-size: 1em;
+        }
+        
+        .research-response .katex-display,
+        .research-a .katex-display {
+          margin: 0.5em 0;
         }
 
         .research-tags {
@@ -579,6 +724,14 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
 
         .research-a {
           color: #555;
+        }
+        
+        .research-a p {
+          margin: 0 0 0.5em 0;
+        }
+        
+        .research-a p:last-child {
+          margin-bottom: 0;
         }
 
         .notebook-empty {

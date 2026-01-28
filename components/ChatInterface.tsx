@@ -4,9 +4,16 @@ import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import { ChatMessage, AspectRatio, ImageSize } from '../types';
 import * as aiService from '../services/gemini';
+import SaveResearchModal from './SaveResearchModal';
+import { BIBLE_BOOKS } from '../constants';
+import { verseDataStorage } from '../services/verseDataStorage';
+import { AIResearchEntry } from '../types/verseData';
 
 interface ChatInterfaceProps {
   incomingText?: { text: string; id: number; clearChat?: boolean } | null;
+  currentBookId?: string;
+  currentChapter?: number;
+  onResearchSaved?: () => void;
 }
 
 const parseMessage = (content: string, role: string) => {
@@ -47,7 +54,7 @@ interface MessageBubbleProps {
   onStop: () => void;
 }
 
-const MessageBubble: React.FC<MessageBubbleProps> = ({ m, side, isSpeaking, onSpeak, onStop }) => {
+const MessageBubble: React.FC<MessageBubbleProps> = ({ m, side, isSpeaking, onSpeak, onStop, onSaveResearch }) => {
   const { zh, en } = parseMessage(m.content, m.role);
   const content = side === 'zh' ? zh : en;
 
@@ -72,23 +79,53 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ m, side, isSpeaking, onSp
           <div className={`flex-1 overflow-hidden prose prose-sm sm:prose-base ${m.role === 'user' ? 'prose-invert text-white' : 'prose-slate'}`}>
             <ReactMarkdown 
               remarkPlugins={[remarkMath]} 
-              rehypePlugins={[rehypeKatex]}
+              rehypePlugins={[
+                [rehypeKatex, { 
+                  throwOnError: false,
+                  strict: 'ignore',  // Ignore all warnings
+                  errorColor: '#cc0000',
+                  trust: (context) => {
+                    // Don't process Hebrew text as math
+                    if (/[\u0590-\u05FF]/.test(context.command)) {
+                      return false;
+                    }
+                    return true;
+                  },
+                  output: 'html',
+                  fleqn: false,
+                  displayMode: false,
+                  macros: {}
+                }]
+              ]}
             >
               {content}
             </ReactMarkdown>
           </div>
           {m.role === 'assistant' && (
-            <button 
-              onClick={() => isSpeaking ? onStop() : onSpeak(content)} 
-              className={`mt-1 shrink-0 transition-colors p-1 rounded-full ${isSpeaking ? 'bg-red-50 text-red-500' : 'text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50'}`} 
-              title={isSpeaking ? (side === 'zh' ? "停止播放" : "Stop") : (side === 'zh' ? "朗读" : "Read aloud")}
-            >
-              {isSpeaking ? (
-                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
-              ) : (
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>
+            <div className="flex gap-2 mt-1">
+              <button 
+                onClick={() => isSpeaking ? onStop() : onSpeak(content)} 
+                className={`shrink-0 transition-colors p-1 rounded-full ${isSpeaking ? 'bg-red-50 text-red-500' : 'text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50'}`} 
+                title={isSpeaking ? (side === 'zh' ? "停止播放" : "Stop") : (side === 'zh' ? "朗读" : "Read aloud")}
+              >
+                {isSpeaking ? (
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>
+                )}
+              </button>
+              {onSaveResearch && (
+                <button
+                  onClick={() => onSaveResearch(m, side)}
+                  className="shrink-0 transition-colors p-1 rounded-full text-green-500 hover:text-green-600 hover:bg-green-50"
+                  title={side === 'zh' ? "保存到经文笔记" : "Save to verse"}
+                >
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/>
+                  </svg>
+                </button>
               )}
-            </button>
+            </div>
           )}
         </div>
         
@@ -117,7 +154,9 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ m, side, isSpeaking, onSp
   );
 };
 
-const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText }) => {
+const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBookId, currentChapter, onResearchSaved }) => {
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [researchToSave, setResearchToSave] = useState<{ message: ChatMessage; side: 'zh' | 'en' } | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState('');
   const [userQuestion, setUserQuestion] = useState('');
@@ -146,20 +185,18 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText }) => {
       // Clear chat history if requested
       if (incomingText.clearChat) {
         setMessages([]);
-        setUserQuestion('');
       }
       
       const verseText = incomingText.text.trim();
       if (!verseText) {
         setInput(userQuestion);
       } else {
-        // If clearChat is true (from context menu), don't add prefix/suffix
+        // If clearChat is true (from context menu), don't add suffix
         if (incomingText.clearChat) {
           setInput(verseText);
         } else {
-          const prefix = "简介要点:\n\n";
           const suffix = userQuestion.trim() ? `\n\n我的额外问题是：\n${userQuestion}` : "";
-          setInput(`${prefix}${verseText}${suffix}`);
+          setInput(`${verseText}${suffix}`);
         }
       }
     }
@@ -176,7 +213,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText }) => {
       const suffixMatch = remaining.match(/WEB:[\s\S]*?\n\n我的额外问题是：\n([\s\S]*)$/);
       if (suffixMatch) {
         setUserQuestion(suffixMatch[1]);
-      } else if (!val.includes("简介要点:")) {
+      } else {
         setUserQuestion(val);
       }
     } else {
@@ -299,6 +336,37 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText }) => {
   }, []);
 
   const stopResizing = useCallback(() => setIsResizing(false), []);
+  
+  const onSaveResearch = (message: ChatMessage, side: 'zh' | 'en') => {
+    setResearchToSave({ message, side });
+    setShowSaveModal(true);
+  };
+  
+  const handleSaveResearch = async (bookId: string, chapter: number, verses: number[], tags: string[]) => {
+    if (!researchToSave) return;
+    
+    const { message, side } = researchToSave;
+    const parsed = parseMessage(message.content, message.role);
+    const content = side === 'zh' ? parsed.zh : parsed.en;
+    
+    // Extract the query from the original message if it's a response
+    const messageIndex = messages.findIndex(m => m === message);
+    const userMessage = messageIndex > 0 ? messages[messageIndex - 1] : null;
+    const query = userMessage?.role === 'user' ? userMessage.content : 'AI Research';
+    
+    const research: AIResearchEntry = {
+      id: Date.now().toString(),
+      query,
+      response: content,
+      timestamp: Date.now(),
+      tags
+    };
+    
+    await verseDataStorage.addAIResearch(bookId, chapter, verses, research);
+    
+    setShowSaveModal(false);
+    setResearchToSave(null);
+  };
 
   const resize = useCallback((e: MouseEvent) => {
     if (isResizing && containerRef.current) {
@@ -350,6 +418,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText }) => {
               isSpeaking={speakingMsgIndex.zh === idx} 
               onSpeak={(c) => handleSpeak(c, idx, 'zh')}
               onStop={() => handleStop('zh')}
+              onSaveResearch={onSaveResearch}
             />
           ))}
           {isTyping && (
@@ -466,6 +535,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText }) => {
               isSpeaking={speakingMsgIndex.en === idx} 
               onSpeak={(c) => handleSpeak(c, idx, 'en')}
               onStop={() => handleStop('en')}
+              onSaveResearch={onSaveResearch}
             />
           ))}
         </div>
@@ -489,6 +559,30 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText }) => {
           </div>
         </div>
       </div>
+      
+      {showSaveModal && researchToSave && (() => {
+        const parsed = parseMessage(researchToSave.message.content, researchToSave.message.role);
+        const content = researchToSave.side === 'zh' ? parsed.zh : parsed.en;
+        const messageIndex = messages.findIndex(m => m === researchToSave.message);
+        const userMessage = messageIndex > 0 ? messages[messageIndex - 1] : null;
+        const query = userMessage?.role === 'user' ? userMessage.content : 'AI Research';
+        
+        return (
+          <SaveResearchModal
+            isOpen={showSaveModal}
+            onClose={() => {
+              setShowSaveModal(false);
+              setResearchToSave(null);
+            }}
+            onSuccess={onResearchSaved}
+            query={query}
+            response={content}
+            selectedText=""
+            currentBookId={currentBookId}  // Use the current book from props
+            currentChapter={currentChapter}  // Use the current chapter from props
+          />
+        );
+      })()}
     </div>
   );
 };

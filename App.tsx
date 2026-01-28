@@ -3,16 +3,26 @@ import React, { useState, useCallback, useRef, useEffect } from 'react';
 import BibleViewer from './components/BibleViewer';
 import ChatInterface from './components/ChatInterface';
 import VoiceSession from './components/VoiceSession';
-import Notebook from './components/Notebook';
+import EnhancedNotebook from './components/EnhancedNotebook';
 import Sidebar from './components/Sidebar';
 import ErrorBoundary from './components/ErrorBoundary';
 import { SelectionInfo } from './types';
 import { exportAllNotes, readLibraryFile } from './services/fileSystem';
 import { notesStorage } from './services/notesStorage';
+import { readingHistory } from './services/readingHistory';
+import { verseDataStorage } from './services/verseDataStorage';
+import { BIBLE_BOOKS } from './constants';
+import { Toast } from './components/Toast';
 
 const App: React.FC = () => {
   // Device detection for responsive layout
   const isIPhone = /iPhone|iPod/.test(navigator.userAgent);
+  
+  // Initialize with last read position
+  const [initialBookId, setInitialBookId] = useState<string | undefined>();
+  const [initialChapter, setInitialChapter] = useState<number | undefined>();
+  const [showResumeNotification, setShowResumeNotification] = useState(false);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
   const isIPad = /iPad/.test(navigator.userAgent) || 
                  (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
   const isMobile = isIPhone || isIPad;
@@ -37,6 +47,7 @@ const App: React.FC = () => {
   const [downloadBook, setDownloadBook] = useState<(() => void) | null>(null);
   const [downloadStatus, setDownloadStatus] = useState<string>('');
   const [downloadTimeRemaining, setDownloadTimeRemaining] = useState<string>('');
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   
   const containerRef = useRef<HTMLDivElement>(null);
   const libraryInputRef = useRef<HTMLInputElement>(null);
@@ -45,6 +56,8 @@ const App: React.FC = () => {
   const [currentSelection, setCurrentSelection] = useState<SelectionInfo | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
   const [notesLoading, setNotesLoading] = useState(true);
+  const [researchUpdateTrigger, setResearchUpdateTrigger] = useState(0);
+  const [currentBibleContext, setCurrentBibleContext] = useState<{bookId: string; chapter: number} | null>(null);
   
   // Handle selection change - just update the selection without changing mode
   const handleSelectionChange = useCallback((selection: SelectionInfo | null) => {
@@ -62,6 +75,11 @@ const App: React.FC = () => {
       }
     }
   }, [splitOffset, appMode, bottomSplitOffset]);
+
+  // Handle Bible context change (book and chapter)
+  const handleContextChange = useCallback((bookId: string, chapter: number) => {
+    setCurrentBibleContext({ bookId, chapter });
+  }, []);
   
   // Comment out automatic mode detection to avoid conflicts with manual buttons
   // useEffect(() => {
@@ -86,7 +104,9 @@ const App: React.FC = () => {
     
     const loadNotes = async () => {
       try {
-        // First try to migrate from localStorage
+        // First migrate old ID format if needed
+        await verseDataStorage.migrateIds();
+        // Then try to migrate from localStorage
         await notesStorage.migrateFromLocalStorage();
         // Then load all notes from IndexedDB
         const loadedNotes = await notesStorage.getAllNotes();
@@ -98,6 +118,20 @@ const App: React.FC = () => {
       }
     };
     loadNotes();
+    
+    // Load last read position
+    const lastRead = readingHistory.getLastRead();
+    if (lastRead) {
+      setInitialBookId(lastRead.bookId);
+      setInitialChapter(lastRead.chapter);
+      setShowResumeNotification(true);
+      
+      // Hide notification after 3 seconds
+      setTimeout(() => {
+        setShowResumeNotification(false);
+      }, 3000);
+    }
+    setHistoryLoaded(true);
   }, []);
 
   useEffect(() => {
@@ -132,47 +166,83 @@ const App: React.FC = () => {
 
   const handleSaveNote = useCallback(async (id: string, content: string) => {
     try {
-      if (!content || content.trim() === "") {
-        // Delete note from IndexedDB
-        await notesStorage.deleteNote(id);
-        setNotes(prev => {
-          const updated = { ...prev };
-          delete updated[id];
-          return updated;
-        });
-      } else {
-        // Save note to IndexedDB
-        await notesStorage.saveNote(id, content);
-        setNotes(prev => ({ ...prev, [id]: content }));
+      // Parse the note ID to get book and chapter info
+      const parts = id.split(':');
+      if (parts.length >= 2) {
+        const bookId = parts[0];
+        const chapter = parseInt(parts[1]);
+        
+        if (!content || content.trim() === "") {
+          // Delete note from IndexedDB
+          await notesStorage.deleteNote(id);
+          setNotes(prev => {
+            const updated = { ...prev };
+            delete updated[id];
+            return updated;
+          });
+          
+          // Check if there are any other notes for this chapter
+          const hasOtherNotes = Object.keys(notes).some(noteId => 
+            noteId.startsWith(`${bookId}:${chapter}:`) && noteId !== id
+          );
+          
+          // Update reading history status if no other notes remain
+          if (!hasOtherNotes) {
+            await readingHistory.updateChapterStatus(bookId, chapter, false, undefined);
+          }
+        } else {
+          // Save note to IndexedDB
+          await notesStorage.saveNote(id, content);
+          setNotes(prev => ({ ...prev, [id]: content }));
+          
+          // Update reading history to indicate this chapter has notes
+          await readingHistory.updateChapterStatus(bookId, chapter, true, undefined);
+        }
       }
     } catch (error) {
       console.error('Failed to save note to IndexedDB:', error);
     }
-  }, []);
+  }, [notes]);
 
   const handleBackupAll = () => {
     if (Object.keys(notes).length === 0) {
-      alert("当前没有可备份的笔记。");
+      setToast({ message: "当前没有可备份的笔记。 No notes to export.", type: 'info' });
       return;
     }
-    exportAllNotes(notes);
+    try {
+      exportAllNotes(notes);
+      const noteCount = Object.keys(notes).length;
+      setToast({ message: `成功导出 ${noteCount} 条笔记！ Successfully exported ${noteCount} notes!`, type: 'success' });
+    } catch (error) {
+      console.error('Failed to export notes:', error);
+      setToast({ message: "导出笔记失败，请重试。 Failed to export notes.", type: 'error' });
+    }
   };
 
   const handleClearAll = async () => {
     if (Object.keys(notes).length === 0) {
-      alert("当前没有笔记可以清除。");
+      setToast({ message: "当前没有笔记可以清除。 No notes to clear.", type: 'info' });
       return;
     }
     
     const noteCount = Object.keys(notes).length;
-    if (confirm(`确定要清除所有 ${noteCount} 条笔记吗？此操作无法撤销。`)) {
+    if (confirm(`确定要清除所有 ${noteCount} 条笔记吗？此操作无法撤销。 Delete all ${noteCount} notes? This cannot be undone.`)) {
       try {
+        // Show loading state
+        setToast({ message: "正在清除笔记... Clearing notes...", type: 'info' });
+        
+        // Clear notes from both storage locations
         await notesStorage.clearAllNotes();
+        await verseDataStorage.clearAllPersonalNotes();
         setNotes({});
-        alert("所有笔记已清除。");
+        
+        // Show success after clearing
+        setTimeout(() => {
+          setToast({ message: `成功清除 ${noteCount} 条笔记！ Successfully cleared ${noteCount} notes!`, type: 'success' });
+        }, 100);
       } catch (error) {
         console.error('Failed to clear notes from IndexedDB:', error);
-        alert("清除笔记时出错，请重试。");
+        setToast({ message: "清除笔记时出错，请重试。 Failed to clear notes.", type: 'error' });
       }
     }
   };
@@ -185,16 +255,18 @@ const App: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (confirm("恢复备份将合并您的笔记。是否继续？")) {
+    if (confirm("恢复备份将合并您的笔记。是否继续？ Restore backup will merge your notes. Continue?")) {
       try {
+        setToast({ message: "正在恢复笔记... Restoring notes...", type: 'info' });
         const importedNotes = await readLibraryFile(file);
         // Import to IndexedDB and update state
         await notesStorage.importNotes(importedNotes);
         const allNotes = await notesStorage.getAllNotes();
         setNotes(allNotes);
-        alert("笔记库恢复成功！");
+        const noteCount = Object.keys(importedNotes).length;
+        setToast({ message: `成功恢复 ${noteCount} 条笔记！ Successfully restored ${noteCount} notes!`, type: 'success' });
       } catch (err: any) {
-        alert("恢复失败: " + err.message);
+        setToast({ message: `恢复失败: ${err.message} Failed to restore: ${err.message}`, type: 'error' });
       }
     }
     e.target.value = "";
@@ -327,8 +399,6 @@ const App: React.FC = () => {
     <div 
       className="flex flex-col h-screen w-screen overflow-hidden"
       style={{
-        display: '-webkit-box',
-        display: '-webkit-flex',
         display: 'flex',
         WebkitBoxOrient: 'vertical',
         WebkitBoxDirection: 'normal',
@@ -351,6 +421,17 @@ const App: React.FC = () => {
         accept=".bible-library" 
         className="hidden" 
       />
+      
+      {/* Resume notification */}
+      {showResumeNotification && initialBookId && (
+        <div className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50">
+          <div className="bg-white px-4 py-2 rounded-lg shadow-lg border border-indigo-200 animate-pulse">
+            <p className="text-sm text-slate-700">
+              📖 恢复到: <span className="font-medium">{BIBLE_BOOKS.find(b => b.id === initialBookId)?.name} 第 {initialChapter} 章</span>
+            </p>
+          </div>
+        </div>
+      )}
       
       <Sidebar
         isOpen={isSidebarOpen}
@@ -383,17 +464,22 @@ const App: React.FC = () => {
           flexBasis: splitOffset >= 100 ? 'calc(100% - 24px)' : splitOffset <= 0 ? '0%' : `${splitOffset}%`,
           minHeight: 0
         }}>
-          <BibleViewer 
-            notes={notes}
-            onSelectionChange={handleSelectionChange}
-            onVersesSelectedForChat={(text, clearChat) => setSelectionPayload({ text, id: Date.now(), clearChat })}
-            sidebarOpen={isSidebarOpen}
-            showSidebarToggle={!isIPhone} // Pass iPhone detection to BibleViewer
-            onSidebarToggle={() => setIsSidebarOpen(!isSidebarOpen)} // Allow title tap to open sidebar on iPhone
-            isIPhone={isIPhone}
-            isReadingMode={appMode === 'reading'}
-            isResearchMode={appMode === 'research'}
-            currentMode={appMode}
+          {historyLoaded && (
+            <BibleViewer 
+              notes={notes}
+              researchUpdateTrigger={researchUpdateTrigger}
+              onSelectionChange={handleSelectionChange}
+              onVersesSelectedForChat={(text, clearChat) => setSelectionPayload({ text, id: Date.now(), clearChat })}
+              onContextChange={handleContextChange}
+              sidebarOpen={isSidebarOpen}
+              showSidebarToggle={!isIPhone} // Pass iPhone detection to BibleViewer
+              onSidebarToggle={() => setIsSidebarOpen(!isSidebarOpen)} // Allow title tap to open sidebar on iPhone
+              isIPhone={isIPhone}
+              isReadingMode={appMode === 'reading'}
+              isResearchMode={appMode === 'research'}
+              currentMode={appMode}
+              initialBookId={initialBookId}
+              initialChapter={initialChapter}
             onModeChange={(mode) => {
               setAppMode(mode);
               if (mode === 'reading') {
@@ -425,6 +511,7 @@ const App: React.FC = () => {
               }
             }}
           />
+          )}
         </div>
 
         {/* Divider with fixed height - always visible */}
@@ -603,7 +690,12 @@ const App: React.FC = () => {
               display: bottomSplitOffset <= 0 ? 'none' : 'block'
             }}
           >
-             <ChatInterface incomingText={selectionPayload} />
+             <ChatInterface 
+               incomingText={selectionPayload}
+               currentBookId={currentBibleContext?.bookId}
+               currentChapter={currentBibleContext?.chapter}
+               onResearchSaved={() => setResearchUpdateTrigger(prev => prev + 1)}
+             />
           </div>
           
           <div 
@@ -697,7 +789,7 @@ const App: React.FC = () => {
               display: bottomSplitOffset >= 100 ? 'none' : 'block'
             }}
           >
-            <Notebook 
+            <EnhancedNotebook 
               selection={currentSelection} 
               onSaveNote={handleSaveNote}
               initialContent={currentSelection ? (notes[currentSelection.id] || '') : ''}
@@ -710,6 +802,15 @@ const App: React.FC = () => {
 
       {(isResizing || isBottomResizing) && (
         <style>{`* { user-select: none !important; cursor: inherit !important; }`}</style>
+      )}
+      
+      {/* Toast Notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
       )}
     </div>
   );
