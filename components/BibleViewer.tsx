@@ -27,6 +27,7 @@ interface BibleViewerProps {
   onModeChange?: (mode: 'reading' | 'notes' | 'research') => void;
   initialBookId?: string;
   initialChapter?: number;
+  navigateTo?: { bookId: string; chapter: number; verses?: number[] } | null;
 }
 
 
@@ -47,7 +48,8 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   currentMode = 'reading',
   onModeChange,
   initialBookId,
-  initialChapter
+  initialChapter,
+  navigateTo
 }) => {
   const [selectedBook, setSelectedBook] = useState<Book>(() => {
     if (initialBookId) {
@@ -139,6 +141,21 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       onContextChange(selectedBook.id, selectedChapter);
     }
   }, [selectedBook.id, selectedChapter, onContextChange]);
+
+  // Handle external navigation requests
+  useEffect(() => {
+    if (navigateTo) {
+      const book = BIBLE_BOOKS.find(b => b.id === navigateTo.bookId);
+      if (book) {
+        setSelectedBook(book);
+        setSelectedChapter(navigateTo.chapter);
+        // If specific verses are provided, select them
+        if (navigateTo.verses && navigateTo.verses.length > 0) {
+          setSelectedVerses(navigateTo.verses);
+        }
+      }
+    }
+  }, [navigateTo]);
 
   // Load chapters with content when book changes
   useEffect(() => {

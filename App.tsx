@@ -15,6 +15,7 @@ import { bibleStorage } from './services/bibleStorage';
 import { BIBLE_BOOKS } from './constants';
 import { Toast } from './components/Toast';
 import { useDataStats } from './hooks/useDataStats';
+import NotesList from './components/NotesList';
 
 const App: React.FC = () => {
   // Device detection for responsive layout
@@ -51,6 +52,8 @@ const App: React.FC = () => {
   const [downloadTimeRemaining, setDownloadTimeRemaining] = useState<string>('');
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [dataUpdateTrigger, setDataUpdateTrigger] = useState(0);
+  const [showNotesList, setShowNotesList] = useState(false);
+  const [navigateTo, setNavigateTo] = useState<{ bookId: string; chapter: number; verses?: number[] } | null>(null);
   
   const containerRef = useRef<HTMLDivElement>(null);
   const libraryInputRef = useRef<HTMLInputElement>(null);
@@ -533,6 +536,7 @@ const App: React.FC = () => {
         onRestore={handleRestoreClick}
         onClear={handleClearAll}
         onVoiceOpen={() => setIsVoiceOpen(true)}
+        onViewNotes={() => setShowNotesList(true)}
         notesCount={Object.keys(notes).length}
         onDownloadBible={downloadBible}
         onDownloadChapter={downloadChapter}
@@ -573,6 +577,7 @@ const App: React.FC = () => {
               currentMode={appMode}
               initialBookId={initialBookId}
               initialChapter={initialChapter}
+              navigateTo={navigateTo}
             onModeChange={(mode) => {
               setAppMode(mode);
               if (mode === 'reading') {
@@ -895,6 +900,25 @@ const App: React.FC = () => {
       </main>
 
       <VoiceSession isOpen={isVoiceOpen} onClose={() => setIsVoiceOpen(false)} />
+      
+      {/* Notes List Modal */}
+      {showNotesList && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl h-[80vh] overflow-hidden">
+            <NotesList
+              onClose={() => setShowNotesList(false)}
+              onSelectNote={(bookId, chapter, verses) => {
+                // Navigate to the selected note
+                setShowNotesList(false);
+                // Navigate BibleViewer to this chapter
+                setNavigateTo({ bookId, chapter, verses });
+                // Clear navigation after a short delay to allow for re-navigation to same location
+                setTimeout(() => setNavigateTo(null), 100);
+              }}
+            />
+          </div>
+        </div>
+      )}
 
       {(isResizing || isBottomResizing) && (
         <style>{`* { user-select: none !important; cursor: inherit !important; }`}</style>
