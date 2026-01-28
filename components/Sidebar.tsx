@@ -9,6 +9,7 @@ interface SidebarProps {
   onRestore: () => void;
   onClear: () => void;
   onVoiceOpen: () => void;
+  onViewNotes?: () => void;
   notesCount: number;
   onDownloadBible?: (() => void) | null;
   onDownloadChapter?: (() => void) | null;
@@ -27,6 +28,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onRestore, 
   onClear,
   onVoiceOpen,
+  onViewNotes,
   notesCount,
   onDownloadBible,
   onDownloadChapter,
@@ -148,6 +150,26 @@ const Sidebar: React.FC<SidebarProps> = ({
                 笔记管理 Notes Management
               </h3>
             </div>
+
+            {/* View All Notes Button */}
+            {onViewNotes && (
+              <button 
+                onClick={onViewNotes}
+                className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-slate-50 transition-colors group"
+              >
+                <svg className="w-4 h-4 text-slate-400 group-hover:text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+                </svg>
+                <div className="flex-1 text-left">
+                  <span className="text-sm font-medium text-slate-700 group-hover:text-indigo-600">
+                    查看所有笔记
+                  </span>
+                  <span className="block text-xs text-slate-500">
+                    View all notes
+                  </span>
+                </div>
+              </button>
+            )}
 
             <button 
               onClick={onBackup}
