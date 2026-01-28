@@ -5,6 +5,7 @@ import { verseDataStorage } from '../services/verseDataStorage';
 interface SaveResearchModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onSuccess?: () => void;
   query: string;
   response: string;
   selectedText?: string;
@@ -15,6 +16,7 @@ interface SaveResearchModalProps {
 const SaveResearchModal: React.FC<SaveResearchModalProps> = ({
   isOpen,
   onClose,
+  onSuccess,
   query,
   response,
   selectedText,
@@ -27,23 +29,37 @@ const SaveResearchModal: React.FC<SaveResearchModalProps> = ({
   const [tags, setTags] = useState<string>('');
   const [isSaving, setIsSaving] = useState(false);
 
+  // Helper function to decode HTML entities and preserve formatting
+  const decodeHtmlEntities = (text: string): string => {
+    const textarea = document.createElement('textarea');
+    textarea.innerHTML = text;
+    return textarea.value;
+  };
+
   useEffect(() => {
     if (currentBookId) setSelectedBook(currentBookId);
     if (currentChapter) setSelectedChapter(currentChapter);
-  }, [currentBookId, currentChapter]);
+    
+    // Try to extract verse number from the query
+    if (query) {
+      // Look for patterns like "1:5" or "Chapter 1:5" or "第1章5节"
+      const verseMatch = query.match(/(?:[:：])(\d+)(?:[节\s]|$)/);
+      if (verseMatch) {
+        setSelectedVerse(Number(verseMatch[1]));
+      } else {
+        // Also try pattern like "第5节" or "verse 5"
+        const altMatch = query.match(/(?:第|verse\s+)(\d+)(?:节|\s|$)/i);
+        if (altMatch) {
+          setSelectedVerse(Number(altMatch[1]));
+        }
+      }
+    }
+  }, [currentBookId, currentChapter, query]);
 
   if (!isOpen) return null;
 
   const handleSave = async () => {
     setIsSaving(true);
-    
-    console.log('[SaveResearchModal] Saving research to:', {
-      selectedBook,
-      selectedChapter,
-      selectedVerse,
-      query,
-      response: response.substring(0, 100) + '...'
-    });
     
     try {
       const tagArray = tags
@@ -56,9 +72,9 @@ const SaveResearchModal: React.FC<SaveResearchModalProps> = ({
         selectedChapter,
         [selectedVerse],
         {
-          query,
-          response,
-          selectedText,
+          query: decodeHtmlEntities(query),
+          response: decodeHtmlEntities(response),
+          selectedText: selectedText ? decodeHtmlEntities(selectedText) : undefined,
           tags: tagArray
         }
       );
@@ -72,6 +88,11 @@ const SaveResearchModal: React.FC<SaveResearchModalProps> = ({
         true
       );
 
+      // Call success callback if provided
+      if (onSuccess) {
+        onSuccess();
+      }
+      
       onClose();
     } catch (error) {
       console.error('Failed to save research:', error);
@@ -96,15 +117,22 @@ const SaveResearchModal: React.FC<SaveResearchModalProps> = ({
           <div className="research-preview">
             <div className="preview-section">
               <label>Query:</label>
-              <div className="preview-text">{query}</div>
+              <div className="preview-text">{decodeHtmlEntities(query)}</div>
             </div>
             
             <div className="preview-section">
               <label>Response:</label>
-              <div className="preview-text response">
-                {response.length > 200 
-                  ? response.substring(0, 200) + '...' 
-                  : response}
+              <div className="preview-text response" style={{ 
+                whiteSpace: 'pre-wrap',
+                wordWrap: 'break-word',
+                fontFamily: 'system-ui, -apple-system, sans-serif'
+              }}>
+                {(() => {
+                  const decodedResponse = decodeHtmlEntities(response);
+                  return decodedResponse.length > 200 
+                    ? decodedResponse.substring(0, 200) + '...' 
+                    : decodedResponse;
+                })()}
               </div>
             </div>
           </div>

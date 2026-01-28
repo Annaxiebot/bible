@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { readingHistory, ReadingHistoryEntry } from '../services/readingHistory';
+import { readingHistory } from '../services/readingHistory';
 import { BIBLE_BOOKS } from '../constants';
 
 interface ReadingHistoryProps {
@@ -8,7 +8,7 @@ interface ReadingHistoryProps {
 }
 
 export const ReadingHistory: React.FC<ReadingHistoryProps> = ({ onSelectChapter, onClose }) => {
-  const [history, setHistory] = useState<ReadingHistoryEntry[]>([]);
+  const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -17,7 +17,7 @@ export const ReadingHistory: React.FC<ReadingHistoryProps> = ({ onSelectChapter,
 
   const loadHistory = async () => {
     try {
-      const recentHistory = await readingHistory.getRecentHistory(30);
+      const recentHistory = readingHistory.getRecentReading(30);
       setHistory(recentHistory);
     } catch (error) {
       console.error('Failed to load reading history:', error);
@@ -68,9 +68,9 @@ export const ReadingHistory: React.FC<ReadingHistoryProps> = ({ onSelectChapter,
         ) : (
           <>
             <div className="history-list">
-              {history.map((entry) => (
+              {history.map((entry, index) => (
                 <div
-                  key={entry.id}
+                  key={`${entry.bookId}-${entry.chapter}-${index}`}
                   className="history-item"
                   onClick={() => {
                     onSelectChapter(entry.bookId, entry.chapter);
@@ -85,7 +85,7 @@ export const ReadingHistory: React.FC<ReadingHistoryProps> = ({ onSelectChapter,
                       {entry.hasAIResearch && <span className="indicator research" title="Has AI research">🤖</span>}
                     </div>
                   </div>
-                  <span className="timestamp">{formatTimestamp(entry.timestamp)}</span>
+                  <span className="timestamp">{formatTimestamp(entry.lastRead)}</span>
                 </div>
               ))}
             </div>

@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Reading History</title>
+</head>
+<body>
+    <h1>Reading History Test</h1>
+    <button onclick="testAddHistory()">Add Test History</button>
+    <button onclick="showHistory()">Show History</button>
+    <button onclick="clearHistory()">Clear History</button>
+    <pre id="output"></pre>
+    
+    <script>
+        function testAddHistory() {
+            const history = JSON.parse(localStorage.getItem('bibleChapterHistory') || '[]');
+            
+            // Add test entries
+            const testEntries = [
+                { bookId: 'genesis', bookName: 'Genesis', chapter: 1, lastRead: Date.now() - 60000, hasNotes: false, hasAIResearch: false },
+                { bookId: 'john', bookName: 'John', chapter: 3, lastRead: Date.now() - 120000, hasNotes: true, hasAIResearch: false },
+                { bookId: 'psalms', bookName: 'Psalms', chapter: 23, lastRead: Date.now() - 180000, hasNotes: false, hasAIResearch: true }
+            ];
+            
+            localStorage.setItem('bibleChapterHistory', JSON.stringify(testEntries));
+            document.getElementById('output').textContent = 'Added test history entries';
+        }
+        
+        function showHistory() {
+            const history = localStorage.getItem('bibleChapterHistory');
+            const lastRead = localStorage.getItem('bibleLastRead');
+            
+            let output = 'Chapter History:\n';
+            output += history ? JSON.stringify(JSON.parse(history), null, 2) : 'No history';
+            output += '\n\nLast Read:\n';
+            output += lastRead ? JSON.stringify(JSON.parse(lastRead), null, 2) : 'No last read';
+            
+            document.getElementById('output').textContent = output;
+        }
+        
+        function clearHistory() {
+            localStorage.removeItem('bibleChapterHistory');
+            localStorage.removeItem('bibleLastRead');
+            localStorage.removeItem('bibleReadingHistory');
+            document.getElementById('output').textContent = 'History cleared';
+        }
+        
+        // Show current state on load
+        window.onload = showHistory;
+    </script>
+</body>
+</html>
