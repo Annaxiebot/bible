@@ -19,12 +19,8 @@ interface BibleViewerProps {
   showSidebarToggle?: boolean;
   onSidebarToggle?: () => void;
   isIPhone?: boolean;
-  isReadingMode?: boolean;
-  isResearchMode?: boolean;
   onDownloadStateChange?: (isDownloading: boolean, progress: number, status?: string, timeRemaining?: string) => void;
   onDownloadFunctionsReady?: (downloadBible: () => void, downloadChapter: () => void, downloadBook: () => void) => void;
-  currentMode?: 'reading' | 'notes' | 'research';
-  onModeChange?: (mode: 'reading' | 'notes' | 'research') => void;
   initialBookId?: string;
   initialChapter?: number;
   navigateTo?: { bookId: string; chapter: number; verses?: number[] } | null;
@@ -41,12 +37,8 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   showSidebarToggle = true,
   onSidebarToggle,
   isIPhone = false,
-  isReadingMode = false,
-  isResearchMode = false,
   onDownloadStateChange,
   onDownloadFunctionsReady,
-  currentMode = 'reading',
-  onModeChange,
   initialBookId,
   initialChapter,
   navigateTo
@@ -210,14 +202,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     }
   }, [leftVerses, rightVerses, selectedBook.id, selectedChapter, notes, researchUpdateTrigger]);
 
-  // Clear text selections when switching away from reading mode
-  useEffect(() => {
-    if (!isReadingMode) {
-      // Clear any browser text selection when not in reading mode
-      window.getSelection()?.removeAllRanges();
-      document.getSelection()?.removeAllRanges();
-    }
-  }, [isReadingMode]);
+  // No need for mode-specific text selection clearing anymore
 
   useEffect(() => {
     fetchChapter();
@@ -902,44 +887,36 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       });
     }
 
-    // Add "解读:" prefix when in research mode
-    const textToSend = isResearchMode && fullText && !manualText 
+    // Add "解读:" prefix for research
+    const textToSend = fullText && !manualText 
       ? `解读: ${fullText}` 
       : fullText;
     
     onVersesSelectedForChat(textToSend);
-  }, [selectedBook, selectedChapter, leftVerses, rightVerses, onSelectionChange, onVersesSelectedForChat, isResearchMode]);
+  }, [selectedBook, selectedChapter, leftVerses, rightVerses, onSelectionChange, onVersesSelectedForChat]);
 
   const handleVerseClick = (verseNum: number, e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
     
-    // In reading mode, don't respond to verse clicks unless there's text selection
-    if (isReadingMode && !window.getSelection()?.toString()) return;
+    // Don't respond to verse clicks if there's already text selection
+    // (text selection takes priority)
     
     // If there's text selection, don't handle the click
     const selection = window.getSelection()?.toString();
     if (selection && selection.length > 0) return;
 
-    // In research mode, allow verse selection by clicking
-    if (isResearchMode) {
-      // Clear any text selection when clicking a verse
-      window.getSelection()?.removeAllRanges();
-      const newSelection = [verseNum];
-      setSelectedVerses(newSelection);
-      notifySelection(newSelection);
-      return;
-    }
-
-    // Default behavior for other modes
+    // Allow verse selection by clicking
+    // Clear any text selection when clicking a verse
+    window.getSelection()?.removeAllRanges();
     const newSelection = [verseNum];
     setSelectedVerses(newSelection);
     notifySelection(newSelection);
   };
 
   const handleEmptySpaceClick = (e: React.MouseEvent) => {
-    // Don't select all verses when in reading or research modes
-    if (isReadingMode || isResearchMode) return;
+    // Don't select all verses in research mode (text selection preferred)
+    return;
     
     const selection = window.getSelection()?.toString();
     if (selection && selection.length > 0) return;
@@ -1106,39 +1083,27 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         }
       }
       
-      // If in research mode, automatically trigger research with formatted text
-      if (isResearchMode) {
-        // Clear any existing verse selection first (text selection takes priority)
-        setSelectedVerses([]);
-        
-        // If we have verse info, highlight just that verse
-        if (verseInfo) {
-          setSelectedVerses([verseInfo.verseNum]);
-        }
-        
-        const formattedText = verseInfo 
-          ? `解读："${selectedText}" in ${verseInfo.bookName} ${verseInfo.chapter}:${verseInfo.verseNum}\n\n完整经文：${verseInfo.fullVerseText}`
-          : `解读："${selectedText}"`;
-        
-        // Send to AI
-        onVersesSelectedForChat(formattedText, false);
-        
-        // Don't clear selection automatically - let user keep it or clear it manually
-        // This allows users to review their selection before it disappears
-        
-        // Don't show context menu in research mode
-        setContextMenu(null);
-      } else {
-        // In reading mode, show context menu
-        setContextMenu({
-          position: { 
-            x: rect.left + rect.width / 2, 
-            y: rect.top - 10 
-          },
-          selectedText: selectedText,
-          verseInfo
-        });
+      // Automatically trigger research with formatted text
+      // Clear any existing verse selection first (text selection takes priority)
+      setSelectedVerses([]);
+      
+      // If we have verse info, highlight just that verse
+      if (verseInfo) {
+        setSelectedVerses([verseInfo.verseNum]);
       }
+      
+      const formattedText = verseInfo 
+        ? `解读："${selectedText}" in ${verseInfo.bookName} ${verseInfo.chapter}:${verseInfo.verseNum}\n\n完整经文：${verseInfo.fullVerseText}`
+        : `解读："${selectedText}"`;
+      
+      // Send to AI
+      onVersesSelectedForChat(formattedText, false);
+      
+      // Don't clear selection automatically - let user keep it or clear it manually
+      // This allows users to review their selection before it disappears
+      
+      // Don't show context menu
+      setContextMenu(null);
     } else {
       setContextMenu(null);
     }
@@ -1174,31 +1139,9 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           ? `解读："${selectedText}" in ${verseInfo.bookName} ${verseInfo.chapter}:${verseInfo.verseNum}\n\n完整经文：${verseInfo.fullVerseText}`
           : `解读："${selectedText}"`;
         
-        // Send to AI chat - don't clear previous chat if already in research mode
-        onVersesSelectedForChat(formattedText, !isResearchMode);
+        // Send to AI chat - don't clear previous chat
+        onVersesSelectedForChat(formattedText, false);
         
-        // Only switch modes if not already in research mode
-        if (!isResearchMode) {
-          // Prevent text selection during transition
-          setIsTransitioning(true);
-          
-          // Trigger mode switch to research after a brief delay
-          if (onModeChange) {
-            setTimeout(() => {
-              onModeChange('research');
-              // Clear text selection again after mode change (but keep verse selection)
-              window.getSelection()?.removeAllRanges();
-              document.getSelection()?.removeAllRanges();
-              
-              // Re-enable text selection after transition
-              setTimeout(() => setIsTransitioning(false), 200);
-            }, 50);
-          }
-        } else {
-          // Already in research mode, just clear text selection
-          window.getSelection()?.removeAllRanges();
-          document.getSelection()?.removeAllRanges();
-        }
         break;
       case 'note':
         // Use verse info from context menu
@@ -1237,12 +1180,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           window.getSelection()?.removeAllRanges();
           document.getSelection()?.removeAllRanges();
           
-          // Switch to notes mode if handler is provided
-          if (onModeChange) {
-            setTimeout(() => {
-              onModeChange('notes');
-            }, 50);
-          }
+          // No mode switching needed anymore
         }
         break;
       case 'copy':
@@ -1255,8 +1193,8 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   };
 
   const handleTouchStart = (e: React.TouchEvent) => {
-    // Enable page flip in reading mode OR research mode on iOS
-    if ((isReadingMode || isResearchMode) && isIOS) {
+    // Enable page flip on iOS
+    if (isIOS) {
       // Don't start swipe if user is selecting text
       const selection = window.getSelection();
       if (selection && selection.toString().length > 0) return;
@@ -1275,7 +1213,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   };
 
   const handleTouchMove = (e: React.TouchEvent) => {
-    if (touchStartX === null || touchStartY === null || (!isReadingMode && !isResearchMode)) return;
+    if (touchStartX === null || touchStartY === null) return;
     
     // Stop if text is being selected
     const selection = window.getSelection();
@@ -1336,7 +1274,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX === null || !isSwiping || (!isReadingMode && !isResearchMode) || swipeDirection !== 'horizontal') {
+    if (touchStartX === null || !isSwiping || swipeDirection !== 'horizontal') {
       // Reset all states
       setTouchStartX(null);
       setTouchStartY(null);
@@ -1526,44 +1464,6 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           </button>
         </div>
         <div className={`flex items-center ${isIPhone ? 'gap-1' : 'gap-3'}`}>
-          {/* Mode Selector - Hidden on iPhone */}
-          {onModeChange && !isIPhone && (
-            <div className="flex items-center gap-1 px-1 py-1 bg-white rounded-full border border-slate-200 shadow-sm">
-              <button
-                onClick={() => onModeChange('reading')}
-                className={`px-2 py-1 rounded-full text-xs font-medium transition-colors ${
-                  currentMode === 'reading' 
-                    ? 'bg-indigo-500 text-white' 
-                    : 'text-slate-600 hover:bg-slate-100'
-                }`}
-                title="阅读模式"
-              >
-                📖
-              </button>
-              <button
-                onClick={() => onModeChange('notes')}
-                className={`px-2 py-1 rounded-full text-xs font-medium transition-colors ${
-                  currentMode === 'notes' 
-                    ? 'bg-indigo-500 text-white' 
-                    : 'text-slate-600 hover:bg-slate-100'
-                }`}
-                title="笔记模式"
-              >
-                ✏️
-              </button>
-              <button
-                onClick={() => onModeChange('research')}
-                className={`px-2 py-1 rounded-full text-xs font-medium transition-colors ${
-                  currentMode === 'research' 
-                    ? 'bg-indigo-500 text-white' 
-                    : 'text-slate-600 hover:bg-slate-100'
-                }`}
-                title="研究模式"
-              >
-                🔍
-              </button>
-            </div>
-          )}
           {/* Reading History Button */}
           <button
             onClick={() => setShowReadingHistory(true)}
@@ -1661,53 +1561,6 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
               
               {showMobileMenu && (
                 <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-50">
-                  {/* Mode Selector */}
-                  {onModeChange && (
-                    <div className="p-2 border-b border-slate-100">
-                      <div className="text-xs font-semibold text-slate-500 mb-2">模式</div>
-                      <div className="flex gap-1">
-                        <button
-                          onClick={() => {
-                            onModeChange('reading');
-                            setShowMobileMenu(false);
-                          }}
-                          className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
-                            currentMode === 'reading' 
-                              ? 'bg-indigo-500 text-white' 
-                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                          }`}
-                        >
-                          📖 阅读
-                        </button>
-                        <button
-                          onClick={() => {
-                            onModeChange('notes');
-                            setShowMobileMenu(false);
-                          }}
-                          className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
-                            currentMode === 'notes' 
-                              ? 'bg-indigo-500 text-white' 
-                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                          }`}
-                        >
-                          ✏️ 笔记
-                        </button>
-                        <button
-                          onClick={() => {
-                            onModeChange('research');
-                            setShowMobileMenu(false);
-                          }}
-                          className={`flex-1 px-2 py-1 rounded text-xs font-medium transition-colors ${
-                            currentMode === 'research' 
-                              ? 'bg-indigo-500 text-white' 
-                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                          }`}
-                        >
-                          🔍 研究
-                        </button>
-                      </div>
-                    </div>
-                  )}
                   
                   {/* Chinese Mode Toggle */}
                   <button
@@ -1739,7 +1592,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         onTouchEnd={handleTouchEnd}
       >
         {/* Show next/previous page during swipe */}
-        {(isReadingMode || isResearchMode) && isIOS && isSwiping && flipDirection && (
+        {isIOS && isSwiping && flipDirection && (
           <div 
             className="absolute inset-0 overflow-y-auto p-4 md:p-6 space-y-0.5 font-serif-sc"
             style={{
@@ -1755,10 +1608,10 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
             <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">和合本 CUV</div>
             {(flipDirection === 'left' ? nextChapterVerses : prevChapterVerses).map((v: Verse) => (
               <div key={`preview-${v.verse}`} data-verse={v.verse} className="p-1 rounded-lg border-transparent">
-                <span className="font-bold mr-3 text-xs" style={{ color: (isReadingMode || isResearchMode) ? '#8B7355' : '#6366f1' }}>{v.verse}</span>
+                <span className="font-bold mr-3 text-xs" style={{ color: '#8B7355' }}>{v.verse}</span>
                 <span className="leading-relaxed" style={{ 
                   fontSize: `${fontSize}px`,
-                  color: (isReadingMode || isResearchMode) ? '#3A3028' : '#1e293b'
+                  color: '#3A3028'
                 }}>{processChineseText(v.text)}</span>
                 <VerseIndicators
                   hasNote={verseData[`${selectedBook.id}:${selectedChapter}:${v.verse}`]?.hasNote || false}
@@ -1785,12 +1638,6 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
                     // Notify the parent about the selection
                     onSelectionChange?.(selectionInfo);
                     
-                    // Switch to notes mode after a longer delay to ensure state is updated
-                    if (onModeChange) {
-                      setTimeout(() => {
-                        onModeChange('notes');
-                      }, 100);
-                    }
                   }}
                 />
               </div>
@@ -1807,41 +1654,21 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
             flexBasis: vSplitOffset >= 100 ? 'calc(100% - 20px)' : vSplitOffset <= 0 ? '0%' : `calc(${vSplitOffset}% - 10px)`,
             minWidth: 0,
             display: vSplitOffset <= 0 ? 'none' : 'block',
-            // Paper-like background in reading mode AND research mode
-            ...((isReadingMode || isResearchMode) && {
-              backgroundColor: '#FDF8F0',
-              backgroundImage: `
-                linear-gradient(180deg, #FFFEF9 0%, #FDF6E8 50%, #FAF3E5 100%),
-                radial-gradient(ellipse at top left, rgba(252, 243, 223, 0.4) 0%, transparent 50%),
-                radial-gradient(ellipse at bottom right, rgba(249, 235, 195, 0.3) 0%, transparent 50%)
-              `,
-              boxShadow: `
-                inset 0 0 60px rgba(245, 225, 185, 0.25),
-                inset 0 0 30px rgba(249, 235, 195, 0.15),
-                inset 2px 2px 5px rgba(0, 0, 0, 0.02)
-              `,
-              position: 'relative' as const,
-              '&::before': {
-                content: '""',
-                position: 'absolute',
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                backgroundImage: `
-                  repeating-linear-gradient(
-                    90deg,
-                    transparent,
-                    transparent 100px,
-                    rgba(245, 225, 185, 0.03) 100px,
-                    rgba(245, 225, 185, 0.03) 101px
-                  )
-                `,
-                pointerEvents: 'none'
-              }
-            }),
-            // Simple page slide animation for iOS in reading and research modes
-            ...((isReadingMode || isResearchMode) && isIOS && {
+            // Paper-like background always applied
+            backgroundColor: '#FDF8F0',
+            backgroundImage: `
+              linear-gradient(180deg, #FFFEF9 0%, #FDF6E8 50%, #FAF3E5 100%),
+              radial-gradient(ellipse at top left, rgba(252, 243, 223, 0.4) 0%, transparent 50%),
+              radial-gradient(ellipse at bottom right, rgba(249, 235, 195, 0.3) 0%, transparent 50%)
+            `,
+            boxShadow: `
+              inset 0 0 60px rgba(245, 225, 185, 0.25),
+              inset 0 0 30px rgba(249, 235, 195, 0.15),
+              inset 2px 2px 5px rgba(0, 0, 0, 0.02)
+            `,
+            position: 'relative' as const,
+            // Simple page slide animation for iOS
+            ...(isIOS && {
               transform: `translateX(${swipeOffset}px)`,
               transition: isPageFlipping ? 'transform 0.3s ease-out' : 'none',
               willChange: isSwiping ? 'transform' : 'auto'
@@ -1860,18 +1687,18 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
                 data-verse={v.verse}
                 onClick={(e) => handleVerseClick(v.verse, e)}
                 className={`p-1 rounded-lg transition-all border relative ${
-                  selectedVerses.includes(v.verse) && !isReadingMode ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 
-                  isReadingMode ? 'border-transparent' : 'border-transparent hover:bg-slate-50'
+                  selectedVerses.includes(v.verse) ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 
+                  'border-transparent hover:bg-slate-50'
                 }`}
                 style={{ 
-                  cursor: isReadingMode ? 'text' : isResearchMode ? 'default' : 'pointer',
-                  userSelect: (isReadingMode || isResearchMode) ? 'text' : 'none'
+                  cursor: 'default',
+                  userSelect: 'text'
                 }}
               >
-                <span className="font-bold mr-3 text-xs" style={{ color: (isReadingMode || isResearchMode) ? '#8B7355' : '#6366f1' }}>{v.verse}</span>
+                <span className="font-bold mr-3 text-xs" style={{ color: '#8B7355' }}>{v.verse}</span>
                 <span className="leading-relaxed" style={{ 
                   fontSize: `${fontSize}px`,
-                  color: (isReadingMode || isResearchMode) ? '#3A3028' : '#1e293b'
+                  color: '#3A3028'
                 }}>{processChineseText(v.text)}</span>
                 <VerseIndicators
                   hasNote={verseData[`${selectedBook.id}:${selectedChapter}:${v.verse}`]?.hasNote || false}
@@ -1898,12 +1725,6 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
                     // Notify the parent about the selection
                     onSelectionChange?.(selectionInfo);
                     
-                    // Switch to notes mode after a longer delay to ensure state is updated
-                    if (onModeChange) {
-                      setTimeout(() => {
-                        onModeChange('notes');
-                      }, 100);
-                    }
                   }}
                 />
               </div>
@@ -2003,21 +1824,19 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
             flexBasis: vSplitOffset <= 0 ? 'calc(100% - 20px)' : vSplitOffset >= 100 ? '0%' : `calc(${100 - vSplitOffset}% - 10px)`,
             minWidth: 0,
             display: vSplitOffset >= 100 ? 'none' : 'block',
-            // Paper-like background in reading mode AND research mode for English panel
-            ...((isReadingMode || isResearchMode) && {
-              backgroundColor: '#FDF8F0',
-              backgroundImage: `
-                linear-gradient(180deg, #FFFEF9 0%, #FDF6E8 50%, #FAF3E5 100%),
-                radial-gradient(ellipse at top right, rgba(252, 243, 223, 0.4) 0%, transparent 50%),
-                radial-gradient(ellipse at bottom left, rgba(249, 235, 195, 0.3) 0%, transparent 50%)
-              `,
-              boxShadow: `
-                inset 0 0 60px rgba(245, 225, 185, 0.25),
-                inset 0 0 30px rgba(249, 235, 195, 0.15),
-                inset -2px 2px 5px rgba(0, 0, 0, 0.02)
-              `,
-              position: 'relative' as const
-            })
+            // Paper-like background always applied for English panel
+            backgroundColor: '#FDF8F0',
+            backgroundImage: `
+              linear-gradient(180deg, #FFFEF9 0%, #FDF6E8 50%, #FAF3E5 100%),
+              radial-gradient(ellipse at top right, rgba(252, 243, 223, 0.4) 0%, transparent 50%),
+              radial-gradient(ellipse at bottom left, rgba(249, 235, 195, 0.3) 0%, transparent 50%)
+            `,
+            boxShadow: `
+              inset 0 0 60px rgba(245, 225, 185, 0.25),
+              inset 0 0 30px rgba(249, 235, 195, 0.15),
+              inset -2px 2px 5px rgba(0, 0, 0, 0.02)
+            `,
+            position: 'relative' as const
           }}
         >
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">English (WEB)</div>
@@ -2032,12 +1851,12 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
                 data-verse={v.verse}
                 onClick={(e) => handleVerseClick(v.verse, e)}
                 className={`p-1 rounded-lg transition-all border ${
-                  selectedVerses.includes(v.verse) && !isReadingMode ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 
-                  isReadingMode ? 'border-transparent' : 'border-transparent hover:bg-slate-50'
+                  selectedVerses.includes(v.verse) ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 
+                  'border-transparent hover:bg-slate-50'
                 }`}
                 style={{ 
-                  cursor: isReadingMode ? 'text' : isResearchMode ? 'default' : 'pointer',
-                  userSelect: (isReadingMode || isResearchMode) ? 'text' : 'none'
+                  cursor: 'default',
+                  userSelect: 'text'
                 }}
               >
                 <span className="text-indigo-400 font-bold mr-3 text-xs">{v.verse}</span>
