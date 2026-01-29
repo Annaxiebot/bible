@@ -30,10 +30,10 @@ const App: React.FC = () => {
                  (navigator.maxTouchPoints > 1 && /Macintosh/.test(navigator.userAgent));
   const isMobile = isIPhone || isIPad;
   
-  // Track current mode implicitly based on layout
-  const [appMode, setAppMode] = useState<'reading' | 'notes' | 'research'>('reading');
+  // Always in research mode now
+  const [appMode, setAppMode] = useState<'reading' | 'notes' | 'research'>('research');
   
-  const [splitOffset, setSplitOffset] = useState(100); // Always start maximized (full screen Bible)
+  const [splitOffset, setSplitOffset] = useState(100); // Start with Bible view at 100%
   const [bottomSplitOffset, setBottomSplitOffset] = useState(67); // Default to 2/3 for chat, 1/3 for notebook
   const [isResizing, setIsResizing] = useState(false);
   const [isBottomResizing, setIsBottomResizing] = useState(false);
@@ -69,17 +69,7 @@ const App: React.FC = () => {
   const handleSelectionChange = useCallback((selection: SelectionInfo | null) => {
     setCurrentSelection(selection);
     
-    // If in notes mode and a verse is selected, ensure notes area is visible
-    if (selection && appMode === 'notes') {
-      // If Bible is maximized, move to 50% to show notes area
-      if (splitOffset >= 90) {
-        setSplitOffset(50);
-      }
-      // Make sure notes area is visible
-      if (bottomSplitOffset > 50) {
-        setBottomSplitOffset(0);
-      }
-    }
+    // No mode-specific handling needed anymore
   }, [splitOffset, appMode, bottomSplitOffset]);
 
   // Handle Bible context change (book and chapter)
@@ -572,24 +562,9 @@ const App: React.FC = () => {
               showSidebarToggle={!isIPhone} // Pass iPhone detection to BibleViewer
               onSidebarToggle={() => setIsSidebarOpen(!isSidebarOpen)} // Allow title tap to open sidebar on iPhone
               isIPhone={isIPhone}
-              isReadingMode={appMode === 'reading'}
-              isResearchMode={appMode === 'research'}
-              currentMode={appMode}
               initialBookId={initialBookId}
               initialChapter={initialChapter}
               navigateTo={navigateTo}
-            onModeChange={(mode) => {
-              setAppMode(mode);
-              if (mode === 'reading') {
-                setSplitOffset(100);
-              } else if (mode === 'notes') {
-                setSplitOffset(50);
-                setBottomSplitOffset(0);
-              } else if (mode === 'research') {
-                setSplitOffset(50);
-                setBottomSplitOffset(100);
-              }
-            }}
             onDownloadStateChange={(downloading, progress, status, timeRemaining) => {
               setIsDownloading(downloading);
               setDownloadProgress(progress);
@@ -644,59 +619,6 @@ const App: React.FC = () => {
             style={{ zIndex: 20 }}
           ></div>
           
-          {/* Mode switcher - visible on all devices */}
-          <div 
-            className="absolute left-2 flex items-center gap-1 bg-white px-2 py-1 rounded-full shadow-xl border-2 border-slate-400 transition-colors" 
-            style={{ height: '28px', zIndex: 60 }}
-          >
-            <button
-              onClick={() => {
-                setAppMode('reading');
-                setSplitOffset(100);
-              }}
-              className={`px-3 py-1 text-sm font-bold rounded-full transition-all flex items-center justify-center ${
-                appMode === 'reading' 
-                  ? 'bg-indigo-600 text-white' 
-                  : 'text-slate-500 hover:text-slate-700'
-              }`}
-              style={{ minWidth: '32px', height: '22px' }}
-              title="Reading mode - maximize Bible view"
-            >
-              📖
-            </button>
-            <button
-              onClick={() => {
-                setAppMode('notes');
-                setSplitOffset(50);
-                setBottomSplitOffset(0);
-              }}
-              className={`px-3 py-1 text-sm font-bold rounded-full transition-all flex items-center justify-center ${
-                appMode === 'notes' 
-                  ? 'bg-indigo-600 text-white' 
-                  : 'text-slate-500 hover:text-slate-700'
-              }`}
-              style={{ minWidth: '32px', height: '22px' }}
-              title="Note taking mode - split view with notes"
-            >
-              ✏️
-            </button>
-            <button
-              onClick={() => {
-                setAppMode('research');
-                setSplitOffset(50);
-                setBottomSplitOffset(100);
-              }}
-              className={`px-3 py-1 text-sm font-bold rounded-full transition-all flex items-center justify-center ${
-                appMode === 'research' 
-                  ? 'bg-indigo-600 text-white' 
-                  : 'text-slate-500 hover:text-slate-700'
-              }`}
-              style={{ minWidth: '32px', height: '22px' }}
-              title="Research mode - split view with AI chat"
-            >
-              🔬
-            </button>
-          </div>
           
           {/* Arrow buttons for quick positioning */}
           <div 
