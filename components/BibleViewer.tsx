@@ -906,10 +906,12 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     const selection = window.getSelection()?.toString();
     if (selection && selection.length > 0) return;
 
-    // Allow verse selection by clicking
+    // Toggle verse selection - deselect if already selected, select if not
     // Clear any text selection when clicking a verse
     window.getSelection()?.removeAllRanges();
-    const newSelection = [verseNum];
+    
+    const isCurrentlySelected = selectedVerses.includes(verseNum);
+    const newSelection = isCurrentlySelected ? [] : [verseNum];
     setSelectedVerses(newSelection);
     notifySelection(newSelection);
   };
