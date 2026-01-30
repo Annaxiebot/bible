@@ -10,6 +10,7 @@ interface SidebarProps {
   onClear: () => void;
   onVoiceOpen: () => void;
   onViewNotes?: () => void;
+  onSplitView?: () => void;
   notesCount: number;
   onDownloadBible?: (() => void) | null;
   onDownloadChapter?: (() => void) | null;
@@ -29,6 +30,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onClear,
   onVoiceOpen,
   onViewNotes,
+  onSplitView,
   notesCount,
   onDownloadBible,
   onDownloadChapter,
@@ -107,6 +109,21 @@ const Sidebar: React.FC<SidebarProps> = ({
               语音学者 Voice Session
             </span>
           </button>
+
+          {/* Split View - for iOS compatibility */}
+          {onSplitView && (
+            <button 
+              onClick={onSplitView}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-blue-50 transition-colors group mb-2"
+            >
+              <svg className="w-4 h-4 text-slate-400 group-hover:text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
+              </svg>
+              <span className="flex-1 text-left text-sm font-medium text-slate-700 group-hover:text-blue-600">
+                分屏视图 Split View (50/50)
+              </span>
+            </button>
+          )}
 
           <div className="h-px bg-slate-200 my-4"></div>
 
