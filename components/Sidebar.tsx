@@ -74,7 +74,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Sidebar */}
       <div 
-        className="fixed left-0 top-0 h-full bg-white shadow-2xl z-40 flex flex-col"
+        className="fixed left-0 top-0 h-full bg-white shadow-2xl z-[70] flex flex-col"
         style={{
           width: '280px',
           transform: isOpen ? 'translateX(0)' : 'translateX(-100%)',
