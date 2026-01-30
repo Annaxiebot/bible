@@ -42,12 +42,12 @@ const SaveResearchModal: React.FC<SaveResearchModalProps> = ({
     
     // Try to extract verse number from the query
     if (query) {
-      // Look for patterns like "1:5" or "Chapter 1:5" or "第1章5节"
-      const verseMatch = query.match(/(?:[:：])(\d+)(?:[节\s]|$)/);
+      // Look for patterns like "1:7", "Chapter 1:7", "Corinthians 1:7", or "第1章7节"
+      const verseMatch = query.match(/\d+[:：](\d+)/);
       if (verseMatch) {
         setSelectedVerse(Number(verseMatch[1]));
       } else {
-        // Also try pattern like "第5节" or "verse 5"
+        // Also try pattern like "第7节" or "verse 7"
         const altMatch = query.match(/(?:第|verse\s+)(\d+)(?:节|\s|$)/i);
         if (altMatch) {
           setSelectedVerse(Number(altMatch[1]));
