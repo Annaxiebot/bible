@@ -33,7 +33,7 @@ const App: React.FC = () => {
   // Always in research mode now
   const [appMode, setAppMode] = useState<'reading' | 'notes' | 'research'>('research');
   
-  const [splitOffset, setSplitOffset] = useState(isMobile ? 50 : 100); // iOS: 50/50 split, Desktop: Bible view at 100%
+  const [splitOffset, setSplitOffset] = useState(100); // Start with Bible view at 100%
   const [bottomSplitOffset, setBottomSplitOffset] = useState(100); // Research view at 100% (notebook hidden)
   const [isResizing, setIsResizing] = useState(false);
   const [isBottomResizing, setIsBottomResizing] = useState(false);
