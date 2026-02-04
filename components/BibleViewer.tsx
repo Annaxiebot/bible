@@ -5,6 +5,7 @@ import { toSimplified } from '../services/chineseConverter';
 import { bibleStorage } from '../services/bibleStorage';
 import { readingHistory } from '../services/readingHistory';
 import { verseDataStorage } from '../services/verseDataStorage';
+import { bookmarkStorage } from '../services/bookmarkStorage';
 import { ReadingHistory } from './ReadingHistory';
 import VerseIndicators from './VerseIndicators';
 import ContextMenu from './ContextMenu';
@@ -95,8 +96,18 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   
-  const [vSplitOffset, setVSplitOffset] = useState(100); // Start with Chinese maximized
+  const [vSplitOffset, setVSplitOffset] = useState(() => {
+    const saved = localStorage.getItem('bibleViewLayout');
+    if (saved !== null) return parseInt(saved);
+    return 50; // Default: bilingual side-by-side for new users
+  });
   const [isResizing, setIsResizing] = useState(false);
+  
+  // Persist bilingual layout preference
+  useEffect(() => {
+    localStorage.setItem('bibleViewLayout', vSplitOffset.toString());
+  }, [vSplitOffset]);
+
   const containerRef = useRef<HTMLDivElement>(null);
   const panelContainerRef = useRef<HTMLDivElement>(null);
 
@@ -124,6 +135,23 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     };
   } | null>(null);
   const [isTransitioning, setIsTransitioning] = useState(false);
+
+  // Bookmark state
+  const [bookmarkedVerses, setBookmarkedVerses] = useState<Set<string>>(new Set());
+
+  // Search state
+  const [showSearch, setShowSearch] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Array<{
+    bookId: string;
+    bookName: string;
+    chapter: number;
+    verse: number;
+    text: string;
+    translation: string;
+  }>>([]);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
   
   // iOS two-step text selection state (isolated)
   const [iosTextSelectionReady, setIosTextSelectionReady] = useState(false);
@@ -206,6 +234,170 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       loadVerseData();
     }
   }, [leftVerses, rightVerses, selectedBook.id, selectedChapter, notes, researchUpdateTrigger]);
+
+  // Load bookmarked verses for current chapter
+  useEffect(() => {
+    const loadBookmarks = async () => {
+      const allBookmarks = await bookmarkStorage.getAllBookmarks();
+      const currentChapterBookmarks = new Set<string>();
+      for (const bm of allBookmarks) {
+        if (bm.bookId === selectedBook.id && bm.chapter === selectedChapter) {
+          currentChapterBookmarks.add(bm.id);
+        }
+      }
+      setBookmarkedVerses(currentChapterBookmarks);
+    };
+    loadBookmarks();
+  }, [selectedBook.id, selectedChapter]);
+
+  // Focus search input when search panel opens
+  useEffect(() => {
+    if (showSearch && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [showSearch]);
+
+  // Search function - searches through cached/downloaded chapters
+  const handleSearch = useCallback(async (query: string) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    setIsSearching(true);
+    try {
+      const results: Array<{
+        bookId: string;
+        bookName: string;
+        chapter: number;
+        verse: number;
+        text: string;
+        translation: string;
+      }> = [];
+      
+      const offlineChapterSet = await bibleStorage.getAllOfflineChapters();
+      const queryLower = query.toLowerCase();
+      
+      // Search through all cached chapters
+      for (const chapterKey of offlineChapterSet) {
+        if (results.length >= 50) break; // Limit results
+        
+        const parts = chapterKey.split('_');
+        if (parts.length !== 2) continue;
+        const [bookId, chapterStr] = parts;
+        const chapter = parseInt(chapterStr);
+        const book = BIBLE_BOOKS.find(b => b.id === bookId);
+        if (!book) continue;
+        
+        // Search in CUV (Chinese)
+        const cuvData = await bibleStorage.getChapter(bookId, chapter, 'cuv');
+        if (cuvData?.verses) {
+          for (const verse of cuvData.verses) {
+            if (results.length >= 50) break;
+            if (verse.text.toLowerCase().includes(queryLower)) {
+              results.push({
+                bookId,
+                bookName: book.name,
+                chapter,
+                verse: verse.verse,
+                text: verse.text,
+                translation: 'CUV',
+              });
+            }
+          }
+        }
+        
+        // Search in WEB (English)
+        const webData = await bibleStorage.getChapter(bookId, chapter, 'web');
+        if (webData?.verses) {
+          for (const verse of webData.verses) {
+            if (results.length >= 50) break;
+            if (verse.text.toLowerCase().includes(queryLower)) {
+              // Avoid duplicates if already found in CUV for same verse
+              const alreadyFound = results.some(r => 
+                r.bookId === bookId && r.chapter === chapter && r.verse === verse.verse
+              );
+              if (!alreadyFound) {
+                results.push({
+                  bookId,
+                  bookName: book.name,
+                  chapter,
+                  verse: verse.verse,
+                  text: verse.text,
+                  translation: 'WEB',
+                });
+              }
+            }
+          }
+        }
+      }
+      
+      // Also search current chapter if not already cached
+      if (!offlineChapterSet.has(`${selectedBook.id}_${selectedChapter}`)) {
+        for (const verse of leftVerses) {
+          if (results.length >= 50) break;
+          if (verse.text.toLowerCase().includes(queryLower)) {
+            results.push({
+              bookId: selectedBook.id,
+              bookName: selectedBook.name,
+              chapter: selectedChapter,
+              verse: verse.verse,
+              text: verse.text,
+              translation: 'CUV',
+            });
+          }
+        }
+        for (const verse of rightVerses) {
+          if (results.length >= 50) break;
+          if (verse.text.toLowerCase().includes(queryLower)) {
+            const alreadyFound = results.some(r =>
+              r.bookId === selectedBook.id && r.chapter === selectedChapter && r.verse === verse.verse
+            );
+            if (!alreadyFound) {
+              results.push({
+                bookId: selectedBook.id,
+                bookName: selectedBook.name,
+                chapter: selectedChapter,
+                verse: verse.verse,
+                text: verse.text,
+                translation: 'WEB',
+              });
+            }
+          }
+        }
+      }
+      
+      setSearchResults(results);
+    } catch (error) {
+      console.error('Search error:', error);
+    } finally {
+      setIsSearching(false);
+    }
+  }, [selectedBook, selectedChapter, leftVerses, rightVerses]);
+
+  // Toggle bookmark for a verse
+  const handleToggleBookmark = useCallback(async (verseNum: number, verseText: string) => {
+    const id = `${selectedBook.id}:${selectedChapter}:${verseNum}`;
+    const wasBookmarked = bookmarkedVerses.has(id);
+    
+    await bookmarkStorage.toggleBookmark({
+      id,
+      bookId: selectedBook.id,
+      bookName: selectedBook.name,
+      chapter: selectedChapter,
+      verse: verseNum,
+      textPreview: verseText.substring(0, 80),
+    });
+    
+    setBookmarkedVerses(prev => {
+      const next = new Set(prev);
+      if (wasBookmarked) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  }, [selectedBook, selectedChapter, bookmarkedVerses]);
 
   // No need for mode-specific text selection clearing anymore
 
@@ -1506,6 +1698,22 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           </button>
         </div>
         <div className={`flex items-center ${isIPhone ? 'gap-1' : 'gap-3'}`}>
+          {/* Search Button */}
+          <button
+            onClick={() => setShowSearch(!showSearch)}
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-colors shadow-sm ${
+              showSearch 
+                ? 'bg-indigo-100 border-indigo-300 text-indigo-600' 
+                : 'bg-white border-slate-200 hover:border-indigo-300'
+            }`}
+            title="搜索经文 Search verses"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            {!isIPhone && <span className="text-xs font-medium">搜索</span>}
+          </button>
+
           {/* Reading History Button */}
           <button
             onClick={() => setShowReadingHistory(true)}
@@ -1626,6 +1834,84 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         </div>
       </div>
 
+      {/* Search Panel */}
+      {showSearch && (
+        <div className="border-b border-slate-200 bg-slate-50 px-4 py-2 shrink-0 z-10" onClick={e => e.stopPropagation()}>
+          <div className="flex items-center gap-2 mb-2">
+            <div className="flex-1 relative">
+              <input
+                ref={searchInputRef}
+                type="text"
+                className="w-full px-3 py-1.5 pl-8 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
+                placeholder="搜索经文... Search verses..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSearch(searchQuery);
+                  if (e.key === 'Escape') { setShowSearch(false); setSearchQuery(''); setSearchResults([]); }
+                }}
+              />
+              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <button
+              onClick={() => handleSearch(searchQuery)}
+              disabled={isSearching || !searchQuery.trim()}
+              className="px-3 py-1.5 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            >
+              {isSearching ? '搜索中...' : '搜索 Search'}
+            </button>
+            <button
+              onClick={() => { setShowSearch(false); setSearchQuery(''); setSearchResults([]); }}
+              className="p-1.5 text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          
+          {searchResults.length > 0 && (
+            <div className="max-h-48 overflow-y-auto space-y-1 mb-1">
+              <div className="text-[10px] text-slate-400 mb-1">
+                找到 {searchResults.length} 条结果 {searchResults.length >= 50 ? '(显示前50条)' : ''} 
+                {' · '}在已缓存的章节中搜索
+              </div>
+              {searchResults.map((result, idx) => (
+                <button
+                  key={`${result.bookId}-${result.chapter}-${result.verse}-${idx}`}
+                  onClick={() => {
+                    const book = BIBLE_BOOKS.find(b => b.id === result.bookId);
+                    if (book) {
+                      setSelectedBook(book);
+                      setSelectedChapter(result.chapter);
+                      setSelectedVerses([result.verse]);
+                      setShowSearch(false);
+                      setSearchQuery('');
+                      setSearchResults([]);
+                    }
+                  }}
+                  className="w-full text-left px-2 py-1.5 rounded-md hover:bg-indigo-50 transition-colors flex items-start gap-2"
+                >
+                  <span className="text-[10px] font-semibold text-indigo-500 whitespace-nowrap mt-0.5">
+                    {result.bookName.split(' ')[0]} {result.chapter}:{result.verse}
+                  </span>
+                  <span className="text-xs text-slate-600 line-clamp-2">{result.text}</span>
+                  <span className="text-[8px] text-slate-300 mt-0.5 shrink-0">{result.translation}</span>
+                </button>
+              ))}
+            </div>
+          )}
+          
+          {searchQuery && searchResults.length === 0 && !isSearching && (
+            <div className="text-xs text-slate-400 py-1">
+              未找到结果 No results found. 尝试搜索已下载的书卷。
+            </div>
+          )}
+        </div>
+      )}
+
       <div 
         ref={panelContainerRef}
         className="flex-1 flex overflow-hidden relative"
@@ -1728,7 +2014,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
                 key={`left-${v.verse}`}
                 data-verse={v.verse}
                 onClick={(e) => handleVerseClick(v.verse, e)}
-                className={`p-1 rounded-lg transition-all border relative ${
+                className={`p-1 rounded-lg transition-all border relative group/verse ${
                   selectedVerses.includes(v.verse) ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 
                   'border-transparent hover:bg-slate-50'
                 }`}
@@ -1742,6 +2028,22 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
                   fontSize: `${fontSize}px`,
                   color: '#3A3028'
                 }}>{processChineseText(v.text)}</span>
+                {/* Bookmark icon */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleBookmark(v.verse, v.text);
+                  }}
+                  className={`inline-block ml-1 align-middle transition-all ${
+                    bookmarkedVerses.has(`${selectedBook.id}:${selectedChapter}:${v.verse}`)
+                      ? 'text-red-400 opacity-100'
+                      : 'text-slate-300 opacity-0 group-hover/verse:opacity-60 hover:!opacity-100'
+                  }`}
+                  title={bookmarkedVerses.has(`${selectedBook.id}:${selectedChapter}:${v.verse}`) ? '取消收藏 Remove bookmark' : '收藏 Bookmark'}
+                  style={{ fontSize: '12px', lineHeight: 1, padding: '2px' }}
+                >
+                  {bookmarkedVerses.has(`${selectedBook.id}:${selectedChapter}:${v.verse}`) ? '♥' : '♡'}
+                </button>
                 <VerseIndicators
                   hasNote={verseData[`${selectedBook.id}:${selectedChapter}:${v.verse}`]?.hasNote || false}
                   hasResearch={verseData[`${selectedBook.id}:${selectedChapter}:${v.verse}`]?.hasResearch || false}
@@ -1893,7 +2195,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
                 key={`right-${v.verse}`}
                 data-verse={v.verse}
                 onClick={(e) => handleVerseClick(v.verse, e)}
-                className={`p-1 rounded-lg transition-all border ${
+                className={`p-1 rounded-lg transition-all border group/verse ${
                   selectedVerses.includes(v.verse) ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 
                   'border-transparent hover:bg-slate-50'
                 }`}
@@ -1904,6 +2206,22 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
               >
                 <span className="text-indigo-400 font-bold mr-3 text-xs">{v.verse}</span>
                 <span className="leading-relaxed text-slate-700 italic" style={{ fontSize: `${fontSize}px` }}>{v.text}</span>
+                {/* Bookmark icon */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleBookmark(v.verse, v.text);
+                  }}
+                  className={`inline-block ml-1 align-middle transition-all ${
+                    bookmarkedVerses.has(`${selectedBook.id}:${selectedChapter}:${v.verse}`)
+                      ? 'text-red-400 opacity-100'
+                      : 'text-slate-300 opacity-0 group-hover/verse:opacity-60 hover:!opacity-100'
+                  }`}
+                  title={bookmarkedVerses.has(`${selectedBook.id}:${selectedChapter}:${v.verse}`) ? '取消收藏 Remove bookmark' : '收藏 Bookmark'}
+                  style={{ fontSize: '12px', lineHeight: 1, padding: '2px' }}
+                >
+                  {bookmarkedVerses.has(`${selectedBook.id}:${selectedChapter}:${v.verse}`) ? '♥' : '♡'}
+                </button>
               </div>
             ))
           )}
