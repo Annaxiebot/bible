@@ -544,6 +544,10 @@ const App: React.FC = () => {
         onRestore={handleRestoreClick}
         onClear={handleClearAll}
         onVoiceOpen={() => setIsVoiceOpen(true)}
+        onNavigate={(bookId, chapter, verse) => {
+          setNavigateTo({ bookId, chapter, verses: verse ? [verse] : undefined });
+          setTimeout(() => setNavigateTo(null), 100);
+        }}
         onViewNotes={async () => {
           // Count all notes including AI research
           try {
