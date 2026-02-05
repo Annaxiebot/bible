@@ -1,13 +1,10 @@
 /**
  * DrawingCanvas.tsx — High-performance drawing canvas for iPad + Apple Pencil
  *
- * Key design decisions for native-like feel:
- * - All drawing state lives in refs, NOT React state → zero re-renders while pen is moving
- * - getCoalescedEvents() captures every Apple Pencil sample (~240Hz) for butter-smooth strokes
- * - requestAnimationFrame batches rendering for consistent frame timing
- * - Pressure + tilt sensitivity for natural calligraphy effects
- * - Only serializes/saves on pointerUp (stroke complete)
- * - Apple Pencil double-tap toggles eraser
+ * REWRITTEN: Now uses BOTH touch events AND pointer events for iOS compatibility
+ * - Touch events are used for actual point capture on iOS (more reliable)
+ * - Pointer events used as fallback and for desktop
+ * - Aggressive prevention of iOS context menus and text selection
  */
 
 import React, { useRef, useEffect, forwardRef, useImperativeHandle, useCallback } from 'react';
@@ -15,11 +12,11 @@ import React, { useRef, useEffect, forwardRef, useImperativeHandle, useCallback 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 interface DrawingCanvasProps {
-  initialData?: string;            // JSON-serialized path data OR base64 image
-  onChange: (data: string) => void; // Called when a stroke completes
-  overlayMode?: boolean;           // Transparent overlay on text
-  isWritingMode?: boolean;         // Allow drawing vs navigation
-  canvasHeight?: number;           // Explicit height override (for expandable space)
+  initialData?: string;
+  onChange: (data: string) => void;
+  overlayMode?: boolean;
+  isWritingMode?: boolean;
+  canvasHeight?: number;
 }
 
 export interface DrawingCanvasHandle {
@@ -33,7 +30,6 @@ export interface DrawingCanvasHandle {
   loadPaths: (paths: SerializedPath[]) => void;
 }
 
-/** A single point sampled from the pointer device */
 interface Point {
   x: number;
   y: number;
@@ -42,7 +38,6 @@ interface Point {
   tiltY: number;
 }
 
-/** A completed stroke with all its metadata */
 export interface SerializedPath {
   tool: 'pen' | 'marker' | 'highlighter' | 'eraser';
   color: string;
@@ -50,16 +45,21 @@ export interface SerializedPath {
   points: Point[];
 }
 
+// Detect iOS
+const isIOS = typeof navigator !== 'undefined' && (
+  /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+  (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+);
+
 // ─── Component ──────────────────────────────────────────────────────────────
 
 const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
   ({ initialData, onChange, overlayMode = false, isWritingMode = true, canvasHeight }, ref) => {
 
-    // ── Canvas refs ─────────────────────────────────────────────────────
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
 
-    // ── Drawing state — ALL in refs for zero-render drawing ─────────────
+    // Drawing state in refs for zero re-renders
     const pathsRef = useRef<SerializedPath[]>([]);
     const currentPointsRef = useRef<Point[]>([]);
     const isDrawingRef = useRef(false);
@@ -68,14 +68,12 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
     const sizeRef = useRef(2);
     const needsRedrawRef = useRef(false);
     const rafIdRef = useRef<number>(0);
-
-    // Apple Pencil double-tap detection
     const lastPenDownRef = useRef(0);
-
-    // DPR for retina canvas
     const dprRef = useRef(window.devicePixelRatio || 1);
+    
+    // Track if we're using touch (to avoid double-handling with pointer events)
+    const usingTouchRef = useRef(false);
 
-    // ── Imperative handle (same interface as before) ────────────────────
     useImperativeHandle(ref, () => ({
       clear: () => {
         pathsRef.current = [];
@@ -116,7 +114,6 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
       const w = rect.width;
       const h = canvasHeight ?? rect.height;
 
-      // Only resize if dimensions changed (avoids clearing content)
       if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
         canvas.width = Math.round(w * dpr);
         canvas.height = Math.round(h * dpr);
@@ -126,25 +123,19 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
           ctx.scale(dpr, dpr);
           ctxRef.current = ctx;
         }
-
-        // Redraw all paths after resize
         fullRedraw();
       }
     }, [canvasHeight]);
 
     useEffect(() => {
       setupCanvasSize();
-
       const canvas = canvasRef.current;
       if (!canvas) return;
-
       const observer = new ResizeObserver(() => setupCanvasSize());
       observer.observe(canvas);
-
       return () => observer.disconnect();
     }, [setupCanvasSize]);
 
-    // Re-setup when canvasHeight prop changes
     useEffect(() => {
       setupCanvasSize();
     }, [canvasHeight, setupCanvasSize]);
@@ -153,8 +144,6 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
 
     useEffect(() => {
       if (!initialData || initialData.length === 0) return;
-
-      // Try JSON path data first
       try {
         const parsed = JSON.parse(initialData);
         if (Array.isArray(parsed)) {
@@ -162,11 +151,8 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
           fullRedraw();
           return;
         }
-      } catch {
-        // Not JSON — try as base64 image (backward compat)
-      }
+      } catch {}
 
-      // Fallback: base64 image
       if (initialData.startsWith('data:image')) {
         const img = new Image();
         img.onload = () => {
@@ -182,10 +168,6 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
 
     // ── Drawing helpers ─────────────────────────────────────────────────
 
-    /**
-     * Draw a single segment between two points, applying tool-specific styles.
-     * This is the hot path — called for every point pair during live drawing.
-     */
     const drawSegment = useCallback((
       ctx: CanvasRenderingContext2D,
       from: Point,
@@ -196,14 +178,11 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
     ) => {
       ctx.save();
 
-      // Pressure-sensitive width — optimized for Apple Pencil
-      // Lower floor (0.15) means light touches still register
-      // Higher multiplier (1.7) gives more dynamic range
+      // Very low pressure floor for light touches
       let lineWidth = size;
       const p = to.pressure > 0 ? to.pressure : 0.5;
-      lineWidth = size * (0.15 + p * 1.7);
+      lineWidth = size * (0.1 + p * 1.8);
 
-      // Tilt → calligraphy effect (pen only)
       if (tool === 'pen' && (Math.abs(to.tiltX) > 15 || Math.abs(to.tiltY) > 15)) {
         const tiltFactor = 1 + (Math.abs(to.tiltX) + Math.abs(to.tiltY)) / 180;
         lineWidth *= tiltFactor;
@@ -226,7 +205,7 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
           ctx.lineWidth = lineWidth * 2.5;
           ctx.strokeStyle = color;
           break;
-        default: // pen
+        default:
           ctx.lineWidth = lineWidth;
           ctx.strokeStyle = color;
           break;
@@ -236,20 +215,13 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
       ctx.lineJoin = 'round';
       ctx.beginPath();
       ctx.moveTo(from.x, from.y);
-
-      // Quadratic curve through midpoint for smoother strokes
       const mx = (from.x + to.x) / 2;
       const my = (from.y + to.y) / 2;
       ctx.quadraticCurveTo(from.x, from.y, mx, my);
-
       ctx.stroke();
       ctx.restore();
     }, []);
 
-    /**
-     * Redraw ALL completed paths from scratch.
-     * Called after undo, clear, resize, or loading data.
-     */
     const fullRedraw = useCallback(() => {
       const ctx = ctxRef.current;
       const canvas = canvasRef.current;
@@ -266,8 +238,7 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
       }
     }, [drawSegment, canvasHeight]);
 
-    // ── rAF render loop ─────────────────────────────────────────────────
-    // Only runs while actively drawing; renders new points incrementally.
+    // ── Render loop ─────────────────────────────────────────────────────
 
     const renderLoop = useCallback(() => {
       if (!needsRedrawRef.current) {
@@ -289,8 +260,8 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
         return;
       }
 
-      // Draw only the newest segments (incremental rendering)
-      // We draw the last two points each frame
+      // Draw ALL new segments since last frame (not just last 2)
+      // This helps with fast strokes
       const from = pts[pts.length - 2];
       const to = pts[pts.length - 1];
       drawSegment(ctx, from, to, toolRef.current, colorRef.current, sizeRef.current);
@@ -300,9 +271,23 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
       }
     }, [drawSegment]);
 
-    // ── Pointer event handlers ──────────────────────────────────────────
+    // ── Get point from touch event ──────────────────────────────────────
 
-    const getPoint = useCallback((e: PointerEvent): Point => {
+    const getPointFromTouch = useCallback((touch: Touch): Point => {
+      const canvas = canvasRef.current!;
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: touch.clientX - rect.left,
+        y: touch.clientY - rect.top,
+        // Apple Pencil provides force (0-1), use it as pressure
+        pressure: (touch as any).force || 0.5,
+        // Tilt from touch (Apple Pencil)
+        tiltX: (touch as any).tiltX || (touch as any).azimuthAngle ? Math.cos((touch as any).azimuthAngle) * 45 : 0,
+        tiltY: (touch as any).tiltY || (touch as any).altitudeAngle ? (1 - (touch as any).altitudeAngle / (Math.PI / 2)) * 45 : 0,
+      };
+    }, []);
+
+    const getPointFromPointer = useCallback((e: PointerEvent): Point => {
       const canvas = canvasRef.current!;
       const rect = canvas.getBoundingClientRect();
       return {
@@ -314,18 +299,15 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
       };
     }, []);
 
-    const handlePointerDown = useCallback((e: PointerEvent) => {
-      if (!isWritingMode) return;
-      
-      // Allow pen input regardless of isPrimary (Apple Pencil is primary, but be safe)
-      // For touch/mouse, only allow primary to avoid multi-touch conflicts
-      if (e.pointerType !== 'pen' && !e.isPrimary) return;
+    // ── Start drawing ───────────────────────────────────────────────────
 
-      // Apple Pencil double-tap detection (pen only)
-      if (e.pointerType === 'pen') {
+    const startDrawing = useCallback((point: Point, isPen: boolean) => {
+      if (!isWritingMode) return;
+
+      // Apple Pencil double-tap detection
+      if (isPen) {
         const now = Date.now();
         if (now - lastPenDownRef.current < 300 && now - lastPenDownRef.current > 50) {
-          // Double-tap → toggle eraser
           toolRef.current = toolRef.current === 'eraser' ? 'pen' : 'eraser';
           lastPenDownRef.current = 0;
           return;
@@ -333,45 +315,30 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
         lastPenDownRef.current = now;
       }
 
-      e.preventDefault();
-      e.stopPropagation();
       isDrawingRef.current = true;
-      currentPointsRef.current = [getPoint(e)];
+      currentPointsRef.current = [point];
       needsRedrawRef.current = false;
-
-      // Start render loop
       rafIdRef.current = requestAnimationFrame(renderLoop);
-    }, [isWritingMode, getPoint, renderLoop]);
+    }, [isWritingMode, renderLoop]);
 
-    const handlePointerMove = useCallback((e: PointerEvent) => {
+    // ── Continue drawing ────────────────────────────────────────────────
+
+    const continueDrawing = useCallback((points: Point[]) => {
       if (!isDrawingRef.current) return;
-      // Don't check isPrimary for move events — we're already drawing
-      e.preventDefault();
-      e.stopPropagation();
-
-      // getCoalescedEvents() gives us ALL intermediate samples from Apple Pencil
-      // (up to 240Hz) instead of just the events that align with display refresh
-      // This is critical for smooth handwriting — without it, fast strokes lose points
-      const coalescedEvents = (e as any).getCoalescedEvents?.();
-      const events = coalescedEvents && coalescedEvents.length > 0 ? coalescedEvents : [e];
-
-      for (const coalescedEvent of events) {
-        const point = getPoint(coalescedEvent);
+      for (const point of points) {
         currentPointsRef.current.push(point);
       }
-
       needsRedrawRef.current = true;
-    }, [getPoint]);
+    }, []);
 
-    const handlePointerUp = useCallback((e: PointerEvent) => {
+    // ── End drawing ─────────────────────────────────────────────────────
+
+    const endDrawing = useCallback(() => {
       if (!isDrawingRef.current) return;
-      e.preventDefault();
-      e.stopPropagation();
 
       isDrawingRef.current = false;
       cancelAnimationFrame(rafIdRef.current);
 
-      // Finalize the stroke
       const pts = currentPointsRef.current;
       if (pts.length >= 2) {
         const completedPath: SerializedPath = {
@@ -381,131 +348,223 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
           points: [...pts],
         };
         pathsRef.current = [...pathsRef.current, completedPath];
-
-        // Serialize and notify parent — only on stroke complete
         onChange(JSON.stringify(pathsRef.current));
       }
 
       currentPointsRef.current = [];
     }, [onChange]);
 
-    const handlePointerCancel = useCallback((e: PointerEvent) => {
+    // ── Touch event handlers (primary for iOS) ──────────────────────────
+
+    const handleTouchStart = useCallback((e: TouchEvent) => {
+      if (!isWritingMode) return;
+      
+      // Only handle single touch for drawing
+      if (e.touches.length !== 1) return;
+      
+      const touch = e.touches[0];
+      
+      // Check if this is Apple Pencil (has force or touchType)
+      const isPen = (touch as any).touchType === 'stylus' || (touch as any).force > 0;
+      
+      // Mark that we're using touch (to skip pointer events)
+      usingTouchRef.current = true;
+      
+      // CRITICAL: Prevent default to stop iOS context menu and text selection
+      e.preventDefault();
+      e.stopPropagation();
+      
+      startDrawing(getPointFromTouch(touch), isPen);
+    }, [isWritingMode, getPointFromTouch, startDrawing]);
+
+    const handleTouchMove = useCallback((e: TouchEvent) => {
+      if (!isWritingMode || !isDrawingRef.current) return;
+      if (e.touches.length !== 1) return;
+      
+      e.preventDefault();
+      e.stopPropagation();
+      
+      // Collect all touches from this event
+      const points: Point[] = [];
+      
+      // Use coalescedEvents if available (not on iOS Safari, but might be in future)
+      const coalescedTouches = (e as any).coalescedTouches;
+      if (coalescedTouches && coalescedTouches.length > 0) {
+        for (const touch of coalescedTouches) {
+          points.push(getPointFromTouch(touch));
+        }
+      } else {
+        points.push(getPointFromTouch(e.touches[0]));
+      }
+      
+      continueDrawing(points);
+    }, [isWritingMode, getPointFromTouch, continueDrawing]);
+
+    const handleTouchEnd = useCallback((e: TouchEvent) => {
+      if (!isWritingMode) return;
+      
+      e.preventDefault();
+      e.stopPropagation();
+      
+      endDrawing();
+      
+      // Reset touch flag after a delay
+      setTimeout(() => {
+        usingTouchRef.current = false;
+      }, 100);
+    }, [isWritingMode, endDrawing]);
+
+    const handleTouchCancel = useCallback((e: TouchEvent) => {
+      if (!isDrawingRef.current) return;
+      e.preventDefault();
+      isDrawingRef.current = false;
+      cancelAnimationFrame(rafIdRef.current);
+      currentPointsRef.current = [];
+      fullRedraw();
+      usingTouchRef.current = false;
+    }, [fullRedraw]);
+
+    // ── Pointer event handlers (fallback for desktop) ───────────────────
+
+    const handlePointerDown = useCallback((e: PointerEvent) => {
+      if (!isWritingMode) return;
+      if (usingTouchRef.current) return; // Skip if touch is handling it
+      if (e.pointerType !== 'pen' && !e.isPrimary) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      
+      startDrawing(getPointFromPointer(e), e.pointerType === 'pen');
+    }, [isWritingMode, getPointFromPointer, startDrawing]);
+
+    const handlePointerMove = useCallback((e: PointerEvent) => {
+      if (!isDrawingRef.current) return;
+      if (usingTouchRef.current) return;
+      
+      e.preventDefault();
+      e.stopPropagation();
+
+      const coalescedEvents = (e as any).getCoalescedEvents?.();
+      const events = coalescedEvents && coalescedEvents.length > 0 ? coalescedEvents : [e];
+
+      const points: Point[] = [];
+      for (const evt of events) {
+        points.push(getPointFromPointer(evt));
+      }
+      
+      continueDrawing(points);
+    }, [getPointFromPointer, continueDrawing]);
+
+    const handlePointerUp = useCallback((e: PointerEvent) => {
+      if (!isDrawingRef.current) return;
+      if (usingTouchRef.current) return;
+      
+      e.preventDefault();
+      e.stopPropagation();
+      endDrawing();
+    }, [endDrawing]);
+
+    const handlePointerCancel = useCallback(() => {
       if (!isDrawingRef.current) return;
       isDrawingRef.current = false;
       cancelAnimationFrame(rafIdRef.current);
       currentPointsRef.current = [];
-      // Don't save cancelled strokes — redraw from completed paths
       fullRedraw();
     }, [fullRedraw]);
 
-    // ── Prevent context menu and text selection in writing mode ──
+    // ── Prevent context menu ────────────────────────────────────────────
 
-    const preventDefaultHandler = useCallback((e: Event) => {
+    const blockEvent = useCallback((e: Event) => {
       if (isWritingMode) {
         e.preventDefault();
         e.stopPropagation();
+        e.stopImmediatePropagation();
         return false;
       }
     }, [isWritingMode]);
 
-    // ── Touch event handlers for iOS — allow two-finger scroll, block single-finger ──
-    // Single touch → drawing (prevent default to stop context menu)
-    // Two+ touches → allow scrolling/pinch zoom (don't prevent default)
-    
-    const handleTouchStart = useCallback((e: TouchEvent) => {
-      if (!isWritingMode) return;
-      // Only prevent default for single touch (drawing) - allow two-finger gestures
-      if (e.touches.length === 1) {
-        e.preventDefault();
-      }
-      // Two or more fingers → let it through for scrolling
-    }, [isWritingMode]);
-
-    const handleTouchMove = useCallback((e: TouchEvent) => {
-      if (!isWritingMode) return;
-      // Only prevent default for single touch - allow two-finger scroll
-      if (e.touches.length === 1) {
-        e.preventDefault();
-      }
-    }, [isWritingMode]);
-
-    const handleTouchEnd = useCallback((e: TouchEvent) => {
-      if (!isWritingMode) return;
-      // Only prevent if we were drawing (single touch)
-      if (e.touches.length === 0 && e.changedTouches.length === 1) {
-        e.preventDefault();
-      }
-    }, [isWritingMode]);
-
-    // ── Attach pointer events (native, not React) for best performance ──
+    // ── Attach event listeners ──────────────────────────────────────────
 
     useEffect(() => {
       const canvas = canvasRef.current;
       if (!canvas) return;
 
-      // Use native addEventListener with { passive: false } for lowest latency
+      // Touch events (primary for iOS)
+      canvas.addEventListener('touchstart', handleTouchStart, { passive: false, capture: true });
+      canvas.addEventListener('touchmove', handleTouchMove, { passive: false, capture: true });
+      canvas.addEventListener('touchend', handleTouchEnd, { passive: false, capture: true });
+      canvas.addEventListener('touchcancel', handleTouchCancel, { passive: false, capture: true });
+
+      // Pointer events (fallback)
       canvas.addEventListener('pointerdown', handlePointerDown, { passive: false });
       canvas.addEventListener('pointermove', handlePointerMove, { passive: false });
       canvas.addEventListener('pointerup', handlePointerUp, { passive: false });
       canvas.addEventListener('pointercancel', handlePointerCancel, { passive: false });
       
-      // Touch events for iOS — these fire before pointer events and can prevent context menu
-      canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
-      canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
-      canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+      // Block all context menu and selection events
+      canvas.addEventListener('contextmenu', blockEvent, { passive: false, capture: true });
+      canvas.addEventListener('selectstart', blockEvent, { passive: false, capture: true });
+      canvas.addEventListener('selectionchange', blockEvent, { passive: false, capture: true });
       
-      // Prevent context menu and text selection when in writing mode
-      canvas.addEventListener('contextmenu', preventDefaultHandler, { passive: false, capture: true });
-      canvas.addEventListener('selectstart', preventDefaultHandler, { passive: false, capture: true });
-      
-      // iOS-specific: prevent the callout menu
-      canvas.addEventListener('webkitmouseforcedown', preventDefaultHandler, { passive: false });
+      // iOS specific
+      canvas.addEventListener('gesturestart', blockEvent, { passive: false, capture: true });
+      canvas.addEventListener('gesturechange', blockEvent, { passive: false, capture: true });
+      canvas.addEventListener('gestureend', blockEvent, { passive: false, capture: true });
 
       return () => {
+        canvas.removeEventListener('touchstart', handleTouchStart);
+        canvas.removeEventListener('touchmove', handleTouchMove);
+        canvas.removeEventListener('touchend', handleTouchEnd);
+        canvas.removeEventListener('touchcancel', handleTouchCancel);
         canvas.removeEventListener('pointerdown', handlePointerDown);
         canvas.removeEventListener('pointermove', handlePointerMove);
         canvas.removeEventListener('pointerup', handlePointerUp);
         canvas.removeEventListener('pointercancel', handlePointerCancel);
-        canvas.removeEventListener('touchstart', handleTouchStart);
-        canvas.removeEventListener('touchmove', handleTouchMove);
-        canvas.removeEventListener('touchend', handleTouchEnd);
-        canvas.removeEventListener('contextmenu', preventDefaultHandler);
-        canvas.removeEventListener('selectstart', preventDefaultHandler);
-        canvas.removeEventListener('webkitmouseforcedown', preventDefaultHandler);
+        canvas.removeEventListener('contextmenu', blockEvent);
+        canvas.removeEventListener('selectstart', blockEvent);
+        canvas.removeEventListener('selectionchange', blockEvent);
+        canvas.removeEventListener('gesturestart', blockEvent);
+        canvas.removeEventListener('gesturechange', blockEvent);
+        canvas.removeEventListener('gestureend', blockEvent);
         cancelAnimationFrame(rafIdRef.current);
       };
-    }, [handlePointerDown, handlePointerMove, handlePointerUp, handlePointerCancel, handleTouchStart, handleTouchMove, handleTouchEnd, preventDefaultHandler]);
+    }, [
+      handleTouchStart, handleTouchMove, handleTouchEnd, handleTouchCancel,
+      handlePointerDown, handlePointerMove, handlePointerUp, handlePointerCancel,
+      blockEvent
+    ]);
 
     // ── Render ──────────────────────────────────────────────────────────
 
     return (
       <canvas
         ref={canvasRef}
-        className={`w-full cursor-crosshair ${
+        className={`w-full ${
           overlayMode ? 'absolute inset-0 bg-transparent' : 'bg-slate-50/30 rounded-lg'
         }`}
         style={{
           height: canvasHeight ? `${canvasHeight}px` : '100%',
-          // Allow pinch-zoom and two-finger pan, but disable single-finger gestures
-          // 'pan-y pinch-zoom' allows two-finger vertical scroll and zoom
-          touchAction: isWritingMode ? 'pan-y pinch-zoom' : 'auto',
-          // Prevent iOS text selection callouts and magnifier
+          // Disable ALL default touch behaviors when writing
+          touchAction: isWritingMode ? 'none' : 'auto',
+          // Prevent all text selection and iOS callouts
           WebkitTouchCallout: 'none',
           WebkitUserSelect: 'none',
           userSelect: 'none',
-          // @ts-ignore - Safari-specific property to prevent text editing UI
+          MozUserSelect: 'none',
+          msUserSelect: 'none',
+          // Prevent iOS text input behaviors
+          // @ts-ignore
           WebkitUserModify: 'read-only',
-          pointerEvents: 'auto',
-          cursor: isWritingMode ? 'crosshair' : 'grab',
-          // Prevent iOS tap highlight
+          // Prevent tap highlight
           WebkitTapHighlightColor: 'transparent',
-          // Prevent text selection highlight
-          caretColor: 'transparent',
+          // Cursor
+          cursor: isWritingMode ? 'crosshair' : 'default',
+          // Ensure it captures all events
+          pointerEvents: 'auto',
         }}
-        // Prevent long-press context menu on iOS
-        onContextMenu={(e) => { if (isWritingMode) { e.preventDefault(); e.stopPropagation(); } }}
-        // Additional touch prevention
-        onTouchStartCapture={(e) => { if (isWritingMode) e.stopPropagation(); }}
+        // React event handlers as backup
+        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
+        onSelect={(e) => { e.preventDefault(); e.stopPropagation(); }}
       />
     );
   }
