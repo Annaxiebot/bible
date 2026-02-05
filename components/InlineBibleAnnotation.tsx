@@ -123,35 +123,56 @@ const InlineBibleAnnotation: React.FC<InlineBibleAnnotationProps> = ({
   useEffect(() => {
     if (!isActive) return;
 
-    const preventContextMenu = (e: Event) => {
+    const blockEvent = (e: Event) => {
       e.preventDefault();
       e.stopPropagation();
-      return false;
-    };
-
-    const preventSelection = (e: Event) => {
-      e.preventDefault();
-      e.stopPropagation();
+      e.stopImmediatePropagation();
       return false;
     };
 
     // Capture phase to intercept before any other handlers
-    document.addEventListener('contextmenu', preventContextMenu, { capture: true, passive: false });
-    document.addEventListener('selectstart', preventSelection, { capture: true, passive: false });
+    document.addEventListener('contextmenu', blockEvent, { capture: true, passive: false });
+    document.addEventListener('selectstart', blockEvent, { capture: true, passive: false });
+    document.addEventListener('selectionchange', blockEvent, { capture: true, passive: false });
     
-    // Also add to body for iOS
+    // iOS gesture events
+    document.addEventListener('gesturestart', blockEvent, { capture: true, passive: false });
+    document.addEventListener('gesturechange', blockEvent, { capture: true, passive: false });
+    document.addEventListener('gestureend', blockEvent, { capture: true, passive: false });
+    
+    // Force touch
+    document.addEventListener('webkitmouseforcedown', blockEvent, { capture: true, passive: false });
+    document.addEventListener('webkitmouseforceup', blockEvent, { capture: true, passive: false });
+    
+    // Set body styles to prevent all selection
+    const originalStyles = {
+      webkitUserSelect: document.body.style.webkitUserSelect,
+      userSelect: document.body.style.userSelect,
+      webkitTouchCallout: (document.body.style as any).webkitTouchCallout,
+    };
+    
     document.body.style.webkitUserSelect = 'none';
     document.body.style.userSelect = 'none';
-    // @ts-ignore
-    document.body.style.webkitTouchCallout = 'none';
+    (document.body.style as any).webkitTouchCallout = 'none';
+    
+    // Also add a class to html for CSS-level blocking
+    document.documentElement.classList.add('annotation-mode-active');
 
     return () => {
-      document.removeEventListener('contextmenu', preventContextMenu, { capture: true });
-      document.removeEventListener('selectstart', preventSelection, { capture: true });
-      document.body.style.webkitUserSelect = '';
-      document.body.style.userSelect = '';
-      // @ts-ignore
-      document.body.style.webkitTouchCallout = '';
+      document.removeEventListener('contextmenu', blockEvent, { capture: true });
+      document.removeEventListener('selectstart', blockEvent, { capture: true });
+      document.removeEventListener('selectionchange', blockEvent, { capture: true });
+      document.removeEventListener('gesturestart', blockEvent, { capture: true });
+      document.removeEventListener('gesturechange', blockEvent, { capture: true });
+      document.removeEventListener('gestureend', blockEvent, { capture: true });
+      document.removeEventListener('webkitmouseforcedown', blockEvent, { capture: true });
+      document.removeEventListener('webkitmouseforceup', blockEvent, { capture: true });
+      
+      document.body.style.webkitUserSelect = originalStyles.webkitUserSelect;
+      document.body.style.userSelect = originalStyles.userSelect;
+      (document.body.style as any).webkitTouchCallout = originalStyles.webkitTouchCallout;
+      
+      document.documentElement.classList.remove('annotation-mode-active');
     };
   }, [isActive]);
 
