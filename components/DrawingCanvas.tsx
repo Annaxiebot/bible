@@ -408,25 +408,33 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
       }
     }, [isWritingMode]);
 
-    // ── Touch event handlers for iOS — prevent context menu but allow pointer events ──
-    // Note: We only preventDefault to stop iOS context menu, but don't stopPropagation
-    // so that pointer events still fire for drawing
+    // ── Touch event handlers for iOS — allow two-finger scroll, block single-finger ──
+    // Single touch → drawing (prevent default to stop context menu)
+    // Two+ touches → allow scrolling/pinch zoom (don't prevent default)
     
     const handleTouchStart = useCallback((e: TouchEvent) => {
       if (!isWritingMode) return;
-      // Only prevent default to stop iOS context menu - let pointer events handle drawing
-      e.preventDefault();
+      // Only prevent default for single touch (drawing) - allow two-finger gestures
+      if (e.touches.length === 1) {
+        e.preventDefault();
+      }
+      // Two or more fingers → let it through for scrolling
     }, [isWritingMode]);
 
     const handleTouchMove = useCallback((e: TouchEvent) => {
       if (!isWritingMode) return;
-      // Prevent default to stop scrolling and iOS behaviors
-      e.preventDefault();
+      // Only prevent default for single touch - allow two-finger scroll
+      if (e.touches.length === 1) {
+        e.preventDefault();
+      }
     }, [isWritingMode]);
 
     const handleTouchEnd = useCallback((e: TouchEvent) => {
       if (!isWritingMode) return;
-      e.preventDefault();
+      // Only prevent if we were drawing (single touch)
+      if (e.touches.length === 0 && e.changedTouches.length === 1) {
+        e.preventDefault();
+      }
     }, [isWritingMode]);
 
     // ── Attach pointer events (native, not React) for best performance ──
@@ -478,8 +486,9 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
         }`}
         style={{
           height: canvasHeight ? `${canvasHeight}px` : '100%',
-          // Critical: completely disable all touch gestures except our handlers
-          touchAction: isWritingMode ? 'none' : 'auto',
+          // Allow pinch-zoom and two-finger pan, but disable single-finger gestures
+          // 'pan-y pinch-zoom' allows two-finger vertical scroll and zoom
+          touchAction: isWritingMode ? 'pan-y pinch-zoom' : 'auto',
           // Prevent iOS text selection callouts and magnifier
           WebkitTouchCallout: 'none',
           WebkitUserSelect: 'none',

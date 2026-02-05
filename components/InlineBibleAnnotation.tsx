@@ -234,26 +234,50 @@ const InlineBibleAnnotation: React.FC<InlineBibleAnnotationProps> = ({
 
   // If not active, render a faint read-only overlay of saved annotations
   if (!isActive) {
-    if (!savedPaths || savedPaths === '[]' || savedPaths === '') return null;
+    // Show nothing if no annotations and no extra margin
+    if ((!savedPaths || savedPaths === '[]' || savedPaths === '') && extraHeight === 0) return null;
 
     return (
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          height: `${contentHeight}px`,
-          overflow: 'hidden',
-          opacity: 0.35, // Faint overlay so users can see their notes
-        }}
-      >
-        <DrawingCanvas
-          ref={canvasRef}
-          initialData={savedPaths}
-          onChange={() => {}} // Read-only
-          overlayMode={true}
-          isWritingMode={false}
-          canvasHeight={totalHeight}
-        />
-      </div>
+      <>
+        {/* Faint annotation overlay */}
+        {savedPaths && savedPaths !== '[]' && savedPaths !== '' && (
+          <div
+            className="absolute inset-0 pointer-events-none"
+            style={{
+              height: `${totalHeight}px`,
+              overflow: 'hidden',
+              opacity: 0.35, // Faint overlay so users can see their notes
+            }}
+          >
+            <DrawingCanvas
+              ref={canvasRef}
+              initialData={savedPaths}
+              onChange={() => {}} // Read-only
+              overlayMode={true}
+              isWritingMode={false}
+              canvasHeight={totalHeight}
+            />
+          </div>
+        )}
+        
+        {/* Show margin line even when not in annotation mode (faintly) */}
+        {extraHeight > 0 && (
+          <div
+            className="absolute left-4 right-4 pointer-events-none"
+            style={{
+              top: `${contentHeight}px`,
+              borderTop: '1px dashed rgba(139, 115, 85, 0.2)',
+            }}
+          >
+            <span
+              className="absolute -top-3 right-0 text-[9px] tracking-wider uppercase"
+              style={{ color: 'rgba(139, 115, 85, 0.3)' }}
+            >
+              margin · 留白
+            </span>
+          </div>
+        )}
+      </>
     );
   }
 
@@ -271,17 +295,20 @@ const InlineBibleAnnotation: React.FC<InlineBibleAnnotationProps> = ({
           userSelect: 'none',
           WebkitUserSelect: 'none',
           WebkitTouchCallout: 'none',
-          // Capture all pointer events to prevent text selection bubbling
+          // Capture pointer events but allow two-finger scroll
           pointerEvents: 'auto',
+          // Allow two-finger scroll and pinch zoom
+          touchAction: 'pan-y pinch-zoom',
         }}
         // Prevent context menu on the overlay container
         onContextMenu={(e) => e.preventDefault()}
         // Prevent any selection start events
         onSelectCapture={(e) => e.preventDefault()}
-        // Prevent touch-based text selection on iOS
+        // Prevent single-touch text selection, allow two-finger scroll
         onTouchStart={(e) => {
-          // Allow the touch but prevent default text selection behavior
-          e.stopPropagation();
+          if (e.touches.length === 1) {
+            e.stopPropagation();
+          }
         }}
       >
         <DrawingCanvas
