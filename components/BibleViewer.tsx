@@ -10,6 +10,7 @@ import { ReadingHistory } from './ReadingHistory';
 import VerseIndicators from './VerseIndicators';
 import ContextMenu from './ContextMenu';
 import { useSeasonTheme } from '../hooks/useSeasonTheme';
+import InlineBibleAnnotation from './InlineBibleAnnotation';
 
 interface BibleViewerProps {
   onSelectionChange?: (info: SelectionInfo) => void;
@@ -159,9 +160,41 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   // iOS two-step text selection state (isolated)
   const [iosTextSelectionReady, setIosTextSelectionReady] = useState(false);
   
+  // ── Annotation mode state ──────────────────────────────────────────────
+  const [isAnnotationMode, setIsAnnotationMode] = useState(false);
+  const [leftPanelContentHeight, setLeftPanelContentHeight] = useState(0);
+  const [rightPanelContentHeight, setRightPanelContentHeight] = useState(0);
+  const leftContentMeasureRef = useRef<HTMLDivElement>(null);
+  const rightContentMeasureRef = useRef<HTMLDivElement>(null);
+  
   // Better iOS detection that works for modern iPads
   const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || 
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  // ── Measure content heights for annotation canvas sizing ──────────────
+  useEffect(() => {
+    const measure = () => {
+      if (leftContentMeasureRef.current) {
+        setLeftPanelContentHeight(leftContentMeasureRef.current.scrollHeight);
+      }
+      if (rightContentMeasureRef.current) {
+        setRightPanelContentHeight(rightContentMeasureRef.current.scrollHeight);
+      }
+    };
+    // Measure after verses render
+    const timer = setTimeout(measure, 100);
+    return () => clearTimeout(timer);
+  }, [leftVerses, rightVerses, fontSize, isSimplified]);
+
+  // Disable page-flip swiping when annotation mode is active
+  const handleAnnotationTouchStart = useCallback((e: React.TouchEvent) => {
+    if (isAnnotationMode) {
+      // In annotation mode, only allow two-finger scroll
+      if (e.touches.length < 2) {
+        e.stopPropagation(); // Prevent page-flip swipe handler
+      }
+    }
+  }, [isAnnotationMode]);
 
   // Notify parent when book or chapter changes
   useEffect(() => {
@@ -1631,12 +1664,12 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   return (
     <div 
       className={`h-full flex flex-col overflow-hidden ${isTransitioning ? 'select-none' : ''}`}
-      style={{ backgroundColor: theme.background }}
       ref={containerRef} 
       onClick={handleEmptySpaceClick}
       onMouseUp={handleMouseUp}
       onTouchEnd={isIOS ? handleIOSTouchEnd : undefined}
       style={{
+        backgroundColor: theme.background,
         userSelect: isTransitioning ? 'none' : 'auto',
         WebkitUserSelect: isTransitioning ? 'none' : 'auto'
       }}
@@ -1743,6 +1776,23 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           </button>
         </div>
         <div className={`flex items-center ${isIPhone ? 'gap-1' : 'gap-3'}`}>
+          {/* Annotate Toggle Button */}
+          <button
+            onClick={() => setIsAnnotationMode(!isAnnotationMode)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all shadow-sm ${
+              isAnnotationMode 
+                ? 'border-amber-400 text-amber-700 shadow-amber-100' 
+                : 'bg-white border-slate-200 hover:border-amber-300'
+            }`}
+            style={{
+              backgroundColor: isAnnotationMode ? 'rgba(251, 191, 36, 0.15)' : undefined,
+            }}
+            title={isAnnotationMode ? '退出标注 Exit annotation' : '标注经文 Annotate verses'}
+          >
+            <span className="text-sm">{isAnnotationMode ? '✏️' : '✏️'}</span>
+            {!isIPhone && <span className="text-xs font-medium">{isAnnotationMode ? '标注中' : '标注'}</span>}
+          </button>
+
           {/* Search Button */}
           <button
             onClick={() => setShowSearch(!showSearch)}
@@ -2021,6 +2071,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         <div 
           ref={leftScrollRef}
           onScroll={() => handleScroll('left')}
+          onTouchStart={handleAnnotationTouchStart}
           className="overflow-y-auto p-4 md:p-6 space-y-0.5 font-serif-sc border-r border-slate-100"
           style={{ 
             flexGrow: vSplitOffset >= 100 ? 1 : 0,
@@ -2034,13 +2085,27 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
             boxShadow: theme.paperShadow,
             position: 'relative' as const,
             // Simple page slide animation for iOS
-            ...(isIOS && {
+            ...(isIOS && !isAnnotationMode && {
               transform: `translateX(${swipeOffset}px)`,
               transition: isPageFlipping ? 'transform 0.3s ease-out' : 'none',
               willChange: isSwiping ? 'transform' : 'auto'
+            }),
+            // In annotation mode, disable touch scrolling (pen draws, two-finger scrolls)
+            ...(isAnnotationMode && {
+              touchAction: 'pan-y pinch-zoom',
+              overflowY: 'auto' as const,
             })
           }}
         >
+          {/* Annotation overlay for left (Chinese) panel */}
+          <InlineBibleAnnotation
+            bookId={selectedBook.id}
+            chapter={selectedChapter}
+            isActive={isAnnotationMode && vSplitOffset > 0}
+            contentHeight={leftPanelContentHeight}
+            accentColor={theme.accent}
+          />
+          <div ref={leftContentMeasureRef}>
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">和合本 CUV</div>
           {loading ? (
             <div className="animate-pulse space-y-2">
@@ -2116,6 +2181,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
               </div>
             ))
           )}
+          </div>{/* end leftContentMeasureRef */}
         </div>
 
         <div 
@@ -2205,6 +2271,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         <div 
           ref={rightScrollRef}
           onScroll={() => handleScroll('right')}
+          onTouchStart={handleAnnotationTouchStart}
           className="overflow-y-auto p-4 md:p-6 space-y-0.5 font-sans"
           style={{ 
             flexGrow: vSplitOffset <= 0 ? 1 : 0,
@@ -2216,9 +2283,22 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
             backgroundColor: theme.paperBg,
             backgroundImage: theme.paperGradient,
             boxShadow: theme.paperShadow,
-            position: 'relative' as const
+            position: 'relative' as const,
+            // In annotation mode, adjust touch behavior
+            ...(isAnnotationMode && {
+              touchAction: 'pan-y pinch-zoom',
+            })
           }}
         >
+          {/* Annotation overlay for right (English) panel */}
+          <InlineBibleAnnotation
+            bookId={`${selectedBook.id}_en`}
+            chapter={selectedChapter}
+            isActive={isAnnotationMode && vSplitOffset < 100}
+            contentHeight={rightPanelContentHeight}
+            accentColor={theme.accent}
+          />
+          <div ref={rightContentMeasureRef}>
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">English (WEB)</div>
           {loading ? (
             <div className="animate-pulse space-y-2">
@@ -2264,6 +2344,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
               </div>
             ))
           )}
+          </div>{/* end rightContentMeasureRef */}
         </div>
       </div>
       
