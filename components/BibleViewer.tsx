@@ -9,6 +9,7 @@ import { bookmarkStorage } from '../services/bookmarkStorage';
 import { ReadingHistory } from './ReadingHistory';
 import VerseIndicators from './VerseIndicators';
 import ContextMenu from './ContextMenu';
+import { useSeasonTheme } from '../hooks/useSeasonTheme';
 
 interface BibleViewerProps {
   onSelectionChange?: (info: SelectionInfo) => void;
@@ -46,6 +47,8 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   navigateTo,
   onLayoutChange
 }) => {
+  const theme = useSeasonTheme();
+  
   const [selectedBook, setSelectedBook] = useState<Book>(() => {
     if (initialBookId) {
       const book = BIBLE_BOOKS.find(b => b.id === initialBookId);
@@ -170,33 +173,55 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   // Handle external navigation requests
   useEffect(() => {
     if (navigateTo) {
+      console.log('[Navigate] Request:', navigateTo);
       const book = BIBLE_BOOKS.find(b => b.id === navigateTo.bookId);
       if (book) {
+        console.log('[Navigate] Found book:', book.name, 'chapter:', navigateTo.chapter);
         setSelectedBook(book);
         setSelectedChapter(navigateTo.chapter);
         // If specific verses are provided, select them and scroll to verse
         if (navigateTo.verses && navigateTo.verses.length > 0) {
           setSelectedVerses(navigateTo.verses);
-          // Scroll to the verse after content loads
-          setTimeout(() => {
-            const verseNum = navigateTo.verses![0];
-            // Find verse element by looking for the verse number text
-            const allVerseEls = document.querySelectorAll('[class*="group/verse"]');
-            for (const el of allVerseEls) {
-              const text = el.textContent || '';
-              if (text.startsWith(String(verseNum))) {
-                el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                // Brief highlight effect
-                (el as HTMLElement).style.transition = 'background-color 0.3s';
-                (el as HTMLElement).style.backgroundColor = 'rgb(224 231 255)'; // indigo-100
-                setTimeout(() => {
-                  (el as HTMLElement).style.backgroundColor = '';
-                }, 2000);
-                break;
+          // Scroll to the verse after content loads - retry until found
+          const verseNum = navigateTo.verses[0];
+          let attempts = 0;
+          const maxAttempts = 20; // Try for up to 4 seconds
+          const tryScroll = () => {
+            attempts++;
+            // Try data-verse attribute first (most reliable), then fall back to class selector
+            let targetEl = document.querySelector(`[data-verse="${verseNum}"]`) as HTMLElement | null;
+            if (!targetEl) {
+              const allVerseEls = document.querySelectorAll('[class*="group/verse"]');
+              for (const el of allVerseEls) {
+                // Match verse number more precisely using a regex
+                const text = el.textContent || '';
+                const match = text.match(/^(\d+)/);
+                if (match && parseInt(match[1]) === verseNum) {
+                  targetEl = el as HTMLElement;
+                  break;
+                }
               }
             }
-          }, 500);
+            if (targetEl) {
+              console.log('[Navigate] Scrolling to verse', verseNum);
+              targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              // Brief highlight effect
+              targetEl.style.transition = 'background-color 0.3s';
+              targetEl.style.backgroundColor = theme.verseHighlight;
+              setTimeout(() => {
+                targetEl!.style.backgroundColor = '';
+              }, 2000);
+            } else if (attempts < maxAttempts) {
+              // Verse element not in DOM yet, retry
+              setTimeout(tryScroll, 200);
+            } else {
+              console.warn('[Navigate] Could not find verse element after', maxAttempts, 'attempts');
+            }
+          };
+          setTimeout(tryScroll, 300);
         }
+      } else {
+        console.warn('[Navigate] Book not found:', navigateTo.bookId);
       }
     }
   }, [navigateTo]);
@@ -1625,7 +1650,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
             }}
             onClick={!showSidebarToggle ? onSidebarToggle : undefined}
           >
-            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold shadow-sm">圣</div>
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold shadow-sm" style={{ backgroundColor: theme.accent }}>圣</div>
             {!isIPhone && (
               <h1 className="text-lg font-bold tracking-tight text-slate-800">经学研</h1>
             )}
@@ -1877,7 +1902,8 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
             <button
               onClick={() => handleSearch(searchQuery)}
               disabled={isSearching || !searchQuery.trim()}
-              className="px-3 py-1.5 text-xs bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="px-3 py-1.5 text-xs text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              style={{ backgroundColor: theme.accent }}
             >
               {isSearching ? '搜索中...' : '搜索 Search'}
             </button>
@@ -2034,12 +2060,13 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
                 data-verse={v.verse}
                 onClick={(e) => handleVerseClick(v.verse, e)}
                 className={`p-1 rounded-lg transition-all border relative group/verse ${
-                  selectedVerses.includes(v.verse) ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 
+                  selectedVerses.includes(v.verse) ? 'shadow-sm' : 
                   'border-transparent hover:bg-slate-50'
                 }`}
                 style={{ 
                   cursor: 'default',
-                  userSelect: 'text'
+                  userSelect: 'text',
+                  ...(selectedVerses.includes(v.verse) ? { backgroundColor: theme.verseHighlight, borderColor: theme.verseBorder } : {})
                 }}
               >
                 <span className="font-bold mr-3 text-xs" style={{ color: '#8B7355' }}>{v.verse}</span>
@@ -2055,11 +2082,14 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
                   }}
                   className={`inline-block ml-1 align-middle transition-all ${
                     bookmarkedVerses.has(`${selectedBook.id}:${selectedChapter}:${v.verse}`)
-                      ? 'text-red-400 opacity-100'
+                      ? 'opacity-100'
                       : 'text-slate-400 opacity-100 sm:opacity-0 sm:group-hover/verse:opacity-60 hover:!opacity-100'
                   }`}
                   title={bookmarkedVerses.has(`${selectedBook.id}:${selectedChapter}:${v.verse}`) ? '取消收藏 Remove bookmark' : '收藏 Bookmark'}
-                  style={{ fontSize: '14px', lineHeight: 1, padding: '4px' }}
+                  style={{ 
+                    fontSize: '14px', lineHeight: 1, padding: '4px',
+                    color: bookmarkedVerses.has(`${selectedBook.id}:${selectedChapter}:${v.verse}`) ? theme.heartColor : undefined
+                  }}
                 >
                   {bookmarkedVerses.has(`${selectedBook.id}:${selectedChapter}:${v.verse}`) ? '♥' : '♡'}
                 </button>
@@ -2110,9 +2140,10 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         >
           {/* Visible divider bar */}
           <div 
-            className={`absolute h-full ${isResizing ? 'w-2 bg-indigo-500' : 'w-1 bg-slate-200 group-hover:bg-indigo-400 group-hover:w-2'} transition-all`}
+            className={`absolute h-full ${isResizing ? 'w-2' : 'w-1 bg-slate-200 group-hover:w-2'} transition-all`}
             style={{
-              boxShadow: isResizing ? '2px 0 4px rgba(99, 102, 241, 0.3), -2px 0 4px rgba(99, 102, 241, 0.3)' : '1px 0 2px rgba(0, 0, 0, 0.05)'
+              backgroundColor: isResizing ? theme.dividerActive : undefined,
+              boxShadow: isResizing ? `2px 0 4px ${theme.dividerShadow}, -2px 0 4px ${theme.dividerShadow}` : '1px 0 2px rgba(0, 0, 0, 0.05)'
             }}
           />
           
@@ -2215,15 +2246,16 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
                 data-verse={v.verse}
                 onClick={(e) => handleVerseClick(v.verse, e)}
                 className={`p-1 rounded-lg transition-all border group/verse ${
-                  selectedVerses.includes(v.verse) ? 'bg-indigo-50 border-indigo-200 shadow-sm' : 
+                  selectedVerses.includes(v.verse) ? 'shadow-sm' : 
                   'border-transparent hover:bg-slate-50'
                 }`}
                 style={{ 
                   cursor: 'default',
-                  userSelect: 'text'
+                  userSelect: 'text',
+                  ...(selectedVerses.includes(v.verse) ? { backgroundColor: theme.verseHighlight, borderColor: theme.verseBorder } : {})
                 }}
               >
-                <span className="text-indigo-400 font-bold mr-3 text-xs">{v.verse}</span>
+                <span className="font-bold mr-3 text-xs" style={{ color: theme.accentMedium }}>{v.verse}</span>
                 <span className="leading-relaxed text-slate-700 italic" style={{ fontSize: `${fontSize}px` }}>{v.text}</span>
                 {/* Bookmark icon */}
                 <button
@@ -2233,11 +2265,14 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
                   }}
                   className={`inline-block ml-1 align-middle transition-all ${
                     bookmarkedVerses.has(`${selectedBook.id}:${selectedChapter}:${v.verse}`)
-                      ? 'text-red-400 opacity-100'
+                      ? 'opacity-100'
                       : 'text-slate-400 opacity-100 sm:opacity-0 sm:group-hover/verse:opacity-60 hover:!opacity-100'
                   }`}
                   title={bookmarkedVerses.has(`${selectedBook.id}:${selectedChapter}:${v.verse}`) ? '取消收藏 Remove bookmark' : '收藏 Bookmark'}
-                  style={{ fontSize: '14px', lineHeight: 1, padding: '4px' }}
+                  style={{ 
+                    fontSize: '14px', lineHeight: 1, padding: '4px',
+                    color: bookmarkedVerses.has(`${selectedBook.id}:${selectedChapter}:${v.verse}`) ? theme.heartColor : undefined
+                  }}
                 >
                   {bookmarkedVerses.has(`${selectedBook.id}:${selectedChapter}:${v.verse}`) ? '♥' : '♡'}
                 </button>

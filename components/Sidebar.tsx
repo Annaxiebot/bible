@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useDataStats } from '../hooks/useDataStats';
 import { bookmarkStorage, Bookmark } from '../services/bookmarkStorage';
 import { readingPlanStorage, ReadingPlanState, READING_PLANS, PlanType, ReadingPlanDay } from '../services/readingPlanStorage';
+import { useSeasonTheme } from '../hooks/useSeasonTheme';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -59,6 +60,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onNavigate
 }) => {
   const { stats, loading } = useDataStats(dataUpdateTrigger);
+  const theme = useSeasonTheme();
   
   // Collapsible section state
   const [sectionsOpen, setSectionsOpen] = useState<Record<string, boolean>>({
@@ -206,12 +208,12 @@ const Sidebar: React.FC<SidebarProps> = ({
         {/* Header */}
         <div className="p-6 border-b border-slate-200">
           <div className="flex items-center gap-3 mb-4">
-            <div className="w-10 h-10 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold shadow-sm text-lg">
+            <div className="w-10 h-10 rounded-lg flex items-center justify-center text-white font-bold shadow-sm text-lg" style={{ backgroundColor: theme.accent }}>
               圣
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-800">Scripture Scholar</h2>
-              <p className="text-xs text-slate-500">圣经学研</p>
+              <p className="text-xs text-slate-500">圣经学研 {theme.emoji} {theme.nameZh}</p>
             </div>
           </div>
         </div>
@@ -311,7 +313,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                         onToggle();
                       }}
                     >
-                      <span className="text-indigo-400 mt-0.5">♥</span>
+                      <span style={{ color: theme.heartColor }} className="mt-0.5">♥</span>
                       <div className="flex-1 min-w-0">
                         <div className="text-xs font-medium text-slate-700 truncate">
                           {bm.bookName} {bm.chapter}:{bm.verse}
@@ -703,7 +705,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         {/* Footer */}
         <div className="p-4 border-t border-slate-200">
           <p className="text-xs text-slate-400 text-center">
-            Bible Workspace v1.1
+            {theme.emoji} Bible Workspace v1.1 · {theme.name}
           </p>
         </div>
       </div>
