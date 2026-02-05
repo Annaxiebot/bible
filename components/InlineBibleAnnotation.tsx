@@ -58,6 +58,7 @@ const InlineBibleAnnotation: React.FC<InlineBibleAnnotationProps> = ({
   const [extraHeight, setExtraHeight] = useState(0);       // Extra expanded space
   const [savedPaths, setSavedPaths] = useState<string>(''); // Serialized path data for read-only view
   const [isDragging, setIsDragging] = useState(false);
+  const [isToolbarCollapsed, setIsToolbarCollapsed] = useState(false); // Collapse toolbar to not block verses
   const dragStartRef = useRef<{ y: number; height: number }>({ y: 0, height: 0 });
 
   // Track the book+chapter key for loading/saving
@@ -361,9 +362,32 @@ const InlineBibleAnnotation: React.FC<InlineBibleAnnotationProps> = ({
         </div>
       </div>
 
+      {/* Collapsed toolbar toggle button */}
+      {isToolbarCollapsed && (
+        <button
+          onClick={() => setIsToolbarCollapsed(false)}
+          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-full shadow-2xl border transition-all hover:scale-105"
+          style={{
+            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+            backdropFilter: 'blur(12px)',
+            WebkitBackdropFilter: 'blur(12px)',
+            borderColor: accentColor,
+            borderWidth: '2px',
+          }}
+        >
+          <span className="text-lg">✏️</span>
+          <span className="text-xs font-medium" style={{ color: accentColor }}>展开工具栏</span>
+          <svg className="w-4 h-4" style={{ color: accentColor }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+          </svg>
+        </button>
+      )}
+
       {/* Floating mini-toolbar */}
       <div
-        className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 px-3 py-2 rounded-2xl shadow-2xl border"
+        className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 px-3 py-2 rounded-2xl shadow-2xl border transition-all ${
+          isToolbarCollapsed ? 'opacity-0 pointer-events-none scale-95' : 'opacity-100'
+        }`}
         style={{
           backgroundColor: 'rgba(255, 255, 255, 0.95)',
           backdropFilter: 'blur(12px)',
@@ -484,6 +508,22 @@ const InlineBibleAnnotation: React.FC<InlineBibleAnnotationProps> = ({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
           </svg>
           <span className="text-[9px] font-medium text-slate-500 mt-0.5">清除</span>
+        </button>
+
+        {/* Divider */}
+        <div className="w-[1px] h-6 bg-slate-200 mx-1" />
+
+        {/* Collapse button */}
+        <button
+          onClick={() => setIsToolbarCollapsed(true)}
+          className="flex flex-col items-center justify-center px-2 py-1 rounded-xl hover:bg-slate-100 transition-all"
+          style={{ minWidth: '36px' }}
+          title="收起工具栏 Collapse toolbar"
+        >
+          <svg className="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+          <span className="text-[9px] font-medium text-slate-500 mt-0.5">收起</span>
         </button>
       </div>
     </>
