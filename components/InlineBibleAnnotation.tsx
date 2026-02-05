@@ -389,22 +389,19 @@ const InlineBibleAnnotation: React.FC<InlineBibleAnnotationProps> = ({
         </div>
       </div>
 
-      {/* Collapsed toolbar toggle button */}
+      {/* Collapsed toolbar toggle button - larger and more visible */}
       {isToolbarCollapsed && (
         <button
           onClick={() => setIsToolbarCollapsed(false)}
-          className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-full shadow-2xl border transition-all hover:scale-105"
+          className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-6 py-3 rounded-2xl shadow-2xl border-2 transition-all hover:scale-105 active:scale-95"
           style={{
-            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-            backdropFilter: 'blur(12px)',
-            WebkitBackdropFilter: 'blur(12px)',
-            borderColor: accentColor,
-            borderWidth: '2px',
+            backgroundColor: accentColor,
+            borderColor: 'white',
           }}
         >
-          <span className="text-lg">✏️</span>
-          <span className="text-xs font-medium" style={{ color: accentColor }}>展开工具栏</span>
-          <svg className="w-4 h-4" style={{ color: accentColor }} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <span className="text-2xl">✏️</span>
+          <span className="text-sm font-bold text-white">展开工具栏</span>
+          <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
           </svg>
         </button>
