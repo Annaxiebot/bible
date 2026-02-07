@@ -194,7 +194,6 @@ const InlineBibleAnnotation: React.FC<InlineBibleAnnotationProps> = ({
 
   const selectTool = useCallback((tool: 'pen' | 'marker' | 'highlighter' | 'eraser') => {
     setCurrentTool(tool);
-    canvasRef.current?.setTool(tool);
     // Set appropriate default size for each tool
     let size = 2;
     switch (tool) {
@@ -204,8 +203,16 @@ const InlineBibleAnnotation: React.FC<InlineBibleAnnotationProps> = ({
       case 'eraser': size = 8; break;
     }
     setCurrentSize(size);
-    canvasRef.current?.setSize(size);
   }, []);
+
+  // Sync tool, size, and color to canvas whenever they change
+  useEffect(() => {
+    if (isActive && canvasRef.current) {
+      canvasRef.current.setTool(currentTool);
+      canvasRef.current.setSize(currentSize);
+      canvasRef.current.setColor(currentColor);
+    }
+  }, [isActive, currentTool, currentSize, currentColor]);
 
   const selectColor = useCallback((color: string) => {
     setCurrentColor(color);
