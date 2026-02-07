@@ -467,9 +467,9 @@ const InlineBibleAnnotation: React.FC<InlineBibleAnnotationProps> = ({
         </button>
       )}
 
-      {/* Floating mini-toolbar */}
+      {/* Floating mini-toolbar - compact on iPhone */}
       <div
-        className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-1 px-3 py-2 rounded-2xl shadow-2xl border transition-all ${
+        className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-0.5 sm:gap-1 px-2 sm:px-3 py-1.5 sm:py-2 rounded-2xl shadow-2xl border transition-all max-w-[95vw] ${
           isToolbarCollapsed ? 'opacity-0 pointer-events-none scale-95' : 'opacity-100'
         }`}
         style={{
@@ -479,7 +479,7 @@ const InlineBibleAnnotation: React.FC<InlineBibleAnnotationProps> = ({
           borderColor: 'rgba(0, 0, 0, 0.08)',
         }}
       >
-        {/* Tool buttons with labels */}
+        {/* Tool buttons - icons only on small screens */}
         {([
           { tool: 'pen' as const, icon: '✒️', label: '笔', labelEn: 'Pen' },
           { tool: 'highlighter' as const, icon: '🖍️', label: '荧光', labelEn: 'Highlight' },
@@ -489,7 +489,7 @@ const InlineBibleAnnotation: React.FC<InlineBibleAnnotationProps> = ({
           <button
             key={tool}
             onClick={() => selectTool(tool)}
-            className={`flex flex-col items-center justify-center px-2 py-1 rounded-xl transition-all ${
+            className={`flex flex-col items-center justify-center p-1.5 sm:px-2 sm:py-1 rounded-lg sm:rounded-xl transition-all ${
               currentTool === tool
                 ? 'shadow-md'
                 : 'hover:bg-slate-100 opacity-70'
@@ -497,35 +497,35 @@ const InlineBibleAnnotation: React.FC<InlineBibleAnnotationProps> = ({
             style={{
               backgroundColor: currentTool === tool ? `${accentColor}20` : undefined,
               border: currentTool === tool ? `2px solid ${accentColor}` : '2px solid transparent',
-              minWidth: '44px',
+              minWidth: '36px',
             }}
             title={labelEn}
           >
             <span className="text-base leading-none">{icon}</span>
-            <span className="text-[9px] font-medium text-slate-500 mt-0.5">{label}</span>
+            <span className="hidden sm:block text-[9px] font-medium text-slate-500 mt-0.5">{label}</span>
           </button>
         ))}
 
         {/* Divider */}
-        <div className="w-[1px] h-6 bg-slate-200 mx-1" />
+        <div className="w-[1px] h-5 sm:h-6 bg-slate-200 mx-0.5 sm:mx-1" />
 
         {/* Color picker */}
         <div className="relative">
           <button
             onClick={() => setShowColorPicker(!showColorPicker)}
-            className="flex flex-col items-center justify-center px-2 py-1 rounded-xl hover:bg-slate-100 transition-all"
-            style={{ minWidth: '44px' }}
+            className="flex flex-col items-center justify-center p-1.5 sm:px-2 sm:py-1 rounded-lg sm:rounded-xl hover:bg-slate-100 transition-all"
+            style={{ minWidth: '36px' }}
             title="Color"
           >
             <div
               className="w-5 h-5 rounded-full border-2 border-white shadow-sm"
               style={{ backgroundColor: currentColor }}
             />
-            <span className="text-[9px] font-medium text-slate-500 mt-0.5">颜色</span>
+            <span className="hidden sm:block text-[9px] font-medium text-slate-500 mt-0.5">颜色</span>
           </button>
           {showColorPicker && (
             <div
-              className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex gap-1 p-2 rounded-xl shadow-xl border"
+              className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex flex-wrap gap-1 p-2 rounded-xl shadow-xl border max-w-[200px]"
               style={{
                 backgroundColor: 'rgba(255, 255, 255, 0.98)',
                 borderColor: 'rgba(0, 0, 0, 0.08)',
@@ -535,7 +535,7 @@ const InlineBibleAnnotation: React.FC<InlineBibleAnnotationProps> = ({
                 <button
                   key={color}
                   onClick={() => selectColor(color)}
-                  className={`w-7 h-7 rounded-full transition-all hover:scale-110 ${
+                  className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full transition-all hover:scale-110 ${
                     currentColor === color ? 'ring-2 ring-offset-1 scale-110 ring-indigo-400' : ''
                   }`}
                   style={{
@@ -547,8 +547,8 @@ const InlineBibleAnnotation: React.FC<InlineBibleAnnotationProps> = ({
           )}
         </div>
 
-        {/* Size slider */}
-        <div className="flex flex-col items-center px-1">
+        {/* Size slider - narrower on mobile */}
+        <div className="flex flex-col items-center px-0.5 sm:px-1">
           <input
             type="range"
             min={1}
@@ -559,49 +559,49 @@ const InlineBibleAnnotation: React.FC<InlineBibleAnnotationProps> = ({
               setCurrentSize(size);
               canvasRef.current?.setSize(size);
             }}
-            className="w-16 h-1 accent-slate-500"
+            className="w-10 sm:w-16 h-1 accent-slate-500"
             title={`Size: ${currentSize}`}
           />
-          <span className="text-[9px] font-medium text-slate-500 mt-1">粗细 {currentSize}</span>
+          <span className="text-[8px] sm:text-[9px] font-medium text-slate-500 mt-0.5 sm:mt-1">{currentSize}</span>
         </div>
 
         {/* Divider */}
-        <div className="w-[1px] h-6 bg-slate-200 mx-1" />
+        <div className="w-[1px] h-5 sm:h-6 bg-slate-200 mx-0.5 sm:mx-1" />
 
         {/* Undo */}
         <button
           onClick={handleUndo}
-          className="flex flex-col items-center justify-center px-2 py-1 rounded-xl hover:bg-slate-100 transition-all"
-          style={{ minWidth: '44px' }}
+          className="flex flex-col items-center justify-center p-1.5 sm:px-2 sm:py-1 rounded-lg sm:rounded-xl hover:bg-slate-100 transition-all"
+          style={{ minWidth: '32px' }}
           title="Undo 撤销"
         >
           <svg className="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4" />
           </svg>
-          <span className="text-[9px] font-medium text-slate-500 mt-0.5">撤销</span>
+          <span className="hidden sm:block text-[9px] font-medium text-slate-500 mt-0.5">撤销</span>
         </button>
 
         {/* Clear all */}
         <button
           onClick={handleClearAll}
-          className="flex flex-col items-center justify-center px-2 py-1 rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-500 transition-all"
-          style={{ minWidth: '44px' }}
+          className="flex flex-col items-center justify-center p-1.5 sm:px-2 sm:py-1 rounded-lg sm:rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-500 transition-all"
+          style={{ minWidth: '32px' }}
           title="Clear all 清除全部"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
           </svg>
-          <span className="text-[9px] font-medium text-slate-500 mt-0.5">清除</span>
+          <span className="hidden sm:block text-[9px] font-medium text-slate-500 mt-0.5">清除</span>
         </button>
 
         {/* Divider */}
-        <div className="w-[1px] h-6 bg-slate-200 mx-1" />
+        <div className="w-[1px] h-5 sm:h-6 bg-slate-200 mx-0.5 sm:mx-1" />
 
         {/* Collapse button */}
         <button
           onClick={() => setIsToolbarCollapsed(true)}
-          className="flex flex-col items-center justify-center px-2 py-1 rounded-xl hover:bg-slate-100 transition-all"
-          style={{ minWidth: '36px' }}
+          className="flex flex-col items-center justify-center p-1.5 sm:px-2 sm:py-1 rounded-lg sm:rounded-xl hover:bg-slate-100 transition-all"
+          style={{ minWidth: '32px' }}
           title="收起工具栏 Collapse toolbar"
         >
           <svg className="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
