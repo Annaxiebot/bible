@@ -123,6 +123,12 @@ const InlineBibleAnnotation: React.FC<InlineBibleAnnotationProps> = ({
   useEffect(() => {
     if (!isActive) return;
 
+    // Clear any existing text selection immediately
+    const selection = window.getSelection();
+    if (selection) {
+      selection.removeAllRanges();
+    }
+
     const blockEvent = (e: Event) => {
       e.preventDefault();
       e.stopPropagation();
@@ -130,25 +136,48 @@ const InlineBibleAnnotation: React.FC<InlineBibleAnnotationProps> = ({
       return false;
     };
 
+    // Block long-press on iOS (the main cause of context menu)
+    let longPressTimer: ReturnType<typeof setTimeout> | null = null;
+    const blockLongPress = (e: TouchEvent) => {
+      if (longPressTimer) clearTimeout(longPressTimer);
+      longPressTimer = setTimeout(() => {
+        e.preventDefault();
+      }, 100);
+    };
+    const clearLongPress = () => {
+      if (longPressTimer) {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+      }
+    };
+
     // Capture phase to intercept before any other handlers
     document.addEventListener('contextmenu', blockEvent, { capture: true, passive: false });
     document.addEventListener('selectstart', blockEvent, { capture: true, passive: false });
     document.addEventListener('selectionchange', blockEvent, { capture: true, passive: false });
+    
+    // Touch events for long-press blocking
+    document.addEventListener('touchstart', blockLongPress, { capture: true, passive: false });
+    document.addEventListener('touchend', clearLongPress, { capture: true });
+    document.addEventListener('touchcancel', clearLongPress, { capture: true });
     
     // iOS gesture events
     document.addEventListener('gesturestart', blockEvent, { capture: true, passive: false });
     document.addEventListener('gesturechange', blockEvent, { capture: true, passive: false });
     document.addEventListener('gestureend', blockEvent, { capture: true, passive: false });
     
-    // Force touch
+    // Force touch (3D Touch / Haptic Touch)
     document.addEventListener('webkitmouseforcedown', blockEvent, { capture: true, passive: false });
     document.addEventListener('webkitmouseforceup', blockEvent, { capture: true, passive: false });
+    document.addEventListener('webkitmouseforcewillbegin', blockEvent, { capture: true, passive: false });
+    document.addEventListener('webkitmouseforcechanged', blockEvent, { capture: true, passive: false });
     
     // Set body styles to prevent all selection
     const originalStyles = {
       webkitUserSelect: document.body.style.webkitUserSelect,
       userSelect: document.body.style.userSelect,
       webkitTouchCallout: (document.body.style as any).webkitTouchCallout,
+      touchAction: document.body.style.touchAction,
     };
     
     document.body.style.webkitUserSelect = 'none';
@@ -159,14 +188,21 @@ const InlineBibleAnnotation: React.FC<InlineBibleAnnotationProps> = ({
     document.documentElement.classList.add('annotation-mode-active');
 
     return () => {
+      if (longPressTimer) clearTimeout(longPressTimer);
+      
       document.removeEventListener('contextmenu', blockEvent, { capture: true });
       document.removeEventListener('selectstart', blockEvent, { capture: true });
       document.removeEventListener('selectionchange', blockEvent, { capture: true });
+      document.removeEventListener('touchstart', blockLongPress, { capture: true });
+      document.removeEventListener('touchend', clearLongPress, { capture: true });
+      document.removeEventListener('touchcancel', clearLongPress, { capture: true });
       document.removeEventListener('gesturestart', blockEvent, { capture: true });
       document.removeEventListener('gesturechange', blockEvent, { capture: true });
       document.removeEventListener('gestureend', blockEvent, { capture: true });
       document.removeEventListener('webkitmouseforcedown', blockEvent, { capture: true });
       document.removeEventListener('webkitmouseforceup', blockEvent, { capture: true });
+      document.removeEventListener('webkitmouseforcewillbegin', blockEvent, { capture: true });
+      document.removeEventListener('webkitmouseforcechanged', blockEvent, { capture: true });
       
       document.body.style.webkitUserSelect = originalStyles.webkitUserSelect;
       document.body.style.userSelect = originalStyles.userSelect;
@@ -307,7 +343,7 @@ const InlineBibleAnnotation: React.FC<InlineBibleAnnotationProps> = ({
     <>
       {/* Drawing canvas overlay — blocks all text interaction when active */}
       <div
-        className="absolute inset-0 z-20"
+        className="annotation-overlay absolute inset-0 z-20"
         style={{
           height: `${totalHeight}px`,
           // Don't block text visibility
@@ -316,21 +352,24 @@ const InlineBibleAnnotation: React.FC<InlineBibleAnnotationProps> = ({
           userSelect: 'none',
           WebkitUserSelect: 'none',
           WebkitTouchCallout: 'none',
-          // Capture pointer events but allow two-finger scroll
+          // Capture ALL pointer events - no pass-through
           pointerEvents: 'auto',
-          // Allow two-finger scroll and pinch zoom
-          touchAction: 'pan-y pinch-zoom',
+          // Block ALL touch actions to prevent iOS selection
+          touchAction: 'none',
         }}
         // Prevent context menu on the overlay container
-        onContextMenu={(e) => e.preventDefault()}
+        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); return false; }}
         // Prevent any selection start events
-        onSelectCapture={(e) => e.preventDefault()}
-        // Prevent single-touch text selection, allow two-finger scroll
+        onSelectCapture={(e) => { e.preventDefault(); e.stopPropagation(); }}
+        onSelect={(e) => { e.preventDefault(); e.stopPropagation(); }}
+        // Block touch events from reaching underlying content
         onTouchStart={(e) => {
-          if (e.touches.length === 1) {
-            e.stopPropagation();
-          }
+          // Let the DrawingCanvas handle single-touch for drawing
+          // Block all touch events from propagating to content below
+          e.stopPropagation();
         }}
+        onTouchMove={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
       >
         <DrawingCanvas
           ref={canvasRef}
