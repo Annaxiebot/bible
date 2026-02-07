@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Verse, Book, SelectionInfo } from '../types';
 import { BIBLE_BOOKS } from '../constants';
 import { toSimplified } from '../services/chineseConverter';
@@ -203,6 +203,13 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     chineseAnnotationRef.current?.clearAll();
     englishAnnotationRef.current?.clearAll();
   }, []);
+  
+  // Memoize tool state to prevent unnecessary re-renders
+  const annotationToolState = useMemo(() => ({
+    tool: annotationTool,
+    color: annotationColor,
+    size: annotationSize,
+  }), [annotationTool, annotationColor, annotationSize]);
   
   // Better iOS detection that works for modern iPads
   const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || 
@@ -2148,7 +2155,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
             contentHeight={leftPanelContentHeight}
             accentColor={theme.accent}
             panelId="chinese"
-            toolState={{ tool: annotationTool, color: annotationColor, size: annotationSize }}
+            toolState={annotationToolState}
           />
           <div ref={leftContentMeasureRef}>
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">和合本 CUV</div>
@@ -2353,7 +2360,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
             contentHeight={rightPanelContentHeight}
             accentColor={theme.accent}
             panelId="english"
-            toolState={{ tool: annotationTool, color: annotationColor, size: annotationSize }}
+            toolState={annotationToolState}
           />
           <div ref={rightContentMeasureRef}>
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">English (WEB)</div>
@@ -2568,7 +2575,9 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
                 max={12}
                 value={annotationSize}
                 onChange={(e) => setAnnotationSize(parseInt(e.target.value))}
+                onInput={(e) => setAnnotationSize(parseInt((e.target as HTMLInputElement).value))}
                 className="w-10 sm:w-16 h-1 accent-slate-500"
+                style={{ touchAction: 'none' }}
                 title={`Size: ${annotationSize}`}
               />
               <span className="text-[8px] sm:text-[9px] font-medium text-slate-500 mt-0.5 sm:mt-1">{annotationSize}</span>
