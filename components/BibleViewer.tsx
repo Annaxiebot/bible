@@ -10,7 +10,7 @@ import { ReadingHistory } from './ReadingHistory';
 import VerseIndicators from './VerseIndicators';
 import ContextMenu from './ContextMenu';
 import { useSeasonTheme } from '../hooks/useSeasonTheme';
-import InlineBibleAnnotation from './InlineBibleAnnotation';
+import InlineBibleAnnotation, { COLOR_PRESETS, InlineBibleAnnotationHandle } from './InlineBibleAnnotation';
 
 interface BibleViewerProps {
   onSelectionChange?: (info: SelectionInfo) => void;
@@ -166,6 +166,43 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   const [rightPanelContentHeight, setRightPanelContentHeight] = useState(0);
   const leftContentMeasureRef = useRef<HTMLDivElement>(null);
   const rightContentMeasureRef = useRef<HTMLDivElement>(null);
+  
+  // Shared annotation tool state (controls both panels)
+  const [annotationTool, setAnnotationTool] = useState<'pen' | 'marker' | 'highlighter' | 'eraser'>('pen');
+  const [annotationColor, setAnnotationColor] = useState('#000000');
+  const [annotationSize, setAnnotationSize] = useState(2);
+  const [showAnnotationColorPicker, setShowAnnotationColorPicker] = useState(false);
+  const [isAnnotationToolbarCollapsed, setIsAnnotationToolbarCollapsed] = useState(false);
+  
+  // Refs to annotation components for undo/clear
+  const chineseAnnotationRef = useRef<InlineBibleAnnotationHandle | null>(null);
+  const englishAnnotationRef = useRef<InlineBibleAnnotationHandle | null>(null);
+  
+  // Handler to select annotation tool
+  const selectAnnotationTool = useCallback((tool: 'pen' | 'marker' | 'highlighter' | 'eraser') => {
+    setAnnotationTool(tool);
+    // Set appropriate default size for each tool
+    let size = 2;
+    switch (tool) {
+      case 'pen': size = 2; break;
+      case 'marker': size = 3; break;
+      case 'highlighter': size = 4; break;
+      case 'eraser': size = 8; break;
+    }
+    setAnnotationSize(size);
+  }, []);
+  
+  // Handler to undo on both panels
+  const handleAnnotationUndo = useCallback(() => {
+    chineseAnnotationRef.current?.undo();
+    englishAnnotationRef.current?.undo();
+  }, []);
+  
+  // Handler to clear all on both panels
+  const handleAnnotationClearAll = useCallback(() => {
+    chineseAnnotationRef.current?.clearAll();
+    englishAnnotationRef.current?.clearAll();
+  }, []);
   
   // Better iOS detection that works for modern iPads
   const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || 
@@ -2104,11 +2141,14 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         >
           {/* Annotation overlay for left (Chinese) panel */}
           <InlineBibleAnnotation
+            ref={chineseAnnotationRef}
             bookId={selectedBook.id}
             chapter={selectedChapter}
             isActive={isAnnotationMode && vSplitOffset > 0}
             contentHeight={leftPanelContentHeight}
             accentColor={theme.accent}
+            panelId="chinese"
+            toolState={{ tool: annotationTool, color: annotationColor, size: annotationSize }}
           />
           <div ref={leftContentMeasureRef}>
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">和合本 CUV</div>
@@ -2306,11 +2346,14 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         >
           {/* Annotation overlay for right (English) panel */}
           <InlineBibleAnnotation
+            ref={englishAnnotationRef}
             bookId={`${selectedBook.id}_en`}
             chapter={selectedChapter}
             isActive={isAnnotationMode && vSplitOffset < 100}
             contentHeight={rightPanelContentHeight}
             accentColor={theme.accent}
+            panelId="english"
+            toolState={{ tool: annotationTool, color: annotationColor, size: annotationSize }}
           />
           <div ref={rightContentMeasureRef}>
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">English (WEB)</div>
@@ -2411,6 +2454,172 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           onCopy={() => handleContextMenuAction('copy')}
           onClose={() => setContextMenu(null)}
         />
+      )}
+      
+      {/* ─── Shared Annotation Toolbar ─────────────────────────────────────── */}
+      {isAnnotationMode && (
+        <>
+          {/* Collapsed toolbar toggle button */}
+          {isAnnotationToolbarCollapsed && (
+            <button
+              onClick={() => setIsAnnotationToolbarCollapsed(false)}
+              className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-6 py-3 rounded-2xl shadow-2xl border-2 transition-all hover:scale-105 active:scale-95"
+              style={{
+                backgroundColor: theme.accent,
+                borderColor: 'white',
+              }}
+            >
+              <span className="text-2xl">✏️</span>
+              <span className="text-sm font-bold text-white">展开工具栏</span>
+              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+              </svg>
+            </button>
+          )}
+
+          {/* Floating mini-toolbar */}
+          <div
+            className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-0.5 sm:gap-1 px-2 sm:px-3 py-1.5 sm:py-2 rounded-2xl shadow-2xl border transition-all max-w-[95vw] ${
+              isAnnotationToolbarCollapsed ? 'opacity-0 pointer-events-none scale-95' : 'opacity-100'
+            }`}
+            style={{
+              backgroundColor: 'rgba(255, 255, 255, 0.95)',
+              backdropFilter: 'blur(12px)',
+              WebkitBackdropFilter: 'blur(12px)',
+              borderColor: 'rgba(0, 0, 0, 0.08)',
+            }}
+          >
+            {/* Tool buttons */}
+            {([
+              { tool: 'pen' as const, icon: '✒️', label: '笔', labelEn: 'Pen' },
+              { tool: 'highlighter' as const, icon: '🖍️', label: '荧光', labelEn: 'Highlight' },
+              { tool: 'marker' as const, icon: '🖊️', label: '马克', labelEn: 'Marker' },
+              { tool: 'eraser' as const, icon: '🧹', label: '擦除', labelEn: 'Eraser' },
+            ]).map(({ tool, icon, label, labelEn }) => (
+              <button
+                key={tool}
+                onClick={() => selectAnnotationTool(tool)}
+                className={`flex flex-col items-center justify-center p-1.5 sm:px-2 sm:py-1 rounded-lg sm:rounded-xl transition-all ${
+                  annotationTool === tool
+                    ? 'shadow-md'
+                    : 'hover:bg-slate-100 opacity-70'
+                }`}
+                style={{
+                  backgroundColor: annotationTool === tool ? `${theme.accent}20` : undefined,
+                  border: annotationTool === tool ? `2px solid ${theme.accent}` : '2px solid transparent',
+                  minWidth: '36px',
+                }}
+                title={labelEn}
+              >
+                <span className="text-base leading-none">{icon}</span>
+                <span className="hidden sm:block text-[9px] font-medium text-slate-500 mt-0.5">{label}</span>
+              </button>
+            ))}
+
+            {/* Divider */}
+            <div className="w-[1px] h-5 sm:h-6 bg-slate-200 mx-0.5 sm:mx-1" />
+
+            {/* Color picker */}
+            <div className="relative">
+              <button
+                onClick={() => setShowAnnotationColorPicker(!showAnnotationColorPicker)}
+                className="flex flex-col items-center justify-center p-1.5 sm:px-2 sm:py-1 rounded-lg sm:rounded-xl hover:bg-slate-100 transition-all"
+                style={{ minWidth: '36px' }}
+                title="Color"
+              >
+                <div
+                  className="w-5 h-5 rounded-full border-2 border-white shadow-sm"
+                  style={{ backgroundColor: annotationColor }}
+                />
+                <span className="hidden sm:block text-[9px] font-medium text-slate-500 mt-0.5">颜色</span>
+              </button>
+              {showAnnotationColorPicker && (
+                <div
+                  className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex flex-wrap gap-1 p-2 rounded-xl shadow-xl border max-w-[200px]"
+                  style={{
+                    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                    borderColor: 'rgba(0, 0, 0, 0.08)',
+                  }}
+                >
+                  {COLOR_PRESETS.map((color) => (
+                    <button
+                      key={color}
+                      onClick={() => {
+                        setAnnotationColor(color);
+                        setShowAnnotationColorPicker(false);
+                      }}
+                      className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full transition-all hover:scale-110 ${
+                        annotationColor === color ? 'ring-2 ring-offset-1 scale-110 ring-indigo-400' : ''
+                      }`}
+                      style={{
+                        backgroundColor: color,
+                      }}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Size slider */}
+            <div className="flex flex-col items-center px-0.5 sm:px-1">
+              <input
+                type="range"
+                min={1}
+                max={12}
+                value={annotationSize}
+                onChange={(e) => setAnnotationSize(parseInt(e.target.value))}
+                className="w-10 sm:w-16 h-1 accent-slate-500"
+                title={`Size: ${annotationSize}`}
+              />
+              <span className="text-[8px] sm:text-[9px] font-medium text-slate-500 mt-0.5 sm:mt-1">{annotationSize}</span>
+            </div>
+
+            {/* Divider */}
+            <div className="w-[1px] h-5 sm:h-6 bg-slate-200 mx-0.5 sm:mx-1" />
+
+            {/* Undo */}
+            <button
+              onClick={handleAnnotationUndo}
+              className="flex flex-col items-center justify-center p-1.5 sm:px-2 sm:py-1 rounded-lg sm:rounded-xl hover:bg-slate-100 transition-all"
+              style={{ minWidth: '32px' }}
+              title="Undo 撤销"
+            >
+              <svg className="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4" />
+              </svg>
+              <span className="hidden sm:block text-[9px] font-medium text-slate-500 mt-0.5">撤销</span>
+            </button>
+
+            {/* Clear all */}
+            <button
+              onClick={handleAnnotationClearAll}
+              className="flex flex-col items-center justify-center p-1.5 sm:px-2 sm:py-1 rounded-lg sm:rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-500 transition-all"
+              style={{ minWidth: '32px' }}
+              title="Clear all 清除全部"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              <span className="hidden sm:block text-[9px] font-medium text-slate-500 mt-0.5">清除</span>
+            </button>
+
+            {/* Divider */}
+            <div className="w-[1px] h-5 sm:h-6 bg-slate-200 mx-0.5 sm:mx-1" />
+
+            {/* Collapse button */}
+            <button
+              onClick={() => setIsAnnotationToolbarCollapsed(true)}
+              className="flex flex-col items-center justify-center p-1.5 sm:px-2 sm:py-1 rounded-lg sm:rounded-xl hover:bg-slate-100 transition-all"
+              style={{ minWidth: '32px' }}
+              title="收起工具栏 Collapse toolbar"
+            >
+              <svg className="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+              <span className="text-[9px] font-medium text-slate-500 mt-0.5">收起</span>
+            </button>
+          </div>
+        </>
       )}
     </div>
   );
