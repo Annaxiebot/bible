@@ -10,7 +10,7 @@ import { openDB, DBSchema, IDBPDatabase } from 'idb';
 
 /** Serialized annotation data for a single chapter */
 export interface AnnotationRecord {
-  /** Composite key: "bookId:chapter" */
+  /** Composite key: "bookId:chapter" or "bookId:chapter:panelId" */
   id: string;
   bookId: string;
   chapter: number;
@@ -20,6 +20,8 @@ export interface AnnotationRecord {
   canvasHeight: number;
   /** Timestamp of last modification */
   lastModified: number;
+  /** Panel identifier (chinese or english) - optional for backwards compat */
+  panelId?: string;
 }
 
 interface AnnotationDB extends DBSchema {
@@ -49,18 +51,19 @@ class AnnotationStorageService {
   }
 
   /**
-   * Save annotation data for a specific book+chapter.
+   * Save annotation data for a specific book+chapter+panel.
    * Creates or overwrites existing annotation.
    */
   async saveAnnotation(
     bookId: string,
     chapter: number,
     canvasData: string,
-    canvasHeight: number
+    canvasHeight: number,
+    panelId?: 'chinese' | 'english'
   ): Promise<void> {
     try {
       const db = await this.dbPromise;
-      const id = `${bookId}:${chapter}`;
+      const id = panelId ? `${bookId}:${chapter}:${panelId}` : `${bookId}:${chapter}`;
       await db.put('annotations', {
         id,
         bookId,
@@ -68,6 +71,7 @@ class AnnotationStorageService {
         canvasData,
         canvasHeight,
         lastModified: Date.now(),
+        panelId,
       });
     } catch (error) {
       console.error('Failed to save annotation:', error);
@@ -76,17 +80,25 @@ class AnnotationStorageService {
   }
 
   /**
-   * Retrieve annotation data for a specific book+chapter.
+   * Retrieve annotation data for a specific book+chapter+panel.
    * Returns null if no annotation exists.
    */
   async getAnnotation(
     bookId: string,
-    chapter: number
+    chapter: number,
+    panelId?: 'chinese' | 'english'
   ): Promise<{ data: string; height: number } | null> {
     try {
       const db = await this.dbPromise;
-      const id = `${bookId}:${chapter}`;
-      const record = await db.get('annotations', id);
+      const id = panelId ? `${bookId}:${chapter}:${panelId}` : `${bookId}:${chapter}`;
+      let record = await db.get('annotations', id);
+      
+      // Backwards compatibility: try without panelId if not found
+      if (!record && panelId) {
+        const oldId = `${bookId}:${chapter}`;
+        record = await db.get('annotations', oldId);
+      }
+      
       if (!record) return null;
       return {
         data: record.canvasData,
@@ -99,12 +111,12 @@ class AnnotationStorageService {
   }
 
   /**
-   * Delete annotation data for a specific book+chapter.
+   * Delete annotation data for a specific book+chapter+panel.
    */
-  async deleteAnnotation(bookId: string, chapter: number): Promise<void> {
+  async deleteAnnotation(bookId: string, chapter: number, panelId?: 'chinese' | 'english'): Promise<void> {
     try {
       const db = await this.dbPromise;
-      const id = `${bookId}:${chapter}`;
+      const id = panelId ? `${bookId}:${chapter}:${panelId}` : `${bookId}:${chapter}`;
       await db.delete('annotations', id);
     } catch (error) {
       console.error('Failed to delete annotation:', error);

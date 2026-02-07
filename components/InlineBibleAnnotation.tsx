@@ -12,9 +12,20 @@
  * - Faint overlay of saved annotations when not in edit mode
  */
 
-import React, { useRef, useEffect, useState, useCallback } from 'react';
+import React, { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import DrawingCanvas, { DrawingCanvasHandle, SerializedPath } from './DrawingCanvas';
 import { annotationStorage } from '../services/annotationStorage';
+
+export interface AnnotationToolState {
+  tool: 'pen' | 'marker' | 'highlighter' | 'eraser';
+  color: string;
+  size: number;
+}
+
+export interface InlineBibleAnnotationHandle {
+  undo: () => void;
+  clearAll: () => void;
+}
 
 interface InlineBibleAnnotationProps {
   bookId: string;
@@ -25,54 +36,72 @@ interface InlineBibleAnnotationProps {
   contentHeight: number;
   /** Theme accent color for UI elements */
   accentColor?: string;
+  /** External tool state (shared between panels) */
+  toolState?: AnnotationToolState;
+  /** Panel identifier for storage */
+  panelId?: 'chinese' | 'english';
 }
 
-// ─── Preset colors for the color picker ─────────────────────────────────────
-const COLOR_PRESETS = [
+// ─── Preset colors for the color picker - brighter colors including yellow ──
+export const COLOR_PRESETS = [
   '#000000', // Black
-  '#1a1a2e', // Dark navy
-  '#e74c3c', // Red
-  '#e67e22', // Orange
-  '#2ecc71', // Green
-  '#3498db', // Blue
-  '#9b59b6', // Purple
+  '#374151', // Dark gray
+  '#ef4444', // Bright red
+  '#f97316', // Bright orange
+  '#fbbf24', // Yellow/Gold
+  '#22c55e', // Bright green
+  '#3b82f6', // Bright blue
+  '#a855f7', // Bright purple
+  '#ec4899', // Pink
   '#8B7355', // Brown (matches Bible theme)
 ];
 
 const MAX_EXPAND = 2000; // Maximum additional expandable height in px
 
-const InlineBibleAnnotation: React.FC<InlineBibleAnnotationProps> = ({
+const InlineBibleAnnotation = forwardRef<InlineBibleAnnotationHandle, InlineBibleAnnotationProps>(({
   bookId,
   chapter,
   isActive,
   contentHeight,
   accentColor = '#6366f1',
-}) => {
+  toolState,
+  panelId = 'chinese',
+}, ref) => {
   const canvasRef = useRef<DrawingCanvasHandle>(null);
 
   // ── State ──────────────────────────────────────────────────────────────
-  const [currentTool, setCurrentTool] = useState<'pen' | 'marker' | 'highlighter' | 'eraser'>('pen');
-  const [currentColor, setCurrentColor] = useState('#000000');
-  const [currentSize, setCurrentSize] = useState(2);
-  const [showColorPicker, setShowColorPicker] = useState(false);
   const [extraHeight, setExtraHeight] = useState(0);       // Extra expanded space
   const [savedPaths, setSavedPaths] = useState<string>(''); // Serialized path data for read-only view
   const [isDragging, setIsDragging] = useState(false);
-  const [isToolbarCollapsed, setIsToolbarCollapsed] = useState(false); // Collapse toolbar to not block verses
   const dragStartRef = useRef<{ y: number; height: number }>({ y: 0, height: 0 });
 
-  // Track the book+chapter key for loading/saving
-  const annotationKey = `${bookId}:${chapter}`;
+  // Track the book+chapter+panel key for loading/saving
+  const annotationKey = `${bookId}:${chapter}:${panelId}`;
   const prevKeyRef = useRef(annotationKey);
 
   // Total canvas height = verse content + expanded space
   const totalHeight = contentHeight + extraHeight;
 
+  // Expose methods to parent via ref
+  useImperativeHandle(ref, () => ({
+    undo: () => {
+      canvasRef.current?.undo();
+    },
+    clearAll: () => {
+      if (confirm('清除此章所有标注？\nClear all annotations for this chapter?')) {
+        canvasRef.current?.clear();
+        setSavedPaths('');
+        setExtraHeight(0);
+        annotationStorage.deleteAnnotation(bookId, chapter, panelId);
+      }
+    },
+  }));
+
   // ── Load saved annotation when book/chapter changes ───────────────────
 
   useEffect(() => {
     const loadAnnotation = async () => {
-      const result = await annotationStorage.getAnnotation(bookId, chapter);
+      const result = await annotationStorage.getAnnotation(bookId, chapter, panelId);
       if (result) {
         setSavedPaths(result.data);
         setExtraHeight(result.height);
@@ -96,13 +125,13 @@ const InlineBibleAnnotation: React.FC<InlineBibleAnnotationProps> = ({
 
     // Save current annotation before switching chapters
     if (prevKeyRef.current !== annotationKey && savedPaths) {
-      const [prevBook, prevChapter] = prevKeyRef.current.split(':');
-      annotationStorage.saveAnnotation(prevBook, parseInt(prevChapter), savedPaths, extraHeight);
+      const [prevBook, prevChapterStr, prevPanel] = prevKeyRef.current.split(':');
+      annotationStorage.saveAnnotation(prevBook, parseInt(prevChapterStr), savedPaths, extraHeight, prevPanel as 'chinese' | 'english');
     }
     prevKeyRef.current = annotationKey;
 
     loadAnnotation();
-  }, [bookId, chapter]);
+  }, [bookId, chapter, panelId]);
 
   // When activating annotation mode, load paths into the canvas
   useEffect(() => {
@@ -175,63 +204,29 @@ const InlineBibleAnnotation: React.FC<InlineBibleAnnotationProps> = ({
     };
   }, [isActive]);
 
-  // ── Auto-save on tool change or deactivation ─────────────────────────
+  // ── Auto-save on canvas change ─────────────────────────
 
   const handleCanvasChange = useCallback((data: string) => {
     setSavedPaths(data);
     // Save to IndexedDB
-    annotationStorage.saveAnnotation(bookId, chapter, data, extraHeight);
-  }, [bookId, chapter, extraHeight]);
+    annotationStorage.saveAnnotation(bookId, chapter, data, extraHeight, panelId);
+  }, [bookId, chapter, extraHeight, panelId]);
 
   // Save when extra height changes
   useEffect(() => {
     if (savedPaths) {
-      annotationStorage.saveAnnotation(bookId, chapter, savedPaths, extraHeight);
+      annotationStorage.saveAnnotation(bookId, chapter, savedPaths, extraHeight, panelId);
     }
   }, [extraHeight]);
 
-  // ── Tool switching ────────────────────────────────────────────────────
-
-  const selectTool = useCallback((tool: 'pen' | 'marker' | 'highlighter' | 'eraser') => {
-    setCurrentTool(tool);
-    // Set appropriate default size for each tool
-    let size = 2;
-    switch (tool) {
-      case 'pen': size = 2; break;
-      case 'marker': size = 3; break;
-      case 'highlighter': size = 4; break;
-      case 'eraser': size = 8; break;
-    }
-    setCurrentSize(size);
-  }, []);
-
-  // Sync tool, size, and color to canvas whenever they change
+  // ── Sync external tool state to canvas ────────────────────────────────
   useEffect(() => {
-    if (isActive && canvasRef.current) {
-      canvasRef.current.setTool(currentTool);
-      canvasRef.current.setSize(currentSize);
-      canvasRef.current.setColor(currentColor);
+    if (isActive && canvasRef.current && toolState) {
+      canvasRef.current.setTool(toolState.tool);
+      canvasRef.current.setSize(toolState.size);
+      canvasRef.current.setColor(toolState.color);
     }
-  }, [isActive, currentTool, currentSize, currentColor]);
-
-  const selectColor = useCallback((color: string) => {
-    setCurrentColor(color);
-    canvasRef.current?.setColor(color);
-    setShowColorPicker(false);
-  }, []);
-
-  const handleUndo = useCallback(() => {
-    canvasRef.current?.undo();
-  }, []);
-
-  const handleClearAll = useCallback(() => {
-    if (confirm('清除此章所有标注？\nClear all annotations for this chapter?')) {
-      canvasRef.current?.clear();
-      setSavedPaths('');
-      setExtraHeight(0);
-      annotationStorage.deleteAnnotation(bookId, chapter);
-    }
-  }, [bookId, chapter]);
+  }, [isActive, toolState?.tool, toolState?.size, toolState?.color]);
 
   // ── Expand handle drag ────────────────────────────────────────────────
 
@@ -308,7 +303,7 @@ const InlineBibleAnnotation: React.FC<InlineBibleAnnotationProps> = ({
     );
   }
 
-  // Active annotation mode
+  // Active annotation mode - only render canvas (no toolbar - that's now in BibleViewer)
   return (
     <>
       {/* Drawing canvas overlay — blocks all text interaction when active */}
@@ -350,219 +345,60 @@ const InlineBibleAnnotation: React.FC<InlineBibleAnnotationProps> = ({
         </div>
       )}
 
-      {/* Expand handle - FIXED position on right side middle for visibility */}
-      <div
-        className="fixed z-50 cursor-ns-resize"
-        style={{
-          right: '8px',
-          top: '50%',
-          transform: 'translateY(-50%)',
-          touchAction: 'none',
-        }}
-        onPointerDown={handleExpandPointerDown}
-      >
+      {/* Expand handle - only show for Chinese panel to avoid duplicates */}
+      {panelId === 'chinese' && (
         <div
-          className="flex flex-col items-center gap-1 px-2 py-3 rounded-xl transition-all shadow-lg"
+          className="fixed z-50 cursor-ns-resize"
           style={{
-            backgroundColor: isDragging ? 'rgba(99, 102, 241, 0.95)' : 'rgba(255, 255, 255, 0.95)',
-            border: `2px solid ${isDragging ? 'rgba(99, 102, 241, 0.8)' : 'rgba(139, 115, 85, 0.3)'}`,
-            backdropFilter: 'blur(8px)',
-            WebkitBackdropFilter: 'blur(8px)',
+            right: '8px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            touchAction: 'none',
           }}
+          onPointerDown={handleExpandPointerDown}
         >
-          <svg 
-            className="w-5 h-5" 
-            style={{ color: isDragging ? 'white' : 'rgba(139, 115, 85, 0.7)' }} 
-            fill="none" viewBox="0 0 24 24" stroke="currentColor"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
-          </svg>
-          <span 
-            className="text-[10px] font-bold writing-vertical"
-            style={{ 
-              color: isDragging ? 'white' : 'rgba(139, 115, 85, 0.8)',
-              writingMode: 'vertical-rl',
-              textOrientation: 'mixed',
-            }}
-          >
-            {extraHeight > 0 ? `+${Math.round(extraHeight)}` : '留白'}
-          </span>
-          <span 
-            className="text-[8px] writing-vertical"
-            style={{ 
-              color: isDragging ? 'rgba(255,255,255,0.8)' : 'rgba(139, 115, 85, 0.5)',
-              writingMode: 'vertical-rl',
-              textOrientation: 'mixed',
-            }}
-          >
-            拖动
-          </span>
-        </div>
-      </div>
-
-      {/* Collapsed toolbar toggle button - larger and more visible */}
-      {isToolbarCollapsed && (
-        <button
-          onClick={() => setIsToolbarCollapsed(false)}
-          className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-6 py-3 rounded-2xl shadow-2xl border-2 transition-all hover:scale-105 active:scale-95"
-          style={{
-            backgroundColor: accentColor,
-            borderColor: 'white',
-          }}
-        >
-          <span className="text-2xl">✏️</span>
-          <span className="text-sm font-bold text-white">展开工具栏</span>
-          <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-          </svg>
-        </button>
-      )}
-
-      {/* Floating mini-toolbar - compact on iPhone */}
-      <div
-        className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-0.5 sm:gap-1 px-2 sm:px-3 py-1.5 sm:py-2 rounded-2xl shadow-2xl border transition-all max-w-[95vw] ${
-          isToolbarCollapsed ? 'opacity-0 pointer-events-none scale-95' : 'opacity-100'
-        }`}
-        style={{
-          backgroundColor: 'rgba(255, 255, 255, 0.95)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-          borderColor: 'rgba(0, 0, 0, 0.08)',
-        }}
-      >
-        {/* Tool buttons - icons only on small screens */}
-        {([
-          { tool: 'pen' as const, icon: '✒️', label: '笔', labelEn: 'Pen' },
-          { tool: 'highlighter' as const, icon: '🖍️', label: '荧光', labelEn: 'Highlight' },
-          { tool: 'marker' as const, icon: '🖊️', label: '马克', labelEn: 'Marker' },
-          { tool: 'eraser' as const, icon: '🧹', label: '擦除', labelEn: 'Eraser' },
-        ]).map(({ tool, icon, label, labelEn }) => (
-          <button
-            key={tool}
-            onClick={() => selectTool(tool)}
-            className={`flex flex-col items-center justify-center p-1.5 sm:px-2 sm:py-1 rounded-lg sm:rounded-xl transition-all ${
-              currentTool === tool
-                ? 'shadow-md'
-                : 'hover:bg-slate-100 opacity-70'
-            }`}
+          <div
+            className="flex flex-col items-center gap-1 px-2 py-3 rounded-xl transition-all shadow-lg"
             style={{
-              backgroundColor: currentTool === tool ? `${accentColor}20` : undefined,
-              border: currentTool === tool ? `2px solid ${accentColor}` : '2px solid transparent',
-              minWidth: '36px',
+              backgroundColor: isDragging ? 'rgba(99, 102, 241, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+              border: `2px solid ${isDragging ? 'rgba(99, 102, 241, 0.8)' : 'rgba(139, 115, 85, 0.3)'}`,
+              backdropFilter: 'blur(8px)',
+              WebkitBackdropFilter: 'blur(8px)',
             }}
-            title={labelEn}
           >
-            <span className="text-base leading-none">{icon}</span>
-            <span className="hidden sm:block text-[9px] font-medium text-slate-500 mt-0.5">{label}</span>
-          </button>
-        ))}
-
-        {/* Divider */}
-        <div className="w-[1px] h-5 sm:h-6 bg-slate-200 mx-0.5 sm:mx-1" />
-
-        {/* Color picker */}
-        <div className="relative">
-          <button
-            onClick={() => setShowColorPicker(!showColorPicker)}
-            className="flex flex-col items-center justify-center p-1.5 sm:px-2 sm:py-1 rounded-lg sm:rounded-xl hover:bg-slate-100 transition-all"
-            style={{ minWidth: '36px' }}
-            title="Color"
-          >
-            <div
-              className="w-5 h-5 rounded-full border-2 border-white shadow-sm"
-              style={{ backgroundColor: currentColor }}
-            />
-            <span className="hidden sm:block text-[9px] font-medium text-slate-500 mt-0.5">颜色</span>
-          </button>
-          {showColorPicker && (
-            <div
-              className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex flex-wrap gap-1 p-2 rounded-xl shadow-xl border max-w-[200px]"
-              style={{
-                backgroundColor: 'rgba(255, 255, 255, 0.98)',
-                borderColor: 'rgba(0, 0, 0, 0.08)',
+            <svg 
+              className="w-5 h-5" 
+              style={{ color: isDragging ? 'white' : 'rgba(139, 115, 85, 0.7)' }} 
+              fill="none" viewBox="0 0 24 24" stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" />
+            </svg>
+            <span 
+              className="text-[10px] font-bold writing-vertical"
+              style={{ 
+                color: isDragging ? 'white' : 'rgba(139, 115, 85, 0.8)',
+                writingMode: 'vertical-rl',
+                textOrientation: 'mixed',
               }}
             >
-              {COLOR_PRESETS.map((color) => (
-                <button
-                  key={color}
-                  onClick={() => selectColor(color)}
-                  className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full transition-all hover:scale-110 ${
-                    currentColor === color ? 'ring-2 ring-offset-1 scale-110 ring-indigo-400' : ''
-                  }`}
-                  style={{
-                    backgroundColor: color,
-                  }}
-                />
-              ))}
-            </div>
-          )}
+              {extraHeight > 0 ? `+${Math.round(extraHeight)}` : '留白'}
+            </span>
+            <span 
+              className="text-[8px] writing-vertical"
+              style={{ 
+                color: isDragging ? 'rgba(255,255,255,0.8)' : 'rgba(139, 115, 85, 0.5)',
+                writingMode: 'vertical-rl',
+                textOrientation: 'mixed',
+              }}
+            >
+              拖动
+            </span>
+          </div>
         </div>
-
-        {/* Size slider - narrower on mobile */}
-        <div className="flex flex-col items-center px-0.5 sm:px-1">
-          <input
-            type="range"
-            min={1}
-            max={12}
-            value={currentSize}
-            onChange={(e) => {
-              const size = parseInt(e.target.value);
-              setCurrentSize(size);
-              canvasRef.current?.setSize(size);
-            }}
-            className="w-10 sm:w-16 h-1 accent-slate-500"
-            title={`Size: ${currentSize}`}
-          />
-          <span className="text-[8px] sm:text-[9px] font-medium text-slate-500 mt-0.5 sm:mt-1">{currentSize}</span>
-        </div>
-
-        {/* Divider */}
-        <div className="w-[1px] h-5 sm:h-6 bg-slate-200 mx-0.5 sm:mx-1" />
-
-        {/* Undo */}
-        <button
-          onClick={handleUndo}
-          className="flex flex-col items-center justify-center p-1.5 sm:px-2 sm:py-1 rounded-lg sm:rounded-xl hover:bg-slate-100 transition-all"
-          style={{ minWidth: '32px' }}
-          title="Undo 撤销"
-        >
-          <svg className="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4" />
-          </svg>
-          <span className="hidden sm:block text-[9px] font-medium text-slate-500 mt-0.5">撤销</span>
-        </button>
-
-        {/* Clear all */}
-        <button
-          onClick={handleClearAll}
-          className="flex flex-col items-center justify-center p-1.5 sm:px-2 sm:py-1 rounded-lg sm:rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-500 transition-all"
-          style={{ minWidth: '32px' }}
-          title="Clear all 清除全部"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-          </svg>
-          <span className="hidden sm:block text-[9px] font-medium text-slate-500 mt-0.5">清除</span>
-        </button>
-
-        {/* Divider */}
-        <div className="w-[1px] h-5 sm:h-6 bg-slate-200 mx-0.5 sm:mx-1" />
-
-        {/* Collapse button */}
-        <button
-          onClick={() => setIsToolbarCollapsed(true)}
-          className="flex flex-col items-center justify-center p-1.5 sm:px-2 sm:py-1 rounded-lg sm:rounded-xl hover:bg-slate-100 transition-all"
-          style={{ minWidth: '32px' }}
-          title="收起工具栏 Collapse toolbar"
-        >
-          <svg className="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-          <span className="text-[9px] font-medium text-slate-500 mt-0.5">收起</span>
-        </button>
-      </div>
+      )}
     </>
   );
-};
+});
 
+InlineBibleAnnotation.displayName = 'InlineBibleAnnotation';
 export default InlineBibleAnnotation;
