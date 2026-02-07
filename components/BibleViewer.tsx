@@ -1925,6 +1925,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           <div className="flex items-center gap-1.5 px-3 py-1 bg-white rounded-full border border-slate-200 shadow-sm">
              <div className={`w-1.5 h-1.5 rounded-full ${isOffline ? 'bg-green-500' : 'bg-indigo-500 animate-pulse'}`}></div>
              <span className="text-[10px] font-bold text-slate-500">{isOffline ? '离线模式' : '在线'}</span>
+             <span className="text-[8px] text-slate-400 ml-1">v2.2.0</span>
           </div>
         </div>
       </div>
