@@ -2120,17 +2120,19 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
               <div 
                 key={`left-${v.verse}`}
                 data-verse={v.verse}
-                onClick={(e) => handleVerseClick(v.verse, e)}
-                className={`p-1 rounded-lg transition-all border relative group/verse ${
+                onClick={(e) => !isAnnotationMode && handleVerseClick(v.verse, e)}
+                className={`verse-content p-1 rounded-lg transition-all border relative group/verse ${
                   selectedVerses.includes(v.verse) ? 'shadow-sm' : 
                   'border-transparent hover:bg-slate-50'
                 }`}
                 style={{ 
-                  cursor: 'default',
-                  // Disable text selection in annotation mode to prevent iOS callout
+                  cursor: isAnnotationMode ? 'default' : 'pointer',
+                  // Disable ALL interactions in annotation mode
+                  pointerEvents: isAnnotationMode ? 'none' : 'auto',
                   userSelect: isAnnotationMode ? 'none' : 'text',
                   WebkitUserSelect: isAnnotationMode ? 'none' : 'text',
                   WebkitTouchCallout: isAnnotationMode ? 'none' : 'default',
+                  touchAction: isAnnotationMode ? 'none' : 'auto',
                   ...(selectedVerses.includes(v.verse) ? { backgroundColor: theme.verseHighlight, borderColor: theme.verseBorder } : {})
                 }}
               >
@@ -2320,17 +2322,19 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
               <div 
                 key={`right-${v.verse}`}
                 data-verse={v.verse}
-                onClick={(e) => handleVerseClick(v.verse, e)}
-                className={`p-1 rounded-lg transition-all border group/verse ${
+                onClick={(e) => !isAnnotationMode && handleVerseClick(v.verse, e)}
+                className={`verse-content p-1 rounded-lg transition-all border group/verse ${
                   selectedVerses.includes(v.verse) ? 'shadow-sm' : 
                   'border-transparent hover:bg-slate-50'
                 }`}
                 style={{ 
-                  cursor: 'default',
-                  // Disable text selection in annotation mode to prevent iOS callout
+                  cursor: isAnnotationMode ? 'default' : 'pointer',
+                  // Disable ALL interactions in annotation mode
+                  pointerEvents: isAnnotationMode ? 'none' : 'auto',
                   userSelect: isAnnotationMode ? 'none' : 'text',
                   WebkitUserSelect: isAnnotationMode ? 'none' : 'text',
                   WebkitTouchCallout: isAnnotationMode ? 'none' : 'default',
+                  touchAction: isAnnotationMode ? 'none' : 'auto',
                   ...(selectedVerses.includes(v.verse) ? { backgroundColor: theme.verseHighlight, borderColor: theme.verseBorder } : {})
                 }}
               >

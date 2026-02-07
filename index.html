@@ -69,10 +69,35 @@
           -webkit-tap-highlight-color: transparent !important;
         }
         
-        /* Prevent iOS magnifier glass */
+        /* Prevent iOS magnifier glass and text selection handles */
         html.annotation-mode-active input,
         html.annotation-mode-active textarea {
           pointer-events: none !important;
+        }
+        
+        /* Block all touch behaviors on text content in annotation mode */
+        html.annotation-mode-active .verse-content {
+          pointer-events: none !important;
+          touch-action: none !important;
+        }
+        
+        /* Ensure the annotation canvas captures ALL touches */
+        html.annotation-mode-active .annotation-overlay {
+          pointer-events: auto !important;
+          touch-action: none !important;
+        }
+        
+        /* Hide iOS selection elements */
+        html.annotation-mode-active ::selection {
+          background: transparent !important;
+        }
+        html.annotation-mode-active ::-moz-selection {
+          background: transparent !important;
+        }
+        
+        /* Disable iOS text size adjustment which can cause selection issues */
+        html.annotation-mode-active {
+          -webkit-text-size-adjust: none !important;
         }
         /* Book dropdown scrollbar styles */
         .book-dropdown-scroll {
