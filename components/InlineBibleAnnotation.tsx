@@ -311,28 +311,9 @@ const InlineBibleAnnotation: React.FC<InlineBibleAnnotationProps> = ({
           height: `${totalHeight}px`,
           // Don't block text visibility
           mixBlendMode: 'multiply',
-          // Prevent text selection on underlying content
-          userSelect: 'none',
-          WebkitUserSelect: 'none',
-          WebkitTouchCallout: 'none',
-          // Capture ALL pointer events - no pass-through
-          pointerEvents: 'auto',
-          // Block ALL touch actions to prevent iOS selection
-          touchAction: 'none',
+          // Let pointer events pass through to canvas child
+          pointerEvents: 'none',
         }}
-        // Prevent context menu on the overlay container
-        onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); return false; }}
-        // Prevent any selection start events
-        onSelectCapture={(e) => { e.preventDefault(); e.stopPropagation(); }}
-        onSelect={(e) => { e.preventDefault(); e.stopPropagation(); }}
-        // Block touch events from reaching underlying content
-        onTouchStart={(e) => {
-          // Let the DrawingCanvas handle single-touch for drawing
-          // Block all touch events from propagating to content below
-          e.stopPropagation();
-        }}
-        onTouchMove={(e) => e.stopPropagation()}
-        onTouchEnd={(e) => e.stopPropagation()}
       >
         <DrawingCanvas
           ref={canvasRef}
