@@ -132,52 +132,24 @@ const InlineBibleAnnotation: React.FC<InlineBibleAnnotationProps> = ({
     const blockEvent = (e: Event) => {
       e.preventDefault();
       e.stopPropagation();
-      e.stopImmediatePropagation();
       return false;
     };
 
-    // Block long-press on iOS (the main cause of context menu)
-    let longPressTimer: ReturnType<typeof setTimeout> | null = null;
-    const blockLongPress = (e: TouchEvent) => {
-      if (longPressTimer) clearTimeout(longPressTimer);
-      longPressTimer = setTimeout(() => {
-        e.preventDefault();
-      }, 100);
-    };
-    const clearLongPress = () => {
-      if (longPressTimer) {
-        clearTimeout(longPressTimer);
-        longPressTimer = null;
-      }
-    };
-
-    // Capture phase to intercept before any other handlers
+    // Only block context menu and selection - NOT touch events (those are needed for drawing)
     document.addEventListener('contextmenu', blockEvent, { capture: true, passive: false });
     document.addEventListener('selectstart', blockEvent, { capture: true, passive: false });
     document.addEventListener('selectionchange', blockEvent, { capture: true, passive: false });
     
-    // Touch events for long-press blocking
-    document.addEventListener('touchstart', blockLongPress, { capture: true, passive: false });
-    document.addEventListener('touchend', clearLongPress, { capture: true });
-    document.addEventListener('touchcancel', clearLongPress, { capture: true });
-    
-    // iOS gesture events
+    // iOS gesture events (pinch/zoom) - block these but not single-touch
     document.addEventListener('gesturestart', blockEvent, { capture: true, passive: false });
     document.addEventListener('gesturechange', blockEvent, { capture: true, passive: false });
     document.addEventListener('gestureend', blockEvent, { capture: true, passive: false });
-    
-    // Force touch (3D Touch / Haptic Touch)
-    document.addEventListener('webkitmouseforcedown', blockEvent, { capture: true, passive: false });
-    document.addEventListener('webkitmouseforceup', blockEvent, { capture: true, passive: false });
-    document.addEventListener('webkitmouseforcewillbegin', blockEvent, { capture: true, passive: false });
-    document.addEventListener('webkitmouseforcechanged', blockEvent, { capture: true, passive: false });
     
     // Set body styles to prevent all selection
     const originalStyles = {
       webkitUserSelect: document.body.style.webkitUserSelect,
       userSelect: document.body.style.userSelect,
       webkitTouchCallout: (document.body.style as any).webkitTouchCallout,
-      touchAction: document.body.style.touchAction,
     };
     
     document.body.style.webkitUserSelect = 'none';
@@ -188,21 +160,12 @@ const InlineBibleAnnotation: React.FC<InlineBibleAnnotationProps> = ({
     document.documentElement.classList.add('annotation-mode-active');
 
     return () => {
-      if (longPressTimer) clearTimeout(longPressTimer);
-      
       document.removeEventListener('contextmenu', blockEvent, { capture: true });
       document.removeEventListener('selectstart', blockEvent, { capture: true });
       document.removeEventListener('selectionchange', blockEvent, { capture: true });
-      document.removeEventListener('touchstart', blockLongPress, { capture: true });
-      document.removeEventListener('touchend', clearLongPress, { capture: true });
-      document.removeEventListener('touchcancel', clearLongPress, { capture: true });
       document.removeEventListener('gesturestart', blockEvent, { capture: true });
       document.removeEventListener('gesturechange', blockEvent, { capture: true });
       document.removeEventListener('gestureend', blockEvent, { capture: true });
-      document.removeEventListener('webkitmouseforcedown', blockEvent, { capture: true });
-      document.removeEventListener('webkitmouseforceup', blockEvent, { capture: true });
-      document.removeEventListener('webkitmouseforcewillbegin', blockEvent, { capture: true });
-      document.removeEventListener('webkitmouseforcechanged', blockEvent, { capture: true });
       
       document.body.style.webkitUserSelect = originalStyles.webkitUserSelect;
       document.body.style.userSelect = originalStyles.userSelect;
