@@ -761,10 +761,10 @@ const Sidebar: React.FC<SidebarProps> = ({
         {/* Footer */}
         <div className="p-4 border-t border-slate-200">
           <p className="text-xs text-slate-400 text-center">
-            {theme.emoji} Bible Workspace v2.2.2 · {theme.name}
+            {theme.emoji} Bible Workspace v2.2.3 · {theme.name}
           </p>
           <p className="text-[10px] text-slate-300 text-center mt-1">
-            Build: 2026-02-06-C
+            Build: 2026-02-06-D
           </p>
         </div>
       </div>
