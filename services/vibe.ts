@@ -1,20 +1,18 @@
-import { GoogleGenerativeAI } from '@google/genai';
-
-let genAI: GoogleGenerativeAI | null = null;
+let geminiApiKey: string | null = null;
 let claudeApiKey: string | null = null;
 let provider: 'gemini' | 'claude' = 'gemini';
 
 export function initializeVibeCoding(apiKey: string, aiProvider: 'gemini' | 'claude' = 'gemini') {
   provider = aiProvider;
   if (aiProvider === 'gemini') {
-    genAI = new GoogleGenerativeAI(apiKey);
+    geminiApiKey = apiKey;
   } else {
     claudeApiKey = apiKey;
   }
 }
 
 export function isVibeInitialized(): boolean {
-  return (provider === 'gemini' && !!genAI) || (provider === 'claude' && !!claudeApiKey);
+  return (provider === 'gemini' && !!geminiApiKey) || (provider === 'claude' && !!claudeApiKey);
 }
 
 export function getCurrentProvider(): 'gemini' | 'claude' {
@@ -28,9 +26,7 @@ interface VibeChange {
 }
 
 async function processWithGemini(prompt: string): Promise<VibeChange[]> {
-  if (!genAI) throw new Error('Gemini not initialized');
-
-  const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash-exp' });
+  if (!geminiApiKey) throw new Error('Gemini not initialized');
 
   const systemPrompt = `You are a helpful assistant that helps users customize their Bible study app through natural language.
 
@@ -58,9 +54,23 @@ Only respond with valid JSON. Keep changes minimal and safe.
 
 User request: ${prompt}`;
 
-  const result = await model.generateContent(systemPrompt);
-  const response = await result.response;
-  const text = response.text();
+  const response = await fetch(
+    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp:generateContent?key=${geminiApiKey}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        contents: [{ parts: [{ text: systemPrompt }] }]
+      })
+    }
+  );
+
+  if (!response.ok) {
+    throw new Error(`Gemini API error: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  const text = data.candidates[0].content.parts[0].text;
   
   const jsonMatch = text.match(/```(?:json)?\s*(\[[\s\S]*?\])\s*```/) || 
                    text.match(/(\[[\s\S]*?\])/);
