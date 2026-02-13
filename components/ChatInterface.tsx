@@ -109,7 +109,7 @@ const BibleLink: React.FC<BibleLinkProps> = ({ children, onNavigate }) => {
           e.preventDefault();
           onNavigate(ref.bookId, ref.chapter, ref.verses);
         }}
-        className="text-indigo-600 hover:text-indigo-800 underline decoration-indigo-300 hover:decoration-indigo-500 transition-colors cursor-pointer font-medium"
+        className="text-yellow-200 hover:text-white underline decoration-yellow-300 hover:decoration-white transition-colors cursor-pointer font-medium"
         title={`跳转到 Go to ${children}`}
       >
         {children}
