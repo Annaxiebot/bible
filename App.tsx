@@ -434,6 +434,10 @@ const App: React.FC = () => {
               initialContent={currentSelection ? (notes[currentSelection.id] || '') : ''}
               initialTab="research"
               researchUpdateTrigger={researchUpdateTrigger}
+              onNavigate={(bookId, chapter, verses) => {
+                setNavigateTo({ bookId, chapter, verses });
+                setTimeout(() => setNavigateTo(null), 1000);
+              }}
             />
           </div>
         </div>

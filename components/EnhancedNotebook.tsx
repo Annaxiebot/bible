@@ -7,13 +7,78 @@ import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
 import 'katex/dist/katex.min.css';
+import { CHINESE_ABBREV_TO_BOOK_ID, BIBLE_BOOKS } from '../constants';
+
+const _allBookNames = Object.keys(CHINESE_ABBREV_TO_BOOK_ID)
+  .sort((a, b) => b.length - a.length)
+  .map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+const _nameGroup = _allBookNames.join('|');
+const _namedRefSrc = `(?:${_nameGroup})\\s*\\d+(?:[章篇]|:\\d+(?:-\\d+)?(?:[，,]\\s*\\d+(?:-\\d+)?)*)`;
+const _bareRefSrc = `(?<!\\d)\\d+:\\d+(?:-\\d+)?(?:[，,]\\s*\\d+(?:-\\d+)?)*`;
+const _combinedRefRe = new RegExp(`${_namedRefSrc}|${_bareRefSrc}`, 'gi');
+
+const _parseVerseList = (s: string): number[] => {
+  const v: number[] = [];
+  for (const seg of s.split(/[，,]\s*/)) {
+    const [a, b] = seg.split('-').map(Number);
+    for (let i = a; i <= (b || a); i++) v.push(i);
+  }
+  return v;
+};
+
+const _parseRef = (m: string, fallbackBookId?: string): { bookId: string; chapter: number; verses?: number[] } | null => {
+  const vRe = new RegExp(`^(${_nameGroup})\\s*(\\d+):(\\d+(?:-\\d+)?(?:[，,]\\s*\\d+(?:-\\d+)?)*)$`, 'i');
+  const cRe = new RegExp(`^(${_nameGroup})\\s*(\\d+)[章篇]$`, 'i');
+  let r = m.match(vRe);
+  if (r) { const id = CHINESE_ABBREV_TO_BOOK_ID[r[1]]; return id ? { bookId: id, chapter: +r[2], verses: _parseVerseList(r[3]) } : null; }
+  r = m.match(cRe);
+  if (r) { const id = CHINESE_ABBREV_TO_BOOK_ID[r[1]]; return id ? { bookId: id, chapter: +r[2] } : null; }
+  if (fallbackBookId) {
+    const br = m.match(/^(\d+):(\d+(?:-\d+)?(?:[，,]\s*\d+(?:-\d+)?)*)$/);
+    if (br) return { bookId: fallbackBookId, chapter: +br[1], verses: _parseVerseList(br[2]) };
+  }
+  return null;
+};
+
+const _linkStyle: React.CSSProperties = { color: '#2563eb', backgroundColor: '#eff6ff', textDecoration: 'underline', textUnderlineOffset: '2px', padding: '0 3px', borderRadius: '3px', cursor: 'pointer' };
+
+const _processText = (
+  text: string,
+  onNav?: (bookId: string, chapter: number, verses?: number[]) => void,
+  curBookId?: string
+): React.ReactNode => {
+  if (!onNav) return text;
+  const re = new RegExp(_combinedRefRe.source, 'gi');
+  const parts: React.ReactNode[] = [];
+  let last = 0, mt;
+  while ((mt = re.exec(text)) !== null) {
+    if (mt.index > last) parts.push(text.slice(last, mt.index));
+    const ref = _parseRef(mt[0], curBookId);
+    if (ref) {
+      const txt = mt[0];
+      parts.push(<a key={`r${mt.index}`} style={_linkStyle} onClick={(e) => { e.preventDefault(); onNav(ref.bookId, ref.chapter, ref.verses); }}>{txt}</a>);
+    } else parts.push(mt[0]);
+    last = re.lastIndex;
+  }
+  if (last < text.length) parts.push(text.slice(last));
+  return parts.length === 1 ? parts[0] : <>{parts}</>;
+};
+
+const _pc = (nodes: React.ReactNode, onNav?: (bookId: string, chapter: number, verses?: number[]) => void, curBookId?: string): React.ReactNode => {
+  if (typeof nodes === 'string') return _processText(nodes, onNav, curBookId);
+  if (React.isValidElement(nodes)) return nodes;
+  const arr = React.Children.toArray(nodes);
+  if (arr.length > 0) return arr.map((n, i) => <React.Fragment key={i}>{_pc(n, onNav, curBookId)}</React.Fragment>);
+  return nodes;
+};
 
 interface EnhancedNotebookProps {
   selection: SelectionInfo | null;
-  onSaveNote: (id: string, content: string, skipTrigger?: boolean) => void; // For backward compatibility
+  onSaveNote: (id: string, content: string, skipTrigger?: boolean) => void;
   initialContent: string;
   initialTab?: TabType;
   researchUpdateTrigger?: number;
+  onNavigate?: (bookId: string, chapter: number, verses?: number[]) => void;
 }
 
 type TabType = 'research' | 'notes' | 'all';
@@ -23,7 +88,8 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
   onSaveNote,
   initialContent,
   initialTab = 'research',
-  researchUpdateTrigger = 0
+  researchUpdateTrigger = 0,
+  onNavigate
 }) => {
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);
   const [verseData, setVerseData] = useState<VerseData | null>(null);
@@ -455,9 +521,9 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
                   remarkPlugins={[remarkMath]}
                   rehypePlugins={[rehypeKatex]}
                   components={{
-                    // Custom rendering for better formatting
-                    p: ({ children }) => <p style={{ marginBottom: '0.5em' }}>{children}</p>,
-                    strong: ({ children }) => <strong style={{ fontWeight: 600 }}>{children}</strong>,
+                    p: ({ children }) => { const b = selection?.id?.split(':')[0]; return <p style={{ marginBottom: '0.5em' }}>{_pc(children, onNavigate, b)}</p>; },
+                    li: ({ children }) => { const b = selection?.id?.split(':')[0]; return <li>{_pc(children, onNavigate, b)}</li>; },
+                    strong: ({ children }) => { const b = selection?.id?.split(':')[0]; return <strong style={{ fontWeight: 600 }}>{_pc(children, onNavigate, b)}</strong>; },
                     code: ({ inline, className, children }) => {
                       // Check if this is a math expression
                       const match = /language-(\w+)/.exec(className || '');
@@ -573,8 +639,9 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
                           remarkPlugins={[remarkMath]}
                           rehypePlugins={[rehypeKatex]}
                           components={{
-                            p: ({ children }) => <p style={{ marginBottom: '0.5em' }}>{children}</p>,
-                            strong: ({ children }) => <strong style={{ fontWeight: 600 }}>{children}</strong>,
+                            p: ({ children }) => { const b = selection?.id?.split(':')[0]; return <p style={{ marginBottom: '0.5em' }}>{_pc(children, onNavigate, b)}</p>; },
+                            li: ({ children }) => { const b = selection?.id?.split(':')[0]; return <li>{_pc(children, onNavigate, b)}</li>; },
+                            strong: ({ children }) => { const b = selection?.id?.split(':')[0]; return <strong style={{ fontWeight: 600 }}>{_pc(children, onNavigate, b)}</strong>; },
                             code: ({ inline, className, children }) => {
                               const match = /language-(\w+)/.exec(className || '');
                               const isMath = match && match[1] === 'math';
