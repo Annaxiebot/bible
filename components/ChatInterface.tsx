@@ -141,9 +141,9 @@ BIBLE_BOOKS.forEach(book => {
 });
 
 const parseBibleReference = (text: string): BibleRef | null => {
-  // First try to parse as Chinese reference
+  // First try to parse as Chinese reference with chapter:verse
   const chineseBookNames = Object.keys(CHINESE_BOOK_MAP).join('|');
-  const chinesePattern = new RegExp(`(${chineseBookNames})(\\d+):(\\d+)(?:-(\\d+))?`);
+  const chinesePattern = new RegExp(`(${chineseBookNames})\\s*(\\d+):(\\d+)(?:-(\\d+))?`);
   const chineseMatch = text.match(chinesePattern);
   
   if (chineseMatch) {
@@ -168,6 +168,24 @@ const parseBibleReference = (text: string): BibleRef | null => {
       bookId,
       chapter,
       verses
+    };
+  }
+  
+  // Try to parse Chinese chapter-only reference (e.g., "希伯来书95章")
+  const chineseChapterPattern = new RegExp(`(${chineseBookNames})\\s*(\\d+)章`);
+  const chineseChapterMatch = text.match(chineseChapterPattern);
+  
+  if (chineseChapterMatch) {
+    const bookName = chineseChapterMatch[1];
+    const chapter = parseInt(chineseChapterMatch[2]);
+    
+    const bookId = CHINESE_BOOK_MAP[bookName];
+    if (!bookId) return null;
+    
+    return {
+      bookId,
+      chapter
+      // No verses specified - chapter-only reference
     };
   }
   
@@ -235,7 +253,16 @@ const BibleLink: React.FC<BibleLinkProps> = ({ children, onNavigate }) => {
     
     // Extract chapter and verse info
     const refMatch = children.match(/(\d+):(\d+)(?:-(\d+))?/);
-    const chapterVerse = refMatch ? refMatch[0] : '';
+    const chapterMatch = children.match(/(\d+)章/);
+    
+    let chapterVerse = '';
+    if (refMatch) {
+      chapterVerse = refMatch[0];
+    } else if (chapterMatch) {
+      chapterVerse = `${chapterMatch[1]}章`;
+    } else if (ref.chapter) {
+      chapterVerse = `${ref.chapter}`;
+    }
     
     // Format bilingual display
     const displayText = isChinese
@@ -275,11 +302,12 @@ const processTextWithBibleRefs = (text: string, onNavigate?: (bookId: string, ch
   }).join('|');
   
   // Combined pattern that matches:
-  // 1. Chinese: 书名章:节 (no space between book and chapter) - e.g., "诗篇95:11"
-  // 2. English: Book chapter:verse (with space) - e.g., "Psalm 95:11"
-  // 3. Standalone: chapter:verse (like "2:3") when in context
+  // 1. Chinese with chapter:verse: 书名 章:节 (with optional space) - e.g., "诗篇95:11" or "希伯来书 4:2"
+  // 2. Chinese chapter-only: 书名 章章 (with optional space) - e.g., "希伯来书95章"
+  // 3. English: Book chapter:verse (with space) - e.g., "Psalm 95:11"
+  // 4. Standalone: chapter:verse (like "2:3") when in context
   const combinedPattern = new RegExp(
-    `(${chineseBookNames})\\s*\\d+:\\d+(?:-\\d+)?|(${englishBookNames})\\s+\\d+:\\d+(?:-\\d+)?|(?<!\\d)\\d{1,3}:\\d{1,3}(?:-\\d{1,3})?(?!\\d)`,
+    `(${chineseBookNames})\\s*\\d+:\\d+(?:-\\d+)?|(${chineseBookNames})\\s*\\d+章|(${englishBookNames})\\s+\\d+:\\d+(?:-\\d+)?|(?<!\\d)\\d{1,3}:\\d{1,3}(?:-\\d{1,3})?(?!\\d)`,
     'gi'
   );
   
