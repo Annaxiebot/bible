@@ -274,6 +274,9 @@ const BibleLink: React.FC<BibleLinkProps> = ({ children, onNavigate }) => {
         href="#"
         onClick={(e) => {
           e.preventDefault();
+          // TODO: Add validation for invalid chapter/verse references
+          // Bible API returns 404 for non-existent chapters/verses
+          // Should show user-friendly error message like "Chapter not found"
           onNavigate(ref.bookId, ref.chapter, ref.verses);
         }}
         className="inline-flex items-center gap-1 px-2 py-0.5 mx-0.5 bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-md text-indigo-700 hover:from-indigo-100 hover:to-purple-100 hover:border-indigo-300 hover:text-indigo-900 transition-all cursor-pointer font-medium text-sm shadow-sm hover:shadow-md"
