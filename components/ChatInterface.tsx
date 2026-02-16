@@ -56,10 +56,128 @@ interface BibleRef {
   verses?: number[];
 }
 
+// Mapping of Chinese book names to book IDs
+const CHINESE_BOOK_MAP: { [key: string]: string } = {
+  '创世记': 'GEN',
+  '出埃及记': 'EXO',
+  '利未记': 'LEV',
+  '民数记': 'NUM',
+  '申命记': 'DEU',
+  '约书亚记': 'JOS',
+  '士师记': 'JDG',
+  '路得记': 'RUT',
+  '撒母耳记上': '1SA',
+  '撒母耳记下': '2SA',
+  '列王纪上': '1KI',
+  '列王纪下': '2KI',
+  '历代志上': '1CH',
+  '历代志下': '2CH',
+  '以斯拉记': 'EZR',
+  '尼希米记': 'NEH',
+  '以斯帖记': 'EST',
+  '约伯记': 'JOB',
+  '诗篇': 'PSA',
+  '箴言': 'PRO',
+  '传道书': 'ECC',
+  '雅歌': 'SNG',
+  '以赛亚书': 'ISA',
+  '耶利米书': 'JER',
+  '耶利米哀歌': 'LAM',
+  '以西结书': 'EZK',
+  '但以理书': 'DAN',
+  '何西阿书': 'HOS',
+  '约珥书': 'JOE',
+  '阿摩司书': 'AMO',
+  '俄巴底亚书': 'OBA',
+  '约拿书': 'JON',
+  '弥迦书': 'MIC',
+  '那鸿书': 'NAM',
+  '哈巴谷书': 'HAB',
+  '西番雅书': 'ZEP',
+  '哈该书': 'HAG',
+  '撒迦利亚书': 'ZEC',
+  '玛拉基书': 'MAL',
+  '马太福音': 'MAT',
+  '马可福音': 'MRK',
+  '路加福音': 'LUK',
+  '约翰福音': 'JHN',
+  '使徒行传': 'ACT',
+  '罗马书': 'ROM',
+  '哥林多前书': '1CO',
+  '哥林多后书': '2CO',
+  '加拉太书': 'GAL',
+  '以弗所书': 'EPH',
+  '腓立比书': 'PHP',
+  '歌罗西书': 'COL',
+  '帖撒罗尼迦前书': '1TH',
+  '帖撒罗尼迦后书': '2TH',
+  '提摩太前书': '1TI',
+  '提摩太后书': '2TI',
+  '提多书': 'TIT',
+  '腓利门书': 'PHM',
+  '希伯来书': 'HEB',
+  '雅各书': 'JAS',
+  '彼得前书': '1PE',
+  '彼得后书': '2PE',
+  '约翰一书': '1JN',
+  '约翰二书': '2JN',
+  '约翰三书': '3JN',
+  '犹大书': 'JUD',
+  '启示录': 'REV',
+};
+
+// Create reverse mappings: ID -> Chinese and ID -> English
+const BOOK_ID_TO_CHINESE: { [key: string]: string } = {};
+const BOOK_ID_TO_ENGLISH: { [key: string]: string } = {};
+
+BIBLE_BOOKS.forEach(book => {
+  // Extract Chinese and English names from "中文 English" format
+  const parts = book.name.split(' ');
+  const chineseName = parts[0]; // First part is Chinese
+  const englishName = parts.slice(1).join(' '); // Rest is English
+  
+  BOOK_ID_TO_CHINESE[book.id] = chineseName;
+  BOOK_ID_TO_ENGLISH[book.id] = englishName;
+});
+
 const parseBibleReference = (text: string): BibleRef | null => {
-  // Build a regex pattern that matches book names from BIBLE_BOOKS
-  const bookNames = BIBLE_BOOKS.map(b => b.name).join('|');
-  const bookPattern = `(${bookNames})`;
+  // First try to parse as Chinese reference
+  const chineseBookNames = Object.keys(CHINESE_BOOK_MAP).join('|');
+  const chinesePattern = new RegExp(`(${chineseBookNames})(\\d+):(\\d+)(?:-(\\d+))?`);
+  const chineseMatch = text.match(chinesePattern);
+  
+  if (chineseMatch) {
+    const bookName = chineseMatch[1];
+    const chapter = parseInt(chineseMatch[2]);
+    const verseStart = parseInt(chineseMatch[3]);
+    const verseEnd = chineseMatch[4] ? parseInt(chineseMatch[4]) : undefined;
+    
+    const bookId = CHINESE_BOOK_MAP[bookName];
+    if (!bookId) return null;
+    
+    const verses: number[] = [];
+    if (verseEnd) {
+      for (let v = verseStart; v <= verseEnd; v++) {
+        verses.push(v);
+      }
+    } else {
+      verses.push(verseStart);
+    }
+    
+    return {
+      bookId,
+      chapter,
+      verses
+    };
+  }
+  
+  // Then try to parse as English reference
+  // Extract only English names from BIBLE_BOOKS
+  const englishBookNames = BIBLE_BOOKS.map(b => {
+    const parts = b.name.split(' ');
+    return parts.slice(1).join(' '); // Get everything after the first part (Chinese)
+  }).join('|');
+  const bookPattern = `(${englishBookNames})`;
   
   // Pattern: "Book chapter:verse" or "Book chapter:verse-verse"
   const refPattern = new RegExp(`${bookPattern}\\s+(\\d+):(\\d+)(?:-(\\d+))?`, 'i');
@@ -71,7 +189,12 @@ const parseBibleReference = (text: string): BibleRef | null => {
     const verseStart = parseInt(match[3]);
     const verseEnd = match[4] ? parseInt(match[4]) : undefined;
     
-    const book = BIBLE_BOOKS.find(b => b.name.toLowerCase() === bookName.toLowerCase());
+    // Find book by matching English name only
+    const book = BIBLE_BOOKS.find(b => {
+      const parts = b.name.split(' ');
+      const englishName = parts.slice(1).join(' ');
+      return englishName.toLowerCase() === bookName.toLowerCase();
+    });
     if (!book) return null;
     
     const verses: number[] = [];
@@ -102,6 +225,23 @@ const BibleLink: React.FC<BibleLinkProps> = ({ children, onNavigate }) => {
   const ref = parseBibleReference(children);
   
   if (ref && onNavigate) {
+    // Detect whether the original reference was in Chinese or English
+    const chineseBookNames = Object.keys(CHINESE_BOOK_MAP);
+    const isChinese = chineseBookNames.some(name => children.includes(name));
+    
+    // Get book names
+    const chineseName = BOOK_ID_TO_CHINESE[ref.bookId];
+    const englishName = BOOK_ID_TO_ENGLISH[ref.bookId];
+    
+    // Extract chapter and verse info
+    const refMatch = children.match(/(\d+):(\d+)(?:-(\d+))?/);
+    const chapterVerse = refMatch ? refMatch[0] : '';
+    
+    // Format bilingual display
+    const displayText = isChinese
+      ? `${chineseName} ${englishName} ${chapterVerse}`
+      : `${englishName} ${chineseName} ${chapterVerse}`;
+    
     return (
       <a
         href="#"
@@ -109,10 +249,13 @@ const BibleLink: React.FC<BibleLinkProps> = ({ children, onNavigate }) => {
           e.preventDefault();
           onNavigate(ref.bookId, ref.chapter, ref.verses);
         }}
-        className="text-indigo-600 hover:text-indigo-800 underline decoration-indigo-300 hover:decoration-indigo-500 transition-colors cursor-pointer font-medium"
-        title={`跳转到 Go to ${children}`}
+        className="inline-flex items-center gap-1 px-2 py-0.5 mx-0.5 bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-md text-indigo-700 hover:from-indigo-100 hover:to-purple-100 hover:border-indigo-300 hover:text-indigo-900 transition-all cursor-pointer font-medium text-sm shadow-sm hover:shadow-md"
+        title={`跳转到 Go to ${displayText}`}
       >
-        {children}
+        <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+        </svg>
+        <span className="whitespace-nowrap">{displayText}</span>
       </a>
     );
   }
@@ -121,14 +264,27 @@ const BibleLink: React.FC<BibleLinkProps> = ({ children, onNavigate }) => {
 };
 
 const processTextWithBibleRefs = (text: string, onNavigate?: (bookId: string, chapter: number, verses?: number[]) => void): React.ReactNode => {
-  const bookNames = BIBLE_BOOKS.map(b => b.name).join('|');
-  const refPattern = new RegExp(`(${bookNames})\\s+\\d+:\\d+(?:-\\d+)?`, 'gi');
+  // Create patterns for both Chinese and English references
+  const chineseBookNames = Object.keys(CHINESE_BOOK_MAP).join('|');
+  // Extract only English names from BIBLE_BOOKS
+  const englishBookNames = BIBLE_BOOKS.map(b => {
+    const parts = b.name.split(' ');
+    return parts.slice(1).join(' '); // Get everything after the first part (Chinese)
+  }).join('|');
+  
+  // Combined pattern that matches both Chinese and English references
+  // Chinese: 书名章:节 (no space between book and chapter)
+  // English: Book chapter:verse (with space)
+  const combinedPattern = new RegExp(
+    `(${chineseBookNames})\\d+:\\d+(?:-\\d+)?|(${englishBookNames})\\s+\\d+:\\d+(?:-\\d+)?`,
+    'gi'
+  );
   
   const parts: React.ReactNode[] = [];
   let lastIndex = 0;
   let match;
   
-  while ((match = refPattern.exec(text)) !== null) {
+  while ((match = combinedPattern.exec(text)) !== null) {
     // Add text before the reference
     if (match.index > lastIndex) {
       parts.push(text.substring(lastIndex, match.index));
