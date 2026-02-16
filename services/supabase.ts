@@ -2,28 +2,45 @@
  * supabase.ts
  * 
  * Supabase client configuration for Bible app cloud sync.
- * Provides real-time sync for bookmarks, annotations, notes, and reading progress.
+ * Provides optional authentication and real-time sync for notes, annotations, 
+ * reading history, and settings.
  */
 
-import { createClient } from '@supabase/supabase-js';
+import { createClient, User, Session, AuthError } from '@supabase/supabase-js';
 
-// Supabase configuration
-const SUPABASE_URL = 'https://jyntvxgapvnmsfzgpnka.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_eWn3s_jO1vTAQgbLK5EgJw_1jkUtQFb';
+// Get configuration from environment variables
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
+
+if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  console.warn('Supabase credentials not configured. Cloud sync will be disabled.');
+}
 
 // Create Supabase client
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+export const supabase = SUPABASE_URL && SUPABASE_ANON_KEY 
+  ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+      }
+    })
+  : null;
 
-// Database types
-export interface DbBookmark {
+// =====================================================
+// DATABASE TYPES
+// =====================================================
+
+export interface DbNote {
   id: string;
   user_id: string;
+  reference: string;
   book_id: string;
-  book_name: string;
   chapter: number;
-  verse: number;
-  text_preview: string;
+  verse?: number | null;
+  content: string;
   created_at: string;
+  updated_at: string;
 }
 
 export interface DbAnnotation {
@@ -31,80 +48,229 @@ export interface DbAnnotation {
   user_id: string;
   book_id: string;
   chapter: number;
+  panel_id?: string | null;
   canvas_data: string;
   canvas_height: number;
-  last_modified: string;
-}
-
-export interface DbNote {
-  id: string;
-  user_id: string;
-  book_id: string;
-  chapter: number;
-  verse: number | null;
-  content: string;
   created_at: string;
   updated_at: string;
 }
 
-export interface DbReadingProgress {
+export interface DbReadingHistory {
   id: string;
   user_id: string;
   book_id: string;
+  book_name: string;
   chapter: number;
-  completed_at: string;
+  last_read: string;
+  has_notes: boolean;
+  has_ai_research: boolean;
 }
 
-// Helper to get or create anonymous user ID (stored in localStorage)
-export function getAnonymousUserId(): string {
-  const STORAGE_KEY = 'bible-app-user-id';
-  let userId = localStorage.getItem(STORAGE_KEY);
+export interface DbLastRead {
+  user_id: string;
+  book_id: string;
+  book_name: string;
+  chapter: number;
+  updated_at: string;
+}
+
+export interface DbUserSettings {
+  user_id: string;
+  settings: Record<string, any>;
+  updated_at: string;
+}
+
+// =====================================================
+// AUTH STATE MANAGEMENT
+// =====================================================
+
+export type AuthState = {
+  user: User | null;
+  session: Session | null;
+  isAuthenticated: boolean;
+  isLoading: boolean;
+};
+
+class AuthManager {
+  private state: AuthState = {
+    user: null,
+    session: null,
+    isAuthenticated: false,
+    isLoading: true
+  };
   
-  if (!userId) {
-    // Generate a UUID-like anonymous user ID
-    userId = 'anon_' + crypto.randomUUID();
-    localStorage.setItem(STORAGE_KEY, userId);
+  private listeners: Set<(state: AuthState) => void> = new Set();
+
+  constructor() {
+    this.initialize();
   }
-  
-  return userId;
+
+  private async initialize() {
+    if (!supabase) {
+      this.state.isLoading = false;
+      this.notify();
+      return;
+    }
+
+    // Get initial session
+    const { data: { session } } = await supabase.auth.getSession();
+    this.updateState(session);
+
+    // Listen for auth changes
+    supabase.auth.onAuthStateChange((_event, session) => {
+      this.updateState(session);
+    });
+
+    this.state.isLoading = false;
+    this.notify();
+  }
+
+  private updateState(session: Session | null) {
+    this.state = {
+      user: session?.user || null,
+      session,
+      isAuthenticated: !!session,
+      isLoading: false
+    };
+    this.notify();
+  }
+
+  private notify() {
+    this.listeners.forEach(listener => listener(this.state));
+  }
+
+  getState(): AuthState {
+    return this.state;
+  }
+
+  subscribe(listener: (state: AuthState) => void): () => void {
+    this.listeners.add(listener);
+    listener(this.state); // Call immediately with current state
+    return () => this.listeners.delete(listener);
+  }
+
+  async signUp(email: string, password: string): Promise<{ user: User | null; error: AuthError | null }> {
+    if (!supabase) {
+      return { user: null, error: new Error('Supabase not configured') as any };
+    }
+    const { data, error } = await supabase.auth.signUp({ email, password });
+    return { user: data.user, error };
+  }
+
+  async signIn(email: string, password: string): Promise<{ user: User | null; error: AuthError | null }> {
+    if (!supabase) {
+      return { user: null, error: new Error('Supabase not configured') as any };
+    }
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    return { user: data.user, error };
+  }
+
+  async signOut(): Promise<{ error: AuthError | null }> {
+    if (!supabase) {
+      return { error: new Error('Supabase not configured') as any };
+    }
+    const { error } = await supabase.auth.signOut();
+    return { error };
+  }
+
+  async resetPassword(email: string): Promise<{ error: AuthError | null }> {
+    if (!supabase) {
+      return { error: new Error('Supabase not configured') as any };
+    }
+    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    return { error };
+  }
+
+  getUserId(): string | null {
+    return this.state.user?.id || null;
+  }
+
+  getEmail(): string | null {
+    return this.state.user?.email || null;
+  }
 }
 
-// Sync status management
-export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline';
+export const authManager = new AuthManager();
+
+// =====================================================
+// SYNC STATUS MANAGEMENT
+// =====================================================
+
+export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline' | 'disabled';
 
 class SyncManager {
-  private status: SyncStatus = 'idle';
+  private status: SyncStatus = supabase ? 'idle' : 'disabled';
   private listeners: Set<(status: SyncStatus) => void> = new Set();
+  private lastSyncTime: number | null = null;
+  private syncError: string | null = null;
 
   getStatus(): SyncStatus {
     return this.status;
   }
 
-  setStatus(status: SyncStatus) {
+  setStatus(status: SyncStatus, error?: string) {
     this.status = status;
+    if (error) {
+      this.syncError = error;
+    } else if (status !== 'error') {
+      this.syncError = null;
+    }
+    
+    if (status === 'idle' && !error) {
+      this.lastSyncTime = Date.now();
+    }
+    
     this.listeners.forEach(listener => listener(status));
+  }
+
+  getLastSyncTime(): number | null {
+    return this.lastSyncTime;
+  }
+
+  getError(): string | null {
+    return this.syncError;
   }
 
   subscribe(listener: (status: SyncStatus) => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
   }
+
+  isEnabled(): boolean {
+    return this.status !== 'disabled';
+  }
 }
 
 export const syncManager = new SyncManager();
 
-// Check if online
+// =====================================================
+// ONLINE/OFFLINE DETECTION
+// =====================================================
+
 export function isOnline(): boolean {
   return navigator.onLine;
 }
 
-// Listen for online/offline events
 if (typeof window !== 'undefined') {
   window.addEventListener('online', () => {
-    syncManager.setStatus('idle');
+    if (syncManager.getStatus() === 'offline') {
+      syncManager.setStatus('idle');
+    }
   });
   
   window.addEventListener('offline', () => {
     syncManager.setStatus('offline');
   });
+}
+
+// =====================================================
+// HELPER FUNCTIONS
+// =====================================================
+
+export function isSupabaseConfigured(): boolean {
+  return !!supabase;
+}
+
+export function canSync(): boolean {
+  return isSupabaseConfigured() && authManager.getState().isAuthenticated && isOnline();
 }
