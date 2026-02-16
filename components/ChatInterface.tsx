@@ -263,7 +263,7 @@ const BibleLink: React.FC<BibleLinkProps> = ({ children, onNavigate }) => {
   return <>{children}</>;
 };
 
-const processTextWithBibleRefs = (text: string, onNavigate?: (bookId: string, chapter: number, verses?: number[]) => void): React.ReactNode => {
+const processTextWithBibleRefs = (text: string, onNavigate?: (bookId: string, chapter: number, verses?: number[]) => void, currentBookId?: string): React.ReactNode => {
   // Create patterns for both Chinese and English references
   const chineseBookNames = Object.keys(CHINESE_BOOK_MAP).join('|');
   // Extract only English names from BIBLE_BOOKS
@@ -272,11 +272,12 @@ const processTextWithBibleRefs = (text: string, onNavigate?: (bookId: string, ch
     return parts.slice(1).join(' '); // Get everything after the first part (Chinese)
   }).join('|');
   
-  // Combined pattern that matches both Chinese and English references
-  // Chinese: 书名章:节 (no space between book and chapter)
-  // English: Book chapter:verse (with space)
+  // Combined pattern that matches:
+  // 1. Chinese: 书名章:节 (no space between book and chapter)
+  // 2. English: Book chapter:verse (with space)
+  // 3. Standalone: chapter:verse (like "2:3") when in context
   const combinedPattern = new RegExp(
-    `(${chineseBookNames})\\d+:\\d+(?:-\\d+)?|(${englishBookNames})\\s+\\d+:\\d+(?:-\\d+)?`,
+    `(${chineseBookNames})\\d+:\\d+(?:-\\d+)?|(${englishBookNames})\\s+\\d+:\\d+(?:-\\d+)?|(?<!\\d)\\d{1,3}:\\d{1,3}(?:-\\d{1,3})?(?!\\d)`,
     'gi'
   );
   
@@ -290,12 +291,33 @@ const processTextWithBibleRefs = (text: string, onNavigate?: (bookId: string, ch
       parts.push(text.substring(lastIndex, match.index));
     }
     
-    // Add the clickable reference
-    parts.push(
-      <BibleLink key={match.index} onNavigate={onNavigate}>
-        {match[0]}
-      </BibleLink>
-    );
+    // Check if this is a standalone chapter:verse pattern
+    const matchedText = match[0];
+    const isStandalone = /^\d{1,3}:\d{1,3}(?:-\d{1,3})?$/.test(matchedText);
+    
+    if (isStandalone && currentBookId) {
+      // For standalone patterns, use the current book context
+      const currentBook = BIBLE_BOOKS.find(b => b.id === currentBookId);
+      if (currentBook) {
+        const chineseName = BOOK_ID_TO_CHINESE[currentBookId];
+        const displayRef = `${chineseName}${matchedText}`;
+        parts.push(
+          <BibleLink key={match.index} onNavigate={onNavigate}>
+            {displayRef}
+          </BibleLink>
+        );
+      } else {
+        // No book context, just show as plain text
+        parts.push(matchedText);
+      }
+    } else {
+      // Add the clickable reference (full book name included)
+      parts.push(
+        <BibleLink key={match.index} onNavigate={onNavigate}>
+          {matchedText}
+        </BibleLink>
+      );
+    }
     
     lastIndex = match.index + match[0].length;
   }
@@ -316,9 +338,11 @@ interface MessageBubbleProps {
   onStop: () => void;
   onSaveResearch?: (message: ChatMessage, side: 'zh' | 'en') => void;
   onNavigate?: (bookId: string, chapter: number, verses?: number[]) => void;
+  currentBookId?: string;
+  onTextSelection?: (selectedText: string, position: { x: number; y: number }) => void;
 }
 
-const MessageBubble: React.FC<MessageBubbleProps> = ({ m, side, isSpeaking, onSpeak, onStop, onSaveResearch, onNavigate }) => {
+const MessageBubble: React.FC<MessageBubbleProps> = ({ m, side, isSpeaking, onSpeak, onStop, onSaveResearch, onNavigate, currentBookId, onTextSelection }) => {
   const { zh, en } = parseMessage(m.content, m.role);
   const content = side === 'zh' ? zh : en;
 
@@ -332,13 +356,31 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ m, side, isSpeaking, onSp
     }
   }
 
+  const handleMouseUp = (e: React.MouseEvent) => {
+    const selection = window.getSelection();
+    const selectedText = selection?.toString().trim();
+    if (selectedText && selectedText.length > 0 && onTextSelection) {
+      const range = selection?.getRangeAt(0);
+      const rect = range?.getBoundingClientRect();
+      if (rect) {
+        onTextSelection(selectedText, {
+          x: rect.left + window.scrollX,
+          y: rect.bottom + window.scrollY
+        });
+      }
+    }
+  };
+
   return (
     <div className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}>
-      <div className={`max-w-[95%] rounded-2xl p-4 shadow-sm border transition-all ${
-        m.role === 'user' 
-          ? 'bg-indigo-600 text-white border-transparent' 
-          : 'bg-white text-slate-800 border-slate-200'
-      }`}>
+      <div 
+        className={`max-w-[95%] rounded-2xl p-4 shadow-sm border transition-all ${
+          m.role === 'user' 
+            ? 'bg-indigo-600 text-white border-transparent' 
+            : 'bg-white text-slate-800 border-slate-200'
+        }`}
+        onMouseUp={m.role === 'assistant' ? handleMouseUp : undefined}
+      >
         <div className="flex justify-between items-start gap-2">
           <div className={`flex-1 overflow-hidden prose prose-sm sm:prose-base ${m.role === 'user' ? 'prose-invert text-white' : 'prose-slate'}`}>
             <ReactMarkdown 
@@ -365,7 +407,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ m, side, isSpeaking, onSp
                 p: ({ children }) => {
                   const processChildren = (nodes: React.ReactNode): React.ReactNode => {
                     if (typeof nodes === 'string') {
-                      return processTextWithBibleRefs(nodes, onNavigate);
+                      return processTextWithBibleRefs(nodes, onNavigate, currentBookId);
                     }
                     if (Array.isArray(nodes)) {
                       return nodes.map((node, i) => 
@@ -454,6 +496,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
   });
   const [showProviderSettings, setShowProviderSettings] = useState(false);
   const [currentProvider, setCurrentProvider] = useState(aiService.getCurrentProvider());
+  const [contextMenu, setContextMenu] = useState<{
+    position: { x: number; y: number };
+    selectedText: string;
+  } | null>(null);
   
   const containerRef = useRef<HTMLDivElement>(null);
   const zhScrollRef = useRef<HTMLDivElement>(null);
@@ -515,6 +561,41 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     setSpeakingMsgIndex(prev => ({ ...prev, [side]: null }));
   };
 
+  const handleTextSelection = (selectedText: string, position: { x: number; y: number }) => {
+    setContextMenu({ selectedText, position });
+  };
+
+  const handleContextMenuAction = (action: 'search' | 'copy') => {
+    if (!contextMenu) return;
+    
+    switch (action) {
+      case 'search':
+        // Search for the selected text as a potential Bible reference
+        const text = contextMenu.selectedText.trim();
+        // Check if it looks like a Bible reference pattern
+        const refPattern = /(\d{1,3}:\d{1,3}(?:-\d{1,3})?)/;
+        const match = text.match(refPattern);
+        if (match && currentBookId && onNavigate) {
+          // Try to parse as a reference in the current book context
+          const currentBook = BIBLE_BOOKS.find(b => b.id === currentBookId);
+          if (currentBook) {
+            const chineseName = BOOK_ID_TO_CHINESE[currentBookId];
+            const fullRef = `${chineseName}${match[1]}`;
+            const parsed = parseBibleReference(fullRef);
+            if (parsed) {
+              onNavigate(parsed.bookId, parsed.chapter, parsed.verses);
+            }
+          }
+        }
+        break;
+      case 'copy':
+        navigator.clipboard.writeText(contextMenu.selectedText);
+        break;
+    }
+    
+    setContextMenu(null);
+  };
+
   const syncScroll = (source: 'zh' | 'en') => {
     const src = source === 'zh' ? zhScrollRef.current : enScrollRef.current;
     const dest = source === 'zh' ? enScrollRef.current : zhScrollRef.current;
@@ -564,6 +645,15 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
         fast: !isThinking 
       });
       
+      // Console logging for debugging AI responses
+      console.log('[AI Response]', {
+        timestamp: new Date().toISOString(),
+        userInput: currentInput,
+        responseText: response.text,
+        responseLength: response.text?.length || 0,
+        hasGroundingMetadata: !!response.candidates?.[0]?.groundingMetadata
+      });
+      
       const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
       const references = Array.isArray(groundingChunks) 
         ? groundingChunks.map((chunk: any) => ({ title: chunk.web?.title || '参考资料', uri: chunk.web?.uri || '' })).filter((c: any) => c.uri)
@@ -576,8 +666,16 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
         references: references
       };
 
+      // Log detected Bible references in the response
+      const colonPattern = /\d{1,3}:\d{1,3}(?:-\d{1,3})?/g;
+      const detectedColonRefs = response.text?.match(colonPattern) || [];
+      if (detectedColonRefs.length > 0) {
+        console.log('[Bible References Detected]', detectedColonRefs);
+      }
+
       setMessages(prev => [...prev, assistantMessage]);
     } catch (error) {
+      console.error('[AI Response Error]', error);
       setMessages(prev => [...prev, { role: 'assistant', content: "连接失败，请重试。", timestamp: new Date() }]);
     } finally {
       setIsTyping(false);
@@ -736,6 +834,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
               onStop={() => handleStop('zh')}
               onSaveResearch={onSaveResearch}
               onNavigate={onNavigate}
+              currentBookId={currentBookId}
+              onTextSelection={handleTextSelection}
             />
           ))}
           {isTyping && (
@@ -855,6 +955,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
               onStop={() => handleStop('en')}
               onSaveResearch={onSaveResearch}
               onNavigate={onNavigate}
+              currentBookId={currentBookId}
+              onTextSelection={handleTextSelection}
             />
           ))}
         </div>
@@ -910,6 +1012,50 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
           setCurrentProvider(aiService.getCurrentProvider());
         }}
       />
+
+      {/* Context Menu for Text Selection */}
+      {contextMenu && (
+        <div 
+          className="fixed bg-white rounded-lg shadow-xl border border-slate-200 z-50 py-1"
+          style={{
+            left: `${contextMenu.position.x}px`,
+            top: `${contextMenu.position.y}px`,
+          }}
+        >
+          <button
+            onClick={() => handleContextMenuAction('search')}
+            className="w-full px-4 py-2 text-left text-sm hover:bg-indigo-50 transition-colors flex items-center gap-2"
+          >
+            <svg className="w-4 h-4 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+            </svg>
+            搜索经文 Search Reference
+          </button>
+          <button
+            onClick={() => handleContextMenuAction('copy')}
+            className="w-full px-4 py-2 text-left text-sm hover:bg-indigo-50 transition-colors flex items-center gap-2"
+          >
+            <svg className="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            </svg>
+            复制 Copy
+          </button>
+          <button
+            onClick={() => setContextMenu(null)}
+            className="w-full px-4 py-2 text-left text-sm text-slate-400 hover:bg-slate-50 transition-colors"
+          >
+            取消 Cancel
+          </button>
+        </div>
+      )}
+
+      {/* Click outside to close context menu */}
+      {contextMenu && (
+        <div 
+          className="fixed inset-0 z-40"
+          onClick={() => setContextMenu(null)}
+        />
+      )}
     </div>
   );
 };
