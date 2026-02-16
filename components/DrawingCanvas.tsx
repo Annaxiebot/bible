@@ -78,6 +78,9 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
       clear: () => {
         pathsRef.current = [];
         currentPointsRef.current = [];
+        lastRenderedIndexRef.current = 0;
+        isDrawingRef.current = false;
+        cancelAnimationFrame(rafIdRef.current);
         fullRedraw();
         onChange('');
       },
@@ -239,6 +242,9 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
     }, [drawSegment, canvasHeight]);
 
     // ── Render loop ─────────────────────────────────────────────────────
+    
+    // Track last rendered point index to draw all segments during fast strokes
+    const lastRenderedIndexRef = useRef(0);
 
     const renderLoop = useCallback(() => {
       if (!needsRedrawRef.current) {
@@ -260,11 +266,13 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
         return;
       }
 
-      // Draw ALL new segments since last frame (not just last 2)
-      // This helps with fast strokes
-      const from = pts[pts.length - 2];
-      const to = pts[pts.length - 1];
-      drawSegment(ctx, from, to, toolRef.current, colorRef.current, sizeRef.current);
+      // Draw ALL segments from last rendered point to current
+      // This fixes fast writing not displaying trace
+      const startIdx = Math.max(1, lastRenderedIndexRef.current);
+      for (let i = startIdx; i < pts.length; i++) {
+        drawSegment(ctx, pts[i - 1], pts[i], toolRef.current, colorRef.current, sizeRef.current);
+      }
+      lastRenderedIndexRef.current = pts.length;
 
       if (isDrawingRef.current) {
         rafIdRef.current = requestAnimationFrame(renderLoop);
@@ -317,6 +325,7 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
 
       isDrawingRef.current = true;
       currentPointsRef.current = [point];
+      lastRenderedIndexRef.current = 0; // Reset for new stroke
       needsRedrawRef.current = false;
       rafIdRef.current = requestAnimationFrame(renderLoop);
     }, [isWritingMode, renderLoop]);
@@ -325,10 +334,12 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
 
     const continueDrawing = useCallback((points: Point[]) => {
       if (!isDrawingRef.current) return;
-      for (const point of points) {
-        currentPointsRef.current.push(point);
+      
+      // Batch add all points at once for better performance
+      if (points.length > 0) {
+        currentPointsRef.current.push(...points);
+        needsRedrawRef.current = true;
       }
-      needsRedrawRef.current = true;
     }, []);
 
     // ── End drawing ─────────────────────────────────────────────────────
@@ -359,8 +370,14 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
     const handleTouchStart = useCallback((e: TouchEvent) => {
       if (!isWritingMode) return;
       
-      // Only handle single touch for drawing
-      if (e.touches.length !== 1) return;
+      // Only handle single touch for drawing (allow two-finger scroll)
+      if (e.touches.length > 2) return;
+      
+      // For two-finger gestures, don't interfere (allow scrolling)
+      if (e.touches.length === 2) {
+        usingTouchRef.current = false;
+        return;
+      }
       
       const touch = e.touches[0];
       
@@ -378,8 +395,20 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
     }, [isWritingMode, getPointFromTouch, startDrawing]);
 
     const handleTouchMove = useCallback((e: TouchEvent) => {
-      if (!isWritingMode || !isDrawingRef.current) return;
-      if (e.touches.length !== 1) return;
+      if (!isWritingMode) return;
+      
+      // Allow two-finger scroll - don't block it
+      if (e.touches.length === 2) {
+        if (isDrawingRef.current) {
+          // End current stroke if switching to scroll
+          endDrawing();
+        }
+        usingTouchRef.current = false;
+        return;
+      }
+      
+      // Only draw with single touch
+      if (!isDrawingRef.current || e.touches.length !== 1) return;
       
       e.preventDefault();
       e.stopPropagation();
@@ -398,10 +427,16 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
       }
       
       continueDrawing(points);
-    }, [isWritingMode, getPointFromTouch, continueDrawing]);
+    }, [isWritingMode, getPointFromTouch, continueDrawing, endDrawing]);
 
     const handleTouchEnd = useCallback((e: TouchEvent) => {
       if (!isWritingMode) return;
+      
+      // Only handle if we were drawing
+      if (!isDrawingRef.current) {
+        usingTouchRef.current = false;
+        return;
+      }
       
       e.preventDefault();
       e.stopPropagation();
@@ -415,12 +450,14 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
     }, [isWritingMode, endDrawing]);
 
     const handleTouchCancel = useCallback((e: TouchEvent) => {
-      if (!isDrawingRef.current) return;
+      // Don't check isDrawingRef - always clean up on cancel
       e.preventDefault();
-      isDrawingRef.current = false;
-      cancelAnimationFrame(rafIdRef.current);
-      currentPointsRef.current = [];
-      fullRedraw();
+      if (isDrawingRef.current) {
+        isDrawingRef.current = false;
+        cancelAnimationFrame(rafIdRef.current);
+        currentPointsRef.current = [];
+        fullRedraw();
+      }
       usingTouchRef.current = false;
     }, [fullRedraw]);
 

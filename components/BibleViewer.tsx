@@ -2573,11 +2573,26 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
                 type="range"
                 min={1}
                 max={12}
+                step={1}
                 value={annotationSize}
-                onChange={(e) => setAnnotationSize(parseInt(e.target.value))}
-                onInput={(e) => setAnnotationSize(parseInt((e.target as HTMLInputElement).value))}
+                onChange={(e) => {
+                  const newSize = parseInt(e.target.value);
+                  setAnnotationSize(newSize);
+                }}
+                onInput={(e) => {
+                  const newSize = parseInt((e.target as HTMLInputElement).value);
+                  setAnnotationSize(newSize);
+                }}
+                onTouchMove={(e) => {
+                  // Ensure continuous updates on touch devices
+                  e.stopPropagation();
+                }}
                 className="w-10 sm:w-16 h-1 accent-slate-500"
-                style={{ touchAction: 'none' }}
+                style={{ 
+                  touchAction: 'none',
+                  WebkitAppearance: 'none',
+                  appearance: 'none',
+                }}
                 title={`Size: ${annotationSize}`}
               />
               <span className="text-[8px] sm:text-[9px] font-medium text-slate-500 mt-0.5 sm:mt-1">{annotationSize}</span>
