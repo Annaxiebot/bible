@@ -265,19 +265,21 @@ const BibleLink: React.FC<BibleLinkProps> = ({ children, onNavigate }) => {
 
 const processTextWithBibleRefs = (text: string, onNavigate?: (bookId: string, chapter: number, verses?: number[]) => void, currentBookId?: string): React.ReactNode => {
   // Create patterns for both Chinese and English references
-  const chineseBookNames = Object.keys(CHINESE_BOOK_MAP).join('|');
+  // Escape special regex characters in book names
+  const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const chineseBookNames = Object.keys(CHINESE_BOOK_MAP).map(escapeRegex).join('|');
   // Extract only English names from BIBLE_BOOKS
   const englishBookNames = BIBLE_BOOKS.map(b => {
     const parts = b.name.split(' ');
-    return parts.slice(1).join(' '); // Get everything after the first part (Chinese)
+    return escapeRegex(parts.slice(1).join(' ')); // Get everything after the first part (Chinese)
   }).join('|');
   
   // Combined pattern that matches:
-  // 1. Chinese: 书名章:节 (no space between book and chapter)
-  // 2. English: Book chapter:verse (with space)
+  // 1. Chinese: 书名章:节 (no space between book and chapter) - e.g., "诗篇95:11"
+  // 2. English: Book chapter:verse (with space) - e.g., "Psalm 95:11"
   // 3. Standalone: chapter:verse (like "2:3") when in context
   const combinedPattern = new RegExp(
-    `(${chineseBookNames})\\d+:\\d+(?:-\\d+)?|(${englishBookNames})\\s+\\d+:\\d+(?:-\\d+)?|(?<!\\d)\\d{1,3}:\\d{1,3}(?:-\\d{1,3})?(?!\\d)`,
+    `(${chineseBookNames})\\s*\\d+:\\d+(?:-\\d+)?|(${englishBookNames})\\s+\\d+:\\d+(?:-\\d+)?|(?<!\\d)\\d{1,3}:\\d{1,3}(?:-\\d{1,3})?(?!\\d)`,
     'gi'
   );
   
@@ -572,19 +574,28 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       case 'search':
         // Search for the selected text as a potential Bible reference
         const text = contextMenu.selectedText.trim();
-        // Check if it looks like a Bible reference pattern
-        const refPattern = /(\d{1,3}:\d{1,3}(?:-\d{1,3})?)/;
-        const match = text.match(refPattern);
-        if (match && currentBookId && onNavigate) {
-          // Try to parse as a reference in the current book context
-          const currentBook = BIBLE_BOOKS.find(b => b.id === currentBookId);
-          if (currentBook) {
-            const chineseName = BOOK_ID_TO_CHINESE[currentBookId];
-            const fullRef = `${chineseName}${match[1]}`;
-            const parsed = parseBibleReference(fullRef);
-            if (parsed) {
-              onNavigate(parsed.bookId, parsed.chapter, parsed.verses);
+        
+        if (onNavigate) {
+          // First, try to parse as a complete Bible reference (e.g., "诗篇95:11" or "Psalm 95:11")
+          let parsed = parseBibleReference(text);
+          
+          // If that fails, check if it's a standalone chapter:verse pattern and use current book context
+          if (!parsed && currentBookId) {
+            const refPattern = /(\d{1,3}:\d{1,3}(?:-\d{1,3})?)/;
+            const match = text.match(refPattern);
+            if (match) {
+              const currentBook = BIBLE_BOOKS.find(b => b.id === currentBookId);
+              if (currentBook) {
+                const chineseName = BOOK_ID_TO_CHINESE[currentBookId];
+                const fullRef = `${chineseName}${match[1]}`;
+                parsed = parseBibleReference(fullRef);
+              }
             }
+          }
+          
+          // Navigate if we successfully parsed a reference
+          if (parsed) {
+            onNavigate(parsed.bookId, parsed.chapter, parsed.verses);
           }
         }
         break;
