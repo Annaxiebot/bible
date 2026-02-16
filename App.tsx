@@ -15,6 +15,7 @@ import { Toast } from './components/Toast';
 import NotesList from './components/NotesList';
 import { useSeasonThemeInit, SeasonThemeProvider } from './hooks/useSeasonTheme';
 import * as vibe from './services/vibe';
+import './services/syncService'; // Initialize sync service
 
 // Simplified split view hook
 function useSplitView(initialV = 100, initialH = 100) {

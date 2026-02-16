@@ -4,6 +4,7 @@ import { bookmarkStorage, Bookmark } from '../services/bookmarkStorage';
 import { readingPlanStorage, ReadingPlanState, READING_PLANS, PlanType, ReadingPlanDay } from '../services/readingPlanStorage';
 import { useSeasonTheme } from '../hooks/useSeasonTheme';
 import { ALL_SEASONS, getThemeForSeason, getSeason } from '../services/seasonTheme';
+import { AuthPanel } from './AuthPanel';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -71,6 +72,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     dataStats: false,
     notesManagement: false,
     offlineDownload: false,
+    cloudSync: false,
     settings: false,
   });
 
@@ -673,6 +675,23 @@ const Sidebar: React.FC<SidebarProps> = ({
                   )}
                 </>
               )}
+            </div>
+          )}
+
+          {/* === Cloud Sync Section (collapsible) === */}
+          <button
+            onClick={() => toggleSection('cloudSync')}
+            className="w-full flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors"
+          >
+            <ChevronIcon isOpen={sectionsOpen.cloudSync} />
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex-1 text-left">
+              ☁️ 云端同步 Cloud Sync
+            </span>
+          </button>
+
+          {sectionsOpen.cloudSync && (
+            <div className="px-4 py-2">
+              <AuthPanel />
             </div>
           )}
 
