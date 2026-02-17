@@ -1,3 +1,4 @@
+import { BIBLE_API_BASE } from './apiConfig';
 import { BIBLE_BOOKS } from '../constants';
 
 export interface CachedChapter {
@@ -187,8 +188,8 @@ export class BibleCacheService {
     
     // Fetch from API
     const [cuvRes, webRes] = await Promise.all([
-      fetch(`/bible-api/${bookId}${chapter}?translation=cuv`),
-      fetch(`/bible-api/${bookId}${chapter}?translation=web`)
+      fetch(`${BIBLE_API_BASE}/${bookId}${chapter}?translation=cuv`),
+      fetch(`${BIBLE_API_BASE}/${bookId}${chapter}?translation=web`)
     ]);
     
     const [cuvData, webData] = await Promise.all([

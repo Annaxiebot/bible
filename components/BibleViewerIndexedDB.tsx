@@ -1,3 +1,4 @@
+import { BIBLE_API_BASE } from '../services/apiConfig';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Verse, Book, SelectionInfo } from '../types';
 import { BIBLE_BOOKS } from '../constants';
@@ -104,9 +105,9 @@ const BibleViewer: React.FC<BibleViewerProps> = ({ onSelectionChange, onVersesSe
       } else {
         setIsOffline(false);
         // Fetch from API if not in cache
-        const cuvRes = await fetch(`/bible-api/${selectedBook.id}${selectedChapter}?translation=cuv`);
+        const cuvRes = await fetch(`${BIBLE_API_BASE}/${selectedBook.id}${selectedChapter}?translation=cuv`);
         const cuvData = await cuvRes.json();
-        const engRes = await fetch(`/bible-api/${selectedBook.id}${selectedChapter}?translation=web`);
+        const engRes = await fetch(`${BIBLE_API_BASE}/${selectedBook.id}${selectedChapter}?translation=web`);
         const engData = await engRes.json();
         
         if (cuvData?.verses && engData?.verses) {
@@ -143,7 +144,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({ onSelectionChange, onVersesSe
       let cuvSuccess = false;
       for (let retry = 0; retry < 3 && !cuvSuccess; retry++) {
         try {
-          const cuvRes = await fetch(`/bible-api/${selectedBook.id}${selectedChapter}?translation=cuv`);
+          const cuvRes = await fetch(`${BIBLE_API_BASE}/${selectedBook.id}${selectedChapter}?translation=cuv`);
           if (cuvRes.ok) {
             const cuvData = await cuvRes.json();
             if (cuvData?.verses) {
@@ -161,7 +162,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({ onSelectionChange, onVersesSe
       let webSuccess = false;
       for (let retry = 0; retry < 3 && !webSuccess; retry++) {
         try {
-          const webRes = await fetch(`/bible-api/${selectedBook.id}${selectedChapter}?translation=web`);
+          const webRes = await fetch(`${BIBLE_API_BASE}/${selectedBook.id}${selectedChapter}?translation=web`);
           if (webRes.ok) {
             const webData = await webRes.json();
             if (webData?.verses) {
@@ -235,7 +236,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({ onSelectionChange, onVersesSe
           let cuvSuccess = false;
           for (let retry = 0; retry < 3 && !cuvSuccess; retry++) {
             try {
-              const cuvRes = await fetch(`/bible-api/${book.id}${chapter}?translation=cuv`);
+              const cuvRes = await fetch(`${BIBLE_API_BASE}/${book.id}${chapter}?translation=cuv`);
               if (cuvRes.ok) {
                 const cuvData = await cuvRes.json();
                 if (cuvData?.verses) {
@@ -258,7 +259,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({ onSelectionChange, onVersesSe
           let webSuccess = false;
           for (let retry = 0; retry < 3 && !webSuccess; retry++) {
             try {
-              const webRes = await fetch(`/bible-api/${book.id}${chapter}?translation=web`);
+              const webRes = await fetch(`${BIBLE_API_BASE}/${book.id}${chapter}?translation=web`);
               if (webRes.ok) {
                 const webData = await webRes.json();
                 if (webData?.verses) {
