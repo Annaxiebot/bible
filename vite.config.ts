@@ -42,6 +42,13 @@ export default defineConfig(({ mode }) => {
         port: 3000,
         host: "0.0.0.0",
         // https: true, // Disabled due to SSL certificate issues on some devices
+        proxy: {
+          '/bible-api': {
+            target: 'https://bible-api.com',
+            changeOrigin: true,
+            rewrite: (path) => path.replace(/^\/bible-api/, ''),
+          }
+        }
       },
       plugins: [react()],
       define: {

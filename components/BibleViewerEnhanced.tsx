@@ -65,9 +65,9 @@ const BibleViewer: React.FC<BibleViewerProps> = ({ onSelectionChange, onVersesSe
         setRightVerses(cachedWeb.verses);
       } else {
         // Fetch from API if not cached
-        const cuvRes = await fetch(`https://bible-api.com/${selectedBook.id}${selectedChapter}?translation=cuv`);
+        const cuvRes = await fetch(`/bible-api/${selectedBook.id}${selectedChapter}?translation=cuv`);
         const cuvData = await cuvRes.json();
-        const engRes = await fetch(`https://bible-api.com/${selectedBook.id}${selectedChapter}?translation=web`);
+        const engRes = await fetch(`/bible-api/${selectedBook.id}${selectedChapter}?translation=web`);
         const engData = await engRes.json();
         
         if (cuvData?.verses && engData?.verses) {
