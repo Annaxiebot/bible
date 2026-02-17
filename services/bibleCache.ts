@@ -187,8 +187,8 @@ export class BibleCacheService {
     
     // Fetch from API
     const [cuvRes, webRes] = await Promise.all([
-      fetch(`https://bible-api.com/${bookId}${chapter}?translation=cuv`),
-      fetch(`https://bible-api.com/${bookId}${chapter}?translation=web`)
+      fetch(`/bible-api/${bookId}${chapter}?translation=cuv`),
+      fetch(`/bible-api/${bookId}${chapter}?translation=web`)
     ]);
     
     const [cuvData, webData] = await Promise.all([
