@@ -842,7 +842,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         setError(null); // Clear any previous errors
         
         // Try to update from network in background (don't show loading)
-        fetch(`https://bible-api.com/${selectedBook.id}${selectedChapter}?translation=cuv`)
+        fetch(`/bible-api/${selectedBook.id}${selectedChapter}?translation=cuv`)
           .then(res => res.json())
           .then(data => {
             if (data.verses) {
@@ -852,7 +852,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           })
           .catch(() => {}); // Silent fail for background update
           
-        fetch(`https://bible-api.com/${selectedBook.id}${selectedChapter}?translation=web`)
+        fetch(`/bible-api/${selectedBook.id}${selectedChapter}?translation=web`)
           .then(res => res.json())
           .then(data => {
             if (data.verses) {
@@ -871,8 +871,8 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       try {
         
         const [cuvRes, engRes] = await Promise.all([
-          fetch(`https://bible-api.com/${selectedBook.id}${selectedChapter}?translation=cuv`),
-          fetch(`https://bible-api.com/${selectedBook.id}${selectedChapter}?translation=web`)
+          fetch(`/bible-api/${selectedBook.id}${selectedChapter}?translation=cuv`),
+          fetch(`/bible-api/${selectedBook.id}${selectedChapter}?translation=web`)
         ]);
         
         const [cuvData, engData] = await Promise.all([
@@ -980,7 +980,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       let cuvSuccess = false;
       for (let retry = 0; retry < 3 && !cuvSuccess; retry++) {
         try {
-          const cuvRes = await fetch(`https://bible-api.com/${selectedBook.id}${selectedChapter}?translation=cuv`);
+          const cuvRes = await fetch(`/bible-api/${selectedBook.id}${selectedChapter}?translation=cuv`);
           if (cuvRes.ok) {
             const cuvData = await cuvRes.json();
             if (cuvData?.verses) {
@@ -998,7 +998,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       let webSuccess = false;
       for (let retry = 0; retry < 3 && !webSuccess; retry++) {
         try {
-          const webRes = await fetch(`https://bible-api.com/${selectedBook.id}${selectedChapter}?translation=web`);
+          const webRes = await fetch(`/bible-api/${selectedBook.id}${selectedChapter}?translation=web`);
           if (webRes.ok) {
             const webData = await webRes.json();
             if (webData?.verses) {
@@ -1062,7 +1062,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
 
         // Download CUV
         try {
-          const cuvRes = await fetch(`https://bible-api.com/${selectedBook.id}${chapter}?translation=cuv`);
+          const cuvRes = await fetch(`/bible-api/${selectedBook.id}${chapter}?translation=cuv`);
           if (cuvRes.ok) {
             const cuvData = await cuvRes.json();
             if (cuvData?.verses) {
@@ -1080,7 +1080,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
 
         // Download WEB
         try {
-          const webRes = await fetch(`https://bible-api.com/${selectedBook.id}${chapter}?translation=web`);
+          const webRes = await fetch(`/bible-api/${selectedBook.id}${chapter}?translation=web`);
           if (webRes.ok) {
             const webData = await webRes.json();
             if (webData?.verses) {
@@ -1160,7 +1160,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           let cuvSuccess = false;
           for (let retry = 0; retry < 3 && !cuvSuccess; retry++) {
             try {
-              const cuvRes = await fetch(`https://bible-api.com/${book.id}${chapter}?translation=cuv`);
+              const cuvRes = await fetch(`/bible-api/${book.id}${chapter}?translation=cuv`);
               if (cuvRes.ok) {
                 const cuvData = await cuvRes.json();
                 if (cuvData?.verses) {
@@ -1195,7 +1195,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           let webSuccess = false;
           for (let retry = 0; retry < 3 && !webSuccess; retry++) {
             try {
-              const webRes = await fetch(`https://bible-api.com/${book.id}${chapter}?translation=web`);
+              const webRes = await fetch(`/bible-api/${book.id}${chapter}?translation=web`);
               if (webRes.ok) {
                 const webData = await webRes.json();
                 if (webData?.verses) {
