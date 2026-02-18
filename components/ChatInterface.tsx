@@ -124,6 +124,79 @@ const CHINESE_BOOK_MAP: { [key: string]: string } = {
   '约翰三书': '3JN',
   '犹大书': 'JUD',
   '启示录': 'REV',
+  // Common Chinese abbreviations
+  '创': 'GEN',
+  '出': 'EXO',
+  '利': 'LEV',
+  '民': 'NUM',
+  '申': 'DEU',
+  '士': 'JDG',
+  '得': 'RUT',
+  '撒上': '1SA',
+  '撒下': '2SA',
+  '王上': '1KI',
+  '王下': '2KI',
+  '代上': '1CH',
+  '代下': '2CH',
+  '拉': 'EZR',
+  '尼': 'NEH',
+  '斯': 'EST',
+  '伯': 'JOB',
+  '诗': 'PSA',
+  '箴': 'PRO',
+  '传': 'ECC',
+  '歌': 'SNG',
+  '赛': 'ISA',
+  '耶': 'JER',
+  '哀': 'LAM',
+  '结': 'EZK',
+  '但': 'DAN',
+  '何': 'HOS',
+  '珥': 'JOE',
+  '摩': 'AMO',
+  '俄': 'OBA',
+  '拿': 'JON',
+  '弥': 'MIC',
+  '鸿': 'NAM',
+  '番': 'ZEP',
+  '该': 'HAG',
+  '亚': 'ZEC',
+  '玛': 'MAL',
+  '太': 'MAT',
+  '可': 'MRK',
+  '路': 'LUK',
+  '约': 'JHN',
+  '徒': 'ACT',
+  '罗': 'ROM',
+  '林前': '1CO',
+  '林后': '2CO',
+  '加': 'GAL',
+  '弗': 'EPH',
+  '腓': 'PHP',
+  '西': 'COL',
+  '帖前': '1TH',
+  '帖后': '2TH',
+  '提前': '1TI',
+  '提后': '2TI',
+  '多': 'TIT',
+  '门': 'PHM',
+  '来': 'HEB',
+  '雅': 'JAS',
+  '彼前': '1PE',
+  '彼后': '2PE',
+  '约壹': '1JN',
+  '约贰': '2JN',
+  '约叁': '3JN',
+  '犹': 'JUD',
+  '启': 'REV',
+};
+
+// English book name aliases (common variations AI models use)
+const ENGLISH_BOOK_ALIASES: { [key: string]: string } = {
+  'Psalm': 'Psalms',
+  'Song of Solomon': 'Song of Songs',
+  'Revelation': 'Revelations',
+  'Revelations': 'Revelation',
 };
 
 // Create reverse mappings: ID -> Chinese and ID -> English
@@ -142,8 +215,8 @@ BIBLE_BOOKS.forEach(book => {
 
 const parseBibleReference = (text: string): BibleRef | null => {
   // First try to parse as Chinese reference with chapter:verse
-  const chineseBookNames = Object.keys(CHINESE_BOOK_MAP).join('|');
-  const chinesePattern = new RegExp(`(${chineseBookNames})\\s*(\\d+):(\\d+)(?:-(\\d+))?`);
+  const chineseBookNames = Object.keys(CHINESE_BOOK_MAP).sort((a, b) => b.length - a.length).join('|');
+  const chinesePattern = new RegExp(`《?(${chineseBookNames})》?\\s*(\\d+)[:：](\\d+)(?:-(\\d+))?`);
   const chineseMatch = text.match(chinesePattern);
   
   if (chineseMatch) {
@@ -171,8 +244,8 @@ const parseBibleReference = (text: string): BibleRef | null => {
     };
   }
   
-  // Try to parse Chinese chapter-only reference (e.g., "希伯来书95章")
-  const chineseChapterPattern = new RegExp(`(${chineseBookNames})\\s*(\\d+)章`);
+  // Try to parse Chinese chapter-only reference (e.g., "希伯来书95章" or "诗篇95篇")
+  const chineseChapterPattern = new RegExp(`《?(${chineseBookNames})》?\\s*(\\d+)[章篇]`);
   const chineseChapterMatch = text.match(chineseChapterPattern);
   
   if (chineseChapterMatch) {
@@ -190,23 +263,27 @@ const parseBibleReference = (text: string): BibleRef | null => {
   }
   
   // Then try to parse as English reference
-  // Extract only English names from BIBLE_BOOKS
-  const englishBookNames = BIBLE_BOOKS.map(b => {
+  // Extract only English names from BIBLE_BOOKS, plus aliases
+  const englishNames = BIBLE_BOOKS.map(b => {
     const parts = b.name.split(' ');
-    return parts.slice(1).join(' '); // Get everything after the first part (Chinese)
-  }).join('|');
-  const bookPattern = `(${englishBookNames})`;
-  
+    return parts.slice(1).join(' ');
+  });
+  const allEnglishNames = [...englishNames, ...Object.keys(ENGLISH_BOOK_ALIASES)];
+  const bookPattern = `(${allEnglishNames.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`;
+
   // Pattern: "Book chapter:verse" or "Book chapter:verse-verse"
-  const refPattern = new RegExp(`${bookPattern}\\s+(\\d+):(\\d+)(?:-(\\d+))?`, 'i');
+  const refPattern = new RegExp(`${bookPattern}\\s+(\\d+)[:：](\\d+)(?:-(\\d+))?`, 'i');
   const match = text.match(refPattern);
-  
+
   if (match) {
-    const bookName = match[1];
+    let bookName = match[1];
+    // Resolve alias to canonical name
+    const alias = ENGLISH_BOOK_ALIASES[bookName] || ENGLISH_BOOK_ALIASES[bookName.charAt(0).toUpperCase() + bookName.slice(1)];
+    if (alias) bookName = alias;
     const chapter = parseInt(match[2]);
     const verseStart = parseInt(match[3]);
     const verseEnd = match[4] ? parseInt(match[4]) : undefined;
-    
+
     // Find book by matching English name only
     const book = BIBLE_BOOKS.find(b => {
       const parts = b.name.split(' ');
@@ -252,14 +329,15 @@ const BibleLink: React.FC<BibleLinkProps> = ({ children, onNavigate }) => {
     const englishName = BOOK_ID_TO_ENGLISH[ref.bookId];
     
     // Extract chapter and verse info
-    const refMatch = children.match(/(\d+):(\d+)(?:-(\d+))?/);
-    const chapterMatch = children.match(/(\d+)章/);
-    
+    const refMatch = children.match(/(\d+)[:：](\d+)(?:-(\d+))?/);
+    const chapterMatch = children.match(/(\d+)[章篇]/);
+
     let chapterVerse = '';
     if (refMatch) {
-      chapterVerse = refMatch[0];
+      // Normalize fullwidth colon to ASCII for display
+      chapterVerse = refMatch[0].replace('：', ':');
     } else if (chapterMatch) {
-      chapterVerse = `${chapterMatch[1]}章`;
+      chapterVerse = `${chapterMatch[1]}${chapterMatch[0].slice(-1)}`;
     } else if (ref.chapter) {
       chapterVerse = `${ref.chapter}`;
     }
@@ -297,20 +375,24 @@ const processTextWithBibleRefs = (text: string, onNavigate?: (bookId: string, ch
   // Create patterns for both Chinese and English references
   // Escape special regex characters in book names
   const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const chineseBookNames = Object.keys(CHINESE_BOOK_MAP).map(escapeRegex).join('|');
-  // Extract only English names from BIBLE_BOOKS
-  const englishBookNames = BIBLE_BOOKS.map(b => {
+  // Sort by length descending so longer names match first (创世记 before 创)
+  const chineseBookNames = Object.keys(CHINESE_BOOK_MAP).sort((a, b) => b.length - a.length).map(escapeRegex).join('|');
+  // Extract only English names from BIBLE_BOOKS, plus aliases
+  const englishNames = BIBLE_BOOKS.map(b => {
     const parts = b.name.split(' ');
-    return escapeRegex(parts.slice(1).join(' ')); // Get everything after the first part (Chinese)
-  }).join('|');
-  
+    return parts.slice(1).join(' '); // Get everything after the first part (Chinese)
+  });
+  const allEnglishNames = [...englishNames, ...Object.keys(ENGLISH_BOOK_ALIASES)];
+  const englishBookNames = allEnglishNames.map(escapeRegex).join('|');
+
   // Combined pattern that matches:
-  // 1. Chinese with chapter:verse: 书名 章:节 (with optional space) - e.g., "诗篇95:11" or "希伯来书 4:2"
+  // 1. Chinese with chapter:verse: 书名 章:节 (with optional space) - e.g., "诗篇95:11" or "创2：2"
   // 2. Chinese chapter-only: 书名 章章 (with optional space) - e.g., "希伯来书95章"
   // 3. English: Book chapter:verse (with space) - e.g., "Psalm 95:11"
   // 4. Standalone: chapter:verse (like "2:3") when in context
+  // Note: [:：] matches both ASCII and fullwidth colons
   const combinedPattern = new RegExp(
-    `(${chineseBookNames})\\s*\\d+:\\d+(?:-\\d+)?|(${chineseBookNames})\\s*\\d+章|(${englishBookNames})\\s+\\d+:\\d+(?:-\\d+)?|(?<!\\d)\\d{1,3}:\\d{1,3}(?:-\\d{1,3})?(?!\\d)`,
+    `《?(${chineseBookNames})》?\\s*\\d+[:：]\\d+(?:-\\d+)?|《?(${chineseBookNames})》?\\s*\\d+[章篇]|(${englishBookNames})\\s+\\d+[:：]\\d+(?:-\\d+)?|(?<!\\d)\\d{1,3}[:：]\\d{1,3}(?:-\\d{1,3})?(?!\\d)`,
     'gi'
   );
   
@@ -326,7 +408,7 @@ const processTextWithBibleRefs = (text: string, onNavigate?: (bookId: string, ch
     
     // Check if this is a standalone chapter:verse pattern
     const matchedText = match[0];
-    const isStandalone = /^\d{1,3}:\d{1,3}(?:-\d{1,3})?$/.test(matchedText);
+    const isStandalone = /^\d{1,3}[:：]\d{1,3}(?:-\d{1,3})?$/.test(matchedText);
     
     if (isStandalone && currentBookId) {
       // For standalone patterns, use the current book context
@@ -435,24 +517,33 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ m, side, isSpeaking, onSp
                   macros: {}
                 }]
               ]}
-              components={{
-                // Custom text renderer to handle Bible references
-                p: ({ children }) => {
-                  const processChildren = (nodes: React.ReactNode): React.ReactNode => {
-                    if (typeof nodes === 'string') {
-                      return processTextWithBibleRefs(nodes, onNavigate, currentBookId);
-                    }
-                    if (Array.isArray(nodes)) {
-                      return nodes.map((node, i) => 
-                        <React.Fragment key={i}>{processChildren(node)}</React.Fragment>
-                      );
-                    }
-                    return nodes;
-                  };
-                  
-                  return <p>{processChildren(children)}</p>;
-                }
-              }}
+              components={(() => {
+                // Shared helper to recursively process children for Bible references
+                const processChildren = (nodes: React.ReactNode): React.ReactNode => {
+                  if (typeof nodes === 'string') {
+                    return processTextWithBibleRefs(nodes, onNavigate, currentBookId);
+                  }
+                  if (Array.isArray(nodes)) {
+                    return nodes.map((node, i) =>
+                      <React.Fragment key={i}>{processChildren(node)}</React.Fragment>
+                    );
+                  }
+                  // Recurse into React elements' children
+                  if (React.isValidElement(nodes) && nodes.props && (nodes.props as any).children) {
+                    return React.cloneElement(nodes, {}, processChildren((nodes.props as any).children));
+                  }
+                  return nodes;
+                };
+                return {
+                  p: ({ children }) => <p>{processChildren(children)}</p>,
+                  li: ({ children }) => <li>{processChildren(children)}</li>,
+                  h2: ({ children }) => <h2>{processChildren(children)}</h2>,
+                  h3: ({ children }) => <h3>{processChildren(children)}</h3>,
+                  h4: ({ children }) => <h4>{processChildren(children)}</h4>,
+                  strong: ({ children }) => <strong>{processChildren(children)}</strong>,
+                  em: ({ children }) => <em>{processChildren(children)}</em>,
+                };
+              })()}
             >
               {content}
             </ReactMarkdown>
