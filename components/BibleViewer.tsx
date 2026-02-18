@@ -399,32 +399,36 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           // Scroll to the verse after content loads - retry until found
           const verseNum = navigateTo.verses[0];
           let attempts = 0;
-          const maxAttempts = 20; // Try for up to 4 seconds
+          const maxAttempts = 30; // Try for up to 6 seconds
           const tryScroll = () => {
             attempts++;
-            // Try data-verse attribute first (most reliable), then fall back to class selector
-            let targetEl = document.querySelector(`[data-verse="${verseNum}"]`) as HTMLElement | null;
-            if (!targetEl) {
-              const allVerseEls = document.querySelectorAll('[class*="group/verse"]');
-              for (const el of allVerseEls) {
-                // Match verse number more precisely using a regex
-                const text = el.textContent || '';
-                const match = text.match(/^(\d+)/);
-                if (match && parseInt(match[1]) === verseNum) {
-                  targetEl = el as HTMLElement;
-                  break;
-                }
+            // Search within the Bible viewer scroll containers, not the whole page
+            let targetEl: HTMLElement | null = null;
+            const containers = [leftScrollRef.current, rightScrollRef.current].filter(Boolean);
+            for (const container of containers) {
+              if (!container) continue;
+              const el = container.querySelector(`[data-verse="${verseNum}"]`) as HTMLElement | null;
+              if (el) {
+                targetEl = el;
+                break;
               }
             }
             if (targetEl) {
               console.log('[Navigate] Scrolling to verse', verseNum);
-              targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-              // Brief highlight effect
-              targetEl.style.transition = 'background-color 0.3s';
-              targetEl.style.backgroundColor = theme.verseHighlight;
-              setTimeout(() => {
-                targetEl!.style.backgroundColor = '';
-              }, 2000);
+              // Scroll both panels to the verse
+              for (const container of containers) {
+                if (!container) continue;
+                const el = container.querySelector(`[data-verse="${verseNum}"]`) as HTMLElement | null;
+                if (el) {
+                  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  // Brief highlight effect
+                  el.style.transition = 'background-color 0.3s';
+                  el.style.backgroundColor = theme.verseHighlight;
+                  setTimeout(() => {
+                    el.style.backgroundColor = '';
+                  }, 2000);
+                }
+              }
             } else if (attempts < maxAttempts) {
               // Verse element not in DOM yet, retry
               setTimeout(tryScroll, 200);
@@ -432,7 +436,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
               console.warn('[Navigate] Could not find verse element after', maxAttempts, 'attempts');
             }
           };
-          setTimeout(tryScroll, 300);
+          setTimeout(tryScroll, 500);
         }
       } else {
         console.warn('[Navigate] Book not found:', navigateTo.bookId);
