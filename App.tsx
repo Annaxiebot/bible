@@ -337,7 +337,7 @@ const App: React.FC = () => {
         onVibeOpen={() => setShowVibePanel(true)}
         onNavigate={(bookId, chapter, verse) => {
           setNavigateTo({ bookId, chapter, verses: verse ? [verse] : undefined });
-          setTimeout(() => setNavigateTo(null), 1000);
+          setTimeout(() => setNavigateTo(null), 5000);
         }}
         onViewNotes={() => setShowNotesList(true)}
         onSplitView={() => {
@@ -413,7 +413,7 @@ const App: React.FC = () => {
                }}
                onNavigate={(bookId, chapter, verses) => {
                  setNavigateTo({ bookId, chapter, verses });
-                 setTimeout(() => setNavigateTo(null), 100);
+                 setTimeout(() => setNavigateTo(null), 5000);
                }}
              />
           </div>
@@ -437,7 +437,7 @@ const App: React.FC = () => {
               researchUpdateTrigger={researchUpdateTrigger}
               onNavigate={(bookId, chapter, verses) => {
                 setNavigateTo({ bookId, chapter, verses });
-                setTimeout(() => setNavigateTo(null), 1000);
+                setTimeout(() => setNavigateTo(null), 5000);
               }}
             />
           </div>
@@ -464,7 +464,7 @@ const App: React.FC = () => {
                 split.setVertical(50);
                 split.setHorizontal(0);
                 setNavigateTo({ bookId, chapter, verses });
-                setTimeout(() => setNavigateTo(null), 100);
+                setTimeout(() => setNavigateTo(null), 5000);
               }}
             />
           </div>
