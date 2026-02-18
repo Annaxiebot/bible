@@ -953,7 +953,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
             display: vSplitOffset <= 0 ? 'none' : 'block'
           }}
         >
-          <div className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-4 sticky top-0 bg-white/90 backdrop-blur-md z-10 py-2 flex items-center gap-2">
+          <div className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-4 py-2 flex items-center gap-2">
             <span className="w-2 h-2 bg-indigo-500 rounded-full"></span>
             中文解读 (Scholar Research)
           </div>
@@ -1074,7 +1074,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
             display: vSplitOffset >= 100 ? 'none' : 'block'
           }}
         >
-          <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 sticky top-0 bg-slate-50/90 backdrop-blur-md z-10 py-2 flex items-center gap-2">
+          <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 py-2 flex items-center gap-2">
             <span className="w-2 h-2 bg-slate-300 rounded-full"></span>
             English Commentary (Academic)
           </div>
