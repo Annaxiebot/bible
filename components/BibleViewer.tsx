@@ -2720,27 +2720,59 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
               </button>
               {showAnnotationColorPicker && (
                 <div
-                  className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 flex flex-wrap gap-1 p-2 rounded-xl shadow-xl border max-w-[200px]"
+                  className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 p-2 rounded-xl shadow-xl border"
                   style={{
                     backgroundColor: 'rgba(255, 255, 255, 0.98)',
                     borderColor: 'rgba(0, 0, 0, 0.08)',
                   }}
+                  onTouchStart={(e) => e.stopPropagation()}
                 >
-                  {COLOR_PRESETS.map((color) => (
-                    <button
-                      key={color}
-                      onClick={() => {
-                        setAnnotationColor(color);
-                        setShowAnnotationColorPicker(false);
-                      }}
-                      className={`w-6 h-6 sm:w-7 sm:h-7 rounded-full transition-all hover:scale-110 ${
-                        annotationColor === color ? 'ring-2 ring-offset-1 scale-110 ring-indigo-400' : ''
-                      }`}
-                      style={{
-                        backgroundColor: color,
-                      }}
+                  {/* Color grid */}
+                  <div className="flex flex-col gap-px">
+                    {/* Grayscale row */}
+                    <div className="flex gap-px">
+                      {[100, 95, 88, 80, 70, 60, 50, 40, 30, 20, 10, 0].map((l) => {
+                        const color = `hsl(0, 0%, ${l}%)`;
+                        return (
+                          <button
+                            key={`gray-${l}`}
+                            onClick={() => { setAnnotationColor(color); setShowAnnotationColorPicker(false); }}
+                            className={`w-5 h-5 sm:w-6 sm:h-6 rounded-sm transition-all hover:scale-125 hover:z-10 ${
+                              annotationColor === color ? 'ring-2 ring-indigo-400 z-10 scale-125' : ''
+                            }`}
+                            style={{ backgroundColor: color }}
+                          />
+                        );
+                      })}
+                    </div>
+                    {/* Hue rows: dark to light */}
+                    {[25, 35, 45, 55, 65, 75, 85].map((lightness) => (
+                      <div key={`row-${lightness}`} className="flex gap-px">
+                        {[190, 210, 240, 270, 300, 340, 10, 30, 50, 80, 110, 150].map((hue) => {
+                          const saturation = lightness > 75 ? 70 : lightness < 35 ? 80 : 85;
+                          const color = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
+                          return (
+                            <button
+                              key={`${hue}-${lightness}`}
+                              onClick={() => { setAnnotationColor(color); setShowAnnotationColorPicker(false); }}
+                              className={`w-5 h-5 sm:w-6 sm:h-6 rounded-sm transition-all hover:scale-125 hover:z-10 ${
+                                annotationColor === color ? 'ring-2 ring-indigo-400 z-10 scale-125' : ''
+                              }`}
+                              style={{ backgroundColor: color }}
+                            />
+                          );
+                        })}
+                      </div>
+                    ))}
+                  </div>
+                  {/* Selected color preview */}
+                  <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100">
+                    <div
+                      className="w-8 h-8 rounded-lg border border-slate-200 shadow-sm"
+                      style={{ backgroundColor: annotationColor }}
                     />
-                  ))}
+                    <span className="text-[10px] text-slate-400 font-mono">{annotationColor}</span>
+                  </div>
                 </div>
               )}
             </div>
