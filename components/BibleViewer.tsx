@@ -2668,7 +2668,11 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
               backdropFilter: 'blur(12px)',
               WebkitBackdropFilter: 'blur(12px)',
               borderColor: 'rgba(0, 0, 0, 0.08)',
+              touchAction: 'auto',
             }}
+            onTouchStart={(e) => e.stopPropagation()}
+            onTouchMove={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
           >
             {/* Tool buttons */}
             {([
@@ -2741,35 +2745,27 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
               )}
             </div>
 
-            {/* Size slider */}
-            <div className="flex flex-col items-center px-0.5 sm:px-1">
-              <input
-                type="range"
-                min={1}
-                max={12}
-                step={1}
-                value={annotationSize}
-                onChange={(e) => {
-                  const newSize = parseInt(e.target.value);
-                  setAnnotationSize(newSize);
-                }}
-                onInput={(e) => {
-                  const newSize = parseInt((e.target as HTMLInputElement).value);
-                  setAnnotationSize(newSize);
-                }}
-                onTouchMove={(e) => {
-                  // Ensure continuous updates on touch devices
-                  e.stopPropagation();
-                }}
-                className="w-10 sm:w-16 h-1 accent-slate-500"
-                style={{ 
-                  touchAction: 'none',
-                  WebkitAppearance: 'none',
-                  appearance: 'none',
-                }}
-                title={`Size: ${annotationSize}`}
-              />
-              <span className="text-[8px] sm:text-[9px] font-medium text-slate-500 mt-0.5 sm:mt-1">{annotationSize}</span>
+            {/* Size controls */}
+            <div className="flex items-center gap-1 px-1 sm:px-2">
+              <button
+                onClick={() => setAnnotationSize(Math.max(1, annotationSize - 1))}
+                className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-all text-slate-500"
+                disabled={annotationSize <= 1}
+              >
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
+                </svg>
+              </button>
+              <span className="text-xs font-bold text-slate-600 min-w-[16px] text-center">{annotationSize}</span>
+              <button
+                onClick={() => setAnnotationSize(Math.min(12, annotationSize + 1))}
+                className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-all text-slate-500"
+                disabled={annotationSize >= 12}
+              >
+                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                </svg>
+              </button>
             </div>
 
             {/* Divider */}
