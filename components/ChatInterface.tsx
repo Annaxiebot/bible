@@ -611,6 +611,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
   const [isTyping, setIsTyping] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
   const [imageAttachment, setImageAttachment] = useState<{ data: string; mimeType: string } | null>(null);
+  const [showImageMenu, setShowImageMenu] = useState(false);
+  const [showWebcam, setShowWebcam] = useState(false);
+  const webcamVideoRef = useRef<HTMLVideoElement>(null);
+  const webcamStreamRef = useRef<MediaStream | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [showStudio, setShowStudio] = useState(false);
   const [vSplitOffset, setVSplitOffset] = useState(100); // Default to 100% - show only conversation, hide English panel
   const [isResizing, setIsResizing] = useState(false);
@@ -800,6 +805,44 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     // Reset input so the same file can be re-selected
     e.target.value = '';
   }, [compressImage]);
+
+  const openWebcam = useCallback(async () => {
+    setShowImageMenu(false);
+    setShowWebcam(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+      });
+      webcamStreamRef.current = stream;
+      if (webcamVideoRef.current) {
+        webcamVideoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      console.error('Camera access denied:', err);
+      setShowWebcam(false);
+    }
+  }, []);
+
+  const captureWebcam = useCallback(async () => {
+    const video = webcamVideoRef.current;
+    if (!video) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d')!.drawImage(video, 0, 0);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    const compressed = await compressImage(dataUrl, 'image/jpeg');
+    setImageAttachment(compressed);
+    closeWebcam();
+  }, [compressImage]);
+
+  const closeWebcam = useCallback(() => {
+    if (webcamStreamRef.current) {
+      webcamStreamRef.current.getTracks().forEach(t => t.stop());
+      webcamStreamRef.current = null;
+    }
+    setShowWebcam(false);
+  }, []);
 
   const handleSend = async () => {
     if ((!input.trim() && !imageAttachment) || isTyping) return;
@@ -1173,23 +1216,48 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
               className="w-full p-3 pr-24 rounded-xl border border-slate-200 bg-slate-50 resize-none min-h-[80px] focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm shadow-inner transition-all"
               rows={3}
             />
-            {/* Image attach button — uses label for reliable iOS/Safari file picker */}
-            <label
-              className={`absolute right-14 bottom-2 p-2.5 rounded-xl transition-all active:scale-95 cursor-pointer ${
-                isTyping ? 'opacity-30 pointer-events-none' : 'text-slate-400 hover:text-indigo-600'
-              }`}
-              title="Attach image 附加图片"
-            >
-              <input
-                type="file"
-                accept="image/*"
-                onChange={handleImageSelect}
-                className="hidden"
-              />
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-              </svg>
-            </label>
+            {/* Image attach button with menu */}
+            <div className="absolute right-14 bottom-2">
+              <button
+                onClick={() => setShowImageMenu(!showImageMenu)}
+                disabled={isTyping}
+                className={`p-2.5 rounded-xl transition-all active:scale-95 ${
+                  isTyping ? 'opacity-30' : 'text-slate-400 hover:text-indigo-600'
+                }`}
+                title="Attach image 附加图片"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </button>
+              {/* Popup menu */}
+              {showImageMenu && (
+                <div className="absolute bottom-12 right-0 bg-white rounded-xl shadow-xl border border-slate-200 py-1 w-40 z-50">
+                  <button
+                    onClick={openWebcam}
+                    className="w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-indigo-50 flex items-center gap-2"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    Take Photo
+                  </button>
+                  <label className="w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-indigo-50 flex items-center gap-2 cursor-pointer">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                    Choose Photo
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => { setShowImageMenu(false); handleImageSelect(e); }}
+                      className="hidden"
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
             {/* Send button */}
             <button onClick={handleSend} disabled={(!input.trim() && !imageAttachment) || isTyping} className="absolute right-2 bottom-2 p-2.5 bg-indigo-600 text-white rounded-xl shadow-md disabled:bg-slate-300 transition-all active:scale-95">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
@@ -1217,6 +1285,43 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
         </div>
       </div>
       
+      {/* Webcam capture modal */}
+      {showWebcam && (
+        <div className="fixed inset-0 bg-black/70 z-50 flex flex-col items-center justify-center">
+          <div className="bg-black rounded-2xl overflow-hidden shadow-2xl max-w-lg w-full mx-4">
+            <video
+              ref={webcamVideoRef}
+              autoPlay
+              playsInline
+              muted
+              className="w-full aspect-video object-cover"
+            />
+            <div className="flex items-center justify-center gap-6 p-4 bg-slate-900">
+              <button
+                onClick={closeWebcam}
+                className="w-12 h-12 rounded-full bg-slate-700 text-white flex items-center justify-center hover:bg-slate-600 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+              <button
+                onClick={captureWebcam}
+                className="w-16 h-16 rounded-full bg-white border-4 border-slate-300 hover:border-indigo-400 transition-colors flex items-center justify-center"
+              >
+                <div className="w-12 h-12 rounded-full bg-red-500 hover:bg-red-600 transition-colors" />
+              </button>
+              <div className="w-12" /> {/* Spacer for centering */}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Close image menu when clicking outside */}
+      {showImageMenu && (
+        <div className="fixed inset-0 z-40" onClick={() => setShowImageMenu(false)} />
+      )}
+
       {showSaveModal && researchToSave && (() => {
         const parsed = parseMessage(researchToSave.message.content, researchToSave.message.role);
         const content = researchToSave.side === 'zh' ? parsed.zh : parsed.en;
