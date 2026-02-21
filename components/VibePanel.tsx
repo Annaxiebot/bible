@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { VibeStyles, VIBE_PRESETS, generateVibeStyles, saveVibeStyles, clearVibeStyles, getEmptyStyles } from '../services/vibe';
+import { VibeStyles, VIBE_PRESETS, generateVibeStyles, saveVibeStyles, clearVibeStyles, getEmptyStyles, getVibeProviderName } from '../services/vibe';
 
 interface VibePanelProps {
   onClose: () => void;
@@ -75,8 +75,8 @@ const VibePanel: React.FC<VibePanelProps> = ({ onClose, onApplyStyles, currentSt
         <div className="flex-1 overflow-y-auto p-6 space-y-6">
           {!isApiAvailable && (
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
-              <p className="text-amber-800 font-medium">Gemini API key required</p>
-              <p className="text-amber-600 text-sm mt-1">Configure GEMINI_API_KEY to use Vibe Studio</p>
+              <p className="text-amber-800 font-medium">AI API key required</p>
+              <p className="text-amber-600 text-sm mt-1">Configure an API key in AI Research settings to use Vibe Studio</p>
             </div>
           )}
 
