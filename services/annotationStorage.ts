@@ -18,6 +18,8 @@ export interface AnnotationRecord {
   canvasData: string;
   /** Extra expanded height in pixels (0 = no expansion) */
   canvasHeight: number;
+  /** CSS pixel width of the canvas when annotation was saved (for scaling on resize) */
+  canvasWidth?: number;
   /** Timestamp of last modification */
   lastModified: number;
   /** Panel identifier (chinese or english) - optional for backwards compat */
@@ -59,7 +61,8 @@ class AnnotationStorageService {
     chapter: number,
     canvasData: string,
     canvasHeight: number,
-    panelId?: 'chinese' | 'english'
+    panelId?: 'chinese' | 'english',
+    canvasWidth?: number
   ): Promise<void> {
     try {
       const db = await this.dbPromise;
@@ -70,6 +73,7 @@ class AnnotationStorageService {
         chapter,
         canvasData,
         canvasHeight,
+        canvasWidth,
         lastModified: Date.now(),
         panelId,
       });
@@ -87,22 +91,23 @@ class AnnotationStorageService {
     bookId: string,
     chapter: number,
     panelId?: 'chinese' | 'english'
-  ): Promise<{ data: string; height: number } | null> {
+  ): Promise<{ data: string; height: number; width: number } | null> {
     try {
       const db = await this.dbPromise;
       const id = panelId ? `${bookId}:${chapter}:${panelId}` : `${bookId}:${chapter}`;
       let record = await db.get('annotations', id);
-      
+
       // Backwards compatibility: try without panelId if not found
       if (!record && panelId) {
         const oldId = `${bookId}:${chapter}`;
         record = await db.get('annotations', oldId);
       }
-      
+
       if (!record) return null;
       return {
         data: record.canvasData,
         height: record.canvasHeight,
+        width: record.canvasWidth || 0, // 0 = legacy record, no scaling
       };
     } catch (error) {
       console.error('Failed to get annotation:', error);
