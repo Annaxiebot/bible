@@ -12,7 +12,7 @@
  * - Faint overlay of saved annotations when not in edit mode
  */
 
-import React, { useRef, useEffect, useState, useCallback, useMemo, forwardRef, useImperativeHandle } from 'react';
+import React, { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import DrawingCanvas, { DrawingCanvasHandle, SerializedPath } from './DrawingCanvas';
 import { annotationStorage } from '../services/annotationStorage';
 
@@ -34,38 +34,20 @@ interface InlineBibleAnnotationProps {
   isActive: boolean;
   /** The natural height of the verse content area (pixels) */
   contentHeight: number;
-  /** Current CSS pixel width of the container (for scaling annotations on resize) */
+  /** Current CSS pixel width of the container */
   containerWidth: number;
+  /** Current font size for verse text */
+  fontSize: number;
+  /** Current vertical split offset (0-100) */
+  vSplitOffset: number;
   /** Theme accent color for UI elements */
   accentColor?: string;
   /** External tool state (shared between panels) */
   toolState?: AnnotationToolState;
   /** Panel identifier for storage */
   panelId?: 'chinese' | 'english';
-}
-
-/** Scale path coordinates when container dimensions have changed since annotation was drawn */
-function scalePaths(
-  paths: SerializedPath[],
-  origWidth: number,
-  origHeight: number,
-  currWidth: number,
-  currHeight: number
-): SerializedPath[] {
-  if (origWidth <= 0 || origHeight <= 0) return paths;
-  if (Math.abs(origWidth - currWidth) < 2 && Math.abs(origHeight - currHeight) < 2) return paths;
-
-  const sx = currWidth / origWidth;
-  const sy = currHeight / origHeight;
-
-  return paths.map(path => ({
-    ...path,
-    points: path.points.map(p => ({
-      ...p,
-      x: p.x * sx,
-      y: p.y * sy,
-    })),
-  }));
+  /** Callback when annotation has stored layout that differs from current */
+  onAlignmentMismatch?: (storedFontSize: number, storedVSplitOffset: number) => void;
 }
 
 // ─── Preset colors for the color picker - brighter colors including yellow ──
@@ -90,9 +72,12 @@ const InlineBibleAnnotation = forwardRef<InlineBibleAnnotationHandle, InlineBibl
   isActive,
   contentHeight,
   containerWidth,
+  fontSize,
+  vSplitOffset,
   accentColor = '#6366f1',
   toolState,
   panelId = 'chinese',
+  onAlignmentMismatch,
 }, ref) => {
   const canvasRef = useRef<DrawingCanvasHandle>(null);
 
@@ -101,8 +86,6 @@ const InlineBibleAnnotation = forwardRef<InlineBibleAnnotationHandle, InlineBibl
   const [savedPaths, setSavedPaths] = useState<string>(''); // Serialized path data for read-only view
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef<{ y: number; height: number }>({ y: 0, height: 0 });
-  /** The canvas width at which the current annotation was originally saved */
-  const savedWidthRef = useRef(0);
 
   // Track the book+chapter+panel key for loading/saving
   const annotationKey = `${bookId}:${chapter}:${panelId}`;
@@ -134,25 +117,30 @@ const InlineBibleAnnotation = forwardRef<InlineBibleAnnotationHandle, InlineBibl
       if (result) {
         setSavedPaths(result.data);
         setExtraHeight(result.height);
-        savedWidthRef.current = result.width; // Original width for scaling
-        // If canvas is mounted and active, load the paths (with scaling)
+        // If canvas is mounted and active, load the paths
         if (canvasRef.current && result.data) {
           try {
-            let paths = JSON.parse(result.data) as SerializedPath[];
-            // Scale paths if container width changed since annotation was saved
-            if (result.width > 0 && containerWidth > 0) {
-              const origTotalH = contentHeight + result.height; // approximate original height
-              paths = scalePaths(paths, result.width, origTotalH, containerWidth, contentHeight + result.height);
-            }
+            const paths = JSON.parse(result.data) as SerializedPath[];
             canvasRef.current.loadPaths(paths);
           } catch {
             // Invalid data, ignore
           }
         }
+        // Check if current layout differs from when annotation was drawn
+        if (result.data && result.data !== '[]' && result.data !== '' && onAlignmentMismatch) {
+          const storedFs = result.fontSize;
+          const storedSplit = result.vSplitOffset;
+          if (storedFs > 0 && storedSplit >= 0) {
+            const fontMismatch = Math.abs(storedFs - fontSize) > 0.5;
+            const splitMismatch = Math.abs(storedSplit - vSplitOffset) > 1;
+            if (fontMismatch || splitMismatch) {
+              onAlignmentMismatch(storedFs, storedSplit);
+            }
+          }
+        }
       } else {
         setSavedPaths('');
         setExtraHeight(0);
-        savedWidthRef.current = 0;
         if (canvasRef.current) {
           canvasRef.current.clear();
         }
@@ -162,24 +150,18 @@ const InlineBibleAnnotation = forwardRef<InlineBibleAnnotationHandle, InlineBibl
     // Save current annotation before switching chapters
     if (prevKeyRef.current !== annotationKey && savedPaths) {
       const [prevBook, prevChapterStr, prevPanel] = prevKeyRef.current.split(':');
-      annotationStorage.saveAnnotation(prevBook, parseInt(prevChapterStr), savedPaths, extraHeight, prevPanel as 'chinese' | 'english', containerWidth);
+      annotationStorage.saveAnnotation(prevBook, parseInt(prevChapterStr), savedPaths, extraHeight, prevPanel as 'chinese' | 'english', containerWidth, fontSize, vSplitOffset);
     }
     prevKeyRef.current = annotationKey;
 
     loadAnnotation();
   }, [bookId, chapter, panelId]);
 
-  // When activating annotation mode, load paths into the canvas (with scaling)
+  // When activating annotation mode, load paths into the canvas
   useEffect(() => {
     if (isActive && canvasRef.current && savedPaths) {
       try {
-        let paths = JSON.parse(savedPaths) as SerializedPath[];
-        // Scale if container width changed since saved
-        const origW = savedWidthRef.current;
-        if (origW > 0 && containerWidth > 0) {
-          const origTotalH = contentHeight + extraHeight;
-          paths = scalePaths(paths, origW, origTotalH, containerWidth, totalHeight);
-        }
+        const paths = JSON.parse(savedPaths) as SerializedPath[];
         // Small delay to let canvas mount and size properly
         requestAnimationFrame(() => {
           canvasRef.current?.loadPaths(paths);
@@ -250,15 +232,14 @@ const InlineBibleAnnotation = forwardRef<InlineBibleAnnotationHandle, InlineBibl
 
   const handleCanvasChange = useCallback((data: string) => {
     setSavedPaths(data);
-    savedWidthRef.current = containerWidth; // Update saved width to current
-    // Save to IndexedDB with current container width
-    annotationStorage.saveAnnotation(bookId, chapter, data, extraHeight, panelId, containerWidth);
-  }, [bookId, chapter, extraHeight, panelId, containerWidth]);
+    // Save to IndexedDB with current layout context
+    annotationStorage.saveAnnotation(bookId, chapter, data, extraHeight, panelId, containerWidth, fontSize, vSplitOffset);
+  }, [bookId, chapter, extraHeight, panelId, containerWidth, fontSize, vSplitOffset]);
 
   // Save when extra height changes
   useEffect(() => {
     if (savedPaths) {
-      annotationStorage.saveAnnotation(bookId, chapter, savedPaths, extraHeight, panelId, containerWidth);
+      annotationStorage.saveAnnotation(bookId, chapter, savedPaths, extraHeight, panelId, containerWidth, fontSize, vSplitOffset);
     }
   }, [extraHeight]);
 
@@ -295,21 +276,6 @@ const InlineBibleAnnotation = forwardRef<InlineBibleAnnotationHandle, InlineBibl
     document.addEventListener('pointerup', handleUp);
   }, [extraHeight]);
 
-  // ── Compute scaled paths for read-only display ──────────────────────
-  const scaledPathsData = useMemo(() => {
-    if (!savedPaths || savedPaths === '[]' || savedPaths === '') return savedPaths;
-    const origW = savedWidthRef.current;
-    if (origW <= 0 || containerWidth <= 0 || Math.abs(origW - containerWidth) < 2) return savedPaths;
-    try {
-      const paths = JSON.parse(savedPaths) as SerializedPath[];
-      const origTotalH = contentHeight + extraHeight; // approximate
-      const scaled = scalePaths(paths, origW, origTotalH, containerWidth, totalHeight);
-      return JSON.stringify(scaled);
-    } catch {
-      return savedPaths;
-    }
-  }, [savedPaths, containerWidth, contentHeight, extraHeight, totalHeight]);
-
   // ── Render ────────────────────────────────────────────────────────────
 
   // If not active, render a faint read-only overlay of saved annotations
@@ -331,7 +297,7 @@ const InlineBibleAnnotation = forwardRef<InlineBibleAnnotationHandle, InlineBibl
           >
             <DrawingCanvas
               ref={canvasRef}
-              initialData={scaledPathsData}
+              initialData={savedPaths}
               onChange={() => {}} // Read-only
               overlayMode={true}
               isWritingMode={false}
