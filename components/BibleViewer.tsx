@@ -318,7 +318,9 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   const [annotationSize, setAnnotationSize] = useState(2);
   const [showAnnotationColorPicker, setShowAnnotationColorPicker] = useState(false);
   const [isAnnotationToolbarCollapsed, setIsAnnotationToolbarCollapsed] = useState(false);
-  
+  /** Stored layout from when annotations were drawn, for "Restore Alignment" */
+  const [annotationOriginalLayout, setAnnotationOriginalLayout] = useState<{ fontSize: number; vSplitOffset: number } | null>(null);
+
   // Refs to annotation components for undo/clear
   const chineseAnnotationRef = useRef<InlineBibleAnnotationHandle | null>(null);
   const englishAnnotationRef = useRef<InlineBibleAnnotationHandle | null>(null);
@@ -337,6 +339,25 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     setAnnotationSize(size);
   }, []);
   
+  // Handler when annotation layout doesn't match current layout
+  const handleAlignmentMismatch = useCallback((storedFontSize: number, storedVSplitOffset: number) => {
+    setAnnotationOriginalLayout({ fontSize: storedFontSize, vSplitOffset: storedVSplitOffset });
+  }, []);
+
+  // Restore layout to match annotation alignment
+  const handleRestoreAlignment = useCallback(() => {
+    if (annotationOriginalLayout) {
+      setFontSize(annotationOriginalLayout.fontSize);
+      setVSplitOffset(annotationOriginalLayout.vSplitOffset);
+      setAnnotationOriginalLayout(null);
+    }
+  }, [annotationOriginalLayout]);
+
+  // Clear stale alignment state when navigating to a different chapter
+  useEffect(() => {
+    setAnnotationOriginalLayout(null);
+  }, [selectedBook.id, selectedChapter]);
+
   // Handler to undo on both panels
   const handleAnnotationUndo = useCallback(() => {
     chineseAnnotationRef.current?.undo();
@@ -2349,9 +2370,12 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
             isActive={isAnnotationMode && vSplitOffset > 0}
             contentHeight={leftPanelContentHeight}
             containerWidth={leftPanelWidth}
+            fontSize={fontSize}
+            vSplitOffset={vSplitOffset}
             accentColor={theme.accent}
             panelId="chinese"
             toolState={annotationToolState}
+            onAlignmentMismatch={handleAlignmentMismatch}
           />
           <div ref={leftContentMeasureRef}>
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">和合本 CUV</div>
@@ -2555,9 +2579,12 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
             isActive={isAnnotationMode && vSplitOffset < 100}
             contentHeight={rightPanelContentHeight}
             containerWidth={rightPanelWidth}
+            fontSize={fontSize}
+            vSplitOffset={vSplitOffset}
             accentColor={theme.accent}
             panelId="english"
             toolState={annotationToolState}
+            onAlignmentMismatch={handleAlignmentMismatch}
           />
           <div ref={rightContentMeasureRef}>
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">English (WEB)</div>
@@ -2851,6 +2878,24 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
               </svg>
               <span className="hidden sm:block text-[9px] font-medium text-slate-500 mt-0.5">清除</span>
             </button>
+
+            {/* Restore Alignment - only shows when annotations are misaligned */}
+            {annotationOriginalLayout && (
+              <>
+                <div className="w-[1px] h-5 sm:h-6 bg-slate-200 mx-0.5 sm:mx-1" />
+                <button
+                  onClick={handleRestoreAlignment}
+                  className="flex flex-col items-center justify-center p-1.5 sm:px-2 sm:py-1 rounded-lg sm:rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 transition-all animate-pulse"
+                  style={{ minWidth: '32px' }}
+                  title="Restore original font size and layout to re-align annotations 恢复标注对齐"
+                >
+                  <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  <span className="text-[9px] font-medium text-amber-700 mt-0.5 whitespace-nowrap">对齐</span>
+                </button>
+              </>
+            )}
 
             {/* Divider */}
             <div className="w-[1px] h-5 sm:h-6 bg-slate-200 mx-0.5 sm:mx-1" />
