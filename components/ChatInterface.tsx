@@ -757,37 +757,47 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     return () => clearTimeout(scrollTimeout);
   }, [messages, isTyping]);
 
-  const compressImage = useCallback((dataUrl: string, mimeType: string): Promise<{ data: string; mimeType: string }> => {
-    return new Promise((resolve) => {
+  const compressImage = useCallback((dataUrl: string): Promise<{ data: string; mimeType: string }> => {
+    return new Promise((resolve, reject) => {
       const img = new Image();
+      img.crossOrigin = 'anonymous';
       img.onload = () => {
-        const MAX_DIM = 1600;
-        const MAX_BYTES = 4 * 1024 * 1024; // 4MB to stay under 5MB API limit
-        let { width, height } = img;
+        try {
+          // iOS Safari canvas limit: ~16MP. Scale aggressively for safety.
+          const MAX_DIM = 1200;
+          const MAX_BYTES = 3.5 * 1024 * 1024;
+          let { width, height } = img;
 
-        // Scale down if too large
-        if (width > MAX_DIM || height > MAX_DIM) {
-          const scale = MAX_DIM / Math.max(width, height);
-          width = Math.round(width * scale);
-          height = Math.round(height * scale);
+          if (width > MAX_DIM || height > MAX_DIM) {
+            const scale = MAX_DIM / Math.max(width, height);
+            width = Math.round(width * scale);
+            height = Math.round(height * scale);
+          }
+
+          const canvas = document.createElement('canvas');
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) { reject(new Error('Canvas context failed')); return; }
+          ctx.drawImage(img, 0, 0, width, height);
+
+          let quality = 0.8;
+          let result = canvas.toDataURL('image/jpeg', quality);
+          while (result.length * 0.75 > MAX_BYTES && quality > 0.2) {
+            quality -= 0.1;
+            result = canvas.toDataURL('image/jpeg', quality);
+          }
+
+          // Clean up canvas memory (important for iOS)
+          canvas.width = 0;
+          canvas.height = 0;
+
+          resolve({ data: result, mimeType: 'image/jpeg' });
+        } catch (err) {
+          reject(err);
         }
-
-        const canvas = document.createElement('canvas');
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext('2d')!;
-        ctx.drawImage(img, 0, 0, width, height);
-
-        // Try JPEG at decreasing quality until under size limit
-        let quality = 0.85;
-        let result = canvas.toDataURL('image/jpeg', quality);
-        while (result.length * 0.75 > MAX_BYTES && quality > 0.3) {
-          quality -= 0.15;
-          result = canvas.toDataURL('image/jpeg', quality);
-        }
-
-        resolve({ data: result, mimeType: 'image/jpeg' });
       };
+      img.onerror = () => reject(new Error('Image load failed'));
       img.src = dataUrl;
     });
   }, []);
@@ -795,13 +805,24 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
   const handleImageSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = async (ev) => {
-      const rawData = ev.target?.result as string;
-      const compressed = await compressImage(rawData, file.type);
+
+    // Use createObjectURL for better iOS compatibility (avoids base64 memory issues)
+    const objectUrl = URL.createObjectURL(file);
+    try {
+      const compressed = await compressImage(objectUrl);
       setImageAttachment(compressed);
-    };
-    reader.readAsDataURL(file);
+    } catch (err) {
+      console.error('Image processing failed:', err);
+      // Fallback: read as data URL directly without compression
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const data = ev.target?.result as string;
+        setImageAttachment({ data, mimeType: file.type || 'image/jpeg' });
+      };
+      reader.readAsDataURL(file);
+    } finally {
+      URL.revokeObjectURL(objectUrl);
+    }
     // Reset input so the same file can be re-selected
     e.target.value = '';
   }, [compressImage]);
@@ -831,7 +852,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     canvas.height = video.videoHeight;
     canvas.getContext('2d')!.drawImage(video, 0, 0);
     const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-    const compressed = await compressImage(dataUrl, 'image/jpeg');
+    const compressed = await compressImage(dataUrl);
     setImageAttachment(compressed);
     closeWebcam();
   }, [compressImage]);
