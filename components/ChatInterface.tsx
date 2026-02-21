@@ -1232,6 +1232,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
               </button>
               {/* Popup menu */}
               {showImageMenu && (
+                <>
+                <div className="fixed inset-0 z-40" onClick={() => setShowImageMenu(false)} />
                 <div className="absolute bottom-12 right-0 bg-white rounded-xl shadow-xl border border-slate-200 py-1 w-40 z-50">
                   {/* Take Photo: native capture on touch devices, webcam on desktop */}
                   {'ontouchstart' in window || navigator.maxTouchPoints > 0 ? (
@@ -1274,6 +1276,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
                     />
                   </label>
                 </div>
+                </>
               )}
             </div>
             {/* Send button */}
@@ -1335,10 +1338,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
         </div>
       )}
 
-      {/* Close image menu when clicking outside */}
-      {showImageMenu && (
-        <div className="fixed inset-0 z-40" onClick={() => setShowImageMenu(false)} />
-      )}
 
       {showSaveModal && researchToSave && (() => {
         const parsed = parseMessage(researchToSave.message.content, researchToSave.message.role);
