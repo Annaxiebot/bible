@@ -86,6 +86,8 @@ const InlineBibleAnnotation = forwardRef<InlineBibleAnnotationHandle, InlineBibl
   const [savedPaths, setSavedPaths] = useState<string>(''); // Serialized path data for read-only view
   const [isDragging, setIsDragging] = useState(false);
   const dragStartRef = useRef<{ y: number; height: number }>({ y: 0, height: 0 });
+  // Track the stored layout params so we can detect mismatch when fontSize/vSplitOffset changes
+  const storedLayoutRef = useRef<{ fontSize: number; vSplitOffset: number } | null>(null);
 
   // Track the book+chapter+panel key for loading/saving
   const annotationKey = `${bookId}:${chapter}:${panelId}`;
@@ -126,21 +128,24 @@ const InlineBibleAnnotation = forwardRef<InlineBibleAnnotationHandle, InlineBibl
             // Invalid data, ignore
           }
         }
-        // Check if current layout differs from when annotation was drawn
-        if (result.data && result.data !== '[]' && result.data !== '' && onAlignmentMismatch) {
-          const storedFs = result.fontSize;
-          const storedSplit = result.vSplitOffset;
-          if (storedFs > 0 && storedSplit >= 0) {
-            const fontMismatch = Math.abs(storedFs - fontSize) > 0.5;
-            const splitMismatch = Math.abs(storedSplit - vSplitOffset) > 1;
+        // Store layout params for real-time mismatch detection
+        if (result.data && result.data !== '[]' && result.data !== '' && result.fontSize > 0 && result.vSplitOffset >= 0) {
+          storedLayoutRef.current = { fontSize: result.fontSize, vSplitOffset: result.vSplitOffset };
+          // Check if current layout already differs
+          if (onAlignmentMismatch) {
+            const fontMismatch = Math.abs(result.fontSize - fontSize) > 0.5;
+            const splitMismatch = Math.abs(result.vSplitOffset - vSplitOffset) > 1;
             if (fontMismatch || splitMismatch) {
-              onAlignmentMismatch(storedFs, storedSplit);
+              onAlignmentMismatch(result.fontSize, result.vSplitOffset);
             }
           }
+        } else {
+          storedLayoutRef.current = null;
         }
       } else {
         setSavedPaths('');
         setExtraHeight(0);
+        storedLayoutRef.current = null;
         if (canvasRef.current) {
           canvasRef.current.clear();
         }
@@ -156,6 +161,17 @@ const InlineBibleAnnotation = forwardRef<InlineBibleAnnotationHandle, InlineBibl
 
     loadAnnotation();
   }, [bookId, chapter, panelId]);
+
+  // ── Detect mismatch in real-time when fontSize or vSplitOffset changes ──
+  useEffect(() => {
+    if (!storedLayoutRef.current || !onAlignmentMismatch) return;
+    const { fontSize: storedFs, vSplitOffset: storedSplit } = storedLayoutRef.current;
+    const fontMismatch = Math.abs(storedFs - fontSize) > 0.5;
+    const splitMismatch = Math.abs(storedSplit - vSplitOffset) > 1;
+    if (fontMismatch || splitMismatch) {
+      onAlignmentMismatch(storedFs, storedSplit);
+    }
+  }, [fontSize, vSplitOffset, onAlignmentMismatch]);
 
   // When activating annotation mode, load paths into the canvas
   useEffect(() => {
