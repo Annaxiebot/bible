@@ -9,7 +9,7 @@ import * as gemini from './gemini';
 import * as claude from './claude';
 
 export type AIProvider = 'gemini' | 'claude';
-export type AIModel = 'claude-sonnet-4-5' | 'claude-opus-4-5' | 'gemini-3-flash-preview' | 'gemini-3-pro-preview' | 'gemini-flash-lite-latest';
+export type AIModel = 'claude-haiku-4-5' | 'claude-sonnet-4-5' | 'claude-opus-4-5' | 'gemini-3-flash-preview' | 'gemini-3-pro-preview' | 'gemini-flash-lite-latest';
 
 // Storage keys
 const PROVIDER_KEY = 'ai_provider';
@@ -85,6 +85,7 @@ export const getAvailableProviders = (): { id: AIProvider; name: string; models:
       id: 'claude',
       name: 'Anthropic Claude',
       models: [
+        'claude-haiku-4-5' as AIModel,
         'claude-sonnet-4-5' as AIModel,
         'claude-opus-4-5' as AIModel
       ]
