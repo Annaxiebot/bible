@@ -258,7 +258,11 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
 
   const leftScrollRef = useRef<HTMLDivElement>(null);
   const rightScrollRef = useRef<HTMLDivElement>(null);
-  
+
+  // Track panel widths for annotation scaling
+  const [leftPanelWidth, setLeftPanelWidth] = useState(0);
+  const [rightPanelWidth, setRightPanelWidth] = useState(0);
+
   // Reading history state
   const [showReadingHistory, setShowReadingHistory] = useState(false);
   const [chaptersWithContent, setChaptersWithContent] = useState<{
@@ -370,6 +374,19 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     const timer = setTimeout(measure, 100);
     return () => clearTimeout(timer);
   }, [leftVerses, rightVerses, fontSize, isSimplified]);
+
+  // ── Track panel widths for annotation scaling on resize ──────────────
+  useEffect(() => {
+    const measureWidths = () => {
+      if (leftScrollRef.current) setLeftPanelWidth(leftScrollRef.current.clientWidth);
+      if (rightScrollRef.current) setRightPanelWidth(rightScrollRef.current.clientWidth);
+    };
+    measureWidths();
+    const observer = new ResizeObserver(measureWidths);
+    if (leftScrollRef.current) observer.observe(leftScrollRef.current);
+    if (rightScrollRef.current) observer.observe(rightScrollRef.current);
+    return () => observer.disconnect();
+  }, []);
 
   // Disable page-flip swiping when annotation mode is active
   const handleAnnotationTouchStart = useCallback((e: React.TouchEvent) => {
@@ -2331,6 +2348,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
             chapter={selectedChapter}
             isActive={isAnnotationMode && vSplitOffset > 0}
             contentHeight={leftPanelContentHeight}
+            containerWidth={leftPanelWidth}
             accentColor={theme.accent}
             panelId="chinese"
             toolState={annotationToolState}
@@ -2536,6 +2554,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
             chapter={selectedChapter}
             isActive={isAnnotationMode && vSplitOffset < 100}
             contentHeight={rightPanelContentHeight}
+            containerWidth={rightPanelWidth}
             accentColor={theme.accent}
             panelId="english"
             toolState={annotationToolState}
