@@ -610,6 +610,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
   const [userQuestion, setUserQuestion] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
+  const [imageAttachment, setImageAttachment] = useState<{ data: string; mimeType: string } | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
   const [showStudio, setShowStudio] = useState(false);
   const [vSplitOffset, setVSplitOffset] = useState(100); // Default to 100% - show only conversation, hide English panel
   const [isResizing, setIsResizing] = useState(false);
@@ -751,13 +753,33 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     return () => clearTimeout(scrollTimeout);
   }, [messages, isTyping]);
 
-  const handleSend = async () => {
-    if (!input.trim() || isTyping) return;
+  const handleImageSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const data = ev.target?.result as string;
+      setImageAttachment({ data, mimeType: file.type });
+    };
+    reader.readAsDataURL(file);
+    // Reset input so the same file can be re-selected
+    e.target.value = '';
+  }, []);
 
-    const userMessage: ChatMessage = { role: 'user', content: input, timestamp: new Date() };
+  const handleSend = async () => {
+    if ((!input.trim() && !imageAttachment) || isTyping) return;
+
+    const userMessage: ChatMessage = {
+      role: 'user',
+      content: input,
+      timestamp: new Date(),
+      ...(imageAttachment ? { type: 'image' as const, mediaUrl: imageAttachment.data } : {}),
+    };
     setMessages(prev => [...prev, userMessage]);
     const currentInput = input;
+    const currentImage = imageAttachment;
     setInput('');
+    setImageAttachment(null);
     setUserQuestion(''); // Reset manual part after sending
     setIsTyping(true);
     
@@ -773,10 +795,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
 
     try {
       const history = messages.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content }));
-      const response = await aiService.chatWithAI(currentInput, history, { 
-        thinking: isThinking, 
+      const response = await aiService.chatWithAI(currentInput, history, {
+        thinking: isThinking,
         search: true,
-        fast: !isThinking 
+        fast: !isThinking,
+        ...(currentImage ? { image: currentImage } : {}),
       });
       
       // Console logging for debugging AI responses
@@ -1095,15 +1118,48 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       <div className="p-4 bg-white border-t border-slate-200 z-10 shadow-lg relative flex-shrink-0">
         <div className="max-w-5xl mx-auto flex flex-col gap-2">
           <div className="relative">
+            {/* Image preview */}
+            {imageAttachment && (
+              <div className="mb-2 relative inline-block">
+                <img src={imageAttachment.data} alt="Attachment" className="h-20 rounded-lg border border-slate-200 object-cover" />
+                <button
+                  onClick={() => setImageAttachment(null)}
+                  className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs shadow-md hover:bg-red-600"
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+            )}
             <textarea
               value={input}
               onChange={handleInputChange}
               onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
               placeholder="点击上方选择经文，或在此直接输入问题..."
-              className="w-full p-3 pr-14 rounded-xl border border-slate-200 bg-slate-50 resize-none min-h-[80px] focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm shadow-inner transition-all"
+              className="w-full p-3 pr-24 rounded-xl border border-slate-200 bg-slate-50 resize-none min-h-[80px] focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm shadow-inner transition-all"
               rows={3}
             />
-            <button onClick={handleSend} disabled={!input.trim() || isTyping} className="absolute right-2 bottom-2 p-2.5 bg-indigo-600 text-white rounded-xl shadow-md disabled:bg-slate-300 transition-all active:scale-95">
+            {/* Hidden file input */}
+            <input
+              ref={imageInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImageSelect}
+              className="hidden"
+            />
+            {/* Camera button */}
+            <button
+              onClick={() => imageInputRef.current?.click()}
+              disabled={isTyping}
+              className="absolute right-14 bottom-2 p-2.5 text-slate-400 hover:text-indigo-600 rounded-xl transition-all active:scale-95 disabled:opacity-30"
+              title="Attach image 附加图片"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+              </svg>
+            </button>
+            {/* Send button */}
+            <button onClick={handleSend} disabled={(!input.trim() && !imageAttachment) || isTyping} className="absolute right-2 bottom-2 p-2.5 bg-indigo-600 text-white rounded-xl shadow-md disabled:bg-slate-300 transition-all active:scale-95">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
             </button>
           </div>
