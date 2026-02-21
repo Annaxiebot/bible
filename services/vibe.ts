@@ -1,9 +1,11 @@
 /**
  * Vibe Coding Service
  *
- * Uses Gemini AI to generate Tailwind CSS classes for app theming
- * based on natural language vibe descriptions.
+ * Uses the configured AI provider (Gemini or Claude) from AI Research settings
+ * to generate Tailwind CSS classes for app theming based on natural language.
  */
+
+import { chatWithAI, getCurrentProvider, isProviderConfigured } from './aiProvider';
 
 export interface VibeStyles {
   bible_panel: string;
@@ -30,22 +32,18 @@ export const VIBE_PRESETS = [
   'Cozy coffee shop warmth',
 ];
 
-/**
- * Get the Gemini API key from the same sources as AI research settings.
- */
-function getGeminiApiKey(): string | null {
-  return process.env.API_KEY || localStorage.getItem('gemini_api_key') || null;
+export function isVibeAvailable(): boolean {
+  const provider = getCurrentProvider();
+  return isProviderConfigured(provider);
 }
 
-export function isVibeAvailable(): boolean {
-  return !!getGeminiApiKey();
+export function getVibeProviderName(): string {
+  const provider = getCurrentProvider();
+  return provider === 'claude' ? 'Claude' : 'Gemini';
 }
 
 export async function generateVibeStyles(vibePrompt: string): Promise<VibeStyles> {
-  const geminiApiKey = getGeminiApiKey();
-  if (!geminiApiKey) throw new Error('Gemini API key not configured. Set it in AI Research settings.');
-
-  const systemPrompt = `Based on the vibe: "${vibePrompt}", provide a JSON object of Tailwind CSS utility classes to style a Bible study app.
+  const prompt = `Based on the vibe: "${vibePrompt}", provide a JSON object of Tailwind CSS utility classes to style a Bible study app.
 
 The app has these sections:
 - "background": The overall app container (e.g. "bg-amber-50")
@@ -57,27 +55,14 @@ The app has these sections:
 Output ONLY valid JSON like:
 {"background": "bg-amber-50", "bible_panel": "bg-white", "chat_panel": "bg-amber-50/50", "header": "bg-amber-100 border-b border-amber-200", "verse_text": "text-amber-900 font-serif"}
 
-Use only standard Tailwind CSS classes. Keep it tasteful and readable.`;
+Use only standard Tailwind CSS classes. Keep it tasteful and readable. Output ONLY the JSON, nothing else.`;
 
-  const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiApiKey}`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: systemPrompt }] }]
-      })
-    }
-  );
+  const result = await chatWithAI(prompt, [], { fast: true });
 
-  if (!response.ok) {
-    throw new Error(`Gemini API error: ${response.statusText}`);
-  }
+  // Extract the response text
+  const text = typeof result === 'string' ? result : (result as any)?.text || (result as any)?.content || JSON.stringify(result);
 
-  const data = await response.json();
-  const text = data.candidates[0].content.parts[0].text;
-
-  // Extract JSON from response (may be wrapped in ```json blocks)
+  // Extract JSON from response (may be wrapped in ```json blocks or have extra text)
   const jsonMatch = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/) ||
                    text.match(/(\{[\s\S]*?\})/);
 
