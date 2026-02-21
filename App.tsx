@@ -14,7 +14,7 @@ import { BIBLE_BOOKS } from './constants';
 import { Toast } from './components/Toast';
 import NotesList from './components/NotesList';
 import { useSeasonThemeInit, SeasonThemeProvider } from './hooks/useSeasonTheme';
-import { VibeStyles, initializeVibe, loadVibeStyles, getEmptyStyles } from './services/vibe';
+import { VibeStyles, isVibeAvailable, loadVibeStyles, getEmptyStyles } from './services/vibe';
 import './services/syncService'; // Initialize sync service
 
 // Simplified split view hook
@@ -154,13 +154,8 @@ const App: React.FC = () => {
     checkKey();
   }, []);
 
-  // Initialize vibe-coding and load saved styles
+  // Load saved vibe styles
   useEffect(() => {
-    const geminiKey = import.meta.env.GEMINI_API_KEY || localStorage.getItem('gemini_api_key');
-    if (geminiKey) {
-      initializeVibe(geminiKey);
-    }
-    // Load saved vibe styles
     setVibeStyles(loadVibeStyles());
   }, []);
 
@@ -443,7 +438,7 @@ const App: React.FC = () => {
           onClose={() => setShowVibePanel(false)}
           onApplyStyles={setVibeStyles}
           currentStyles={vibeStyles}
-          isApiAvailable={!!import.meta.env.GEMINI_API_KEY || !!localStorage.getItem('gemini_api_key')}
+          isApiAvailable={isVibeAvailable()}
         />
       )}
       
