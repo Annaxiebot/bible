@@ -900,17 +900,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
   }, [isResizing]);
 
   useEffect(() => {
-    if (isResizing) {
-      window.addEventListener('mousemove', resize);
-      window.addEventListener('mouseup', stopResizing);
-      window.addEventListener('touchmove', resize);
-      window.addEventListener('touchend', stopResizing);
-    } else {
-      window.removeEventListener('mousemove', resize);
-      window.removeEventListener('mouseup', stopResizing);
-      window.removeEventListener('touchmove', resize);
-      window.removeEventListener('touchend', stopResizing);
-    }
+    if (!isResizing) return;
+    window.addEventListener('mousemove', resize);
+    window.addEventListener('mouseup', stopResizing);
+    window.addEventListener('touchmove', resize);
+    window.addEventListener('touchend', stopResizing);
     return () => {
       window.removeEventListener('mousemove', resize);
       window.removeEventListener('mouseup', stopResizing);

@@ -88,6 +88,7 @@ const InlineBibleAnnotation = forwardRef<InlineBibleAnnotationHandle, InlineBibl
   const dragStartRef = useRef<{ y: number; height: number }>({ y: 0, height: 0 });
   // Track the stored layout params so we can detect mismatch when fontSize/vSplitOffset changes
   const storedLayoutRef = useRef<{ fontSize: number; vSplitOffset: number } | null>(null);
+  const saveTimerRef = useRef<number>(0);
 
   // Track the book+chapter+panel key for loading/saving
   const annotationKey = `${bookId}:${chapter}:${panelId}`;
@@ -246,16 +247,26 @@ const InlineBibleAnnotation = forwardRef<InlineBibleAnnotationHandle, InlineBibl
 
   const handleCanvasChange = useCallback((data: string) => {
     setSavedPaths(data);
-    // Save to IndexedDB with current layout context
-    annotationStorage.saveAnnotation(bookId, chapter, data, extraHeight, panelId, containerWidth, fontSize, vSplitOffset);
+    // Debounce IndexedDB writes to avoid thrashing during drawing
+    clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = window.setTimeout(() => {
+      annotationStorage.saveAnnotation(bookId, chapter, data, extraHeight, panelId, containerWidth, fontSize, vSplitOffset);
+    }, 500);
   }, [bookId, chapter, extraHeight, panelId, containerWidth, fontSize, vSplitOffset]);
 
-  // Save when extra height changes
+  // Save when extra height changes (debounced)
   useEffect(() => {
-    if (savedPaths) {
+    if (!savedPaths) return;
+    clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = window.setTimeout(() => {
       annotationStorage.saveAnnotation(bookId, chapter, savedPaths, extraHeight, panelId, containerWidth, fontSize, vSplitOffset);
-    }
+    }, 500);
   }, [extraHeight]);
+
+  // Cleanup save timer on unmount
+  useEffect(() => {
+    return () => clearTimeout(saveTimerRef.current);
+  }, []);
 
   // ── Sync external tool state to canvas ────────────────────────────────
   useEffect(() => {
@@ -288,7 +299,7 @@ const InlineBibleAnnotation = forwardRef<InlineBibleAnnotationHandle, InlineBibl
 
     document.addEventListener('pointermove', handleMove);
     document.addEventListener('pointerup', handleUp);
-  }, [extraHeight]);
+  }, []); // No deps - uses dragStartRef to capture initial extraHeight
 
   // ── Render ────────────────────────────────────────────────────────────
 
