@@ -22,10 +22,12 @@ export const chatWithAI = async (
   const client = getClient();
   
   // Map to Claude model names
-  // Use claude-sonnet-4-5 by default, or claude-opus-4-5 for thinking mode
-  const model = options.thinking 
-    ? 'claude-opus-4-5' 
-    : 'claude-sonnet-4-5';
+  // Use haiku for fast/default, sonnet for thinking mode
+  const model = options.thinking
+    ? 'claude-sonnet-4-5'
+    : options.fast
+      ? 'claude-haiku-4-5-latest'
+      : 'claude-haiku-4-5-latest';
   
   // Convert history to Claude message format
   const messages = history.map(h => ({
