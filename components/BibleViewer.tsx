@@ -364,10 +364,12 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     englishAnnotationRef.current?.undo();
   }, []);
   
-  // Handler to clear all on both panels
+  // Handler to clear all on both panels (single confirmation)
   const handleAnnotationClearAll = useCallback(() => {
-    chineseAnnotationRef.current?.clearAll();
-    englishAnnotationRef.current?.clearAll();
+    if (confirm('清除此章所有标注？\nClear all annotations for this chapter?')) {
+      chineseAnnotationRef.current?.clearAll();
+      englishAnnotationRef.current?.clearAll();
+    }
   }, []);
   
   // Memoize tool state to prevent unnecessary re-renders

@@ -102,12 +102,10 @@ const InlineBibleAnnotation = forwardRef<InlineBibleAnnotationHandle, InlineBibl
       canvasRef.current?.undo();
     },
     clearAll: () => {
-      if (confirm('清除此章所有标注？\nClear all annotations for this chapter?')) {
-        canvasRef.current?.clear();
-        setSavedPaths('');
-        setExtraHeight(0);
-        annotationStorage.deleteAnnotation(bookId, chapter, panelId);
-      }
+      canvasRef.current?.clear();
+      setSavedPaths('');
+      setExtraHeight(0);
+      annotationStorage.deleteAnnotation(bookId, chapter, panelId);
     },
   }));
 
