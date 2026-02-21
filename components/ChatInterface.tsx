@@ -1237,24 +1237,28 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
               className="w-full p-3 pr-24 rounded-xl border border-slate-200 bg-slate-50 resize-none min-h-[80px] focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm shadow-inner transition-all"
               rows={3}
             />
-            {/* Image attach: on touch devices, single button opens native picker (iOS provides Take Photo / Choose Photo natively). On desktop, show menu with webcam + file picker. */}
+            {/* Off-screen file input for touch devices (iOS Safari + Chrome compatible) */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleImageSelect}
+              style={{ position: 'fixed', top: '-10000px', left: '-10000px' }}
+            />
+            {/* Image attach: on touch devices, button triggers off-screen input. On desktop, show menu with webcam + file picker. */}
             {'ontouchstart' in window || navigator.maxTouchPoints > 0 ? (
-              <label
-                className={`absolute right-14 bottom-2 p-2.5 rounded-xl transition-all active:scale-95 cursor-pointer overflow-hidden ${
-                  isTyping ? 'opacity-30 pointer-events-none' : 'text-slate-400 hover:text-indigo-600'
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isTyping}
+                className={`absolute right-14 bottom-2 p-2.5 rounded-xl transition-all active:scale-95 ${
+                  isTyping ? 'opacity-30' : 'text-slate-400 hover:text-indigo-600'
                 }`}
                 title="Attach image 附加图片"
               >
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={handleImageSelect}
-                  style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', opacity: 0, cursor: 'pointer' }}
-                />
                 <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                 </svg>
-              </label>
+              </button>
             ) : (
               <div className="absolute right-14 bottom-2">
                 <button
