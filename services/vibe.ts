@@ -30,18 +30,20 @@ export const VIBE_PRESETS = [
   'Cozy coffee shop warmth',
 ];
 
-let geminiApiKey: string | null = null;
-
-export function initializeVibe(apiKey: string) {
-  geminiApiKey = apiKey;
+/**
+ * Get the Gemini API key from the same sources as AI research settings.
+ */
+function getGeminiApiKey(): string | null {
+  return process.env.API_KEY || localStorage.getItem('gemini_api_key') || null;
 }
 
-export function isVibeInitialized(): boolean {
-  return !!geminiApiKey;
+export function isVibeAvailable(): boolean {
+  return !!getGeminiApiKey();
 }
 
 export async function generateVibeStyles(vibePrompt: string): Promise<VibeStyles> {
-  if (!geminiApiKey) throw new Error('Gemini API key not configured');
+  const geminiApiKey = getGeminiApiKey();
+  if (!geminiApiKey) throw new Error('Gemini API key not configured. Set it in AI Research settings.');
 
   const systemPrompt = `Based on the vibe: "${vibePrompt}", provide a JSON object of Tailwind CSS utility classes to style a Bible study app.
 
