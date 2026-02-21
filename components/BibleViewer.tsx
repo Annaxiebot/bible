@@ -29,6 +29,8 @@ interface BibleViewerProps {
   initialChapter?: number;
   navigateTo?: { bookId: string; chapter: number; verses?: number[] } | null;
   onLayoutChange?: (splitOffset: number, bottomSplitOffset: number) => void;
+  vibeClassName?: string;
+  vibeVerseClassName?: string;
 }
 
 
@@ -183,7 +185,9 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   initialBookId,
   initialChapter,
   navigateTo,
-  onLayoutChange
+  onLayoutChange,
+  vibeClassName,
+  vibeVerseClassName
 }) => {
   const { theme } = useSeasonTheme();
   
@@ -1881,13 +1885,13 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
 
   return (
     <div 
-      className={`h-full flex flex-col overflow-hidden ${isTransitioning ? 'select-none' : ''}`}
-      ref={containerRef} 
+      className={`h-full flex flex-col overflow-hidden ${isTransitioning ? 'select-none' : ''} ${vibeClassName || ''}`}
+      ref={containerRef}
       onClick={handleEmptySpaceClick}
       onMouseUp={handleMouseUp}
       onTouchEnd={isIOS ? handleIOSTouchEnd : undefined}
       style={{
-        backgroundColor: theme.background,
+        backgroundColor: vibeClassName ? undefined : theme.background,
         userSelect: isTransitioning ? 'none' : 'auto',
         WebkitUserSelect: isTransitioning ? 'none' : 'auto'
       }}
@@ -2564,7 +2568,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
                 }}
               >
                 <span className="font-bold mr-3 text-xs" style={{ color: theme.accentMedium }}>{v.verse}</span>
-                <span className="leading-relaxed text-slate-700 italic" style={{ fontSize: `${fontSize}px` }}>{v.text}</span>
+                <span className={`leading-relaxed text-slate-700 italic ${vibeVerseClassName || ''}`} style={{ fontSize: `${fontSize}px` }}>{v.text}</span>
                 {/* Bookmark icon */}
                 <button
                   onClick={(e) => {
