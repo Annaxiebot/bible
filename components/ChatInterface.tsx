@@ -870,7 +870,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
 
     const userMessage: ChatMessage = {
       role: 'user',
-      content: input,
+      content: input || (imageAttachment ? '[Image attached]' : ''),
       timestamp: new Date(),
       ...(imageAttachment ? { type: 'image' as const, mediaUrl: imageAttachment.data } : {}),
     };

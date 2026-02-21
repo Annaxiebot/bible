@@ -29,11 +29,13 @@ export const chatWithAI = async (
       ? 'claude-haiku-4-5-20251001'
       : 'claude-haiku-4-5-20251001';
   
-  // Convert history to Claude message format
-  const messages = history.map(h => ({
-    role: h.role === 'user' ? 'user' as const : 'assistant' as const,
-    content: h.content
-  }));
+  // Convert history to Claude message format, filtering out empty messages
+  const messages = history
+    .filter(h => h.content && h.content.trim())
+    .map(h => ({
+      role: h.role === 'user' ? 'user' as const : 'assistant' as const,
+      content: h.content
+    }));
   
   // Add current prompt (with optional image)
   if (options.image) {
