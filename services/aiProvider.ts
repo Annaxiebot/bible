@@ -51,7 +51,7 @@ export const setModel = (model: AIModel): void => {
 export const chatWithAI = async (
   prompt: string,
   history: { role: string; content: string }[],
-  options: { thinking?: boolean; fast?: boolean; search?: boolean } = {}
+  options: { thinking?: boolean; fast?: boolean; search?: boolean; image?: { data: string; mimeType: string } } = {}
 ) => {
   const provider = getCurrentProvider();
   
