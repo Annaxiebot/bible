@@ -443,7 +443,7 @@ const App: React.FC = () => {
       )}
       
       {showNotesList && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl h-[80vh] overflow-hidden">
             <NotesList
               onClose={() => setShowNotesList(false)}
