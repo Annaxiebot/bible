@@ -86,7 +86,7 @@ const VibePanel: React.FC<VibePanelProps> = ({ onClose, onApplyStyles, currentSt
               <button
                 key={preset}
                 onClick={() => handleVibeCoding(preset)}
-                disabled={isGenerating || !isApiAvailable}
+                disabled={isGenerating}
                 className={`p-5 rounded-xl border text-left transition-all group disabled:opacity-50 disabled:cursor-not-allowed ${
                   activeVibe === preset
                     ? 'border-indigo-300 bg-indigo-50 shadow-md'
@@ -119,11 +119,11 @@ const VibePanel: React.FC<VibePanelProps> = ({ onClose, onApplyStyles, currentSt
                 onKeyDown={e => { if (e.key === 'Enter') handleCustomSubmit(); }}
                 placeholder="e.g. A serene mountain morning..."
                 className="flex-1 px-4 py-2.5 rounded-xl border border-indigo-200 outline-none focus:ring-2 focus:ring-indigo-400 bg-white text-sm"
-                disabled={isGenerating || !isApiAvailable}
+                disabled={isGenerating}
               />
               <button
                 onClick={handleCustomSubmit}
-                disabled={isGenerating || !customPrompt.trim() || !isApiAvailable}
+                disabled={isGenerating || !customPrompt.trim()}
                 className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold text-sm"
               >
                 {isGenerating && activeVibe === customPrompt ? 'Styling...' : 'Apply'}
