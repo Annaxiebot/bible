@@ -14,7 +14,7 @@ import { BIBLE_BOOKS } from './constants';
 import { Toast } from './components/Toast';
 import NotesList from './components/NotesList';
 import { useSeasonThemeInit, SeasonThemeProvider } from './hooks/useSeasonTheme';
-import * as vibe from './services/vibe';
+import { VibeStyles, initializeVibe, loadVibeStyles, getEmptyStyles } from './services/vibe';
 import './services/syncService'; // Initialize sync service
 
 // Simplified split view hook
@@ -102,8 +102,7 @@ const App: React.FC = () => {
   const [researchUpdateTrigger, setResearchUpdateTrigger] = useState(0);
   const [currentBibleContext, setCurrentBibleContext] = useState<{bookId: string; chapter: number} | null>(null);
   const [showVibePanel, setShowVibePanel] = useState(false);
-  const [vibeProvider, setVibeProvider] = useState<'gemini' | 'claude'>('gemini');
-  const [vibeApiKey, setVibeApiKey] = useState<string | undefined>();
+  const [vibeStyles, setVibeStyles] = useState<VibeStyles>(getEmptyStyles());
   
   const handleSelectionChange = useCallback((selection: SelectionInfo | null) => {
     setCurrentSelection(selection);
@@ -155,24 +154,14 @@ const App: React.FC = () => {
     checkKey();
   }, []);
 
-  // Initialize vibe-coding and apply saved customizations
+  // Initialize vibe-coding and load saved styles
   useEffect(() => {
-    // Try to get API key from environment or local storage
     const geminiKey = import.meta.env.GEMINI_API_KEY || localStorage.getItem('gemini_api_key');
-    const claudeKey = localStorage.getItem('claude_api_key');
-    
     if (geminiKey) {
-      setVibeApiKey(geminiKey);
-      setVibeProvider('gemini');
-      vibe.initializeVibeCoding(geminiKey, 'gemini');
-    } else if (claudeKey) {
-      setVibeApiKey(claudeKey);
-      setVibeProvider('claude');
-      vibe.initializeVibeCoding(claudeKey, 'claude');
+      initializeVibe(geminiKey);
     }
-    
-    // Apply saved customizations
-    vibe.applySavedCustomizations();
+    // Load saved vibe styles
+    setVibeStyles(loadVibeStyles());
   }, []);
 
   const handleSelectKey = async () => {
@@ -313,7 +302,7 @@ const App: React.FC = () => {
 
   return (
     <SeasonThemeProvider value={themeCtx}>
-    <div className="flex flex-col h-screen w-screen overflow-hidden" style={{ backgroundColor: theme.background }}>
+    <div className={`flex flex-col h-screen w-screen overflow-hidden ${vibeStyles.background}`} style={{ backgroundColor: vibeStyles.background ? undefined : theme.background }}>
       <input type="file" ref={libraryInputRef} onChange={handleLibraryImport} accept=".json,.bible-library" className="hidden" />
       
       {showResumeNotification && initialBookId && (
@@ -380,6 +369,8 @@ const App: React.FC = () => {
               }}
               onDownloadStateChange={() => {}}
               onDownloadFunctionsReady={() => {}}
+              vibeClassName={vibeStyles.bible_panel}
+              vibeVerseClassName={vibeStyles.verse_text}
             />
           )}
         </div>
@@ -415,6 +406,7 @@ const App: React.FC = () => {
                  setNavigateTo({ bookId, chapter, verses });
                  setTimeout(() => setNavigateTo(null), 5000);
                }}
+               vibeClassName={vibeStyles.chat_panel}
              />
           </div>
           
@@ -448,9 +440,10 @@ const App: React.FC = () => {
       
       {showVibePanel && (
         <VibePanel
-          apiKey={vibeApiKey}
-          provider={vibeProvider}
           onClose={() => setShowVibePanel(false)}
+          onApplyStyles={setVibeStyles}
+          currentStyles={vibeStyles}
+          isApiAvailable={!!import.meta.env.GEMINI_API_KEY || !!localStorage.getItem('gemini_api_key')}
         />
       )}
       
