@@ -2687,6 +2687,20 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         />
       )}
       
+      {/* ─── Floating Restore Alignment button (visible even outside annotation mode) ─── */}
+      {!isAnnotationMode && annotationOriginalLayout && (
+        <button
+          onClick={handleRestoreAlignment}
+          className="fixed bottom-8 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl shadow-2xl border-2 border-amber-300 bg-amber-50 hover:bg-amber-100 transition-all hover:scale-105 active:scale-95"
+          title="Annotations are misaligned. Tap to restore original font size and layout. 标注未对齐，点击恢复"
+        >
+          <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <span className="text-sm font-bold text-amber-700">恢复对齐</span>
+        </button>
+      )}
+
       {/* ─── Shared Annotation Toolbar ─────────────────────────────────────── */}
       {isAnnotationMode && (
         <>
