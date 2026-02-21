@@ -39,7 +39,7 @@ const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 export const chatWithAI = async (
   prompt: string,
   history: { role: string; content: string }[],
-  options: { thinking?: boolean; fast?: boolean; search?: boolean } = {}
+  options: { thinking?: boolean; fast?: boolean; search?: boolean; image?: { data: string; mimeType: string } } = {}
 ) => {
   const ai = getAI();
   const model = options.thinking ? 'gemini-3-pro-preview' : (options.fast ? 'gemini-flash-lite-latest' : 'gemini-3-flash-preview');
@@ -48,7 +48,21 @@ export const chatWithAI = async (
     role: h.role === 'user' ? 'user' : 'model',
     parts: [{ text: h.content }]
   }));
-  contents.push({ role: 'user', parts: [{ text: prompt }] });
+  // Add current prompt (with optional image)
+  if (options.image) {
+    const base64Data = options.image.data.includes(',')
+      ? options.image.data.split(',')[1]
+      : options.image.data;
+    contents.push({
+      role: 'user',
+      parts: [
+        { inlineData: { data: base64Data, mimeType: options.image.mimeType } } as any,
+        { text: prompt || 'What do you see in this image?' }
+      ]
+    });
+  } else {
+    contents.push({ role: 'user', parts: [{ text: prompt }] });
+  }
 
   const config: any = {
     systemInstruction: `You are a world-class Bible Scholar and Researcher. 

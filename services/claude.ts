@@ -17,7 +17,7 @@ const getClient = () => {
 export const chatWithAI = async (
   prompt: string,
   history: { role: string; content: string }[],
-  options: { thinking?: boolean; fast?: boolean; search?: boolean } = {}
+  options: { thinking?: boolean; fast?: boolean; search?: boolean; image?: { data: string; mimeType: string } } = {}
 ) => {
   const client = getClient();
   
@@ -35,11 +35,25 @@ export const chatWithAI = async (
     content: h.content
   }));
   
-  // Add current prompt
-  messages.push({
-    role: 'user' as const,
-    content: prompt
-  });
+  // Add current prompt (with optional image)
+  if (options.image) {
+    // Strip data URL prefix to get raw base64
+    const base64Data = options.image.data.includes(',')
+      ? options.image.data.split(',')[1]
+      : options.image.data;
+    messages.push({
+      role: 'user' as const,
+      content: [
+        { type: 'image' as const, source: { type: 'base64' as const, media_type: options.image.mimeType, data: base64Data } },
+        { type: 'text' as const, text: prompt || 'What do you see in this image?' }
+      ] as any
+    });
+  } else {
+    messages.push({
+      role: 'user' as const,
+      content: prompt
+    });
+  }
   
   const systemPrompt = `You are a world-class Bible Scholar and Researcher. 
     
