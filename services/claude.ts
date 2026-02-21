@@ -26,8 +26,8 @@ export const chatWithAI = async (
   const model = options.thinking
     ? 'claude-sonnet-4-5'
     : options.fast
-      ? 'claude-haiku-4-5-latest'
-      : 'claude-haiku-4-5-latest';
+      ? 'claude-haiku-4-5-20251001'
+      : 'claude-haiku-4-5-20251001';
   
   // Convert history to Claude message format
   const messages = history.map(h => ({
