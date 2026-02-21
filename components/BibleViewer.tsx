@@ -741,12 +741,13 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   // No need for mode-specific text selection clearing anymore
 
   useEffect(() => {
-    fetchChapter();
+    let cancelled = false;
+    fetchChapterGuarded(cancelled);
     // Always preload adjacent chapters for smooth navigation
     // Preload next chapter
     if (selectedChapter < (selectedBook.chapters || 1)) {
       fetchChapterData(selectedBook.id, selectedChapter + 1).then(data => {
-        if (data) setNextChapterVerses(data.left);
+        if (!cancelled && data) setNextChapterVerses(data.left);
       });
     } else {
       // Next book first chapter
@@ -754,15 +755,15 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       if (currentIndex < BIBLE_BOOKS.length - 1) {
         const nextBook = BIBLE_BOOKS[currentIndex + 1];
         fetchChapterData(nextBook.id, 1).then(data => {
-          if (data) setNextChapterVerses(data.left);
+          if (!cancelled && data) setNextChapterVerses(data.left);
         });
       }
     }
-    
+
     // Preload previous chapter
     if (selectedChapter > 1) {
       fetchChapterData(selectedBook.id, selectedChapter - 1).then(data => {
-        if (data) setPrevChapterVerses(data.left);
+        if (!cancelled && data) setPrevChapterVerses(data.left);
       });
     } else {
       // Previous book last chapter
@@ -770,7 +771,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       if (currentIndex > 0) {
         const prevBook = BIBLE_BOOKS[currentIndex - 1];
         fetchChapterData(prevBook.id, prevBook.chapters || 1).then(data => {
-          if (data) setPrevChapterVerses(data.left);
+          if (!cancelled && data) setPrevChapterVerses(data.left);
         });
       }
     }
@@ -793,6 +794,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       chapterHasNotes,
       false  // hasAIResearch - will be updated separately when AI features are implemented
     );
+    return () => { cancelled = true; };
   }, [selectedBook, selectedChapter, notes]);
   
   // Handle clicking outside book dropdown and mobile menu
@@ -872,44 +874,45 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     return null;
   };
 
-  const fetchChapter = async () => {
+  const fetchChapterGuarded = async (cancelled: boolean) => {
     setLoading(true);
     setError(null);
-    
+
     // First, try to load from cache for instant display
     let loadedFromCache = false;
     try {
       const cachedCuv = await bibleStorage.getChapter(selectedBook.id, selectedChapter, 'cuv');
       const cachedWeb = await bibleStorage.getChapter(selectedBook.id, selectedChapter, 'web');
-      
+
+      if (cancelled) return;
       if (cachedCuv && cachedWeb && cachedCuv.verses && cachedWeb.verses) {
         // Use cached data immediately for instant loading
         setLeftVerses(cachedCuv.verses);
         setRightVerses(cachedWeb.verses);
         loadedFromCache = true;
         setLoading(false);
-        setError(null); // Clear any previous errors
-        
+        setError(null);
+
         // Try to update from network in background (don't show loading)
         fetch(`${BIBLE_API_BASE}/${selectedBook.id}${selectedChapter}?translation=cuv`)
           .then(res => res.json())
           .then(data => {
-            if (data.verses) {
+            if (!cancelled && data.verses) {
               setLeftVerses(data.verses);
               bibleStorage.saveChapter(selectedBook.id, selectedChapter, 'cuv', data).catch(() => {});
             }
           })
-          .catch(() => {}); // Silent fail for background update
-          
+          .catch(() => {});
+
         fetch(`${BIBLE_API_BASE}/${selectedBook.id}${selectedChapter}?translation=web`)
           .then(res => res.json())
           .then(data => {
-            if (data.verses) {
+            if (!cancelled && data.verses) {
               setRightVerses(data.verses);
               bibleStorage.saveChapter(selectedBook.id, selectedChapter, 'web', data).catch(() => {});
             }
           })
-          .catch(() => {}); // Silent fail for background update
+          .catch(() => {});
       }
     } catch (err) {
       console.error('Cache check error:', err);
@@ -918,38 +921,39 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     // If not loaded from cache, try to fetch from API
     if (!loadedFromCache) {
       try {
-        
         const [cuvRes, engRes] = await Promise.all([
           fetch(`${BIBLE_API_BASE}/${selectedBook.id}${selectedChapter}?translation=cuv`),
           fetch(`${BIBLE_API_BASE}/${selectedBook.id}${selectedChapter}?translation=web`)
         ]);
-        
+
+        if (cancelled) return;
         const [cuvData, engData] = await Promise.all([
           cuvRes.json(),
           engRes.json()
         ]);
-      
+
+        if (cancelled) return;
         if (cuvData?.verses && engData?.verses) {
           setLeftVerses(cuvData.verses);
           setRightVerses(engData.verses);
           setIsOffline(false);
-          
+
           // Save to IndexedDB in background (non-blocking)
           Promise.all([
             bibleStorage.saveChapter(selectedBook.id, selectedChapter, 'cuv', cuvData),
             bibleStorage.saveChapter(selectedBook.id, selectedChapter, 'web', engData)
           ]).then(() => {
-            // Update offline chapters list
             checkOfflineStatus();
           }).catch(err => console.error('Failed to cache chapter:', err));
         }
       } catch (fetchErr: any) {
+        if (cancelled) return;
         // If online fetch fails, try IndexedDB
-        
         try {
           const cachedCuv = await bibleStorage.getChapter(selectedBook.id, selectedChapter, 'cuv');
           const cachedWeb = await bibleStorage.getChapter(selectedBook.id, selectedChapter, 'web');
-          
+
+          if (cancelled) return;
           if (cachedCuv && cachedWeb) {
             setLeftVerses(cachedCuv.verses);
             setRightVerses(cachedWeb.verses);
@@ -957,20 +961,26 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           } else {
             setLeftVerses([]);
             setRightVerses([]);
-            // More helpful error message with retry option
             setError(`无法加载 ${selectedBook.name} 第 ${selectedChapter} 章。请检查网络连接。`);
           }
         } catch (storageErr) {
           console.error("Storage error:", storageErr);
-          setLeftVerses([]);
-          setRightVerses([]);
+          if (!cancelled) {
+            setLeftVerses([]);
+            setRightVerses([]);
+          }
         }
       } finally {
-        setSelectedVerses([]);
-        setLoading(false);
+        if (!cancelled) {
+          setSelectedVerses([]);
+          setLoading(false);
+        }
       }
     }
   };
+
+  // Unguarded version for manual retries (not called from useEffect)
+  const fetchChapter = () => fetchChapterGuarded(false);
 
   const toggleChineseMode = () => {
     const newMode = !isSimplified;
@@ -1527,17 +1537,11 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   }, [isResizing]);
 
   useEffect(() => {
-    if (isResizing) {
-      window.addEventListener('mousemove', resize);
-      window.addEventListener('mouseup', stopResizing);
-      window.addEventListener('touchmove', resize);
-      window.addEventListener('touchend', stopResizing);
-    } else {
-      window.removeEventListener('mousemove', resize);
-      window.removeEventListener('mouseup', stopResizing);
-      window.removeEventListener('touchmove', resize);
-      window.removeEventListener('touchend', stopResizing);
-    }
+    if (!isResizing) return;
+    window.addEventListener('mousemove', resize);
+    window.addEventListener('mouseup', stopResizing);
+    window.addEventListener('touchmove', resize);
+    window.addEventListener('touchend', stopResizing);
     return () => {
       window.removeEventListener('mousemove', resize);
       window.removeEventListener('mouseup', stopResizing);
