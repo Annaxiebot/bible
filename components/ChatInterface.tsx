@@ -808,9 +808,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       }
 
       setMessages(prev => [...prev, assistantMessage]);
-    } catch (error) {
+    } catch (error: any) {
       console.error('[AI Response Error]', error);
-      setMessages(prev => [...prev, { role: 'assistant', content: "连接失败，请重试。", timestamp: new Date() }]);
+      const errorDetail = error?.message || error?.status || String(error);
+      setMessages(prev => [...prev, { role: 'assistant', content: `连接失败：${errorDetail}\nConnection failed. Please check your API key and try again.`, timestamp: new Date() }]);
     } finally {
       setIsTyping(false);
     }
