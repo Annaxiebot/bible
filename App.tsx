@@ -318,7 +318,7 @@ const App: React.FC = () => {
         onRestore={handleRestoreClick}
         onClear={handleClearAll}
         onVoiceOpen={() => setIsVoiceOpen(true)}
-        onVibeOpen={() => setShowVibePanel(true)}
+        onVibeOpen={() => { setShowVibePanel(true); setIsSidebarOpen(false); }}
         onNavigate={(bookId, chapter, verse) => {
           setNavigateTo({ bookId, chapter, verses: verse ? [verse] : undefined });
           setTimeout(() => setNavigateTo(null), 5000);
