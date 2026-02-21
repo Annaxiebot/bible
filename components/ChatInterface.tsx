@@ -753,18 +753,54 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     return () => clearTimeout(scrollTimeout);
   }, [messages, isTyping]);
 
-  const handleImageSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+  const compressImage = useCallback((dataUrl: string, mimeType: string): Promise<{ data: string; mimeType: string }> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX_DIM = 1600;
+        const MAX_BYTES = 4 * 1024 * 1024; // 4MB to stay under 5MB API limit
+        let { width, height } = img;
+
+        // Scale down if too large
+        if (width > MAX_DIM || height > MAX_DIM) {
+          const scale = MAX_DIM / Math.max(width, height);
+          width = Math.round(width * scale);
+          height = Math.round(height * scale);
+        }
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d')!;
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Try JPEG at decreasing quality until under size limit
+        let quality = 0.85;
+        let result = canvas.toDataURL('image/jpeg', quality);
+        while (result.length * 0.75 > MAX_BYTES && quality > 0.3) {
+          quality -= 0.15;
+          result = canvas.toDataURL('image/jpeg', quality);
+        }
+
+        resolve({ data: result, mimeType: 'image/jpeg' });
+      };
+      img.src = dataUrl;
+    });
+  }, []);
+
+  const handleImageSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     const reader = new FileReader();
-    reader.onload = (ev) => {
-      const data = ev.target?.result as string;
-      setImageAttachment({ data, mimeType: file.type });
+    reader.onload = async (ev) => {
+      const rawData = ev.target?.result as string;
+      const compressed = await compressImage(rawData, file.type);
+      setImageAttachment(compressed);
     };
     reader.readAsDataURL(file);
     // Reset input so the same file can be re-selected
     e.target.value = '';
-  }, []);
+  }, [compressImage]);
 
   const handleSend = async () => {
     if ((!input.trim() && !imageAttachment) || isTyping) return;
