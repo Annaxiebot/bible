@@ -1112,6 +1112,25 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
             </button>
           </div>
+          {/* Thinking mode toggle */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setIsThinking(!isThinking)}
+              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
+                isThinking
+                  ? 'bg-indigo-100 text-indigo-700 border border-indigo-300'
+                  : 'bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200'
+              }`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              </svg>
+              {isThinking ? '深度思考 On' : '深度思考 Off'}
+            </button>
+            <span className="text-[10px] text-slate-400">
+              {isThinking ? 'Sonnet · slower, deeper analysis' : 'Haiku · fast responses'}
+            </span>
+          </div>
         </div>
       </div>
       
