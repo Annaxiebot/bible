@@ -1,151 +1,185 @@
 import React, { useState } from 'react';
-import * as vibe from '../services/vibe';
+import { VibeStyles, VIBE_PRESETS, generateVibeStyles, saveVibeStyles, clearVibeStyles, getEmptyStyles } from '../services/vibe';
 
 interface VibePanelProps {
-  apiKey?: string;
-  provider: 'gemini' | 'claude';
   onClose: () => void;
+  onApplyStyles: (styles: VibeStyles) => void;
+  currentStyles: VibeStyles;
+  isApiAvailable: boolean;
 }
 
-const VibePanel: React.FC<VibePanelProps> = ({ apiKey, provider, onClose }) => {
-  const [prompt, setPrompt] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<string>('');
-  const [history, setHistory] = useState<string[]>([]);
+const VibePanel: React.FC<VibePanelProps> = ({ onClose, onApplyStyles, currentStyles, isApiAvailable }) => {
+  const [customPrompt, setCustomPrompt] = useState('');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [activeVibe, setActiveVibe] = useState<string | null>(null);
 
-  async function handleCustomize() {
-    if (!prompt.trim() || !apiKey) return;
-
-    setLoading(true);
-    setResult('');
-
+  const handleVibeCoding = async (vibePrompt: string) => {
+    setIsGenerating(true);
+    setError(null);
+    setActiveVibe(vibePrompt);
     try {
-      const changes = await vibe.processVibePrompt(prompt);
-      vibe.applyVibeChanges(changes);
-      vibe.saveVibeCustomizations(changes);
-
-      const summary = changes.map(c => `✓ ${c.description}`).join('\n');
-      setResult(summary);
-      setHistory(prev => [...prev, prompt]);
-      setPrompt('');
-    } catch (error) {
-      setResult(`❌ Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      const styles = await generateVibeStyles(vibePrompt);
+      onApplyStyles(styles);
+      saveVibeStyles(styles);
+    } catch (err) {
+      console.error('Vibe coding failed:', err);
+      setError(err instanceof Error ? err.message : 'Failed to generate vibe');
+      setActiveVibe(null);
     } finally {
-      setLoading(false);
+      setIsGenerating(false);
     }
-  }
+  };
 
-  function handleReset() {
-    if (confirm('Reset all customizations? 重置所有自定义设置？This will require a page reload.')) {
-      vibe.clearVibeCustomizations();
-      setHistory([]);
-      setResult('✓ All customizations cleared. Please reload the page to see changes.');
+  const handleReset = () => {
+    clearVibeStyles();
+    onApplyStyles(getEmptyStyles());
+    setActiveVibe(null);
+    setError(null);
+  };
+
+  const handleCustomSubmit = () => {
+    if (customPrompt.trim() && !isGenerating) {
+      handleVibeCoding(customPrompt.trim());
+      setCustomPrompt('');
     }
-  }
+  };
 
-  if (!apiKey) {
-    return (
-      <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" onClick={onClose}>
-        <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl p-8 m-4" onClick={e => e.stopPropagation()}>
-          <div className="flex items-center justify-between mb-6">
-            <h2 className="text-2xl font-bold text-slate-800">✨ Vibe Coding</h2>
-            <button onClick={onClose} className="text-2xl text-slate-400 hover:text-slate-600">✕</button>
-          </div>
-          <div className="text-center py-12">
-            <div className="text-6xl mb-4">🔑</div>
-            <p className="text-lg text-slate-600 mb-2">Vibe-coding 需要配置 API 密钥</p>
-            <p className="text-slate-500">Please configure {provider === 'gemini' ? 'Gemini' : 'Claude'} API key in Settings</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const hasActiveStyles = Object.values(currentStyles).some(v => v !== '');
 
   return (
     <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" onClick={onClose}>
-      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[80vh] flex flex-col m-4" onClick={e => e.stopPropagation()}>
+      <div
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col m-4"
+        onClick={e => e.stopPropagation()}
+      >
+        {/* Header */}
         <div className="p-6 border-b border-slate-200">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
-              ✨ Vibe Coding
-              <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded-full">
-                {provider === 'gemini' ? 'Gemini' : 'Claude'}
-              </span>
-            </h2>
-            <button onClick={onClose} className="text-2xl text-slate-400 hover:text-slate-600">✕</button>
+          <div className="flex items-center justify-between mb-1">
+            <h2 className="text-2xl font-bold text-slate-800">Vibe Studio</h2>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
           <p className="text-sm text-slate-500">
-            Customize the app with natural language - changes apply instantly!
+            Describe the atmosphere you want, and AI will style the app.
           </p>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <p className="font-bold text-blue-900 mb-2">💡 Example Prompts:</p>
-            <ul className="text-blue-800 space-y-1 text-sm">
-              <li>• "Make the background a soft dark blue"</li>
-              <li>• "Change verse numbers to gold and slightly larger"</li>
-              <li>• "Add keyboard shortcut: Press 'b' to bookmark selected verse"</li>
-              <li>• "Make the font size 18px"</li>
-              <li>• "Add a floating button to jump to top"</li>
-              <li>• "Make selected verses have a yellow highlight"</li>
-            </ul>
-          </div>
-
-          {result && (
-            <div className={`p-4 rounded-lg ${result.startsWith('❌') ? 'bg-red-50 text-red-800' : 'bg-green-50 text-green-800'}`}>
-              <pre className="text-sm whitespace-pre-wrap font-sans">{result}</pre>
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+          {!isApiAvailable && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
+              <p className="text-amber-800 font-medium">Gemini API key required</p>
+              <p className="text-amber-600 text-sm mt-1">Configure GEMINI_API_KEY to use Vibe Studio</p>
             </div>
           )}
 
-          {history.length > 0 && (
-            <div>
-              <h4 className="font-bold text-slate-700 mb-2">Applied Customizations:</h4>
-              <div className="space-y-2">
-                {history.map((item, i) => (
-                  <div key={i} className="p-3 bg-slate-50 rounded-lg text-sm text-slate-600 flex items-start gap-2">
-                    <span className="text-green-600 font-bold">{i + 1}.</span>
-                    <span>{item}</span>
+          {/* Preset Vibe Cards */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {VIBE_PRESETS.map(preset => (
+              <button
+                key={preset}
+                onClick={() => handleVibeCoding(preset)}
+                disabled={isGenerating || !isApiAvailable}
+                className={`p-5 rounded-xl border text-left transition-all group disabled:opacity-50 disabled:cursor-not-allowed ${
+                  activeVibe === preset
+                    ? 'border-indigo-300 bg-indigo-50 shadow-md'
+                    : 'border-slate-100 bg-white hover:border-indigo-300 hover:shadow-lg'
+                }`}
+              >
+                <p className={`font-medium ${
+                  activeVibe === preset ? 'text-indigo-700' : 'text-slate-800 group-hover:text-indigo-600'
+                }`}>
+                  {preset}
+                </p>
+                {isGenerating && activeVibe === preset && (
+                  <div className="flex items-center gap-2 mt-2">
+                    <div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                    <span className="text-xs text-indigo-500">Generating...</span>
                   </div>
-                ))}
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Custom Vibe Prompt */}
+          <div className="bg-indigo-50 rounded-xl border border-indigo-100 p-5">
+            <h4 className="font-bold text-indigo-800 mb-3">Custom Vibe Prompt</h4>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={customPrompt}
+                onChange={e => setCustomPrompt(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleCustomSubmit(); }}
+                placeholder="e.g. A serene mountain morning..."
+                className="flex-1 px-4 py-2.5 rounded-xl border border-indigo-200 outline-none focus:ring-2 focus:ring-indigo-400 bg-white text-sm"
+                disabled={isGenerating || !isApiAvailable}
+              />
+              <button
+                onClick={handleCustomSubmit}
+                disabled={isGenerating || !customPrompt.trim() || !isApiAvailable}
+                className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold text-sm"
+              >
+                {isGenerating && activeVibe === customPrompt ? 'Styling...' : 'Apply'}
+              </button>
+            </div>
+          </div>
+
+          {/* Error */}
+          {error && (
+            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+              <p className="text-red-800 text-sm">{error}</p>
+            </div>
+          )}
+
+          {/* Current Vibe Preview */}
+          {hasActiveStyles && (
+            <div className="bg-slate-50 rounded-xl border border-slate-200 p-5">
+              <div className="flex items-center justify-between mb-3">
+                <h4 className="font-bold text-slate-700">Active Vibe</h4>
+                <button
+                  onClick={handleReset}
+                  className="px-3 py-1.5 bg-slate-200 text-slate-600 rounded-lg hover:bg-slate-300 transition-colors text-xs font-medium"
+                >
+                  Reset to Default
+                </button>
+              </div>
+              <div className="space-y-1.5 text-xs font-mono text-slate-500">
+                {Object.entries(currentStyles).map(([key, value]) =>
+                  value ? (
+                    <div key={key} className="flex gap-2">
+                      <span className="text-slate-400 w-24">{key}:</span>
+                      <span className="text-indigo-600">{value}</span>
+                    </div>
+                  ) : null
+                )}
               </div>
             </div>
           )}
         </div>
 
-        <div className="p-6 border-t border-slate-200 space-y-3">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={prompt}
-              onChange={(e) => setPrompt(e.target.value)}
-              onKeyPress={(e) => e.key === 'Enter' && !loading && handleCustomize()}
-              placeholder="Describe what you want... 描述你想要的改变..."
-              className="flex-1 px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:border-purple-500 focus:ring-2 focus:ring-purple-200"
-              disabled={loading}
-            />
-            <button
-              onClick={handleCustomize}
-              disabled={loading || !prompt.trim()}
-              className="px-8 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold"
-            >
-              {loading ? '⏳' : 'Apply'}
-            </button>
-          </div>
-          <div className="flex gap-2">
+        {/* Footer */}
+        <div className="p-4 border-t border-slate-200 flex gap-2">
+          {hasActiveStyles && (
             <button
               onClick={handleReset}
-              className="flex-1 px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-colors text-sm font-medium"
+              className="flex-1 px-4 py-2.5 bg-slate-200 text-slate-700 rounded-xl hover:bg-slate-300 transition-colors text-sm font-medium"
             >
-              Reset All 重置所有
+              Reset All
             </button>
-            <button
-              onClick={onClose}
-              className="flex-1 px-4 py-2 bg-blue-100 text-blue-700 rounded-lg hover:bg-blue-200 transition-colors text-sm font-medium"
-            >
-              Done 完成
-            </button>
-          </div>
+          )}
+          <button
+            onClick={onClose}
+            className="flex-1 px-4 py-2.5 bg-indigo-100 text-indigo-700 rounded-xl hover:bg-indigo-200 transition-colors text-sm font-medium"
+          >
+            Done
+          </button>
         </div>
       </div>
     </div>

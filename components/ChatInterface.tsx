@@ -17,6 +17,7 @@ interface ChatInterfaceProps {
   currentChapter?: number;
   onResearchSaved?: () => void;
   onNavigate?: (bookId: string, chapter: number, verses?: number[]) => void;
+  vibeClassName?: string;
 }
 
 const parseMessage = (content: string, role: string) => {
@@ -601,7 +602,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ m, side, isSpeaking, onSp
   );
 };
 
-const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBookId, currentChapter, onResearchSaved, onNavigate }) => {
+const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBookId, currentChapter, onResearchSaved, onNavigate, vibeClassName }) => {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [researchToSave, setResearchToSave] = useState<{ message: ChatMessage; side: 'zh' | 'en' } | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -918,7 +919,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
   }, [isResizing, resize, stopResizing]);
 
   return (
-    <div className="h-full flex flex-col relative bg-slate-50" ref={containerRef}>
+    <div className={`h-full flex flex-col relative bg-slate-50 ${vibeClassName || ''}`} ref={containerRef}>
       {/* AI Provider Header */}
       <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-indigo-100 px-4 py-2 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
