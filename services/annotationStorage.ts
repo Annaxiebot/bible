@@ -18,8 +18,12 @@ export interface AnnotationRecord {
   canvasData: string;
   /** Extra expanded height in pixels (0 = no expansion) */
   canvasHeight: number;
-  /** CSS pixel width of the canvas when annotation was saved (for scaling on resize) */
+  /** CSS pixel width of the canvas when annotation was saved */
   canvasWidth?: number;
+  /** Font size used when annotation was drawn */
+  fontSize?: number;
+  /** Vertical split offset (0-100) when annotation was drawn */
+  vSplitOffset?: number;
   /** Timestamp of last modification */
   lastModified: number;
   /** Panel identifier (chinese or english) - optional for backwards compat */
@@ -62,7 +66,9 @@ class AnnotationStorageService {
     canvasData: string,
     canvasHeight: number,
     panelId?: 'chinese' | 'english',
-    canvasWidth?: number
+    canvasWidth?: number,
+    fontSize?: number,
+    vSplitOffset?: number
   ): Promise<void> {
     try {
       const db = await this.dbPromise;
@@ -74,6 +80,8 @@ class AnnotationStorageService {
         canvasData,
         canvasHeight,
         canvasWidth,
+        fontSize,
+        vSplitOffset,
         lastModified: Date.now(),
         panelId,
       });
@@ -91,7 +99,7 @@ class AnnotationStorageService {
     bookId: string,
     chapter: number,
     panelId?: 'chinese' | 'english'
-  ): Promise<{ data: string; height: number; width: number } | null> {
+  ): Promise<{ data: string; height: number; width: number; fontSize: number; vSplitOffset: number } | null> {
     try {
       const db = await this.dbPromise;
       const id = panelId ? `${bookId}:${chapter}:${panelId}` : `${bookId}:${chapter}`;
@@ -107,7 +115,9 @@ class AnnotationStorageService {
       return {
         data: record.canvasData,
         height: record.canvasHeight,
-        width: record.canvasWidth || 0, // 0 = legacy record, no scaling
+        width: record.canvasWidth || 0,
+        fontSize: record.fontSize || 0,
+        vSplitOffset: record.vSplitOffset ?? -1, // -1 = not stored
       };
     } catch (error) {
       console.error('Failed to get annotation:', error);
