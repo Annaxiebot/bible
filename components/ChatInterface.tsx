@@ -1240,7 +1240,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
             {/* Image attach: on touch devices, single button opens native picker (iOS provides Take Photo / Choose Photo natively). On desktop, show menu with webcam + file picker. */}
             {'ontouchstart' in window || navigator.maxTouchPoints > 0 ? (
               <label
-                className={`absolute right-14 bottom-2 p-2.5 rounded-xl transition-all active:scale-95 cursor-pointer relative overflow-hidden ${
+                className={`absolute right-14 bottom-2 p-2.5 rounded-xl transition-all active:scale-95 cursor-pointer overflow-hidden ${
                   isTyping ? 'opacity-30 pointer-events-none' : 'text-slate-400 hover:text-indigo-600'
                 }`}
                 title="Attach image 附加图片"
