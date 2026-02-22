@@ -7,6 +7,7 @@
  */
 
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
+import { verseDataStorage } from './verseDataStorage';
 
 /** Serialized annotation data for a single chapter */
 export interface AnnotationRecord {
@@ -85,6 +86,9 @@ class AnnotationStorageService {
         lastModified: Date.now(),
         panelId,
       });
+
+      // Auto-create a chapter-level note so annotations appear in notes list/print
+      this.ensureChapterNote(bookId, chapter, canvasData).catch(() => {});
     } catch (error) {
       console.error('Failed to save annotation:', error);
       throw error;
@@ -137,6 +141,28 @@ class AnnotationStorageService {
       console.error('Failed to delete annotation:', error);
       throw error;
     }
+  }
+
+  /**
+   * Ensure a chapter-level note exists in verseDataStorage when annotations are present.
+   * Creates a note with marker text if none exists; skips if one already exists.
+   */
+  private async ensureChapterNote(bookId: string, chapter: number, canvasData: string): Promise<void> {
+    // Check if annotation data has actual paths (not empty array)
+    try {
+      const paths = JSON.parse(canvasData);
+      if (!Array.isArray(paths) || paths.length === 0) return;
+    } catch { return; }
+
+    const existing = await verseDataStorage.getVerseData(bookId, chapter, []);
+    if (existing?.personalNote) return; // Already has a note, don't overwrite
+
+    const now = Date.now();
+    await verseDataStorage.savePersonalNote(bookId, chapter, [], {
+      text: '[Has handwritten annotations]',
+      createdAt: now,
+      updatedAt: now,
+    });
   }
 
   /**

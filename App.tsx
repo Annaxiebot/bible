@@ -13,6 +13,9 @@ import { verseDataStorage } from './services/verseDataStorage';
 import { BIBLE_BOOKS } from './constants';
 import { Toast } from './components/Toast';
 import NotesList from './components/NotesList';
+import BibleSearch from './components/BibleSearch';
+import { printStudyNotes, PrintOptions } from './services/printService';
+import PrintOptionsDialog from './components/PrintOptionsDialog';
 import { useSeasonThemeInit, SeasonThemeProvider } from './hooks/useSeasonTheme';
 import { VibeStyles, isVibeAvailable, loadVibeStyles, getEmptyStyles } from './services/vibe';
 import './services/syncService'; // Initialize sync service
@@ -102,6 +105,8 @@ const App: React.FC = () => {
   const [researchUpdateTrigger, setResearchUpdateTrigger] = useState(0);
   const [currentBibleContext, setCurrentBibleContext] = useState<{bookId: string; chapter: number} | null>(null);
   const [showVibePanel, setShowVibePanel] = useState(false);
+  const [showSearch, setShowSearch] = useState(false);
+  const [showPrintOptions, setShowPrintOptions] = useState(false);
   const [vibeStyles, setVibeStyles] = useState<VibeStyles>(getEmptyStyles());
   
   const handleSelectionChange = useCallback((selection: SelectionInfo | null) => {
@@ -317,6 +322,8 @@ const App: React.FC = () => {
         onBackup={handleBackupAll}
         onRestore={handleRestoreClick}
         onClear={handleClearAll}
+        onSearch={() => { setShowSearch(true); setIsSidebarOpen(false); }}
+        onPrint={() => { setShowPrintOptions(true); setIsSidebarOpen(false); }}
         onVoiceOpen={() => setIsVoiceOpen(true)}
         onVibeOpen={() => { setShowVibePanel(true); setIsSidebarOpen(false); }}
         onNavigate={(bookId, chapter, verse) => {
@@ -453,6 +460,35 @@ const App: React.FC = () => {
                 split.setHorizontal(0);
                 setNavigateTo({ bookId, chapter, verses });
                 setTimeout(() => setNavigateTo(null), 5000);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {showSearch && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl h-[80vh] overflow-hidden">
+            <BibleSearch
+              onClose={() => setShowSearch(false)}
+              onNavigate={(bookId, chapter, verses) => {
+                setShowSearch(false);
+                setNavigateTo({ bookId, chapter, verses });
+                setTimeout(() => setNavigateTo(null), 5000);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {showPrintOptions && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden">
+            <PrintOptionsDialog
+              onClose={() => setShowPrintOptions(false)}
+              onPrint={(options: PrintOptions) => {
+                setShowPrintOptions(false);
+                printStudyNotes(options);
               }}
             />
           </div>
