@@ -149,20 +149,15 @@ class AuthManager {
     return () => this.listeners.delete(listener);
   }
 
-  async signUp(email: string, password: string): Promise<{ user: User | null; error: AuthError | null }> {
+  async signInWithGoogle(): Promise<{ error: AuthError | null }> {
     if (!supabase) {
-      return { user: null, error: new Error('Supabase not configured') as any };
+      return { error: new Error('Supabase not configured') as any };
     }
-    const { data, error } = await supabase.auth.signUp({ email, password });
-    return { user: data.user, error };
-  }
-
-  async signIn(email: string, password: string): Promise<{ user: User | null; error: AuthError | null }> {
-    if (!supabase) {
-      return { user: null, error: new Error('Supabase not configured') as any };
-    }
-    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
-    return { user: data.user, error };
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin }
+    });
+    return { error };
   }
 
   async signOut(): Promise<{ error: AuthError | null }> {
@@ -170,14 +165,6 @@ class AuthManager {
       return { error: new Error('Supabase not configured') as any };
     }
     const { error } = await supabase.auth.signOut();
-    return { error };
-  }
-
-  async resetPassword(email: string): Promise<{ error: AuthError | null }> {
-    if (!supabase) {
-      return { error: new Error('Supabase not configured') as any };
-    }
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
     return { error };
   }
 

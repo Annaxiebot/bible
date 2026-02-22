@@ -7,7 +7,8 @@ import * as aiService from '../services/aiProvider';
 import * as geminiService from '../services/gemini';
 import AIProviderSettings from './AIProviderSettings';
 import SaveResearchModal from './SaveResearchModal';
-import { BIBLE_BOOKS } from '../constants';
+import { BIBLE_BOOKS, CHINESE_ABBREV_TO_BOOK_ID } from '../constants';
+import { BOOK_ID_TO_CHINESE_NAME } from '../services/bibleBookData';
 import { verseDataStorage } from '../services/verseDataStorage';
 import { AIResearchEntry } from '../types/verseData';
 
@@ -57,140 +58,8 @@ interface BibleRef {
   verses?: number[];
 }
 
-// Mapping of Chinese book names to book IDs
-const CHINESE_BOOK_MAP: { [key: string]: string } = {
-  '创世记': 'GEN',
-  '出埃及记': 'EXO',
-  '利未记': 'LEV',
-  '民数记': 'NUM',
-  '申命记': 'DEU',
-  '约书亚记': 'JOS',
-  '士师记': 'JDG',
-  '路得记': 'RUT',
-  '撒母耳记上': '1SA',
-  '撒母耳记下': '2SA',
-  '列王纪上': '1KI',
-  '列王纪下': '2KI',
-  '历代志上': '1CH',
-  '历代志下': '2CH',
-  '以斯拉记': 'EZR',
-  '尼希米记': 'NEH',
-  '以斯帖记': 'EST',
-  '约伯记': 'JOB',
-  '诗篇': 'PSA',
-  '箴言': 'PRO',
-  '传道书': 'ECC',
-  '雅歌': 'SNG',
-  '以赛亚书': 'ISA',
-  '耶利米书': 'JER',
-  '耶利米哀歌': 'LAM',
-  '以西结书': 'EZK',
-  '但以理书': 'DAN',
-  '何西阿书': 'HOS',
-  '约珥书': 'JOE',
-  '阿摩司书': 'AMO',
-  '俄巴底亚书': 'OBA',
-  '约拿书': 'JON',
-  '弥迦书': 'MIC',
-  '那鸿书': 'NAM',
-  '哈巴谷书': 'HAB',
-  '西番雅书': 'ZEP',
-  '哈该书': 'HAG',
-  '撒迦利亚书': 'ZEC',
-  '玛拉基书': 'MAL',
-  '马太福音': 'MAT',
-  '马可福音': 'MRK',
-  '路加福音': 'LUK',
-  '约翰福音': 'JHN',
-  '使徒行传': 'ACT',
-  '罗马书': 'ROM',
-  '哥林多前书': '1CO',
-  '哥林多后书': '2CO',
-  '加拉太书': 'GAL',
-  '以弗所书': 'EPH',
-  '腓立比书': 'PHP',
-  '歌罗西书': 'COL',
-  '帖撒罗尼迦前书': '1TH',
-  '帖撒罗尼迦后书': '2TH',
-  '提摩太前书': '1TI',
-  '提摩太后书': '2TI',
-  '提多书': 'TIT',
-  '腓利门书': 'PHM',
-  '希伯来书': 'HEB',
-  '雅各书': 'JAS',
-  '彼得前书': '1PE',
-  '彼得后书': '2PE',
-  '约翰一书': '1JN',
-  '约翰二书': '2JN',
-  '约翰三书': '3JN',
-  '犹大书': 'JUD',
-  '启示录': 'REV',
-  // Common Chinese abbreviations
-  '创': 'GEN',
-  '出': 'EXO',
-  '利': 'LEV',
-  '民': 'NUM',
-  '申': 'DEU',
-  '士': 'JDG',
-  '得': 'RUT',
-  '撒上': '1SA',
-  '撒下': '2SA',
-  '王上': '1KI',
-  '王下': '2KI',
-  '代上': '1CH',
-  '代下': '2CH',
-  '拉': 'EZR',
-  '尼': 'NEH',
-  '斯': 'EST',
-  '伯': 'JOB',
-  '诗': 'PSA',
-  '箴': 'PRO',
-  '传': 'ECC',
-  '歌': 'SNG',
-  '赛': 'ISA',
-  '耶': 'JER',
-  '哀': 'LAM',
-  '结': 'EZK',
-  '但': 'DAN',
-  '何': 'HOS',
-  '珥': 'JOE',
-  '摩': 'AMO',
-  '俄': 'OBA',
-  '拿': 'JON',
-  '弥': 'MIC',
-  '鸿': 'NAM',
-  '番': 'ZEP',
-  '该': 'HAG',
-  '亚': 'ZEC',
-  '玛': 'MAL',
-  '太': 'MAT',
-  '可': 'MRK',
-  '路': 'LUK',
-  '约': 'JHN',
-  '徒': 'ACT',
-  '罗': 'ROM',
-  '林前': '1CO',
-  '林后': '2CO',
-  '加': 'GAL',
-  '弗': 'EPH',
-  '腓': 'PHP',
-  '西': 'COL',
-  '帖前': '1TH',
-  '帖后': '2TH',
-  '提前': '1TI',
-  '提后': '2TI',
-  '多': 'TIT',
-  '门': 'PHM',
-  '来': 'HEB',
-  '雅': 'JAS',
-  '彼前': '1PE',
-  '彼后': '2PE',
-  '约壹': '1JN',
-  '约贰': '2JN',
-  '约叁': '3JN',
-  '犹': 'JUD',
-  '启': 'REV',
-};
+// Use centralized book data
+const CHINESE_BOOK_MAP = CHINESE_ABBREV_TO_BOOK_ID;
 
 // English book name aliases (common variations AI models use)
 const ENGLISH_BOOK_ALIASES: { [key: string]: string } = {
@@ -200,18 +69,11 @@ const ENGLISH_BOOK_ALIASES: { [key: string]: string } = {
   'Revelations': 'Revelation',
 };
 
-// Create reverse mappings: ID -> Chinese and ID -> English
-const BOOK_ID_TO_CHINESE: { [key: string]: string } = {};
+// Create reverse mapping: ID -> English
 const BOOK_ID_TO_ENGLISH: { [key: string]: string } = {};
-
 BIBLE_BOOKS.forEach(book => {
-  // Extract Chinese and English names from "中文 English" format
   const parts = book.name.split(' ');
-  const chineseName = parts[0]; // First part is Chinese
-  const englishName = parts.slice(1).join(' '); // Rest is English
-  
-  BOOK_ID_TO_CHINESE[book.id] = chineseName;
-  BOOK_ID_TO_ENGLISH[book.id] = englishName;
+  BOOK_ID_TO_ENGLISH[book.id] = parts.slice(1).join(' ');
 });
 
 const parseBibleReference = (text: string): BibleRef | null => {
@@ -326,7 +188,7 @@ const BibleLink: React.FC<BibleLinkProps> = ({ children, onNavigate }) => {
     const isChinese = chineseBookNames.some(name => children.includes(name));
     
     // Get book names
-    const chineseName = BOOK_ID_TO_CHINESE[ref.bookId];
+    const chineseName = BOOK_ID_TO_CHINESE_NAME[ref.bookId];
     const englishName = BOOK_ID_TO_ENGLISH[ref.bookId];
     
     // Extract chapter and verse info
@@ -415,7 +277,7 @@ const processTextWithBibleRefs = (text: string, onNavigate?: (bookId: string, ch
       // For standalone patterns, use the current book context
       const currentBook = BIBLE_BOOKS.find(b => b.id === currentBookId);
       if (currentBook) {
-        const chineseName = BOOK_ID_TO_CHINESE[currentBookId];
+        const chineseName = BOOK_ID_TO_CHINESE_NAME[currentBookId];
         const displayRef = `${chineseName}${matchedText}`;
         parts.push(
           <BibleLink key={match.index} onNavigate={onNavigate}>
@@ -715,7 +577,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
             if (match) {
               const currentBook = BIBLE_BOOKS.find(b => b.id === currentBookId);
               if (currentBook) {
-                const chineseName = BOOK_ID_TO_CHINESE[currentBookId];
+                const chineseName = BOOK_ID_TO_CHINESE_NAME[currentBookId];
                 const fullRef = `${chineseName}${match[1]}`;
                 parsed = parseBibleReference(fullRef);
               }

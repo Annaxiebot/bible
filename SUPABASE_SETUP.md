@@ -20,7 +20,7 @@ This document explains how to set up and use the optional cloud sync feature.
 
 - Organization: **Scripture Scholar**
 - Project: **bible-app**
-- URL: https://supabase.com/dashboard/project/jyntvxgapvnmsfzgpnka
+- URL: https://supabase.com/dashboard/project/akzgptgetjmsbibhnuhs
 
 ### 2. Create Database Tables
 
@@ -50,7 +50,7 @@ The schema already enables Supabase Auth. Users can:
 The following environment variables are already configured in `.env.local`:
 
 ```env
-VITE_SUPABASE_URL=https://jyntvxgapvnmsfzgpnka.supabase.co
+VITE_SUPABASE_URL=https://akzgptgetjmsbibhnuhs.supabase.co
 VITE_SUPABASE_ANON_KEY=eyJhbGc...
 ```
 
