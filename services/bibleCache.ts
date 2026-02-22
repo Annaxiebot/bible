@@ -1,5 +1,6 @@
 import { BIBLE_API_BASE } from './apiConfig';
 import { BIBLE_BOOKS } from '../constants';
+import { bibleStorage } from './bibleStorage';
 
 export interface CachedChapter {
   bookId: string;
@@ -20,7 +21,7 @@ const CACHE_KEY_PREFIX = 'bible_cache_';
 const CACHE_INDEX_KEY = 'bible_cache_index';
 
 export class BibleCacheService {
-  // Get cached chapter from localStorage
+  // Get cached chapter — checks localStorage first, then falls through to IndexedDB
   static getCachedChapter(bookId: string, chapter: number): CachedChapter | null {
     const key = `${CACHE_KEY_PREFIX}${bookId}_${chapter}`;
     const cached = localStorage.getItem(key);
@@ -29,13 +30,33 @@ export class BibleCacheService {
         return JSON.parse(cached);
       } catch (e) {
         console.error('Failed to parse cached chapter', e);
-        return null;
       }
     }
     return null;
   }
 
-  // Save chapter to localStorage
+  // Async fallback: check IndexedDB if localStorage miss
+  static async getCachedChapterAsync(bookId: string, chapter: number): Promise<CachedChapter | null> {
+    // Try localStorage first (sync, fast)
+    const local = this.getCachedChapter(bookId, chapter);
+    if (local) return local;
+
+    // Fall through to IndexedDB
+    try {
+      const [cuvData, webData] = await Promise.all([
+        bibleStorage.getChapter(bookId, chapter, 'cuv'),
+        bibleStorage.getChapter(bookId, chapter, 'web'),
+      ]);
+      if (cuvData?.verses && webData?.verses) {
+        return { bookId, chapter, cuvVerses: cuvData.verses, webVerses: webData.verses, timestamp: Date.now() };
+      }
+    } catch (e) {
+      // IndexedDB not available, return null
+    }
+    return null;
+  }
+
+  // Save chapter to both localStorage (hot cache) and IndexedDB (durable)
   static cacheChapter(bookId: string, chapter: number, cuvVerses: any[], webVerses: any[]) {
     const key = `${CACHE_KEY_PREFIX}${bookId}_${chapter}`;
     const data: CachedChapter = {
@@ -45,23 +66,27 @@ export class BibleCacheService {
       webVerses,
       timestamp: Date.now()
     };
-    
+
+    // Save to localStorage (best-effort, may be full)
     try {
       localStorage.setItem(key, JSON.stringify(data));
       this.updateCacheIndex(bookId, chapter);
     } catch (e) {
-      console.error('Failed to cache chapter', e);
-      // If localStorage is full, clear old cache
+      console.error('Failed to cache chapter in localStorage', e);
       if (e instanceof DOMException && e.code === 22) {
         this.clearOldCache();
         try {
           localStorage.setItem(key, JSON.stringify(data));
           this.updateCacheIndex(bookId, chapter);
         } catch (e2) {
-          console.error('Still failed after clearing cache', e2);
+          // localStorage full even after clearing — data is still in IndexedDB
         }
       }
     }
+
+    // Save to IndexedDB (durable, for search/offline)
+    bibleStorage.saveChapter(bookId, chapter, 'cuv', { verses: cuvVerses }).catch(() => {});
+    bibleStorage.saveChapter(bookId, chapter, 'web', { verses: webVerses }).catch(() => {});
   }
 
   // Update cache index

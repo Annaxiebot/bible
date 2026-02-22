@@ -1,23 +1,17 @@
 /**
  * AuthPanel.tsx
- * 
- * Authentication panel for optional cloud sync.
- * Allows users to sign up, sign in, and manage their sync account.
+ *
+ * Simplified auth panel: Google OAuth sign-in or continue offline.
  */
 
 import { useState, useEffect } from 'react';
-import { authManager, syncManager, type AuthState, type SyncStatus } from '../services/supabase';
+import { authManager, syncManager, isSupabaseConfigured, type AuthState, type SyncStatus } from '../services/supabase';
 import { syncService } from '../services/syncService';
 import '../styles/AuthPanel.css';
 
 export function AuthPanel() {
   const [authState, setAuthState] = useState<AuthState>(authManager.getState());
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(syncManager.getStatus());
-  const [showAuth, setShowAuth] = useState(false);
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -25,58 +19,15 @@ export function AuthPanel() {
   useEffect(() => {
     const unsubAuth = authManager.subscribe(setAuthState);
     const unsubSync = syncManager.subscribe(setSyncStatus);
-    return () => {
-      unsubAuth();
-      unsubSync();
-    };
+    return () => { unsubAuth(); unsubSync(); };
   }, []);
 
-  const handleSignUp = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleGoogleSignIn = async () => {
     setError('');
-    setMessage('');
-
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters');
-      return;
-    }
-
     setIsLoading(true);
-    const { error } = await authManager.signUp(email, password);
+    const { error } = await authManager.signInWithGoogle();
     setIsLoading(false);
-
-    if (error) {
-      setError(error.message);
-    } else {
-      setMessage('Account created! Please check your email to verify your account.');
-      setEmail('');
-      setPassword('');
-      setConfirmPassword('');
-    }
-  };
-
-  const handleSignIn = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    setMessage('');
-
-    setIsLoading(true);
-    const { error } = await authManager.signIn(email, password);
-    setIsLoading(false);
-
-    if (error) {
-      setError(error.message);
-    } else {
-      setMessage('Signed in successfully!');
-      setShowAuth(false);
-      setEmail('');
-      setPassword('');
-    }
+    if (error) setError(error.message);
   };
 
   const handleSignOut = async () => {
@@ -91,7 +42,7 @@ export function AuthPanel() {
     setMessage('');
     try {
       await syncService.performFullSync();
-      setMessage('Sync completed successfully!');
+      setMessage('Sync completed!');
     } catch (err) {
       setError('Sync failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
     }
@@ -120,16 +71,10 @@ export function AuthPanel() {
   };
 
   const lastSyncTime = syncManager.getLastSyncTime();
-  const lastSyncText = lastSyncTime 
-    ? new Date(lastSyncTime).toLocaleTimeString()
-    : 'Never';
+  const lastSyncText = lastSyncTime ? new Date(lastSyncTime).toLocaleTimeString() : 'Never';
 
   if (authState.isLoading) {
-    return (
-      <div className="auth-panel">
-        <div className="auth-loading">Loading...</div>
-      </div>
-    );
+    return <div className="auth-panel"><div className="auth-loading">Loading...</div></div>;
   }
 
   return (
@@ -149,127 +94,31 @@ export function AuthPanel() {
             </div>
           </div>
           <div className="auth-actions">
-            <button 
-              onClick={handleSync}
-              disabled={syncStatus === 'syncing' || isLoading}
-              className="btn-sync"
-            >
+            <button onClick={handleSync} disabled={syncStatus === 'syncing' || isLoading} className="btn-sync">
               Sync Now
             </button>
-            <button 
-              onClick={handleSignOut}
-              disabled={isLoading}
-              className="btn-signout"
-            >
+            <button onClick={handleSignOut} disabled={isLoading} className="btn-signout">
               Sign Out
             </button>
           </div>
+          {error && <div className="auth-error">{error}</div>}
+          {message && <div className="auth-message">{message}</div>}
         </div>
       ) : (
         <div className="auth-signed-out">
-          {!showAuth ? (
-            <div className="auth-prompt">
-              <p className="auth-info">
-                💾 Your data is saved locally by default.
-                <br />
-                <strong>Optional:</strong> Create an account to sync across devices.
-              </p>
-              <button 
-                onClick={() => setShowAuth(true)}
-                className="btn-show-auth"
-              >
-                Sign In / Sign Up
+          <div className="auth-prompt">
+            <p className="auth-info">
+              💾 Your data is saved locally.
+              <br />
+              Sign in with Google to sync across devices.
+            </p>
+            {isSupabaseConfigured() && (
+              <button onClick={handleGoogleSignIn} disabled={isLoading} className="btn-show-auth">
+                {isLoading ? 'Redirecting...' : 'Sign in with Google'}
               </button>
-            </div>
-          ) : (
-            <div className="auth-form-container">
-              <button 
-                onClick={() => setShowAuth(false)}
-                className="btn-close"
-              >
-                ✕
-              </button>
-              
-              <div className="auth-toggle">
-                <button
-                  onClick={() => {
-                    setIsSignUp(false);
-                    setError('');
-                    setMessage('');
-                  }}
-                  className={!isSignUp ? 'active' : ''}
-                >
-                  Sign In
-                </button>
-                <button
-                  onClick={() => {
-                    setIsSignUp(true);
-                    setError('');
-                    setMessage('');
-                  }}
-                  className={isSignUp ? 'active' : ''}
-                >
-                  Sign Up
-                </button>
-              </div>
-
-              <form onSubmit={isSignUp ? handleSignUp : handleSignIn} className="auth-form">
-                <div className="form-group">
-                  <label htmlFor="email">Email</label>
-                  <input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="your@email.com"
-                    required
-                    disabled={isLoading}
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="password">Password</label>
-                  <input
-                    id="password"
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    required
-                    disabled={isLoading}
-                    minLength={6}
-                  />
-                </div>
-
-                {isSignUp && (
-                  <div className="form-group">
-                    <label htmlFor="confirm-password">Confirm Password</label>
-                    <input
-                      id="confirm-password"
-                      type="password"
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      placeholder="••••••••"
-                      required
-                      disabled={isLoading}
-                      minLength={6}
-                    />
-                  </div>
-                )}
-
-                {error && <div className="auth-error">{error}</div>}
-                {message && <div className="auth-message">{message}</div>}
-
-                <button 
-                  type="submit" 
-                  disabled={isLoading}
-                  className="btn-submit"
-                >
-                  {isLoading ? 'Loading...' : isSignUp ? 'Sign Up' : 'Sign In'}
-                </button>
-              </form>
-            </div>
-          )}
+            )}
+            {error && <div className="auth-error">{error}</div>}
+          </div>
         </div>
       )}
     </div>
