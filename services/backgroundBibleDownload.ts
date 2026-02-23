@@ -13,6 +13,7 @@ export interface BgDownloadProgress {
   cached: number;
   total: number;
   currentBook: string;
+  currentChapter: number;
   isRunning: boolean;
   isComplete: boolean;
 }
@@ -47,6 +48,7 @@ class BackgroundBibleDownloadService {
   private apiPauseUntil = 0;
   private cachedCount = 0;
   private currentBook = '';
+  private currentChapter = 0;
   private failedChapters: Array<{ bookId: string; chapter: number; translation: BibleTranslation }> = [];
   private sleepResolve: (() => void) | null = null;
 
@@ -65,6 +67,7 @@ class BackgroundBibleDownloadService {
       cached: this.cachedCount,
       total: TOTAL_CHAPTERS,
       currentBook: this.currentBook,
+      currentChapter: this.currentChapter,
       isRunning: this.running && !this.paused,
       isComplete: this.cachedCount >= TOTAL_CHAPTERS,
     };
@@ -177,6 +180,7 @@ class BackgroundBibleDownloadService {
 
       const ch = chapters[idx];
       this.currentBook = ch.bookName;
+      this.currentChapter = ch.chapter;
 
       const hasCuv = await bibleStorage.hasChapterTranslation(ch.bookId, ch.chapter, 'cuv');
       const hasEng = await bibleStorage.hasChapterTranslation(ch.bookId, ch.chapter, englishVersion);
