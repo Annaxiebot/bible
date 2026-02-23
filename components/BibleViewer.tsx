@@ -178,8 +178,11 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   
   // Shared annotation tool state (controls both panels)
   const [annotationTool, setAnnotationTool] = useState<'pen' | 'marker' | 'highlighter' | 'eraser'>('pen');
-  const [annotationColor, setAnnotationColor] = useState('#000000');
+  const [annotationColor, setAnnotationColor] = useState('#3b82f6');
   const [annotationSize, setAnnotationSize] = useState(2);
+  const [toolSizes, setToolSizes] = useState<Record<string, number>>({
+    pen: 2, marker: 3, highlighter: 4, eraser: 8,
+  });
   const [showAnnotationColorPicker, setShowAnnotationColorPicker] = useState(false);
   const [isAnnotationToolbarCollapsed, setIsAnnotationToolbarCollapsed] = useState(false);
   /** Stored layout from when annotations were drawn, for "Restore Alignment" */
@@ -191,17 +194,12 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   
   // Handler to select annotation tool
   const selectAnnotationTool = useCallback((tool: 'pen' | 'marker' | 'highlighter' | 'eraser') => {
+    // Save current size for the current tool before switching
+    setToolSizes(prev => ({ ...prev, [annotationTool]: annotationSize }));
     setAnnotationTool(tool);
-    // Set appropriate default size for each tool
-    let size = 2;
-    switch (tool) {
-      case 'pen': size = 2; break;
-      case 'marker': size = 3; break;
-      case 'highlighter': size = 4; break;
-      case 'eraser': size = 8; break;
-    }
-    setAnnotationSize(size);
-  }, []);
+    // Restore the saved size for the new tool
+    setAnnotationSize(toolSizes[tool]);
+  }, [annotationTool, annotationSize, toolSizes]);
   
   // Handler when annotation layout doesn't match current layout
   const handleAlignmentMismatch = useCallback((storedFontSize: number, storedVSplitOffset: number) => {
@@ -2713,7 +2711,11 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
             {/* Size controls */}
             <div className="flex items-center gap-1 px-1 sm:px-2">
               <button
-                onClick={() => setAnnotationSize(Math.max(1, annotationSize - 1))}
+                onClick={() => {
+                  const newSize = Math.max(1, annotationSize - 1);
+                  setAnnotationSize(newSize);
+                  setToolSizes(prev => ({ ...prev, [annotationTool]: newSize }));
+                }}
                 className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-all text-slate-500"
                 disabled={annotationSize <= 1}
               >
@@ -2723,7 +2725,11 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
               </button>
               <span className="text-xs font-bold text-slate-600 min-w-[16px] text-center">{annotationSize}</span>
               <button
-                onClick={() => setAnnotationSize(Math.min(12, annotationSize + 1))}
+                onClick={() => {
+                  const newSize = Math.min(12, annotationSize + 1);
+                  setAnnotationSize(newSize);
+                  setToolSizes(prev => ({ ...prev, [annotationTool]: newSize }));
+                }}
                 className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-all text-slate-500"
                 disabled={annotationSize >= 12}
               >
