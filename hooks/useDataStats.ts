@@ -23,6 +23,7 @@ export interface ChapterDetail {
   bookId: string;
   bookName: string;
   chapterCount: number;
+  chapters: number[]; // list of cached chapter numbers
 }
 
 export interface DataStats {
@@ -84,15 +85,17 @@ export function useDataStats(updateTrigger?: number) {
           const uniqueChapters = new Set(chapters.map(ch => `${ch.bookId}_${ch.chapter}`));
           cachedChapters = uniqueChapters.size;
 
-          // Group by book
-          const bookCounts: Record<string, number> = {};
+          // Group by book, collecting chapter numbers
+          const bookChapters: Record<string, number[]> = {};
           for (const key of uniqueChapters) {
-            const bookId = key.split('_')[0];
-            bookCounts[bookId] = (bookCounts[bookId] || 0) + 1;
+            const [bookId, chStr] = key.split('_');
+            if (!bookChapters[bookId]) bookChapters[bookId] = [];
+            bookChapters[bookId].push(parseInt(chStr));
           }
-          for (const [bookId, count] of Object.entries(bookCounts)) {
+          for (const [bookId, chs] of Object.entries(bookChapters)) {
             const book = BIBLE_BOOKS.find(b => b.id === bookId);
-            chapterDetails.push({ bookId, bookName: book?.name || bookId, chapterCount: count });
+            chs.sort((a, b) => a - b);
+            chapterDetails.push({ bookId, bookName: book?.name || bookId, chapterCount: chs.length, chapters: chs });
           }
           // Sort by Bible order
           chapterDetails.sort((a, b) => {

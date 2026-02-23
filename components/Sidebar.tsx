@@ -6,6 +6,14 @@ import { useSeasonTheme } from '../hooks/useSeasonTheme';
 import { ALL_SEASONS, getThemeForSeason, getSeason } from '../services/seasonTheme';
 import { AuthPanel } from './AuthPanel';
 
+export interface BgDownloadProgress {
+  cached: number;
+  total: number;
+  currentBook: string;
+  isRunning: boolean;
+  isComplete: boolean;
+}
+
 interface SidebarProps {
   isOpen: boolean;
   onToggle: () => void;
@@ -31,6 +39,7 @@ interface SidebarProps {
   onSearch?: () => void;
   onPrint?: () => void;
   onShowDataDetail?: (mode: 'notes' | 'research' | 'chapters') => void;
+  bgDownloadProgress?: BgDownloadProgress | null;
 }
 
 // Chevron component for collapsible sections
@@ -67,7 +76,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   onNavigate,
   onSearch,
   onPrint,
-  onShowDataDetail
+  onShowDataDetail,
+  bgDownloadProgress
 }) => {
   const { stats, loading } = useDataStats(dataUpdateTrigger);
   const { theme, isAuto, setSeason } = useSeasonTheme();
@@ -93,6 +103,17 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [todaysReading, setTodaysReading] = useState<ReadingPlanDay[]>([]);
   const [planProgress, setPlanProgress] = useState(0);
   const [showPlanPicker, setShowPlanPicker] = useState(false);
+
+  // English version state
+  const [englishVersion, setEnglishVersionState] = useState(() => {
+    return localStorage.getItem('bibleEnglishVersion') || 'web';
+  });
+
+  const handleEnglishVersionChange = (version: string) => {
+    setEnglishVersionState(version);
+    localStorage.setItem('bibleEnglishVersion', version);
+    window.dispatchEvent(new CustomEvent('bibleEnglishVersionChanged'));
+  };
 
   // Load bookmarks
   useEffect(() => {
@@ -530,6 +551,26 @@ const Sidebar: React.FC<SidebarProps> = ({
                     <span className="text-slate-600">📖 缓存章节 Chapters:</span>
                     <span className="font-medium text-indigo-600">{stats.cachedChapters}</span>
                   </button>
+                  {/* Background download progress */}
+                  {bgDownloadProgress && !bgDownloadProgress.isComplete && bgDownloadProgress.isRunning && (
+                    <div className="px-2 py-1">
+                      <div className="flex justify-between text-[10px] text-slate-500 mb-0.5">
+                        <span>缓存中 {bgDownloadProgress.currentBook || 'Caching...'}</span>
+                        <span>{bgDownloadProgress.cached}/{bgDownloadProgress.total}</span>
+                      </div>
+                      <div className="w-full bg-slate-200 rounded-full h-1">
+                        <div
+                          className="bg-indigo-400 h-1 rounded-full transition-all"
+                          style={{ width: `${Math.round((bgDownloadProgress.cached / bgDownloadProgress.total) * 100)}%` }}
+                        />
+                      </div>
+                    </div>
+                  )}
+                  {bgDownloadProgress && bgDownloadProgress.isComplete && (
+                    <div className="px-2 py-1 text-[10px] text-green-600 font-medium">
+                      ✓ 全部已缓存 All cached
+                    </div>
+                  )}
                   {stats.totalSize && (
                     <div className="flex justify-between px-2 py-1 pt-1 border-t border-slate-200">
                       <span className="text-slate-600">💾 存储空间 Storage:</span>
@@ -828,10 +869,26 @@ const Sidebar: React.FC<SidebarProps> = ({
 
               <div className="h-px bg-slate-100"></div>
 
+              {/* English Bible Version Selector */}
+              <div>
+                <div className="text-xs font-medium text-slate-600 mb-2">📖 英文译本 English Version</div>
+                <select
+                  value={englishVersion}
+                  onChange={(e) => handleEnglishVersionChange(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white text-slate-700 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
+                >
+                  <option value="web">WEB (World English Bible)</option>
+                  <option value="kjv">KJV (King James Version)</option>
+                  <option value="asv">ASV (American Standard)</option>
+                </select>
+              </div>
+
+              <div className="h-px bg-slate-100"></div>
+
               <div>
                 <label className="flex items-center gap-3 cursor-pointer">
-                  <input 
-                    type="checkbox" 
+                  <input
+                    type="checkbox"
                     className="w-4 h-4 rounded focus:ring-2"
                     style={{ accentColor: theme.accent }}
                     defaultChecked
