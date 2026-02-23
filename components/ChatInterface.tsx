@@ -11,6 +11,7 @@ import { BIBLE_BOOKS, CHINESE_ABBREV_TO_BOOK_ID } from '../constants';
 import { BOOK_ID_TO_CHINESE_NAME } from '../services/bibleBookData';
 import { verseDataStorage } from '../services/verseDataStorage';
 import { AIResearchEntry } from '../types/verseData';
+import { backgroundBibleDownload } from '../services/backgroundBibleDownload';
 
 interface ChatInterfaceProps {
   incomingText?: { text: string; id: number; clearChat?: boolean } | null;
@@ -765,6 +766,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     }, 50);
 
     try {
+      // Pause background Bible download while AI is active
+      backgroundBibleDownload.notifyApiActivity();
+
       const history = messages.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content }));
       const response = await aiService.chatWithAI(currentInput, history, {
         thinking: isThinking,
