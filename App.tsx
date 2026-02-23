@@ -216,15 +216,16 @@ const App: React.FC = () => {
 
   const handleBackupAll = async () => {
     try {
-      setToast({ message: "正在导出数据... Exporting data...", type: 'info' });
-      const result = await exportImportService.exportAndDownloadAll();
+      const result = await exportImportService.exportAndDownloadAll((stage, percent) => {
+        setToast({ message: `${stage} (${percent}%)`, type: 'info' });
+      });
       if (result.success) {
-        setToast({ message: '成功导出数据！Successfully exported data!', type: 'success' });
+        setToast({ message: '成功导出全部数据！Backup complete!', type: 'success' });
       } else {
         throw new Error(result.error || 'Export failed');
       }
     } catch (error: any) {
-      setToast({ message: `导出失败: ${error.message} Failed to export.`, type: 'error' });
+      setToast({ message: `导出失败: ${error.message}`, type: 'error' });
     }
   };
 
@@ -265,22 +266,37 @@ const App: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (confirm("恢复备份将合并您的笔记。是否继续？ Restore backup will merge your notes. Continue?")) {
+    if (confirm("恢复备份将合并您的数据。是否继续？\nRestore will merge your data. Continue?")) {
       try {
         setToast({ message: "正在读取备份... Reading backup...", type: 'info' });
         const content = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
-          reader.onload = (e) => resolve(e.target?.result as string);
+          reader.onload = (ev) => resolve(ev.target?.result as string);
           reader.onerror = reject;
           reader.readAsText(file);
         });
-        
-        const result = await exportImportService.importCombinedBackup(content, 'merge_combine');
-        if (result.success || result.notesImported > 0 || result.chaptersImported > 0) {
+
+        const result = await exportImportService.importCombinedBackup(
+          content, 'merge_combine',
+          (stage, percent) => setToast({ message: `${stage} (${percent}%)`, type: 'info' })
+        );
+
+        const anyImported = result.notesImported > 0 || result.chaptersImported > 0
+          || result.annotationsImported > 0 || result.bookmarksImported > 0
+          || result.plansImported > 0 || result.historyRestored;
+
+        if (result.success || anyImported) {
           const allNotes = await notesStorage.getAllNotes();
           setNotes(allNotes);
           setDataUpdateTrigger(prev => prev + 1);
-          setToast({ message: '恢复成功！Successfully restored!', type: 'success' });
+          const parts: string[] = [];
+          if (result.notesImported > 0) parts.push(`${result.notesImported} notes`);
+          if (result.chaptersImported > 0) parts.push(`${result.chaptersImported} chapters`);
+          if (result.annotationsImported > 0) parts.push(`${result.annotationsImported} annotations`);
+          if (result.bookmarksImported > 0) parts.push(`${result.bookmarksImported} bookmarks`);
+          if (result.plansImported > 0) parts.push(`${result.plansImported} plans`);
+          if (result.historyRestored) parts.push('reading history');
+          setToast({ message: `恢复成功！Restored: ${parts.join(', ') || 'data'}`, type: 'success' });
         } else {
           throw new Error(result.errors.join('; ') || 'Import failed');
         }

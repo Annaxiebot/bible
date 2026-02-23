@@ -593,10 +593,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </svg>
                 <div className="flex-1 text-left">
                   <span className="text-sm font-medium text-slate-700 group-hover:text-indigo-600">
-                    备份笔记
+                    备份数据
                   </span>
                   <span className="block text-xs text-slate-500">
-                    Export all notes
+                    Backup all data
                   </span>
                 </div>
               </button>
@@ -610,10 +610,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </svg>
                 <div className="flex-1 text-left">
                   <span className="text-sm font-medium text-slate-700 group-hover:text-indigo-600">
-                    恢复笔记
+                    恢复数据
                   </span>
                   <span className="block text-xs text-slate-500">
-                    Import from backup
+                    Restore from backup
                   </span>
                 </div>
               </button>
