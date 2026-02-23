@@ -378,7 +378,7 @@ const App: React.FC = () => {
           setNavigateTo({ bookId, chapter, verses: verse ? [verse] : undefined });
           setTimeout(() => setNavigateTo(null), 5000);
         }}
-        onViewNotes={() => setShowNotesList(true)}
+        onViewNotes={() => { setShowNotesList(true); setIsSidebarOpen(false); }}
         onSplitView={() => {
           split.setVertical(50);
           split.setHorizontal(50);
