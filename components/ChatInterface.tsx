@@ -396,9 +396,13 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpe
                       <React.Fragment key={i}>{processChildren(node)}</React.Fragment>
                     );
                   }
-                  // Recurse into React elements' children
-                  if (React.isValidElement(nodes) && nodes.props && (nodes.props as any).children) {
-                    return React.cloneElement(nodes, {}, processChildren((nodes.props as any).children));
+                  // Don't recurse into elements that already have click handlers (like BibleLink <a> tags)
+                  if (React.isValidElement(nodes)) {
+                    const props = nodes.props as any;
+                    if (props?.onClick || (nodes.type === 'a')) return nodes;
+                    if (props?.children) {
+                      return React.cloneElement(nodes, {}, processChildren(props.children));
+                    }
                   }
                   return nodes;
                 };
