@@ -596,8 +596,8 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
           WebkitTapHighlightColor: 'transparent',
           // Cursor
           cursor: isWritingMode ? 'crosshair' : 'default',
-          // Ensure it captures all events
-          pointerEvents: 'auto',
+          // Only capture events in writing mode; read-only overlay should not block clicks
+          pointerEvents: isWritingMode ? 'auto' : 'none',
         }}
         // React event handlers as backup
         onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
