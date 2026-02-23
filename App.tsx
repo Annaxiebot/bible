@@ -22,6 +22,7 @@ import { VibeStyles, isVibeAvailable, loadVibeStyles, getEmptyStyles } from './s
 import DataDetailDialog from './components/DataDetailDialog';
 import { useDataStats } from './hooks/useDataStats';
 import './services/syncService'; // Initialize sync service
+import { backgroundBibleDownload, BgDownloadProgress } from './services/backgroundBibleDownload';
 
 // Simplified split view hook
 function useSplitView(initialV = 100, initialH = 100) {
@@ -117,6 +118,7 @@ const App: React.FC = () => {
   const [vibeStyles, setVibeStyles] = useState<VibeStyles>(getEmptyStyles());
   const [dataDetailMode, setDataDetailMode] = useState<'notes' | 'research' | 'chapters' | null>(null);
   const { stats: dataStats } = useDataStats(dataUpdateTrigger);
+  const [bgDownloadProgress, setBgDownloadProgress] = useState<BgDownloadProgress | null>(null);
 
   const handleSelectionChange = useCallback((selection: SelectionInfo | null) => {
     setCurrentSelection(selection);
@@ -171,6 +173,22 @@ const App: React.FC = () => {
   // Load saved vibe styles
   useEffect(() => {
     setVibeStyles(loadVibeStyles());
+  }, []);
+
+  // Start background Bible download after 5s delay
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const unsub = backgroundBibleDownload.onProgress((progress) => {
+        setBgDownloadProgress(progress);
+      });
+      backgroundBibleDownload.start();
+      return unsub;
+    }, 5000);
+
+    return () => {
+      clearTimeout(timer);
+      backgroundBibleDownload.stop();
+    };
   }, []);
 
   const handleSelectKey = async () => {
@@ -404,6 +422,7 @@ const App: React.FC = () => {
         downloadStatus={downloadState.status}
         downloadTimeRemaining={downloadState.timeRemaining}
         onShowDataDetail={(mode) => { setDataDetailMode(mode); setIsSidebarOpen(false); }}
+        bgDownloadProgress={bgDownloadProgress}
       />
 
       <main ref={split.containerRef} className="flex-1 flex flex-col relative overflow-hidden">
