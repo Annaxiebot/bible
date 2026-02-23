@@ -65,8 +65,10 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
             verses: data.verses,
             personalNote: data.personalNote?.text,
             aiResearchCount: data.aiResearch.length,
-            createdAt: data.personalNote?.createdAt || data.aiResearch[0]?.timestamp || 0,
-            updatedAt: data.personalNote?.updatedAt || data.aiResearch[0]?.timestamp || 0,
+            createdAt: data.personalNote?.createdAt
+              || (data.aiResearch.length > 0 ? Math.min(...data.aiResearch.map(r => r.timestamp || 0)) : 0),
+            updatedAt: data.personalNote?.updatedAt
+              || (data.aiResearch.length > 0 ? Math.max(...data.aiResearch.map(r => r.timestamp || 0)) : 0),
             verseText: data.verseText
           });
         }
@@ -176,8 +178,11 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
     if (!timestamp) return '';
     const date = new Date(timestamp);
     const now = new Date();
-    const diffDays = Math.floor((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24));
-    
+    // Compare calendar dates, not raw time difference
+    const dateDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const diffDays = Math.round((today.getTime() - dateDay.getTime()) / (1000 * 60 * 60 * 24));
+
     if (diffDays === 0) return '今天 Today';
     if (diffDays === 1) return '昨天 Yesterday';
     if (diffDays < 7) return `${diffDays}天前 ${diffDays} days ago`;

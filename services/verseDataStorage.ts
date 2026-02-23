@@ -80,6 +80,7 @@ class VerseDataStorage {
       
       verseData.personalNote = {
         ...note,
+        createdAt: existing?.personalNote?.createdAt || note.createdAt || Date.now(),
         updatedAt: Date.now()
       };
       
