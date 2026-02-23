@@ -8,21 +8,15 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
-  actions: read
+  contents: write
 
 concurrency:
-  group: "pages-preview"
+  group: "pages-preview-${{ github.ref_name }}"
   cancel-in-progress: true
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}preview/${{ steps.preview-path.outputs.name }}/
     steps:
       - name: Determine preview path
         id: preview-path
@@ -30,8 +24,9 @@ jobs:
           BRANCH_NAME="${GITHUB_REF_NAME}"
           SAFE_NAME=$(echo "$BRANCH_NAME" | sed 's/\//-/g')
           echo "name=$SAFE_NAME" >> $GITHUB_OUTPUT
+          echo "Preview path: preview/$SAFE_NAME"
 
-      - name: Checkout preview branch
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup Node
@@ -43,45 +38,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build preview
+      - name: Build with preview base path
         run: npx vite build --base /bible/preview/${{ steps.preview-path.outputs.name }}/
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
-      - name: Checkout master for main build
-        uses: actions/checkout@v4
+      - name: Deploy preview to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
         with:
-          ref: master
-          path: master-src
-
-      - name: Build main site
-        working-directory: master-src
-        run: |
-          npm ci
-          npm run build
-        env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          VITE_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-
-      - name: Combine main + preview
-        run: |
-          # Start with master build as base
-          cp -r master-src/dist combined
-          # Add preview build into subfolder
-          mkdir -p combined/preview/${{ steps.preview-path.outputs.name }}
-          cp -r dist/* combined/preview/${{ steps.preview-path.outputs.name }}/
-
-      - name: Setup Pages
-        uses: actions/configure-pages@v4
-
-      - name: Upload artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: './combined'
-
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          destination_dir: preview/${{ steps.preview-path.outputs.name }}
+          keep_files: true
