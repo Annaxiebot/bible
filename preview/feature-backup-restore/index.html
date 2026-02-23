@@ -1,0 +1,157 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Force no caching -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <title>Scripture Scholar</title>
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Serif+SC:wght@400;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.8/dist/katex.min.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            overflow: hidden;
+        }
+        .font-serif-sc {
+            font-family: 'Noto+Serif+SC', serif;
+        }
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        .prose {
+            max-width: none;
+        }
+        .prose p {
+            margin-top: 0.5em;
+            margin-bottom: 0.5em;
+        }
+        .prose p:first-child {
+            margin-top: 0;
+        }
+        .prose p:last-child {
+            margin-bottom: 0;
+        }
+        .katex-display {
+            margin: 0.5em 0;
+            overflow-x: auto;
+            overflow-y: hidden;
+        }
+        canvas {
+          touch-action: none;
+        }
+        
+        /* Annotation mode: completely disable all text selection and iOS callouts */
+        html.annotation-mode-active,
+        html.annotation-mode-active body,
+        html.annotation-mode-active * {
+          -webkit-touch-callout: none !important;
+          -webkit-user-select: none !important;
+          -moz-user-select: none !important;
+          -ms-user-select: none !important;
+          user-select: none !important;
+          -webkit-tap-highlight-color: transparent !important;
+        }
+        
+        /* Prevent iOS magnifier glass and text selection handles */
+        html.annotation-mode-active input,
+        html.annotation-mode-active textarea {
+          pointer-events: none !important;
+        }
+        
+        /* Block all touch behaviors on text content in annotation mode */
+        html.annotation-mode-active .verse-content {
+          pointer-events: none !important;
+          touch-action: none !important;
+        }
+        
+        /* Ensure the annotation canvas captures ALL touches */
+        html.annotation-mode-active .annotation-overlay {
+          pointer-events: auto !important;
+          touch-action: none !important;
+        }
+        
+        /* Hide iOS selection elements */
+        html.annotation-mode-active ::selection {
+          background: transparent !important;
+        }
+        html.annotation-mode-active ::-moz-selection {
+          background: transparent !important;
+        }
+        
+        /* Disable iOS text size adjustment which can cause selection issues */
+        html.annotation-mode-active {
+          -webkit-text-size-adjust: none !important;
+        }
+        /* Book dropdown scrollbar styles */
+        .book-dropdown-scroll {
+          -webkit-overflow-scrolling: touch;
+          position: relative;
+        }
+        .book-dropdown-scroll::-webkit-scrollbar {
+          width: 8px;
+        }
+        .book-dropdown-scroll::-webkit-scrollbar-track {
+          background: #f1f5f9;
+          border-radius: 4px;
+        }
+        .book-dropdown-scroll::-webkit-scrollbar-thumb {
+          background: #94a3b8;
+          border-radius: 4px;
+        }
+        .book-dropdown-scroll::-webkit-scrollbar-thumb:hover {
+          background: #64748b;
+        }
+        /* iOS specific 3-dots indicator */
+        @supports (-webkit-touch-callout: none) {
+          .book-dropdown-scroll::after {
+            content: '⋮';
+            position: absolute;
+            right: 8px;
+            bottom: 8px;
+            color: #94a3b8;
+            font-size: 20px;
+            font-weight: bold;
+            pointer-events: none;
+            background: white;
+            padding: 0 4px;
+          }
+        }
+    </style>
+
+<script type="importmap">
+{
+  "imports": {
+    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
+    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@^19.2.3",
+    "@google/genai": "https://esm.sh/@google/genai@^1.38.0",
+    "react-markdown": "https://esm.sh/react-markdown@^9.0.0",
+    "remark-math": "https://esm.sh/remark-math@^6.0.0",
+    "rehype-katex": "https://esm.sh/rehype-katex@^7.0.0"
+  }
+}
+</script>
+  <script type="module" crossorigin src="/bible/preview/feature-backup-restore/assets/index-BLWq3GTD.js"></script>
+  <link rel="stylesheet" crossorigin href="/bible/preview/feature-backup-restore/assets/index-B9291pYq.css">
+</head>
+<body class="text-slate-900" style="background-color: #F3F6FB;">
+    <div id="root"></div>
+</body>
+</html>
