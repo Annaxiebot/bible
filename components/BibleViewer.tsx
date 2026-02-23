@@ -183,6 +183,9 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   const [toolSizes, setToolSizes] = useState<Record<string, number>>({
     pen: 2, marker: 3, highlighter: 4, eraser: 8,
   });
+  const [toolColors, setToolColors] = useState<Record<string, string>>({
+    pen: '#3b82f6', marker: '#3b82f6', highlighter: '#fbbf24', eraser: '#000000',
+  });
   const [showAnnotationColorPicker, setShowAnnotationColorPicker] = useState(false);
   const [isAnnotationToolbarCollapsed, setIsAnnotationToolbarCollapsed] = useState(false);
   /** Stored layout from when annotations were drawn, for "Restore Alignment" */
@@ -194,12 +197,14 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   
   // Handler to select annotation tool
   const selectAnnotationTool = useCallback((tool: 'pen' | 'marker' | 'highlighter' | 'eraser') => {
-    // Save current size for the current tool before switching
+    // Save current size and color for the current tool before switching
     setToolSizes(prev => ({ ...prev, [annotationTool]: annotationSize }));
+    setToolColors(prev => ({ ...prev, [annotationTool]: annotationColor }));
     setAnnotationTool(tool);
-    // Restore the saved size for the new tool
+    // Restore the saved size and color for the new tool
     setAnnotationSize(toolSizes[tool]);
-  }, [annotationTool, annotationSize, toolSizes]);
+    setAnnotationColor(toolColors[tool]);
+  }, [annotationTool, annotationSize, annotationColor, toolSizes, toolColors]);
   
   // Handler when annotation layout doesn't match current layout
   const handleAlignmentMismatch = useCallback((storedFontSize: number, storedVSplitOffset: number) => {
@@ -2667,7 +2672,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
                         return (
                           <button
                             key={`gray-${l}`}
-                            onClick={() => { setAnnotationColor(color); setShowAnnotationColorPicker(false); }}
+                            onClick={() => { setAnnotationColor(color); setToolColors(prev => ({ ...prev, [annotationTool]: color })); setShowAnnotationColorPicker(false); }}
                             className={`w-5 h-5 sm:w-6 sm:h-6 rounded-sm transition-all hover:scale-125 hover:z-10 ${
                               annotationColor === color ? 'ring-2 ring-indigo-400 z-10 scale-125' : ''
                             }`}
@@ -2685,7 +2690,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
                           return (
                             <button
                               key={`${hue}-${lightness}`}
-                              onClick={() => { setAnnotationColor(color); setShowAnnotationColorPicker(false); }}
+                              onClick={() => { setAnnotationColor(color); setToolColors(prev => ({ ...prev, [annotationTool]: color })); setShowAnnotationColorPicker(false); }}
                               className={`w-5 h-5 sm:w-6 sm:h-6 rounded-sm transition-all hover:scale-125 hover:z-10 ${
                                 annotationColor === color ? 'ring-2 ring-indigo-400 z-10 scale-125' : ''
                               }`}
