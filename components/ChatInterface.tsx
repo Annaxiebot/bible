@@ -235,6 +235,7 @@ const BibleLink: React.FC<BibleLinkProps> = ({ children, onNavigate }) => {
 };
 
 const processTextWithBibleRefs = (text: string, onNavigate?: (bookId: string, chapter: number, verses?: number[]) => void, currentBookId?: string): React.ReactNode => {
+  if (typeof text !== 'string') return text;
   // Create patterns for both Chinese and English references
   // Escape special regex characters in book names
   const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -386,6 +387,10 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpe
                   if (typeof nodes === 'string') {
                     return processTextWithBibleRefs(nodes, onNavigate, currentBookId);
                   }
+                  if (typeof nodes === 'number') {
+                    return processTextWithBibleRefs(String(nodes), onNavigate, currentBookId);
+                  }
+                  if (nodes == null || typeof nodes === 'boolean') return nodes;
                   if (Array.isArray(nodes)) {
                     return nodes.map((node, i) =>
                       <React.Fragment key={i}>{processChildren(node)}</React.Fragment>
