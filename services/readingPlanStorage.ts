@@ -301,6 +301,16 @@ class ReadingPlanStorageService {
     const planDef = READING_PLANS[plan.planType];
     return Math.round((plan.completedDays.length / planDef.totalDays) * 100);
   }
+
+  async getAllPlans(): Promise<ReadingPlanState[]> {
+    const db = await this.dbPromise;
+    return await db.getAll('plans');
+  }
+
+  async importPlan(plan: ReadingPlanState): Promise<void> {
+    const db = await this.dbPromise;
+    await db.put('plans', plan);
+  }
 }
 
 export const readingPlanStorage = new ReadingPlanStorageService();

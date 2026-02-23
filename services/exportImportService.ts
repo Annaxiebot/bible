@@ -2,6 +2,10 @@ import { verseDataStorage } from './verseDataStorage';
 import { VerseData } from '../types/verseData';
 import { BIBLE_BOOKS } from '../constants';
 import { bibleStorage } from './bibleStorage';
+import { annotationStorage, AnnotationRecord } from './annotationStorage';
+import { bookmarkStorage, Bookmark } from './bookmarkStorage';
+import { readingHistory } from './readingHistory';
+import { readingPlanStorage, ReadingPlanState } from './readingPlanStorage';
 
 export interface BibleNotesExport {
   version: '1.0';
@@ -33,6 +37,32 @@ export interface BibleTextExport {
 }
 
 export type MergeStrategy = 'replace' | 'merge_newer' | 'merge_combine' | 'skip_existing';
+
+export type ProgressCallback = (stage: string, percent: number) => void;
+
+export interface FullBackupExport {
+  version: '3.0';
+  exportDate: string;
+  deviceId?: string;
+  notes: BibleNotesExport;
+  bibleTexts: BibleTextExport;
+  annotations: AnnotationRecord[];
+  bookmarks: Bookmark[];
+  readingHistory: {
+    history: any[];
+    lastRead: any | null;
+    position: any | null;
+  };
+  readingPlans: ReadingPlanState[];
+  metadata: {
+    totalNotes: number;
+    totalResearch: number;
+    totalAnnotations: number;
+    totalBookmarks: number;
+    totalHistoryEntries: number;
+    totalPlans: number;
+  };
+}
 
 class ExportImportService {
   private deviceId: string;
@@ -514,117 +544,221 @@ class ExportImportService {
     return { notes, bibleTexts };
   }
 
-  // Download all data as a single ZIP file (using a simple tar-like format)
-  async exportAndDownloadAll() {
+  // Export all user data as a single v3.0 backup file
+  async exportAndDownloadAll(onProgress?: ProgressCallback) {
     try {
-      console.log('exportAndDownloadAll: Starting export');
       const timestamp = new Date().toISOString().split('T')[0];
-      
-      // Export notes
-      console.log('exportAndDownloadAll: Exporting notes...');
-      const notesContent = await this.exportToJSON();
-      console.log('exportAndDownloadAll: Notes exported, length:', notesContent.length);
-      
-      // Export Bible texts
-      console.log('exportAndDownloadAll: Exporting Bible texts...');
-      const bibleContent = await this.exportBibleTexts();
-      console.log('exportAndDownloadAll: Bible texts exported, length:', bibleContent.length);
-      
-      // Create a combined JSON with both exports
-      const combinedExport = {
-        version: '2.0',
+
+      onProgress?.('Exporting notes...', 10);
+      const notesData = JSON.parse(await this.exportToJSON()) as BibleNotesExport;
+
+      onProgress?.('Exporting Bible texts...', 25);
+      const bibleData = JSON.parse(await this.exportBibleTexts()) as BibleTextExport;
+
+      onProgress?.('Exporting annotations...', 40);
+      const annotations = await annotationStorage.getAllAnnotations();
+
+      onProgress?.('Exporting bookmarks...', 55);
+      const bookmarks = await bookmarkStorage.getAllBookmarks();
+
+      onProgress?.('Exporting reading history...', 65);
+      const historyData = {
+        history: readingHistory.getHistory(),
+        lastRead: readingHistory.getLastRead(),
+        position: await readingHistory.getLastReadingPosition(),
+      };
+
+      onProgress?.('Exporting reading plans...', 75);
+      const plans = await readingPlanStorage.getAllPlans();
+
+      onProgress?.('Building backup file...', 90);
+      const combinedExport: FullBackupExport = {
+        version: '3.0',
         exportDate: new Date().toISOString(),
         deviceId: this.deviceId,
-        notes: JSON.parse(notesContent),
-        bibleTexts: JSON.parse(bibleContent)
+        notes: notesData,
+        bibleTexts: bibleData,
+        annotations,
+        bookmarks,
+        readingHistory: historyData,
+        readingPlans: plans,
+        metadata: {
+          totalNotes: notesData.metadata?.totalNotes || 0,
+          totalResearch: notesData.metadata?.totalResearch || 0,
+          totalAnnotations: annotations.length,
+          totalBookmarks: bookmarks.length,
+          totalHistoryEntries: historyData.history.length,
+          totalPlans: plans.length,
+        },
       };
-      
-      console.log('exportAndDownloadAll: Creating combined content...');
-      const combinedContent = JSON.stringify(combinedExport, null, 2);
+
+      const combinedContent = JSON.stringify(combinedExport);
       const filename = `bible-app-backup-${timestamp}.json`;
-      
-      console.log('exportAndDownloadAll: Downloading file:', filename);
+
+      onProgress?.('Downloading...', 95);
       this.downloadFile(combinedContent, filename, 'application/json');
-      console.log('exportAndDownloadAll: Download initiated successfully');
+      onProgress?.('Done!', 100);
       return { success: true };
     } catch (error: any) {
-      console.error('Export failed with error:', error.message || error);
-      console.error('Stack trace:', error.stack);
+      console.error('Export failed:', error);
       return { success: false, error: error.message || String(error) };
     }
   }
 
-  // Import combined backup
-  async importCombinedBackup(jsonString: string, notesStrategy: MergeStrategy = 'merge_combine'): Promise<{
+  // Import combined backup (supports v1.0, v2.0, v3.0)
+  async importCombinedBackup(
+    jsonString: string,
+    notesStrategy: MergeStrategy = 'merge_combine',
+    onProgress?: ProgressCallback
+  ): Promise<{
     success: boolean;
     notesImported: number;
     notesSkipped: number;
     chaptersImported: number;
+    annotationsImported: number;
+    bookmarksImported: number;
+    historyRestored: boolean;
+    plansImported: number;
     errors: string[];
   }> {
     const errors: string[] = [];
-    
+    const result = {
+      success: false,
+      notesImported: 0,
+      notesSkipped: 0,
+      chaptersImported: 0,
+      annotationsImported: 0,
+      bookmarksImported: 0,
+      historyRestored: false,
+      plansImported: 0,
+      errors,
+    };
+
     try {
       const importData = JSON.parse(jsonString);
-      
-      // Check version
-      if (importData.version === '2.0') {
-        // Combined format
-        const notesResult = await this.importFromJSON(
-          JSON.stringify(importData.notes),
-          notesStrategy
-        );
-        
-        const bibleResult = await this.importBibleTexts(
-          JSON.stringify(importData.bibleTexts)
-        );
-        
-        return {
-          success: notesResult.success && bibleResult.success,
-          notesImported: notesResult.imported,
-          notesSkipped: notesResult.skipped,
-          chaptersImported: bibleResult.imported,
-          errors: [...notesResult.errors, ...bibleResult.errors]
-        };
+
+      if (importData.version === '3.0') {
+        // ── v3.0 full import ──
+        onProgress?.('Importing notes...', 10);
+        if (importData.notes) {
+          const notesResult = await this.importFromJSON(JSON.stringify(importData.notes), notesStrategy);
+          result.notesImported = notesResult.imported;
+          result.notesSkipped = notesResult.skipped;
+          errors.push(...notesResult.errors);
+        }
+
+        onProgress?.('Importing Bible texts...', 25);
+        if (importData.bibleTexts) {
+          const bibleResult = await this.importBibleTexts(JSON.stringify(importData.bibleTexts));
+          result.chaptersImported = bibleResult.imported;
+          errors.push(...bibleResult.errors);
+        }
+
+        onProgress?.('Importing annotations...', 40);
+        if (importData.annotations && Array.isArray(importData.annotations)) {
+          for (const ann of importData.annotations) {
+            try {
+              await annotationStorage.importAnnotation(ann);
+              result.annotationsImported++;
+            } catch (e) {
+              errors.push(`Failed to import annotation ${ann.id}: ${e}`);
+            }
+          }
+        }
+
+        onProgress?.('Importing bookmarks...', 60);
+        if (importData.bookmarks && Array.isArray(importData.bookmarks)) {
+          for (const bm of importData.bookmarks) {
+            try {
+              const exists = await bookmarkStorage.isBookmarked(bm.id);
+              if (!exists) {
+                await bookmarkStorage.importBookmark(bm);
+                result.bookmarksImported++;
+              }
+            } catch (e) {
+              errors.push(`Failed to import bookmark ${bm.id}: ${e}`);
+            }
+          }
+        }
+
+        onProgress?.('Importing reading history...', 75);
+        if (importData.readingHistory) {
+          try {
+            const rh = importData.readingHistory;
+            if (rh.history && Array.isArray(rh.history)) {
+              const existing = readingHistory.getHistory();
+              const existingKeys = new Set(existing.map((h: any) => `${h.bookId}:${h.chapter}`));
+              for (const entry of rh.history) {
+                if (!existingKeys.has(`${entry.bookId}:${entry.chapter}`)) {
+                  readingHistory.addToHistory(entry.bookId, entry.bookName, entry.chapter, entry.hasNotes, entry.hasAIResearch);
+                }
+              }
+            }
+            if (rh.lastRead && !readingHistory.getLastRead()) {
+              localStorage.setItem('bibleLastRead', JSON.stringify(rh.lastRead));
+            }
+            if (rh.position) {
+              const currentPos = await readingHistory.getLastReadingPosition();
+              if (!currentPos) {
+                localStorage.setItem('bibleReadingHistory', JSON.stringify(rh.position));
+              }
+            }
+            result.historyRestored = true;
+          } catch (e) {
+            errors.push(`Failed to import reading history: ${e}`);
+          }
+        }
+
+        onProgress?.('Importing reading plans...', 90);
+        if (importData.readingPlans && Array.isArray(importData.readingPlans)) {
+          for (const plan of importData.readingPlans) {
+            try {
+              await readingPlanStorage.importPlan(plan);
+              result.plansImported++;
+            } catch (e) {
+              errors.push(`Failed to import plan ${plan.id}: ${e}`);
+            }
+          }
+        }
+
+        onProgress?.('Done!', 100);
+
+      } else if (importData.version === '2.0') {
+        // ── v2.0 combined format (backward compat) ──
+        onProgress?.('Importing notes...', 20);
+        const notesResult = await this.importFromJSON(JSON.stringify(importData.notes), notesStrategy);
+        result.notesImported = notesResult.imported;
+        result.notesSkipped = notesResult.skipped;
+        errors.push(...notesResult.errors);
+
+        onProgress?.('Importing Bible texts...', 60);
+        const bibleResult = await this.importBibleTexts(JSON.stringify(importData.bibleTexts));
+        result.chaptersImported = bibleResult.imported;
+        errors.push(...bibleResult.errors);
+        onProgress?.('Done!', 100);
+
       } else if (importData.version === '1.0' && importData.data) {
-        // Old notes-only format
+        // ── v1.0 notes-only format ──
         const notesResult = await this.importFromJSON(jsonString, notesStrategy);
-        return {
-          success: notesResult.success,
-          notesImported: notesResult.imported,
-          notesSkipped: notesResult.skipped,
-          chaptersImported: 0,
-          errors: notesResult.errors
-        };
+        result.notesImported = notesResult.imported;
+        result.notesSkipped = notesResult.skipped;
+        errors.push(...notesResult.errors);
+
       } else if (importData.version === '1.0' && importData.chapters) {
-        // Bible texts only format
+        // ── v1.0 Bible texts format ──
         const bibleResult = await this.importBibleTexts(jsonString);
-        return {
-          success: bibleResult.success,
-          notesImported: 0,
-          notesSkipped: 0,
-          chaptersImported: bibleResult.imported,
-          errors: bibleResult.errors
-        };
+        result.chaptersImported = bibleResult.imported;
+        errors.push(...bibleResult.errors);
+
       } else {
         errors.push('Unrecognized backup format');
-        return {
-          success: false,
-          notesImported: 0,
-          notesSkipped: 0,
-          chaptersImported: 0,
-          errors
-        };
       }
+
+      result.success = errors.length === 0;
+      return result;
     } catch (error) {
       errors.push(`Parse error: ${error}`);
-      return {
-        success: false,
-        notesImported: 0,
-        notesSkipped: 0,
-        chaptersImported: 0,
-        errors
-      };
+      return result;
     }
   }
 }
