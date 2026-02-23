@@ -76,10 +76,11 @@ const VerseIndicators: React.FC<VerseIndicatorsProps> = ({
   };
 
   return (
-    <span 
+    <span
       className="verse-indicators"
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      onClick={(e) => { e.stopPropagation(); onClick?.(); }}
     >
       {hasNote && <span className="indicator note-indicator" title="Personal note">📝</span>}
       {hasResearch && (
@@ -100,7 +101,7 @@ const VerseIndicators: React.FC<VerseIndicatorsProps> = ({
             }
           }}
           onMouseLeave={handleMouseLeave}
-          onClick={onClick}
+          onClick={(e) => { e.stopPropagation(); e.preventDefault(); onClick?.(); }}
         >
           <div className="preview-content">
             {truncatePreview(notePreview)}
