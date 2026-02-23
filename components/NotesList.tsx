@@ -1,8 +1,9 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { verseDataStorage } from '../services/verseDataStorage';
 import { notesStorage } from '../services/notesStorage';
 import { BIBLE_BOOKS } from '../constants';
 import { VerseData } from '../types/verseData';
+import { exportImportService } from '../services/exportImportService';
 
 interface NotesListProps {
   onSelectNote?: (bookId: string, chapter: number, verses?: number[]) => void;
@@ -17,6 +18,7 @@ interface NoteItem {
   verses: number[];
   personalNote?: string;
   aiResearchCount: number;
+  createdAt: number;
   updatedAt: number;
   verseText?: string;
 }
@@ -29,6 +31,10 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [sortMode, setSortMode] = useState<SortMode>('latest-first');
   const [expandedNotes, setExpandedNotes] = useState<Set<string>>(new Set());
+  const [selectedForExport, setSelectedForExport] = useState<Set<string>>(new Set());
+  const [exportMode, setExportMode] = useState(false);
+  const [exportStatus, setExportStatus] = useState('');
+  const importInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadNotes();
@@ -59,6 +65,7 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
             verses: data.verses,
             personalNote: data.personalNote?.text,
             aiResearchCount: data.aiResearch.length,
+            createdAt: data.personalNote?.createdAt || data.aiResearch[0]?.timestamp || 0,
             updatedAt: data.personalNote?.updatedAt || data.aiResearch[0]?.timestamp || 0,
             verseText: data.verseText
           });
@@ -90,7 +97,8 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
                 verses,
                 personalNote: content,
                 aiResearchCount: 0,
-                updatedAt: Date.now() // Old notes don't have timestamps
+                createdAt: 0, // Old notes don't have timestamps
+                updatedAt: 0,
               });
             }
           }
@@ -123,7 +131,7 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
     // Apply sort
     const sorted = [...filtered];
     if (sortMode === 'latest-first') {
-      sorted.sort((a, b) => b.updatedAt - a.updatedAt);
+      sorted.sort((a, b) => b.createdAt - a.createdAt);
     } else {
       // Bible order: sort by book index, then chapter, then verse
       sorted.sort((a, b) => {
@@ -181,6 +189,105 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
     if (text.length <= maxLength) return text;
     return text.substring(0, maxLength) + '...';
   };
+
+  // Group notes by book+chapter for export selection
+  const chapterGroups = useMemo(() => {
+    const groups: Record<string, { bookId: string; bookName: string; chapter: number; noteCount: number; key: string }> = {};
+    for (const note of notes) {
+      const key = `${note.bookId}:${note.chapter}`;
+      if (!groups[key]) {
+        groups[key] = { bookId: note.bookId, bookName: note.bookName, chapter: note.chapter, noteCount: 0, key };
+      }
+      groups[key].noteCount++;
+    }
+    return Object.values(groups).sort((a, b) => {
+      const ai = BIBLE_BOOKS.findIndex(bk => bk.id === a.bookId);
+      const bi = BIBLE_BOOKS.findIndex(bk => bk.id === b.bookId);
+      if (ai !== bi) return ai - bi;
+      return a.chapter - b.chapter;
+    });
+  }, [notes]);
+
+  const toggleChapterSelection = (key: string) => {
+    setSelectedForExport(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  };
+
+  const handleExportSelected = useCallback(async () => {
+    try {
+      const allData = await verseDataStorage.getAllData();
+      const filtered = allData.filter(d => {
+        const key = `${d.bookId}:${d.chapter}`;
+        return selectedForExport.has(key);
+      });
+      if (filtered.length === 0) return;
+
+      const dataObj: Record<string, VerseData> = {};
+      filtered.forEach(d => { dataObj[d.id] = d; });
+
+      const booksSet = new Set(filtered.map(d => d.bookId));
+      const exportData = {
+        version: '1.0' as const,
+        exportDate: new Date().toISOString(),
+        metadata: {
+          totalNotes: filtered.filter(d => d.personalNote).length,
+          totalResearch: filtered.reduce((acc, d) => acc + d.aiResearch.length, 0),
+          booksIncluded: Array.from(booksSet),
+        },
+        data: dataObj,
+      };
+
+      const timestamp = new Date().toISOString().split('T')[0];
+      const content = JSON.stringify(exportData);
+      const blob = new Blob([content], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `bible-notes-${timestamp}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      setExportStatus(`Exported ${filtered.length} entries`);
+      setTimeout(() => { setExportStatus(''); setExportMode(false); setSelectedForExport(new Set()); }, 2000);
+    } catch (err) {
+      setExportStatus('Export failed');
+      setTimeout(() => setExportStatus(''), 2000);
+    }
+  }, [selectedForExport]);
+
+  const handleExportAll = useCallback(async () => {
+    try {
+      setExportStatus('Exporting...');
+      await exportImportService.exportAndDownload('json');
+      setExportStatus('Exported all notes!');
+      setTimeout(() => setExportStatus(''), 2000);
+    } catch {
+      setExportStatus('Export failed');
+      setTimeout(() => setExportStatus(''), 2000);
+    }
+  }, []);
+
+  const handleImportNotes = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      setExportStatus('Importing...');
+      const content = await file.text();
+      const result = await exportImportService.importFromJSON(content, 'merge_combine');
+      setExportStatus(`Imported ${result.imported} notes (${result.skipped} skipped)`);
+      loadNotes();
+      setTimeout(() => setExportStatus(''), 3000);
+    } catch {
+      setExportStatus('Import failed');
+      setTimeout(() => setExportStatus(''), 2000);
+    }
+    e.target.value = '';
+  }, []);
 
   return (
     <div className="flex flex-col h-full bg-white">
@@ -242,12 +349,82 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
           </button>
         </div>
 
-        {/* Results Count */}
-        <div className="text-xs text-slate-500">
-          {filteredAndSortedNotes.length} 条笔记 notes
-          {searchTerm && ` (搜索: "${searchTerm}")`}
+        {/* Export/Import Actions */}
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs text-slate-500">{filteredAndSortedNotes.length} notes</span>
+          <div className="flex-1" />
+          <input ref={importInputRef} type="file" accept=".json" onChange={handleImportNotes} className="hidden" />
+          <button
+            onClick={() => importInputRef.current?.click()}
+            className="px-2.5 py-1 text-xs rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+          >
+            导入 Import
+          </button>
+          <button
+            onClick={handleExportAll}
+            className="px-2.5 py-1 text-xs rounded-lg bg-slate-100 text-slate-600 hover:bg-slate-200 transition-colors"
+          >
+            导出全部 Export All
+          </button>
+          <button
+            onClick={() => { setExportMode(!exportMode); setSelectedForExport(new Set()); }}
+            className={`px-2.5 py-1 text-xs rounded-lg transition-colors ${
+              exportMode ? 'bg-indigo-100 text-indigo-700' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+            }`}
+          >
+            {exportMode ? '取消 Cancel' : '选择导出 Select'}
+          </button>
         </div>
+        {exportStatus && (
+          <div className="text-xs text-indigo-600 font-medium">{exportStatus}</div>
+        )}
       </div>
+
+      {/* Chapter selection for export */}
+      {exportMode && (
+        <div className="p-3 border-b bg-indigo-50/50 space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-medium text-slate-600">Select chapters to export:</span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setSelectedForExport(new Set(chapterGroups.map(g => g.key)))}
+                className="text-xs text-indigo-600 hover:underline"
+              >
+                Select all
+              </button>
+              <button
+                onClick={() => setSelectedForExport(new Set())}
+                className="text-xs text-slate-500 hover:underline"
+              >
+                Clear
+              </button>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto">
+            {chapterGroups.map(g => (
+              <button
+                key={g.key}
+                onClick={() => toggleChapterSelection(g.key)}
+                className={`px-2 py-0.5 text-xs rounded-md border transition-colors ${
+                  selectedForExport.has(g.key)
+                    ? 'bg-indigo-100 border-indigo-300 text-indigo-700'
+                    : 'bg-white border-slate-200 text-slate-600 hover:border-slate-300'
+                }`}
+              >
+                {g.bookName.split(' ')[0]} {g.chapter} ({g.noteCount})
+              </button>
+            ))}
+          </div>
+          {selectedForExport.size > 0 && (
+            <button
+              onClick={handleExportSelected}
+              className="w-full py-1.5 text-xs font-medium text-white bg-indigo-600 rounded-lg hover:bg-indigo-700 transition-colors"
+            >
+              Export {selectedForExport.size} chapters
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Notes List */}
       <div className="flex-1 overflow-y-auto">
@@ -300,7 +477,7 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
                           </span>
                         )}
                         <span className="text-xs text-slate-400">
-                          {formatDate(note.updatedAt)}
+                          {formatDate(note.createdAt)}
                         </span>
                       </div>
                     </div>
