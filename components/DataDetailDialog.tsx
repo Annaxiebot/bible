@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { NoteDetail, ResearchDetail, ChapterDetail } from '../hooks/useDataStats';
 
 type Mode = 'notes' | 'research' | 'chapters';
@@ -21,6 +21,8 @@ const TITLES: Record<Mode, string> = {
 const DataDetailDialog: React.FC<DataDetailDialogProps> = ({
   mode, noteDetails, researchDetails, chapterDetails, onNavigate, onClose
 }) => {
+  const [expandedBook, setExpandedBook] = useState<string | null>(null);
+
   const formatRef = (bookName: string, chapter: number, verses: number[]) => {
     let ref = `${bookName} ${chapter}`;
     if (verses.length === 1) ref += `:${verses[0]}`;
@@ -28,14 +30,45 @@ const DataDetailDialog: React.FC<DataDetailDialogProps> = ({
     return ref;
   };
 
-  // OT/NT split at index 39 (Matthew)
-  const otChapters = chapterDetails.filter((_, i) => {
-    const idx = chapterDetails.indexOf(chapterDetails[i]);
-    // Use the bookId to determine OT vs NT — books before 'matt' are OT
-    const otBooks = new Set(['gen','exo','lev','num','deu','jos','jdg','rut','1sa','2sa','1ki','2ki','1ch','2ch','ezr','neh','est','job','psa','pro','ecc','sng','isa','jer','lam','ezk','dan','hos','jol','amo','oba','jon','mic','nam','hab','zep','hag','zec','mal']);
-    return otBooks.has(chapterDetails[i].bookId);
-  });
-  const ntChapters = chapterDetails.filter(c => !otChapters.includes(c));
+  // OT/NT split
+  const otBooks = new Set(['gen','exo','lev','num','deu','jos','jdg','rut','1sa','2sa','1ki','2ki','1ch','2ch','ezr','neh','est','job','psa','pro','ecc','sng','isa','jer','lam','ezk','dan','hos','jol','amo','oba','jon','mic','nam','hab','zep','hag','zec','mal']);
+  const otChapters = chapterDetails.filter(c => otBooks.has(c.bookId));
+  const ntChapters = chapterDetails.filter(c => !otBooks.has(c.bookId));
+
+  const renderBookChip = (c: ChapterDetail, colorScheme: 'amber' | 'blue') => {
+    const isExpanded = expandedBook === c.bookId;
+    const bgColor = colorScheme === 'amber' ? 'bg-amber-50' : 'bg-blue-50';
+    const textColor = colorScheme === 'amber' ? 'text-amber-800' : 'text-blue-800';
+    const borderColor = colorScheme === 'amber' ? 'border-amber-200' : 'border-blue-200';
+    const activeBg = colorScheme === 'amber' ? 'bg-amber-100' : 'bg-blue-100';
+    const chapterBg = colorScheme === 'amber' ? 'hover:bg-amber-200' : 'hover:bg-blue-200';
+
+    return (
+      <div key={c.bookId} className={isExpanded ? 'w-full' : ''}>
+        <button
+          onClick={() => setExpandedBook(isExpanded ? null : c.bookId)}
+          className={`px-2 py-1 text-xs ${isExpanded ? activeBg : bgColor} ${textColor} border ${borderColor} rounded-md transition-all ${isExpanded ? 'w-full text-left font-semibold' : ''}`}
+        >
+          {c.bookName.split(' ')[0]} <span className="font-semibold">{c.chapterCount}</span>
+          {isExpanded && <span className="ml-1 text-[10px] opacity-60">▲</span>}
+          {!isExpanded && <span className="ml-0.5 text-[10px] opacity-40">▼</span>}
+        </button>
+        {isExpanded && c.chapters && (
+          <div className="flex flex-wrap gap-1 mt-1.5 mb-2 pl-1">
+            {c.chapters.map(ch => (
+              <button
+                key={ch}
+                onClick={() => { onNavigate?.(c.bookId, ch); onClose(); }}
+                className={`w-8 h-7 text-[11px] font-medium ${bgColor} ${textColor} border ${borderColor} rounded ${chapterBg} transition-colors`}
+              >
+                {ch}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50" onClick={onClose}>
@@ -105,11 +138,7 @@ const DataDetailDialog: React.FC<DataDetailDialogProps> = ({
                   <div>
                     <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">旧约 Old Testament</div>
                     <div className="flex flex-wrap gap-1.5">
-                      {otChapters.map(c => (
-                        <span key={c.bookId} className="px-2 py-1 text-xs bg-amber-50 text-amber-800 border border-amber-200 rounded-md">
-                          {c.bookName.split(' ')[0]} <span className="font-semibold">{c.chapterCount}</span>
-                        </span>
-                      ))}
+                      {otChapters.map(c => renderBookChip(c, 'amber'))}
                     </div>
                   </div>
                 )}
@@ -117,11 +146,7 @@ const DataDetailDialog: React.FC<DataDetailDialogProps> = ({
                   <div>
                     <div className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">新约 New Testament</div>
                     <div className="flex flex-wrap gap-1.5">
-                      {ntChapters.map(c => (
-                        <span key={c.bookId} className="px-2 py-1 text-xs bg-blue-50 text-blue-800 border border-blue-200 rounded-md">
-                          {c.bookName.split(' ')[0]} <span className="font-semibold">{c.chapterCount}</span>
-                        </span>
-                      ))}
+                      {ntChapters.map(c => renderBookChip(c, 'blue'))}
                     </div>
                   </div>
                 )}
