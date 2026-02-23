@@ -47,7 +47,7 @@ const _processText = (
   onNav?: (bookId: string, chapter: number, verses?: number[]) => void,
   curBookId?: string
 ): React.ReactNode => {
-  if (!onNav) return text;
+  if (!onNav || typeof text !== 'string') return text;
   const re = new RegExp(_combinedRefRe.source, 'gi');
   const parts: React.ReactNode[] = [];
   let last = 0, mt;
@@ -66,6 +66,8 @@ const _processText = (
 
 const _pc = (nodes: React.ReactNode, onNav?: (bookId: string, chapter: number, verses?: number[]) => void, curBookId?: string): React.ReactNode => {
   if (typeof nodes === 'string') return _processText(nodes, onNav, curBookId);
+  if (typeof nodes === 'number') return _processText(String(nodes), onNav, curBookId);
+  if (nodes == null || typeof nodes === 'boolean') return nodes;
   if (React.isValidElement(nodes)) return nodes;
   const arr = React.Children.toArray(nodes);
   if (arr.length > 0) return arr.map((n, i) => <React.Fragment key={i}>{_pc(n, onNav, curBookId)}</React.Fragment>);
