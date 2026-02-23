@@ -6,7 +6,8 @@ import EnhancedNotebook from './components/EnhancedNotebook';
 import Sidebar from './components/Sidebar';
 import VibePanel from './components/VibePanel';
 import { SelectionInfo } from './types';
-import { exportImportService } from './services/exportImportService';
+import { exportImportService, BackupSummaryData } from './services/exportImportService';
+import BackupSummaryDialog from './components/BackupSummaryDialog';
 import { notesStorage } from './services/notesStorage';
 import { readingHistory } from './services/readingHistory';
 import { verseDataStorage } from './services/verseDataStorage';
@@ -107,6 +108,8 @@ const App: React.FC = () => {
   const [showVibePanel, setShowVibePanel] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showPrintOptions, setShowPrintOptions] = useState(false);
+  const [backupDialog, setBackupDialog] = useState<{ mode: 'export' | 'import'; summary: BackupSummaryData; fileContent?: string } | null>(null);
+  const [backupLoading, setBackupLoading] = useState(false);
   const [downloadFns, setDownloadFns] = useState<{ bible: (() => void) | null; chapter: (() => void) | null; book: (() => void) | null }>({ bible: null, chapter: null, book: null });
   const [downloadState, setDownloadState] = useState({ isDownloading: false, progress: 0, status: '', timeRemaining: '' });
   const [vibeStyles, setVibeStyles] = useState<VibeStyles>(getEmptyStyles());
@@ -216,16 +219,33 @@ const App: React.FC = () => {
 
   const handleBackupAll = async () => {
     try {
+      setToast({ message: 'Gathering data summary...', type: 'info' });
+      const summary = await exportImportService.getLocalSummary();
+      setToast(null);
+      setBackupDialog({ mode: 'export', summary });
+    } catch (error: any) {
+      setToast({ message: `Failed: ${error.message}`, type: 'error' });
+    }
+  };
+
+  const confirmBackup = async () => {
+    setBackupLoading(true);
+    try {
       const result = await exportImportService.exportAndDownloadAll((stage, percent) => {
         setToast({ message: `${stage} (${percent}%)`, type: 'info' });
       });
       if (result.success) {
         setToast({ message: '成功导出全部数据！Backup complete!', type: 'success' });
+        setTimeout(() => setToast(null), 3000);
       } else {
         throw new Error(result.error || 'Export failed');
       }
     } catch (error: any) {
       setToast({ message: `导出失败: ${error.message}`, type: 'error' });
+      setTimeout(() => setToast(null), 5000);
+    } finally {
+      setBackupLoading(false);
+      setBackupDialog(null);
     }
   };
 
@@ -253,6 +273,7 @@ const App: React.FC = () => {
         setDataUpdateTrigger(prev => prev + 1);
         setTimeout(() => {
           setToast({ message: '成功清除！Successfully cleared!', type: 'success' });
+          setTimeout(() => setToast(null), 3000);
         }, 100);
       }
     } catch (error) {
@@ -266,45 +287,54 @@ const App: React.FC = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (confirm("恢复备份将合并您的数据。是否继续？\nRestore will merge your data. Continue?")) {
-      try {
-        setToast({ message: "正在读取备份... Reading backup...", type: 'info' });
-        const content = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onload = (ev) => resolve(ev.target?.result as string);
-          reader.onerror = reject;
-          reader.readAsText(file);
-        });
-
-        const result = await exportImportService.importCombinedBackup(
-          content, 'merge_combine',
-          (stage, percent) => setToast({ message: `${stage} (${percent}%)`, type: 'info' })
-        );
-
-        const anyImported = result.notesImported > 0 || result.chaptersImported > 0
-          || result.annotationsImported > 0 || result.bookmarksImported > 0
-          || result.plansImported > 0 || result.historyRestored;
-
-        if (result.success || anyImported) {
-          const allNotes = await notesStorage.getAllNotes();
-          setNotes(allNotes);
-          setDataUpdateTrigger(prev => prev + 1);
-          const parts: string[] = [];
-          if (result.notesImported > 0) parts.push(`${result.notesImported} notes`);
-          if (result.chaptersImported > 0) parts.push(`${result.chaptersImported} chapters`);
-          if (result.annotationsImported > 0) parts.push(`${result.annotationsImported} annotations`);
-          if (result.bookmarksImported > 0) parts.push(`${result.bookmarksImported} bookmarks`);
-          if (result.plansImported > 0) parts.push(`${result.plansImported} plans`);
-          if (result.historyRestored) parts.push('reading history');
-          setToast({ message: `恢复成功！Restored: ${parts.join(', ') || 'data'}`, type: 'success' });
-        } else {
-          throw new Error(result.errors.join('; ') || 'Import failed');
-        }
-      } catch (err: any) {
-        setToast({ message: `恢复失败: ${err.message}`, type: 'error' });
-      }
+    try {
+      setToast({ message: "正在读取备份... Reading backup...", type: 'info' });
+      const content = await file.text();
+      const summary = exportImportService.parseBackupSummary(content);
+      setToast(null);
+      setBackupDialog({ mode: 'import', summary, fileContent: content });
+    } catch (err: any) {
+      setToast({ message: `读取失败: ${err.message}`, type: 'error' });
     }
     e.target.value = "";
+  };
+
+  const confirmRestore = async () => {
+    if (!backupDialog?.fileContent) return;
+    setBackupLoading(true);
+    try {
+      const result = await exportImportService.importCombinedBackup(
+        backupDialog.fileContent, 'merge_combine',
+        (stage, percent) => setToast({ message: `${stage} (${percent}%)`, type: 'info' })
+      );
+
+      const anyImported = result.notesImported > 0 || result.chaptersImported > 0
+        || result.annotationsImported > 0 || result.bookmarksImported > 0
+        || result.plansImported > 0 || result.historyRestored;
+
+      if (result.success || anyImported) {
+        const allNotes = await notesStorage.getAllNotes();
+        setNotes(allNotes);
+        setDataUpdateTrigger(prev => prev + 1);
+        const parts: string[] = [];
+        if (result.notesImported > 0) parts.push(`${result.notesImported} notes`);
+        if (result.chaptersImported > 0) parts.push(`${result.chaptersImported} chapters`);
+        if (result.annotationsImported > 0) parts.push(`${result.annotationsImported} annotations`);
+        if (result.bookmarksImported > 0) parts.push(`${result.bookmarksImported} bookmarks`);
+        if (result.plansImported > 0) parts.push(`${result.plansImported} plans`);
+        if (result.historyRestored) parts.push('reading history');
+        setToast({ message: `恢复成功！Restored: ${parts.join(', ') || 'data'}`, type: 'success' });
+        setTimeout(() => setToast(null), 4000);
+      } else {
+        throw new Error(result.errors.join('; ') || 'Import failed');
+      }
+    } catch (err: any) {
+      setToast({ message: `恢复失败: ${err.message}`, type: 'error' });
+      setTimeout(() => setToast(null), 5000);
+    } finally {
+      setBackupLoading(false);
+      setBackupDialog(null);
+    }
   };
 
   if (hasKey === false) {
@@ -518,6 +548,16 @@ const App: React.FC = () => {
 
       {split.isResizing && <style>{`* { user-select: none !important; cursor: inherit !important; }`}</style>}
       
+      {backupDialog && (
+        <BackupSummaryDialog
+          mode={backupDialog.mode}
+          summary={backupDialog.summary}
+          onConfirm={backupDialog.mode === 'export' ? confirmBackup : confirmRestore}
+          onCancel={() => setBackupDialog(null)}
+          loading={backupLoading}
+        />
+      )}
+
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
     </SeasonThemeProvider>

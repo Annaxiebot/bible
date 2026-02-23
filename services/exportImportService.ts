@@ -64,6 +64,18 @@ export interface FullBackupExport {
   };
 }
 
+export interface BackupSummaryData {
+  version?: string;
+  exportDate?: string;
+  notes: number;
+  aiResearch: number;
+  annotations: number;
+  bookmarks: number;
+  historyEntries: number;
+  readingPlans: number;
+  bibleChapters: number;
+}
+
 class ExportImportService {
   private deviceId: string;
 
@@ -79,6 +91,72 @@ class ExportImportService {
       localStorage.setItem('bible_device_id', id);
     }
     return id;
+  }
+
+  /** Get summary of all local data (for showing before export) */
+  async getLocalSummary(): Promise<BackupSummaryData> {
+    const [allData, annotations, bookmarks, history, plans, bibleChapters] = await Promise.all([
+      verseDataStorage.getAllData(),
+      annotationStorage.getAllAnnotations(),
+      bookmarkStorage.getAllBookmarks(),
+      Promise.resolve(readingHistory.getHistory()),
+      readingPlanStorage.getAllPlans(),
+      bibleStorage.getAllChapters(),
+    ]);
+    return {
+      notes: allData.filter(d => d.personalNote).length,
+      aiResearch: allData.reduce((acc, d) => acc + d.aiResearch.length, 0),
+      annotations: annotations.length,
+      bookmarks: bookmarks.length,
+      historyEntries: history.length,
+      readingPlans: plans.length,
+      bibleChapters: bibleChapters.length,
+    };
+  }
+
+  /** Parse a backup file JSON string and return summary without importing */
+  parseBackupSummary(jsonString: string): BackupSummaryData {
+    const data = JSON.parse(jsonString);
+
+    if (data.version === '3.0') {
+      const notesData = data.notes?.data || {};
+      const noteEntries = Object.values(notesData) as any[];
+      return {
+        version: '3.0',
+        exportDate: data.exportDate,
+        notes: noteEntries.filter((d: any) => d.personalNote).length,
+        aiResearch: noteEntries.reduce((acc: number, d: any) => acc + (d.aiResearch?.length || 0), 0),
+        annotations: data.annotations?.length || 0,
+        bookmarks: data.bookmarks?.length || 0,
+        historyEntries: data.readingHistory?.history?.length || 0,
+        readingPlans: data.readingPlans?.length || 0,
+        bibleChapters: data.bibleTexts?.chapters?.length || 0,
+      };
+    } else if (data.version === '2.0') {
+      const notesData = data.notes?.data || {};
+      const noteEntries = Object.values(notesData) as any[];
+      return {
+        version: '2.0',
+        exportDate: data.exportDate,
+        notes: noteEntries.filter((d: any) => d.personalNote).length,
+        aiResearch: noteEntries.reduce((acc: number, d: any) => acc + (d.aiResearch?.length || 0), 0),
+        annotations: 0,
+        bookmarks: 0,
+        historyEntries: 0,
+        readingPlans: 0,
+        bibleChapters: data.bibleTexts?.chapters?.length || 0,
+      };
+    } else if (data.version === '1.0' && data.data) {
+      const noteEntries = Object.values(data.data) as any[];
+      return {
+        version: '1.0',
+        exportDate: data.exportDate,
+        notes: noteEntries.filter((d: any) => d.personalNote).length,
+        aiResearch: noteEntries.reduce((acc: number, d: any) => acc + (d.aiResearch?.length || 0), 0),
+        annotations: 0, bookmarks: 0, historyEntries: 0, readingPlans: 0, bibleChapters: 0,
+      };
+    }
+    return { notes: 0, aiResearch: 0, annotations: 0, bookmarks: 0, historyEntries: 0, readingPlans: 0, bibleChapters: 0 };
   }
 
   // Export all data to JSON format
