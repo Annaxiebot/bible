@@ -200,6 +200,29 @@ class VerseDataStorage {
     }
   }
 
+  // Get all verse data for a specific chapter in a single DB transaction
+  async getChapterData(bookId: string, chapter: number): Promise<Map<string, VerseData>> {
+    const db = await this.ensureDB();
+    const result = new Map<string, VerseData>();
+    try {
+      const tx = db.transaction('verseData', 'readonly');
+      const store = tx.objectStore('verseData');
+      const prefix = `${bookId}:${chapter}:`;
+      let cursor = await store.openCursor();
+      while (cursor) {
+        if (typeof cursor.key === 'string' && cursor.key.startsWith(prefix)) {
+          result.set(cursor.key, cursor.value);
+        } else if (typeof cursor.key === 'string' && cursor.key > prefix + '\uffff') {
+          break; // Past our range, stop iterating
+        }
+        cursor = await cursor.continue();
+      }
+    } catch (error) {
+      console.error('Failed to get chapter data:', error);
+    }
+    return result;
+  }
+
   // Get all verse data
   async getAllData(): Promise<VerseData[]> {
     const db = await this.ensureDB();
