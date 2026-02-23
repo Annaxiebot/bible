@@ -44,6 +44,8 @@ interface AnnotationDB extends DBSchema {
 
 class AnnotationStorageService {
   private dbPromise: Promise<IDBPDatabase<AnnotationDB>>;
+  /** Track which chapters already have their note ensured (avoids repeated DB queries during drawing) */
+  private _ensuredNotes = new Set<string>();
 
   constructor() {
     this.dbPromise = openDB<AnnotationDB>('BibleAnnotationsDB', 1, {
@@ -88,7 +90,12 @@ class AnnotationStorageService {
       });
 
       // Auto-create a chapter-level note so annotations appear in notes list/print
-      this.ensureChapterNote(bookId, chapter, canvasData).catch(() => {});
+      // Only check once per book+chapter to avoid repeated DB queries during drawing
+      const noteKey = `${bookId}:${chapter}`;
+      if (!this._ensuredNotes.has(noteKey)) {
+        this._ensuredNotes.add(noteKey);
+        this.ensureChapterNote(bookId, chapter, canvasData).catch(() => {});
+      }
     } catch (error) {
       console.error('Failed to save annotation:', error);
       throw error;

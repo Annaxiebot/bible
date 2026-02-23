@@ -320,7 +320,7 @@ interface MessageBubbleProps {
   onTextSelection?: (selectedText: string, position: { x: number; y: number }) => void;
 }
 
-const MessageBubble: React.FC<MessageBubbleProps> = ({ m, side, isSpeaking, onSpeak, onStop, onSaveResearch, onNavigate, currentBookId, onTextSelection }) => {
+const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpeaking, onSpeak, onStop, onSaveResearch, onNavigate, currentBookId, onTextSelection }) => {
   const { zh, en } = parseMessage(m.content, m.role);
   const content = side === 'zh' ? zh : en;
 
@@ -462,7 +462,8 @@ const MessageBubble: React.FC<MessageBubbleProps> = ({ m, side, isSpeaking, onSp
       </div>
     </div>
   );
-};
+});
+MessageBubble.displayName = 'MessageBubble';
 
 const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBookId, currentChapter, onResearchSaved, onNavigate, vibeClassName }) => {
   const [showSaveModal, setShowSaveModal] = useState(false);
@@ -874,12 +875,18 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     }
   };
 
+  const resizeRafRef = useRef(0);
   const resize = useCallback((e: MouseEvent | TouchEvent) => {
     if (isResizing && containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
       const clientX = 'clientX' in e ? e.clientX : e.touches[0]?.clientX || 0;
-      const percentage = ((clientX - rect.left) / rect.width) * 100;
-      if (percentage >= 0 && percentage <= 100) setVSplitOffset(percentage);
+      // Throttle to one update per animation frame to prevent layout thrashing
+      cancelAnimationFrame(resizeRafRef.current);
+      resizeRafRef.current = requestAnimationFrame(() => {
+        if (!containerRef.current) return;
+        const rect = containerRef.current.getBoundingClientRect();
+        const percentage = ((clientX - rect.left) / rect.width) * 100;
+        if (percentage >= 0 && percentage <= 100) setVSplitOffset(percentage);
+      });
     }
   }, [isResizing]);
 
