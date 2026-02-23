@@ -64,6 +64,11 @@ class BookmarkStorageService {
     return await db.count('bookmarks');
   }
 
+  async importBookmark(bookmark: Bookmark): Promise<void> {
+    const db = await this.dbPromise;
+    await db.put('bookmarks', bookmark);
+  }
+
   async toggleBookmark(bookmark: Omit<Bookmark, 'createdAt'>): Promise<boolean> {
     const exists = await this.isBookmarked(bookmark.id);
     if (exists) {
