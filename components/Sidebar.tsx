@@ -555,8 +555,8 @@ const Sidebar: React.FC<SidebarProps> = ({
                   {bgDownloadProgress && !bgDownloadProgress.isComplete && bgDownloadProgress.isRunning && (
                     <div className="px-2 py-1">
                       <div className="flex justify-between text-[10px] text-slate-500 mb-0.5">
-                        <span>缓存中 {bgDownloadProgress.currentBook ? `${bgDownloadProgress.currentBook} ${bgDownloadProgress.currentChapter}` : 'Caching...'}</span>
-                        <span>{bgDownloadProgress.cached}/{bgDownloadProgress.total}</span>
+                        <span className="truncate mr-2">{bgDownloadProgress.currentBook ? `${bgDownloadProgress.currentBook} 第${bgDownloadProgress.currentChapter}章` : '缓存中 Caching...'}</span>
+                        <span className="whitespace-nowrap">{bgDownloadProgress.cached}/{bgDownloadProgress.total}</span>
                       </div>
                       <div className="w-full bg-slate-200 rounded-full h-1">
                         <div
