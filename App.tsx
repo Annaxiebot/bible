@@ -367,16 +367,17 @@ const App: React.FC = () => {
         isOpen={isSidebarOpen}
         onToggle={() => setIsSidebarOpen(!isSidebarOpen)}
         showToggle={!isIPhone}
-        onBackup={handleBackupAll}
-        onRestore={handleRestoreClick}
-        onClear={handleClearAll}
+        onBackup={() => { handleBackupAll(); setIsSidebarOpen(false); }}
+        onRestore={() => { handleRestoreClick(); setIsSidebarOpen(false); }}
+        onClear={() => { handleClearAll(); setIsSidebarOpen(false); }}
         onSearch={() => { setShowSearch(true); setIsSidebarOpen(false); }}
         onPrint={() => { setShowPrintOptions(true); setIsSidebarOpen(false); }}
-        onVoiceOpen={() => setIsVoiceOpen(true)}
+        onVoiceOpen={() => { setIsVoiceOpen(true); setIsSidebarOpen(false); }}
         onVibeOpen={() => { setShowVibePanel(true); setIsSidebarOpen(false); }}
         onNavigate={(bookId, chapter, verse) => {
           setNavigateTo({ bookId, chapter, verses: verse ? [verse] : undefined });
           setTimeout(() => setNavigateTo(null), 5000);
+          setIsSidebarOpen(false);
         }}
         onViewNotes={() => { setShowNotesList(true); setIsSidebarOpen(false); }}
         onSplitView={() => {
