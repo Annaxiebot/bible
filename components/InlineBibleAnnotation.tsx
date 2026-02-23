@@ -13,8 +13,12 @@
  */
 
 import React, { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { Capacitor } from '@capacitor/core';
 import DrawingCanvas, { DrawingCanvasHandle, SerializedPath } from './DrawingCanvas';
 import { annotationStorage } from '../services/annotationStorage';
+
+// Detect native iOS for PencilKit delegation
+const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
 
 export interface AnnotationToolState {
   tool: 'pen' | 'marker' | 'highlighter' | 'eraser';
@@ -90,12 +94,47 @@ const InlineBibleAnnotation = forwardRef<InlineBibleAnnotationHandle, InlineBibl
   const storedLayoutRef = useRef<{ fontSize: number; vSplitOffset: number } | null>(null);
   const saveTimerRef = useRef<number>(0);
 
+  // Native PencilKit state (iOS only)
+  const [nativeDrawingData, setNativeDrawingData] = useState<string>('');
+  const [nativePosition, setNativePosition] = useState<{ x: number; y: number; width: number; height: number } | undefined>(undefined);
+  const overlayRef = useRef<HTMLDivElement>(null);
+
   // Track the book+chapter+panel key for loading/saving
   const annotationKey = `${bookId}:${chapter}:${panelId}`;
   const prevKeyRef = useRef(annotationKey);
 
   // Total canvas height = verse content + expanded space
   const totalHeight = contentHeight + extraHeight;
+
+  // ── Compute native overlay position when active on native iOS ─────────
+  useEffect(() => {
+    if (!isNativeIOS || !isActive) {
+      setNativePosition(undefined);
+      return;
+    }
+
+    const computePosition = () => {
+      const el = overlayRef.current;
+      if (el) {
+        const rect = el.getBoundingClientRect();
+        setNativePosition({
+          x: rect.left,
+          y: rect.top,
+          width: rect.width,
+          height: totalHeight,
+        });
+      } else {
+        setNativePosition({
+          x: 0,
+          y: 0,
+          width: containerWidth,
+          height: totalHeight,
+        });
+      }
+    };
+
+    requestAnimationFrame(computePosition);
+  }, [isActive, totalHeight, containerWidth]);
 
   // Expose methods to parent via ref
   useImperativeHandle(ref, () => ({
@@ -116,10 +155,19 @@ const InlineBibleAnnotation = forwardRef<InlineBibleAnnotationHandle, InlineBibl
     const loadAnnotation = async () => {
       const result = await annotationStorage.getAnnotation(bookId, chapter, panelId);
       if (result) {
-        setSavedPaths(result.data);
+        // Check if data is native PencilKit format (prefixed with 'native:')
+        const isNativeData = result.data.startsWith('native:');
+        if (isNativeData) {
+          const nativeBase64 = result.data.slice(7); // Remove 'native:' prefix
+          setNativeDrawingData(nativeBase64);
+          setSavedPaths(''); // No web paths for native data
+        } else {
+          setSavedPaths(result.data);
+          setNativeDrawingData('');
+        }
         setExtraHeight(result.height);
-        // If canvas is mounted and active, load the paths
-        if (canvasRef.current && result.data) {
+        // If canvas is mounted and active, load the paths (web canvas only)
+        if (!isNativeData && canvasRef.current && result.data) {
           try {
             const paths = JSON.parse(result.data) as SerializedPath[];
             canvasRef.current.loadPaths(paths);
@@ -280,6 +328,19 @@ const InlineBibleAnnotation = forwardRef<InlineBibleAnnotationHandle, InlineBibl
     }, 1000);
   }, []); // Stable — zero deps, uses refs
 
+  // Handler for native PencilKit drawing changes (iOS only)
+  const handleNativeChange = useCallback((data: string) => {
+    setNativeDrawingData(data);
+    // Save native data to storage with a 'native:' prefix to distinguish from web data
+    clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = window.setTimeout(() => {
+      annotationStorage.saveAnnotation(
+        bookIdRef.current, chapterRef.current, `native:${data}`, extraHeightRef.current,
+        panelIdRef.current, containerWidthRef.current, fontSizeRef.current, vSplitOffsetRef.current
+      );
+    }, 1000);
+  }, []);
+
   // Sync latestDataRef → savedPaths state only when leaving annotation mode (for read-only overlay)
   const prevIsActiveRef = useRef(isActive);
   useEffect(() => {
@@ -399,6 +460,7 @@ const InlineBibleAnnotation = forwardRef<InlineBibleAnnotationHandle, InlineBibl
     <>
       {/* Drawing canvas overlay — blocks all text interaction when active */}
       <div
+        ref={overlayRef}
         className="annotation-overlay absolute inset-0 z-20"
         style={{
           height: `${totalHeight}px`,
@@ -415,6 +477,9 @@ const InlineBibleAnnotation = forwardRef<InlineBibleAnnotationHandle, InlineBibl
           overlayMode={true}
           isWritingMode={true}
           canvasHeight={totalHeight}
+          nativeData={isNativeIOS ? nativeDrawingData : undefined}
+          onNativeChange={isNativeIOS ? handleNativeChange : undefined}
+          nativePosition={isNativeIOS ? nativePosition : undefined}
         />
       </div>
 

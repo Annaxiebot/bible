@@ -36,8 +36,10 @@ const httpsRedirect = (): Plugin => ({
 
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, ".", "");
+    // Use base "/" for Capacitor native builds, "/bible/" for GitHub Pages
+    const isCapacitor = process.env.CAPACITOR_BUILD === 'true';
     return {
-      base: "/bible/",
+      base: isCapacitor ? "/" : "/bible/",
       server: {
         port: 3000,
         host: "0.0.0.0",

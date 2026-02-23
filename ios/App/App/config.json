@@ -1,0 +1,6 @@
+{
+  "appId": "com.annaxie.bible",
+  "appName": "Anna Bible",
+  "webDir": "dist",
+  "bundledWebRuntime": false
+}

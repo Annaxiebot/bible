@@ -15,7 +15,11 @@ export interface AnnotationRecord {
   id: string;
   bookId: string;
   chapter: number;
-  /** JSON-serialized array of drawing paths */
+  /**
+   * Canvas drawing data. Two formats:
+   * - Web canvas: JSON-serialized array of drawing paths (SerializedPath[])
+   * - Native PencilKit: "native:" prefix followed by base64-encoded PKDrawing data
+   */
   canvasData: string;
   /** Extra expanded height in pixels (0 = no expansion) */
   canvasHeight: number;
@@ -29,6 +33,21 @@ export interface AnnotationRecord {
   lastModified: number;
   /** Panel identifier (chinese or english) - optional for backwards compat */
   panelId?: string;
+}
+
+/** Helper to check if annotation data is native PencilKit format */
+export function isNativeAnnotation(data: string): boolean {
+  return data.startsWith('native:');
+}
+
+/** Extract native PencilKit base64 data from storage format */
+export function getNativeAnnotationData(data: string): string {
+  return data.slice(7); // Remove 'native:' prefix
+}
+
+/** Wrap native PencilKit data for storage */
+export function wrapNativeAnnotationData(base64: string): string {
+  return `native:${base64}`;
 }
 
 interface AnnotationDB extends DBSchema {
@@ -155,11 +174,18 @@ class AnnotationStorageService {
    * Creates a note with marker text if none exists; skips if one already exists.
    */
   private async ensureChapterNote(bookId: string, chapter: number, canvasData: string): Promise<void> {
-    // Check if annotation data has actual paths (not empty array)
-    try {
-      const paths = JSON.parse(canvasData);
-      if (!Array.isArray(paths) || paths.length === 0) return;
-    } catch { return; }
+    // Native PencilKit data is always valid if present
+    if (isNativeAnnotation(canvasData)) {
+      const nativeData = getNativeAnnotationData(canvasData);
+      if (!nativeData || nativeData.length === 0) return;
+      // Fall through to create note
+    } else {
+      // Check if web annotation data has actual paths (not empty array)
+      try {
+        const paths = JSON.parse(canvasData);
+        if (!Array.isArray(paths) || paths.length === 0) return;
+      } catch { return; }
+    }
 
     const existing = await verseDataStorage.getVerseData(bookId, chapter, []);
     if (existing?.personalNote) return; // Already has a note, don't overwrite

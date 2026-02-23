@@ -8,6 +8,8 @@
  */
 
 import React, { useRef, useEffect, forwardRef, useImperativeHandle, useCallback } from 'react';
+import { Capacitor } from '@capacitor/core';
+import PencilKit from '../services/pencilKitPlugin';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -17,6 +19,12 @@ interface DrawingCanvasProps {
   overlayMode?: boolean;
   isWritingMode?: boolean;
   canvasHeight?: number;
+  /** Native PencilKit drawing data (base64 PKDrawing), separate from web canvas data */
+  nativeData?: string;
+  /** Callback for native PencilKit drawing changes */
+  onNativeChange?: (data: string) => void;
+  /** Position of the canvas relative to the viewport, for native overlay positioning */
+  nativePosition?: { x: number; y: number; width: number; height: number };
 }
 
 export interface DrawingCanvasHandle {
@@ -45,16 +53,24 @@ export interface SerializedPath {
   points: Point[];
 }
 
-// Detect iOS
+// Detect iOS (web browser)
 const isIOS = typeof navigator !== 'undefined' && (
   /iPad|iPhone|iPod/.test(navigator.userAgent) ||
   (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
 );
 
+// Detect native iOS via Capacitor (uses PencilKit instead of web canvas)
+const isNativeIOS = Capacitor.isNativePlatform() && Capacitor.getPlatform() === 'ios';
+
 // ─── Component ──────────────────────────────────────────────────────────────
 
 const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
-  ({ initialData, onChange, overlayMode = false, isWritingMode = true, canvasHeight }, ref) => {
+  ({ initialData, onChange, overlayMode = false, isWritingMode = true, canvasHeight,
+     nativeData, onNativeChange, nativePosition }, ref) => {
+
+    // ── Native PencilKit refs (iOS only) ─────────────────────────────────
+    const nativeActiveRef = useRef(false);
+    const nativeListenerRef = useRef<{ remove: () => Promise<void> } | null>(null);
 
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
@@ -76,6 +92,10 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
 
     useImperativeHandle(ref, () => ({
       clear: () => {
+        if (isNativeIOS && nativeActiveRef.current) {
+          PencilKit.clear().catch(console.error);
+          return;
+        }
         pathsRef.current = [];
         currentPointsRef.current = [];
         lastRenderedIndexRef.current = 0;
@@ -85,25 +105,107 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
         onChange('');
       },
       getData: () => {
+        // For native iOS, data is managed via onNativeChange callback
+        if (isNativeIOS) return '';
         if (pathsRef.current.length === 0) return '';
         return JSON.stringify(pathsRef.current);
       },
       undo: () => {
+        if (isNativeIOS && nativeActiveRef.current) {
+          PencilKit.undo().catch(console.error);
+          return;
+        }
         if (pathsRef.current.length > 0) {
           pathsRef.current = pathsRef.current.slice(0, -1);
           fullRedraw();
           onChange(pathsRef.current.length > 0 ? JSON.stringify(pathsRef.current) : '');
         }
       },
-      setTool: (tool) => { toolRef.current = tool; },
-      setColor: (color) => { colorRef.current = color; },
-      setSize: (size) => { sizeRef.current = size; },
-      redraw: () => { fullRedraw(); },
+      setTool: (tool) => {
+        toolRef.current = tool;
+        if (isNativeIOS && nativeActiveRef.current) {
+          PencilKit.setTool({ tool, color: colorRef.current, size: sizeRef.current }).catch(console.error);
+        }
+      },
+      setColor: (color) => {
+        colorRef.current = color;
+        if (isNativeIOS && nativeActiveRef.current) {
+          PencilKit.setTool({ tool: toolRef.current, color, size: sizeRef.current }).catch(console.error);
+        }
+      },
+      setSize: (size) => {
+        sizeRef.current = size;
+        if (isNativeIOS && nativeActiveRef.current) {
+          PencilKit.setTool({ tool: toolRef.current, color: colorRef.current, size }).catch(console.error);
+        }
+      },
+      redraw: () => { if (!isNativeIOS) fullRedraw(); },
       loadPaths: (paths: SerializedPath[]) => {
+        if (isNativeIOS) return; // Native uses loadDrawing instead
         pathsRef.current = paths;
         fullRedraw();
       },
     }));
+
+    // ── Native PencilKit lifecycle (iOS only) ─────────────────────────────
+    // Show/hide native canvas when writing mode activates/deactivates
+
+    useEffect(() => {
+      if (!isNativeIOS) return;
+
+      if (isWritingMode && nativePosition) {
+        // Show native PencilKit canvas
+        const showNative = async () => {
+          try {
+            await PencilKit.show({
+              x: nativePosition.x,
+              y: nativePosition.y,
+              width: nativePosition.width,
+              height: nativePosition.height,
+              savedData: nativeData || undefined,
+            });
+            nativeActiveRef.current = true;
+
+            // Set initial tool
+            await PencilKit.setTool({
+              tool: toolRef.current,
+              color: colorRef.current,
+              size: sizeRef.current,
+            });
+
+            // Listen for drawing changes
+            const listener = await PencilKit.addListener('drawingChanged', (event) => {
+              onNativeChange?.(event.drawing);
+            });
+            nativeListenerRef.current = listener;
+          } catch (err) {
+            console.error('PencilKit show failed:', err);
+          }
+        };
+        showNative();
+      }
+
+      return () => {
+        if (!isNativeIOS || !nativeActiveRef.current) return;
+        // Hide native canvas on cleanup, save data
+        const hideNative = async () => {
+          try {
+            if (nativeListenerRef.current) {
+              await nativeListenerRef.current.remove();
+              nativeListenerRef.current = null;
+            }
+            const result = await PencilKit.hide();
+            nativeActiveRef.current = false;
+            if (result.data) {
+              onNativeChange?.(result.data);
+            }
+          } catch (err) {
+            console.error('PencilKit hide failed:', err);
+          }
+        };
+        hideNative();
+      };
+    }, [isWritingMode, nativePosition?.x, nativePosition?.y, nativePosition?.width, nativePosition?.height]);
 
     // ── Canvas sizing ───────────────────────────────────────────────────
 
