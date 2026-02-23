@@ -72,6 +72,9 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     const saved = localStorage.getItem('bibleChineseMode');
     return saved === 'simplified';
   });
+  const [englishVersion, setEnglishVersion] = useState<string>(() => {
+    return localStorage.getItem('bibleEnglishVersion') || 'web';
+  });
   const [fontSize, setFontSize] = useState(() => {
     const saved = localStorage.getItem('bibleFontSize');
     return saved ? parseInt(saved) : 18;
@@ -247,8 +250,26 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   }), [annotationTool, annotationColor, annotationSize]);
   
   // Better iOS detection that works for modern iPads
-  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) || 
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  // Listen for English version changes (from Sidebar dropdown or storage events)
+  useEffect(() => {
+    const handleVersionChange = (e: Event) => {
+      const version = localStorage.getItem('bibleEnglishVersion') || 'web';
+      setEnglishVersion(version);
+    };
+    window.addEventListener('bibleEnglishVersionChanged', handleVersionChange);
+    window.addEventListener('storage', (e: StorageEvent) => {
+      if (e.key === 'bibleEnglishVersion') {
+        setEnglishVersion(e.newValue || 'web');
+      }
+    });
+    return () => {
+      window.removeEventListener('bibleEnglishVersionChanged', handleVersionChange);
+      // storage event listener is fine to leave (or we could track ref)
+    };
+  }, []);
 
   // ── Measure content heights for annotation canvas sizing ──────────────
   useEffect(() => {
@@ -516,7 +537,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         }
         
         // Search in WEB (English)
-        const webData = await bibleStorage.getChapter(bookId, chapter, 'web');
+        const webData = await bibleStorage.getChapter(bookId, chapter, englishVersion as any);
         if (webData?.verses) {
           for (const verse of webData.verses) {
             if (results.length >= 50) break;
@@ -662,7 +683,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       false  // hasAIResearch - will be updated separately when AI features are implemented
     );
     return () => { ctrl.cancelled = true; };
-  }, [selectedBook, selectedChapter, notes]);
+  }, [selectedBook, selectedChapter, notes, englishVersion]);
   
   // Handle clicking outside book dropdown and mobile menu
   useEffect(() => {
@@ -727,7 +748,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     // Always check cache first to avoid unnecessary API calls
     try {
       const cachedCuv = await bibleStorage.getChapter(bookId, chapter, 'cuv');
-      const cachedWeb = await bibleStorage.getChapter(bookId, chapter, 'web');
+      const cachedWeb = await bibleStorage.getChapter(bookId, chapter, englishVersion as any);
       if (cachedCuv && cachedWeb && cachedCuv.verses && cachedWeb.verses) {
         return {
           left: cachedCuv.verses,
@@ -749,7 +770,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     let loadedFromCache = false;
     try {
       const cachedCuv = await bibleStorage.getChapter(selectedBook.id, selectedChapter, 'cuv');
-      const cachedWeb = await bibleStorage.getChapter(selectedBook.id, selectedChapter, 'web');
+      const cachedWeb = await bibleStorage.getChapter(selectedBook.id, selectedChapter, englishVersion as any);
 
       if (ctrl.cancelled) return;
       if (cachedCuv && cachedWeb && cachedCuv.verses && cachedWeb.verses) {
@@ -771,11 +792,11 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           })
           .catch(() => {});
 
-        fetch(`${BIBLE_API_BASE}/${selectedBook.id}${selectedChapter}?translation=web`)
+        fetch(`${BIBLE_API_BASE}/${selectedBook.id}${selectedChapter}?translation=${englishVersion}`)
           .then(res => res.json())
           .then(data => {
             if (!ctrl.cancelled && data.verses) {
-              bibleStorage.saveChapter(selectedBook.id, selectedChapter, 'web', data).catch(() => {});
+              bibleStorage.saveChapter(selectedBook.id, selectedChapter, englishVersion as any, data).catch(() => {});
             }
           })
           .catch(() => {});
@@ -789,7 +810,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       try {
         const [cuvRes, engRes] = await Promise.all([
           fetch(`${BIBLE_API_BASE}/${selectedBook.id}${selectedChapter}?translation=cuv`),
-          fetch(`${BIBLE_API_BASE}/${selectedBook.id}${selectedChapter}?translation=web`)
+          fetch(`${BIBLE_API_BASE}/${selectedBook.id}${selectedChapter}?translation=${englishVersion}`)
         ]);
 
         if (ctrl.cancelled) return;
@@ -807,7 +828,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           // Save to IndexedDB in background (non-blocking)
           Promise.all([
             bibleStorage.saveChapter(selectedBook.id, selectedChapter, 'cuv', cuvData),
-            bibleStorage.saveChapter(selectedBook.id, selectedChapter, 'web', engData)
+            bibleStorage.saveChapter(selectedBook.id, selectedChapter, englishVersion as any, engData)
           ]).then(() => {
             checkOfflineStatus();
           }).catch(err => console.error('Failed to cache chapter:', err));
@@ -817,7 +838,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         // If online fetch fails, try IndexedDB
         try {
           const cachedCuv = await bibleStorage.getChapter(selectedBook.id, selectedChapter, 'cuv');
-          const cachedWeb = await bibleStorage.getChapter(selectedBook.id, selectedChapter, 'web');
+          const cachedWeb = await bibleStorage.getChapter(selectedBook.id, selectedChapter, englishVersion as any);
 
           if (ctrl.cancelled) return;
           if (cachedCuv && cachedWeb) {
@@ -923,11 +944,11 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       let webSuccess = false;
       for (let retry = 0; retry < 3 && !webSuccess; retry++) {
         try {
-          const webRes = await fetch(`${BIBLE_API_BASE}/${selectedBook.id}${selectedChapter}?translation=web`);
+          const webRes = await fetch(`${BIBLE_API_BASE}/${selectedBook.id}${selectedChapter}?translation=${englishVersion}`);
           if (webRes.ok) {
             const webData = await webRes.json();
             if (webData?.verses) {
-              await bibleStorage.saveChapter(selectedBook.id, selectedChapter, 'web', webData);
+              await bibleStorage.saveChapter(selectedBook.id, selectedChapter, englishVersion as any, webData);
               webSuccess = true;
             }
           }
@@ -1005,11 +1026,11 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
 
         // Download WEB
         try {
-          const webRes = await fetch(`${BIBLE_API_BASE}/${selectedBook.id}${chapter}?translation=web`);
+          const webRes = await fetch(`${BIBLE_API_BASE}/${selectedBook.id}${chapter}?translation=${englishVersion}`);
           if (webRes.ok) {
             const webData = await webRes.json();
             if (webData?.verses) {
-              await bibleStorage.saveChapter(selectedBook.id, chapter, 'web', webData);
+              await bibleStorage.saveChapter(selectedBook.id, chapter, englishVersion as any, webData);
             }
           }
         } catch (e) {
@@ -1120,11 +1141,11 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           let webSuccess = false;
           for (let retry = 0; retry < 3 && !webSuccess; retry++) {
             try {
-              const webRes = await fetch(`${BIBLE_API_BASE}/${book.id}${chapter}?translation=web`);
+              const webRes = await fetch(`${BIBLE_API_BASE}/${book.id}${chapter}?translation=${englishVersion}`);
               if (webRes.ok) {
                 const webData = await webRes.json();
                 if (webData?.verses) {
-                  await bibleStorage.saveChapter(book.id, chapter, 'web', webData);
+                  await bibleStorage.saveChapter(book.id, chapter, englishVersion as any, webData);
                   webSuccess = true;
                 }
               } else if (webRes.status === 429) {
@@ -1284,7 +1305,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       fullText = verseNums.map(vNum => {
         const leftV = leftVerses.find(v => v.verse === vNum);
         const rightV = rightVerses.find(v => v.verse === vNum);
-        return `[${selectedBook.name} ${selectedChapter}:${vNum}]\n和合本: ${leftV?.text || ''}\nWEB: ${rightV?.text || ''}`;
+        return `[${selectedBook.name} ${selectedChapter}:${vNum}]\n和合本: ${leftV?.text || ''}\n${englishVersion.toUpperCase()}: ${rightV?.text || ''}`;
       }).join('\n\n');
     }
 
@@ -2459,7 +2480,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
             onAlignmentMismatch={handleAlignmentMismatch}
           />
           <div ref={rightContentMeasureRef}>
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">English (WEB)</div>
+          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">English ({englishVersion.toUpperCase()})</div>
           {loading ? (
             <div className="animate-pulse space-y-2">
               {[1,2,3,4,5].map(n => <div key={n} className="h-4 bg-slate-100 rounded w-full"></div>)}
