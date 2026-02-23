@@ -13,6 +13,7 @@ import VerseIndicators from './VerseIndicators';
 import ContextMenu from './ContextMenu';
 import { useSeasonTheme } from '../hooks/useSeasonTheme';
 import InlineBibleAnnotation, { COLOR_PRESETS, InlineBibleAnnotationHandle } from './InlineBibleAnnotation';
+import { backgroundBibleDownload } from '../services/backgroundBibleDownload';
 
 interface BibleViewerProps {
   onSelectionChange?: (info: SelectionInfo) => void;
@@ -1205,7 +1206,9 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     if (!confirm('下载整本圣经需要较长时间（约30-60分钟）以避免服务器限制。是否继续？\n\nDownloading the entire Bible will take 30-60 minutes to avoid server rate limits. Continue?')) {
       return;
     }
-    
+
+    // Stop background download to avoid dual processes
+    backgroundBibleDownload.stop();
     setIsDownloading(true);
     setDownloadProgress(0);
     setDownloadStartTime(Date.now());
@@ -1232,12 +1235,16 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       setDownloadStatus('');
       setShowDownloadMenu(false);
       await checkOfflineStatus();
+      // Restart background download to pick up any remaining chapters
+      backgroundBibleDownload.start();
     }
   }, []);
 
   const handleAutoDownloadBible = async () => {
     if (autoDownloadInProgress) return;
-    
+
+    // Stop background download to avoid dual processes
+    backgroundBibleDownload.stop();
     setAutoDownloadInProgress(true);
     setDownloadProgress(0);
     setDownloadStartTime(Date.now());
@@ -1258,13 +1265,17 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       setDownloadStatus('');
       setDownloadTimeRemaining('');
       await checkOfflineStatus();
+      // Restart background download to pick up any remaining chapters
+      backgroundBibleDownload.start();
     }
   };
 
   const handleResumeDownload = async () => {
     const progress = await bibleStorage.getMetadata('download_progress');
     if (!progress) return;
-    
+
+    // Stop background download to avoid dual processes
+    backgroundBibleDownload.stop();
     try {
       const { bookIndex, chapter, completed, failedChapters } = progress;
       setIsDownloading(true);

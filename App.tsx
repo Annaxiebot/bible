@@ -176,10 +176,16 @@ const App: React.FC = () => {
   }, []);
 
   // Start background Bible download after 5s delay
+  const lastDataUpdateCountRef = useRef(0);
   useEffect(() => {
     const timer = setTimeout(() => {
       const unsub = backgroundBibleDownload.onProgress((progress) => {
         setBgDownloadProgress(progress);
+        // Refresh data stats every 5 new chapters (avoid excessive re-renders)
+        if (progress.cached - lastDataUpdateCountRef.current >= 5 || progress.isComplete) {
+          lastDataUpdateCountRef.current = progress.cached;
+          setDataUpdateTrigger(prev => prev + 1);
+        }
       });
       backgroundBibleDownload.start();
       return unsub;
