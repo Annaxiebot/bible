@@ -4,11 +4,13 @@ const DB_VERSION = 1;
 const STORE_NAME = 'bibleChapters';
 const METADATA_STORE = 'metadata';
 
+export type BibleTranslation = 'cuv' | 'web' | 'kjv' | 'asv';
+
 interface ChapterData {
   id: string;
   bookId: string;
   chapter: number;
-  translation: 'cuv' | 'web';
+  translation: BibleTranslation;
   data: any;
 }
 
@@ -49,7 +51,7 @@ class BibleStorageService {
     return this.db!;
   }
 
-  async saveChapter(bookId: string, chapter: number, translation: 'cuv' | 'web', data: any): Promise<void> {
+  async saveChapter(bookId: string, chapter: number, translation: BibleTranslation, data: any): Promise<void> {
     const db = await this.ensureDB();
     const transaction = db.transaction([STORE_NAME], 'readwrite');
     const store = transaction.objectStore(STORE_NAME);
@@ -69,7 +71,7 @@ class BibleStorageService {
     });
   }
 
-  async getChapter(bookId: string, chapter: number, translation: 'cuv' | 'web'): Promise<any | null> {
+  async getChapter(bookId: string, chapter: number, translation: BibleTranslation): Promise<any | null> {
     const db = await this.ensureDB();
     const transaction = db.transaction([STORE_NAME], 'readonly');
     const store = transaction.objectStore(STORE_NAME);
@@ -88,6 +90,11 @@ class BibleStorageService {
     const cuvData = await this.getChapter(bookId, chapter, 'cuv');
     const webData = await this.getChapter(bookId, chapter, 'web');
     return !!(cuvData && webData);
+  }
+
+  async hasChapterTranslation(bookId: string, chapter: number, translation: BibleTranslation): Promise<boolean> {
+    const data = await this.getChapter(bookId, chapter, translation);
+    return !!data;
   }
 
   async getAllOfflineChapters(): Promise<Set<string>> {
@@ -198,7 +205,7 @@ class BibleStorageService {
   async getAllChapters(): Promise<Array<{
     bookId: string;
     chapter: number;
-    translation: 'cuv' | 'web';
+    translation: BibleTranslation;
     data: any;
   }>> {
     const db = await this.ensureDB();
