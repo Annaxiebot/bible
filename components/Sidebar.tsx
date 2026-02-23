@@ -553,16 +553,18 @@ const Sidebar: React.FC<SidebarProps> = ({
                   </button>
                   {/* Background download progress */}
                   {bgDownloadProgress && !bgDownloadProgress.isComplete && bgDownloadProgress.isRunning && (
-                    <div className="px-2 py-1">
-                      <div className="flex justify-between text-[10px] text-slate-500 mb-0.5">
-                        <span className="truncate mr-2">{bgDownloadProgress.currentBook ? `${bgDownloadProgress.currentBook} 第${bgDownloadProgress.currentChapter}章` : '缓存中 Caching...'}</span>
-                        <span className="whitespace-nowrap">{bgDownloadProgress.cached}/{bgDownloadProgress.total}</span>
+                    <div className="px-2 py-1.5">
+                      <div className="text-[10px] text-slate-500">
+                        {bgDownloadProgress.currentBook ? `${bgDownloadProgress.currentBook} 第${bgDownloadProgress.currentChapter}章` : '缓存中 Caching...'}
                       </div>
-                      <div className="w-full bg-slate-200 rounded-full h-1">
-                        <div
-                          className="bg-indigo-400 h-1 rounded-full transition-all"
-                          style={{ width: `${Math.round((bgDownloadProgress.cached / bgDownloadProgress.total) * 100)}%` }}
-                        />
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="flex-1 bg-slate-200 rounded-full h-1">
+                          <div
+                            className="bg-indigo-400 h-1 rounded-full transition-all"
+                            style={{ width: `${Math.round((bgDownloadProgress.cached / bgDownloadProgress.total) * 100)}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] text-slate-400 whitespace-nowrap">{bgDownloadProgress.cached}/{bgDownloadProgress.total}</span>
                       </div>
                     </div>
                   )}
