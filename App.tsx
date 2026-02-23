@@ -19,6 +19,8 @@ import { printStudyNotes, PrintOptions } from './services/printService';
 import PrintOptionsDialog from './components/PrintOptionsDialog';
 import { useSeasonThemeInit, SeasonThemeProvider } from './hooks/useSeasonTheme';
 import { VibeStyles, isVibeAvailable, loadVibeStyles, getEmptyStyles } from './services/vibe';
+import DataDetailDialog from './components/DataDetailDialog';
+import { useDataStats } from './hooks/useDataStats';
 import './services/syncService'; // Initialize sync service
 
 // Simplified split view hook
@@ -113,7 +115,9 @@ const App: React.FC = () => {
   const [downloadFns, setDownloadFns] = useState<{ bible: (() => void) | null; chapter: (() => void) | null; book: (() => void) | null }>({ bible: null, chapter: null, book: null });
   const [downloadState, setDownloadState] = useState({ isDownloading: false, progress: 0, status: '', timeRemaining: '' });
   const [vibeStyles, setVibeStyles] = useState<VibeStyles>(getEmptyStyles());
-  
+  const [dataDetailMode, setDataDetailMode] = useState<'notes' | 'research' | 'chapters' | null>(null);
+  const { stats: dataStats } = useDataStats(dataUpdateTrigger);
+
   const handleSelectionChange = useCallback((selection: SelectionInfo | null) => {
     setCurrentSelection(selection);
   }, []);
@@ -399,6 +403,7 @@ const App: React.FC = () => {
         isDownloading={downloadState.isDownloading}
         downloadStatus={downloadState.status}
         downloadTimeRemaining={downloadState.timeRemaining}
+        onShowDataDetail={(mode) => { setDataDetailMode(mode); setIsSidebarOpen(false); }}
       />
 
       <main ref={split.containerRef} className="flex-1 flex flex-col relative overflow-hidden">
@@ -549,6 +554,20 @@ const App: React.FC = () => {
 
       {split.isResizing && <style>{`* { user-select: none !important; cursor: inherit !important; }`}</style>}
       
+      {dataDetailMode && (
+        <DataDetailDialog
+          mode={dataDetailMode}
+          noteDetails={dataStats.noteDetails}
+          researchDetails={dataStats.researchDetails}
+          chapterDetails={dataStats.chapterDetails}
+          onNavigate={(bookId, chapter, verses) => {
+            setNavigateTo({ bookId, chapter, verses });
+            setTimeout(() => setNavigateTo(null), 5000);
+          }}
+          onClose={() => setDataDetailMode(null)}
+        />
+      )}
+
       {backupDialog && (
         <BackupSummaryDialog
           mode={backupDialog.mode}
