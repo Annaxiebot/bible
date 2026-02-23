@@ -1768,12 +1768,12 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     });
   }, [isDownloading]);
 
-  // Expose download functions to parent
+  // Expose download functions to parent (use ref to avoid infinite loop from inline callback)
+  const onDownloadFunctionsReadyRef = useRef(onDownloadFunctionsReady);
+  onDownloadFunctionsReadyRef.current = onDownloadFunctionsReady;
   useEffect(() => {
-    if (onDownloadFunctionsReady) {
-      onDownloadFunctionsReady(handleDownloadBible, handleDownloadCurrentChapter, handleDownloadCurrentBook);
-    }
-  }, [handleDownloadBible, handleDownloadCurrentChapter, handleDownloadCurrentBook, onDownloadFunctionsReady]);
+    onDownloadFunctionsReadyRef.current?.(handleDownloadBible, handleDownloadCurrentChapter, handleDownloadCurrentBook);
+  }, [handleDownloadBible, handleDownloadCurrentChapter, handleDownloadCurrentBook]);
 
   // Calculate time remaining whenever progress updates
   useEffect(() => {
@@ -1783,12 +1783,12 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     }
   }, [downloadProgress, downloadStartTime, isDownloading, autoDownloadInProgress]);
 
-  // Notify parent of download state changes
+  // Notify parent of download state changes (use ref to avoid infinite loop from inline callback)
+  const onDownloadStateChangeRef = useRef(onDownloadStateChange);
+  onDownloadStateChangeRef.current = onDownloadStateChange;
   useEffect(() => {
-    if (onDownloadStateChange) {
-      onDownloadStateChange(isDownloading || autoDownloadInProgress, downloadProgress, downloadStatus, downloadTimeRemaining);
-    }
-  }, [isDownloading, autoDownloadInProgress, downloadProgress, downloadStatus, downloadTimeRemaining, onDownloadStateChange]);
+    onDownloadStateChangeRef.current?.(isDownloading || autoDownloadInProgress, downloadProgress, downloadStatus, downloadTimeRemaining);
+  }, [isDownloading, autoDownloadInProgress, downloadProgress, downloadStatus, downloadTimeRemaining]);
 
   return (
     <div 
