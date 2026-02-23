@@ -244,22 +244,64 @@ const InlineBibleAnnotation = forwardRef<InlineBibleAnnotationHandle, InlineBibl
   }, [isActive]);
 
   // ── Auto-save on canvas change ─────────────────────────
+  // Use refs to avoid recreating callback and causing event listener churn in DrawingCanvas
+  const latestDataRef = useRef(savedPaths);
+  const bookIdRef = useRef(bookId);
+  const chapterRef = useRef(chapter);
+  const extraHeightRef = useRef(extraHeight);
+  const panelIdRef = useRef(panelId);
+  const containerWidthRef = useRef(containerWidth);
+  const fontSizeRef = useRef(fontSize);
+  const vSplitOffsetRef = useRef(vSplitOffset);
+  const chapterNoteEnsuredRef = useRef(false);
+
+  // Keep refs in sync (cheap, no re-renders)
+  bookIdRef.current = bookId;
+  chapterRef.current = chapter;
+  extraHeightRef.current = extraHeight;
+  panelIdRef.current = panelId;
+  containerWidthRef.current = containerWidth;
+  fontSizeRef.current = fontSize;
+  vSplitOffsetRef.current = vSplitOffset;
+
+  // Reset chapter note flag on chapter change
+  useEffect(() => { chapterNoteEnsuredRef.current = false; }, [bookId, chapter, panelId]);
 
   const handleCanvasChange = useCallback((data: string) => {
-    setSavedPaths(data);
-    // Debounce IndexedDB writes to avoid thrashing during drawing
+    // Store in ref only — do NOT call setSavedPaths() to avoid re-render cascade during drawing
+    latestDataRef.current = data;
+    // Debounce IndexedDB writes
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = window.setTimeout(() => {
-      annotationStorage.saveAnnotation(bookId, chapter, data, extraHeight, panelId, containerWidth, fontSize, vSplitOffset);
-    }, 500);
-  }, [bookId, chapter, extraHeight, panelId, containerWidth, fontSize, vSplitOffset]);
+      annotationStorage.saveAnnotation(
+        bookIdRef.current, chapterRef.current, data, extraHeightRef.current,
+        panelIdRef.current, containerWidthRef.current, fontSizeRef.current, vSplitOffsetRef.current
+      );
+    }, 1000);
+  }, []); // Stable — zero deps, uses refs
 
-  // Save when extra height changes (debounced)
+  // Sync latestDataRef → savedPaths state only when leaving annotation mode (for read-only overlay)
+  const prevIsActiveRef = useRef(isActive);
   useEffect(() => {
-    if (!savedPaths) return;
+    if (prevIsActiveRef.current && !isActive && latestDataRef.current) {
+      setSavedPaths(latestDataRef.current);
+    }
+    prevIsActiveRef.current = isActive;
+  }, [isActive]);
+
+  // Save when extra height changes (debounced, only after drag ends)
+  const prevExtraHeightRef = useRef(extraHeight);
+  useEffect(() => {
+    if (prevExtraHeightRef.current === extraHeight) return;
+    prevExtraHeightRef.current = extraHeight;
+    const data = latestDataRef.current || savedPaths;
+    if (!data) return;
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = window.setTimeout(() => {
-      annotationStorage.saveAnnotation(bookId, chapter, savedPaths, extraHeight, panelId, containerWidth, fontSize, vSplitOffset);
+      annotationStorage.saveAnnotation(
+        bookIdRef.current, chapterRef.current, data, extraHeight,
+        panelIdRef.current, containerWidthRef.current, fontSizeRef.current, vSplitOffsetRef.current
+      );
     }, 500);
   }, [extraHeight]);
 

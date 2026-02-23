@@ -107,6 +107,8 @@ const App: React.FC = () => {
   const [showVibePanel, setShowVibePanel] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showPrintOptions, setShowPrintOptions] = useState(false);
+  const [downloadFns, setDownloadFns] = useState<{ bible: (() => void) | null; chapter: (() => void) | null; book: (() => void) | null }>({ bible: null, chapter: null, book: null });
+  const [downloadState, setDownloadState] = useState({ isDownloading: false, progress: 0, status: '', timeRemaining: '' });
   const [vibeStyles, setVibeStyles] = useState<VibeStyles>(getEmptyStyles());
   
   const handleSelectionChange = useCallback((selection: SelectionInfo | null) => {
@@ -343,10 +345,13 @@ const App: React.FC = () => {
         }}
         notesCount={Object.keys(notes).length}
         dataUpdateTrigger={dataUpdateTrigger}
-        downloadProgress={0}
-        isDownloading={false}
-        downloadStatus=""
-        downloadTimeRemaining=""
+        onDownloadBible={downloadFns.bible}
+        onDownloadChapter={downloadFns.chapter}
+        onDownloadBook={downloadFns.book}
+        downloadProgress={downloadState.progress}
+        isDownloading={downloadState.isDownloading}
+        downloadStatus={downloadState.status}
+        downloadTimeRemaining={downloadState.timeRemaining}
       />
 
       <main ref={split.containerRef} className="flex-1 flex flex-col relative overflow-hidden">
@@ -369,8 +374,8 @@ const App: React.FC = () => {
                 split.setVertical(v);
                 split.setHorizontal(h);
               }}
-              onDownloadStateChange={() => {}}
-              onDownloadFunctionsReady={() => {}}
+              onDownloadStateChange={(isDownloading, progress, status, timeRemaining) => setDownloadState({ isDownloading, progress, status: status || '', timeRemaining: timeRemaining || '' })}
+              onDownloadFunctionsReady={(bible, chapter, book) => setDownloadFns({ bible, chapter, book })}
               vibeClassName={vibeStyles.bible_panel}
               vibeVerseClassName={vibeStyles.verse_text}
             />
