@@ -30,6 +30,7 @@ interface SidebarProps {
   onNavigate?: (bookId: string, chapter: number, verse?: number) => void;
   onSearch?: () => void;
   onPrint?: () => void;
+  onShowDataDetail?: (mode: 'notes' | 'research' | 'chapters') => void;
 }
 
 // Chevron component for collapsible sections
@@ -65,7 +66,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   dataUpdateTrigger = 0,
   onNavigate,
   onSearch,
-  onPrint
+  onPrint,
+  onShowDataDetail
 }) => {
   const { stats, loading } = useDataStats(dataUpdateTrigger);
   const { theme, isAuto, setSeason } = useSeasonTheme();
@@ -506,21 +508,30 @@ const Sidebar: React.FC<SidebarProps> = ({
               {loading ? (
                 <div className="text-xs text-slate-400">加载中 Loading...</div>
               ) : (
-                <div className="space-y-1 text-xs">
-                  <div className="flex justify-between">
+                <div className="space-y-0.5 text-xs">
+                  <button
+                    onClick={() => onShowDataDetail?.('notes')}
+                    className="w-full flex justify-between px-2 py-1 rounded hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
                     <span className="text-slate-600">📝 个人笔记 Notes:</span>
-                    <span className="font-medium text-slate-700">{stats.personalNotes}</span>
-                  </div>
-                  <div className="flex justify-between">
+                    <span className="font-medium text-indigo-600">{stats.personalNotes}</span>
+                  </button>
+                  <button
+                    onClick={() => onShowDataDetail?.('research')}
+                    className="w-full flex justify-between px-2 py-1 rounded hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
                     <span className="text-slate-600">🔍 AI研究 Research:</span>
-                    <span className="font-medium text-slate-700">{stats.aiResearch}</span>
-                  </div>
-                  <div className="flex justify-between">
+                    <span className="font-medium text-indigo-600">{stats.aiResearch}</span>
+                  </button>
+                  <button
+                    onClick={() => onShowDataDetail?.('chapters')}
+                    className="w-full flex justify-between px-2 py-1 rounded hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
                     <span className="text-slate-600">📖 缓存章节 Chapters:</span>
-                    <span className="font-medium text-slate-700">{stats.cachedChapters}</span>
-                  </div>
+                    <span className="font-medium text-indigo-600">{stats.cachedChapters}</span>
+                  </button>
                   {stats.totalSize && (
-                    <div className="flex justify-between pt-1 border-t border-slate-200">
+                    <div className="flex justify-between px-2 py-1 pt-1 border-t border-slate-200">
                       <span className="text-slate-600">💾 存储空间 Storage:</span>
                       <span className="font-medium text-slate-700">
                         {(stats.totalSize / (1024 * 1024)).toFixed(1)} MB
