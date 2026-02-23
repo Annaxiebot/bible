@@ -307,7 +307,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           // Scroll to the verse after content loads - retry until found
           const verseNum = navigateTo.verses[0];
           let attempts = 0;
-          const maxAttempts = 30; // Try for up to 6 seconds
+          const maxAttempts = 10; // Try for up to 3 seconds
           const tryScroll = () => {
             attempts++;
             // Search within the Bible viewer scroll containers, not the whole page
@@ -339,7 +339,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
               }
             } else if (attempts < maxAttempts) {
               // Verse element not in DOM yet, retry
-              setTimeout(tryScroll, 200);
+              setTimeout(tryScroll, 300);
             } else {
               console.warn('[Navigate] Could not find verse element after', maxAttempts, 'attempts');
             }
@@ -363,46 +363,49 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   
   // Load verse data for current chapter
   useEffect(() => {
+    let stale = false;
     const loadVerseData = async () => {
+      // Single DB query for all verse data in this chapter
+      const chapterDataMap = await verseDataStorage.getChapterData(selectedBook.id, selectedChapter);
+      if (stale) return;
+
       const data: Record<string, { hasNote: boolean; hasResearch: boolean; notePreview?: string; researchCount?: number }> = {};
-      
-      // Check each verse in the current chapter
-      for (const verse of [...leftVerses, ...rightVerses]) {
-        const verseId = `${selectedBook.id}:${selectedChapter}:${verse.verse}`;
-        const verseInfo = await verseDataStorage.getVerseData(selectedBook.id, selectedChapter, [verse.verse]);
-        
+      const allVerseNums = new Set<number>();
+      for (const v of leftVerses) allVerseNums.add(v.verse);
+      for (const v of rightVerses) allVerseNums.add(v.verse);
+
+      for (const verseNum of allVerseNums) {
+        const verseId = `${selectedBook.id}:${selectedChapter}:${verseNum}`;
+        const verseInfo = chapterDataMap.get(verseId) || null;
+
         const hasNote = !!verseInfo?.personalNote?.text || !!notes[verseId];
         const hasResearch = !!verseInfo?.aiResearch && verseInfo.aiResearch.length > 0;
-        
-        // Get the preview text (from personal note or latest AI research)
+
         let notePreviewText = '';
         if (verseInfo?.personalNote?.text) {
-          // Personal note from verseDataStorage (new system)
           notePreviewText = verseInfo.personalNote.text;
         } else if (notes[verseId]) {
-          // Note from old notes system
           notePreviewText = notes[verseId];
         } else if (verseInfo?.aiResearch && verseInfo.aiResearch.length > 0) {
-          // Show latest AI research as preview if no personal note
           const latestResearch = verseInfo.aiResearch[0];
           notePreviewText = `Q: ${latestResearch.query}\nA: ${latestResearch.response}`;
         }
-        
+
         data[verseId] = {
           hasNote,
           hasResearch,
           notePreview: notePreviewText || undefined,
           researchCount: verseInfo?.aiResearch?.length || 0
         };
-        
       }
-      
+
       setVerseData(data);
     };
-    
+
     if (leftVerses.length > 0 || rightVerses.length > 0) {
       loadVerseData();
     }
+    return () => { stale = true; };
   }, [leftVerses, rightVerses, selectedBook.id, selectedChapter, notes, researchUpdateTrigger]);
 
   // Load bookmarked verses for current chapter
@@ -605,13 +608,13 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   // No need for mode-specific text selection clearing anymore
 
   useEffect(() => {
-    let cancelled = false;
-    fetchChapterGuarded(cancelled);
+    const ctrl = { cancelled: false };
+    fetchChapterGuarded(ctrl);
     // Always preload adjacent chapters for smooth navigation
     // Preload next chapter
     if (selectedChapter < (selectedBook.chapters || 1)) {
       fetchChapterData(selectedBook.id, selectedChapter + 1).then(data => {
-        if (!cancelled && data) setNextChapterVerses(data.left);
+        if (!ctrl.cancelled && data) setNextChapterVerses(data.left);
       });
     } else {
       // Next book first chapter
@@ -619,7 +622,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       if (currentIndex < BIBLE_BOOKS.length - 1) {
         const nextBook = BIBLE_BOOKS[currentIndex + 1];
         fetchChapterData(nextBook.id, 1).then(data => {
-          if (!cancelled && data) setNextChapterVerses(data.left);
+          if (!ctrl.cancelled && data) setNextChapterVerses(data.left);
         });
       }
     }
@@ -627,7 +630,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     // Preload previous chapter
     if (selectedChapter > 1) {
       fetchChapterData(selectedBook.id, selectedChapter - 1).then(data => {
-        if (!cancelled && data) setPrevChapterVerses(data.left);
+        if (!ctrl.cancelled && data) setPrevChapterVerses(data.left);
       });
     } else {
       // Previous book last chapter
@@ -635,30 +638,27 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       if (currentIndex > 0) {
         const prevBook = BIBLE_BOOKS[currentIndex - 1];
         fetchChapterData(prevBook.id, prevBook.chapters || 1).then(data => {
-          if (!cancelled && data) setPrevChapterVerses(data.left);
+          if (!ctrl.cancelled && data) setPrevChapterVerses(data.left);
         });
       }
     }
-    
-    // Don't aggressively preload to avoid rate limiting
-    // Only adjacent chapters are preloaded above
-    
+
     // Track reading history
     readingHistory.saveLastRead(selectedBook.id, selectedBook.name, selectedChapter);
-    
+
     // Check if current chapter has notes
-    const chapterHasNotes = Object.keys(notes).some(noteId => 
+    const chapterHasNotes = Object.keys(notes).some(noteId =>
       noteId.startsWith(`${selectedBook.id}:${selectedChapter}:`)
     );
-    
+
     readingHistory.addToHistory(
-      selectedBook.id, 
-      selectedBook.name, 
+      selectedBook.id,
+      selectedBook.name,
       selectedChapter,
       chapterHasNotes,
       false  // hasAIResearch - will be updated separately when AI features are implemented
     );
-    return () => { cancelled = true; };
+    return () => { ctrl.cancelled = true; };
   }, [selectedBook, selectedChapter, notes]);
   
   // Handle clicking outside book dropdown and mobile menu
@@ -738,7 +738,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     return null;
   };
 
-  const fetchChapterGuarded = async (cancelled: boolean) => {
+  const fetchChapterGuarded = async (ctrl: { cancelled: boolean }) => {
     setLoading(true);
     setError(null);
 
@@ -748,7 +748,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       const cachedCuv = await bibleStorage.getChapter(selectedBook.id, selectedChapter, 'cuv');
       const cachedWeb = await bibleStorage.getChapter(selectedBook.id, selectedChapter, 'web');
 
-      if (cancelled) return;
+      if (ctrl.cancelled) return;
       if (cachedCuv && cachedWeb && cachedCuv.verses && cachedWeb.verses) {
         // Use cached data immediately for instant loading
         setLeftVerses(cachedCuv.verses);
@@ -758,11 +758,11 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         setError(null);
 
         // Try to update from network in background (don't show loading)
+        // Only save to cache, don't update state (avoids unnecessary re-renders)
         fetch(`${BIBLE_API_BASE}/${selectedBook.id}${selectedChapter}?translation=cuv`)
           .then(res => res.json())
           .then(data => {
-            if (!cancelled && data.verses) {
-              setLeftVerses(data.verses);
+            if (!ctrl.cancelled && data.verses) {
               bibleStorage.saveChapter(selectedBook.id, selectedChapter, 'cuv', data).catch(() => {});
             }
           })
@@ -771,8 +771,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         fetch(`${BIBLE_API_BASE}/${selectedBook.id}${selectedChapter}?translation=web`)
           .then(res => res.json())
           .then(data => {
-            if (!cancelled && data.verses) {
-              setRightVerses(data.verses);
+            if (!ctrl.cancelled && data.verses) {
               bibleStorage.saveChapter(selectedBook.id, selectedChapter, 'web', data).catch(() => {});
             }
           })
@@ -781,7 +780,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     } catch (err) {
       console.error('Cache check error:', err);
     }
-    
+
     // If not loaded from cache, try to fetch from API
     if (!loadedFromCache) {
       try {
@@ -790,13 +789,13 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           fetch(`${BIBLE_API_BASE}/${selectedBook.id}${selectedChapter}?translation=web`)
         ]);
 
-        if (cancelled) return;
+        if (ctrl.cancelled) return;
         const [cuvData, engData] = await Promise.all([
           cuvRes.json(),
           engRes.json()
         ]);
 
-        if (cancelled) return;
+        if (ctrl.cancelled) return;
         if (cuvData?.verses && engData?.verses) {
           setLeftVerses(cuvData.verses);
           setRightVerses(engData.verses);
@@ -811,13 +810,13 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           }).catch(err => console.error('Failed to cache chapter:', err));
         }
       } catch (fetchErr: any) {
-        if (cancelled) return;
+        if (ctrl.cancelled) return;
         // If online fetch fails, try IndexedDB
         try {
           const cachedCuv = await bibleStorage.getChapter(selectedBook.id, selectedChapter, 'cuv');
           const cachedWeb = await bibleStorage.getChapter(selectedBook.id, selectedChapter, 'web');
 
-          if (cancelled) return;
+          if (ctrl.cancelled) return;
           if (cachedCuv && cachedWeb) {
             setLeftVerses(cachedCuv.verses);
             setRightVerses(cachedWeb.verses);
@@ -829,13 +828,13 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           }
         } catch (storageErr) {
           console.error("Storage error:", storageErr);
-          if (!cancelled) {
+          if (!ctrl.cancelled) {
             setLeftVerses([]);
             setRightVerses([]);
           }
         }
       } finally {
-        if (!cancelled) {
+        if (!ctrl.cancelled) {
           setSelectedVerses([]);
           setLoading(false);
         }
@@ -844,7 +843,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   };
 
   // Unguarded version for manual retries (not called from useEffect)
-  const fetchChapter = () => fetchChapterGuarded(false);
+  const fetchChapter = () => fetchChapterGuarded({ cancelled: false });
 
   const toggleChineseMode = () => {
     const newMode = !isSimplified;
