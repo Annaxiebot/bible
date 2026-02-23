@@ -175,6 +175,21 @@ class AnnotationStorageService {
   /**
    * Get all annotations for a given book (for checking which chapters have annotations).
    */
+  async getAllAnnotations(): Promise<AnnotationRecord[]> {
+    try {
+      const db = await this.dbPromise;
+      return await db.getAll('annotations');
+    } catch (error) {
+      console.error('Failed to get all annotations:', error);
+      return [];
+    }
+  }
+
+  async importAnnotation(record: AnnotationRecord): Promise<void> {
+    const db = await this.dbPromise;
+    await db.put('annotations', record);
+  }
+
   async getAnnotationsForBook(bookId: string): Promise<AnnotationRecord[]> {
     try {
       const db = await this.dbPromise;
