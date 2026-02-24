@@ -15,8 +15,10 @@ export interface AnnotationRecord {
   id: string;
   bookId: string;
   chapter: number;
-  /** JSON-serialized array of drawing paths */
+  /** JSON-serialized array of drawing paths (web canvas) */
   canvasData: string;
+  /** Base64-encoded PKDrawing data (native iOS PencilKit) */
+  pkDrawingData?: string;
   /** Extra expanded height in pixels (0 = no expansion) */
   canvasHeight: number;
   /** CSS pixel width of the canvas when annotation was saved */
@@ -71,7 +73,8 @@ class AnnotationStorageService {
     panelId?: 'chinese' | 'english',
     canvasWidth?: number,
     fontSize?: number,
-    vSplitOffset?: number
+    vSplitOffset?: number,
+    pkDrawingData?: string
   ): Promise<void> {
     try {
       const db = await this.dbPromise;
@@ -81,6 +84,7 @@ class AnnotationStorageService {
         bookId,
         chapter,
         canvasData,
+        pkDrawingData,
         canvasHeight,
         canvasWidth,
         fontSize,
