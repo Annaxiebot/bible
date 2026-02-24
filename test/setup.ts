@@ -1,3 +1,4 @@
+import 'fake-indexeddb/auto';
 import { expect, afterEach, vi } from 'vitest';
 import { cleanup } from '@testing-library/react';
 import * as matchers from '@testing-library/jest-dom/matchers';
@@ -9,31 +10,6 @@ expect.extend(matchers);
 afterEach(() => {
   cleanup();
 });
-
-// Mock IndexedDB for tests
-const indexedDB = {
-  open: vi.fn(() => ({
-    result: {
-      createObjectStore: vi.fn(),
-      objectStoreNames: { contains: vi.fn(() => false) },
-      transaction: vi.fn(() => ({
-        objectStore: vi.fn(() => ({
-          get: vi.fn(),
-          put: vi.fn(),
-          delete: vi.fn(),
-          clear: vi.fn()
-        }))
-      }))
-    },
-    onerror: null,
-    onsuccess: null,
-    onupgradeneeded: null
-  })),
-  deleteDatabase: vi.fn()
-};
-
-// @ts-ignore
-global.indexedDB = indexedDB;
 
 // Mock localStorage
 const localStorageMock = {
