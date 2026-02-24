@@ -63,31 +63,13 @@ export default defineConfig(({ mode }) => {
       build: {
         rollupOptions: {
           output: {
-            manualChunks: {
-              // Vendor chunks
-              'vendor-react': ['react', 'react-dom'],
-              'vendor-supabase': ['@supabase/supabase-js'],
-              'vendor-anthropic': ['@anthropic-ai/sdk'],
-              'vendor-google': ['@google/genai'],
-              // vendor-markdown removed - now lazy-loaded on demand
-              
-              // Feature chunks - Bible reading
-              'bible-reader': [
-                './components/BibleViewer.tsx',
-                './components/VerseIndicators.tsx',
-                './components/BibleSearch.tsx'
-              ],
-              
-              // Feature chunks - Notes & Drawing
-              'notes': [
-                './components/Notebook.tsx',
-                './components/NotesList.tsx',
-                './components/DrawingCanvas.tsx',
-                './components/InlineBibleAnnotation.tsx'
-              ]
-              
-              // Chat chunk removed to allow true lazy-loading of ChatInterface and markdown
-              // ChatInterface is already lazy-loaded in App.tsx
+            manualChunks(id) {
+              if (id.includes('node_modules/react') || id.includes('node_modules/react-dom') || id.includes('node_modules/scheduler')) {
+                return 'vendor-react';
+              }
+              if (id.includes('node_modules/@supabase')) return 'vendor-supabase';
+              if (id.includes('node_modules/@anthropic-ai')) return 'vendor-anthropic';
+              if (id.includes('node_modules/@google')) return 'vendor-google';
             }
           }
         },
