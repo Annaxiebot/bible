@@ -47,5 +47,13 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<true/>
+	<key>NSCameraUsageDescription</key>
+	<string>Take photos of sermon slides and study materials</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Save and access study photos</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Save study photos to your photo library</string>
+	<key>UISupportsDocumentBrowser</key>
+	<true/>
 </dict>
 </plist>
