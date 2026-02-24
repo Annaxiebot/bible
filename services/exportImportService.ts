@@ -531,10 +531,8 @@ class ExportImportService {
   // Export Bible texts for offline reading
   async exportBibleTexts(): Promise<string> {
     try {
-      console.log('exportBibleTexts: Getting all chapters...');
       // Get all stored chapters directly
       const chapters = await bibleStorage.getAllChapters();
-      console.log('exportBibleTexts: Got', chapters.length, 'chapters');
       
       const translations = new Set<string>();
       

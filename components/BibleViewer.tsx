@@ -320,10 +320,8 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   // Handle external navigation requests
   useEffect(() => {
     if (navigateTo) {
-      console.log('[Navigate] Request:', navigateTo);
       const book = BIBLE_BOOKS.find(b => b.id === navigateTo.bookId);
       if (book) {
-        console.log('[Navigate] Found book:', book.name, 'chapter:', navigateTo.chapter);
         setSelectedBook(book);
         setSelectedChapter(navigateTo.chapter);
         // If specific verses are provided, select them and scroll to verse
@@ -347,7 +345,6 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
               }
             }
             if (targetEl) {
-              console.log('[Navigate] Scrolling to verse', verseNum);
               // Scroll both panels to the verse
               for (const container of containers) {
                 if (!container) continue;
