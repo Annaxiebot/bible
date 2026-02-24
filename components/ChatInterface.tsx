@@ -777,15 +777,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
         ...(currentImage ? { image: currentImage } : {}),
       });
       
-      // Console logging for debugging AI responses
-      console.log('[AI Response]', {
-        timestamp: new Date().toISOString(),
-        userInput: currentInput,
-        responseText: response.text,
-        responseLength: response.text?.length || 0,
-        hasGroundingMetadata: !!response.candidates?.[0]?.groundingMetadata
-      });
-      
       const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
       const references = Array.isArray(groundingChunks) 
         ? groundingChunks.map((chunk: any) => ({ title: chunk.web?.title || '参考资料', uri: chunk.web?.uri || '' })).filter((c: any) => c.uri)
@@ -797,13 +788,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
         timestamp: new Date(),
         references: references
       };
-
-      // Log detected Bible references in the response
-      const colonPattern = /\d{1,3}:\d{1,3}(?:-\d{1,3})?/g;
-      const detectedColonRefs = response.text?.match(colonPattern) || [];
-      if (detectedColonRefs.length > 0) {
-        console.log('[Bible References Detected]', detectedColonRefs);
-      }
 
       setMessages(prev => [...prev, assistantMessage]);
     } catch (error: any) {
