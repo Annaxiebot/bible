@@ -14,7 +14,7 @@ import ContextMenu from './ContextMenu';
 import { useSeasonTheme } from '../hooks/useSeasonTheme';
 import InlineBibleAnnotation, { COLOR_PRESETS, InlineBibleAnnotationHandle } from './InlineBibleAnnotation';
 import { backgroundBibleDownload } from '../services/backgroundBibleDownload';
-import { useDebounce } from '../src/hooks/useDebounce';
+import { useDebounce } from '../hooks/useDebounce';
 
 interface BibleViewerProps {
   onSelectionChange?: (info: SelectionInfo) => void;
@@ -255,22 +255,6 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   const allVerseNumbers = useMemo(() => {
     return leftVerses.map(v => v.verse);
   }, [leftVerses]);
-  
-  const sortedLeftVerses = useMemo(() => {
-    return [...leftVerses].sort((a, b) => a.verse - b.verse);
-  }, [leftVerses]);
-  
-  const sortedRightVerses = useMemo(() => {
-    return [...rightVerses].sort((a, b) => a.verse - b.verse);
-  }, [rightVerses]);
-  
-  const hasVerses = useMemo(() => {
-    return leftVerses.length > 0 || rightVerses.length > 0;
-  }, [leftVerses, rightVerses]);
-  
-  const selectedVersesSet = useMemo(() => {
-    return new Set(selectedVerses);
-  }, [selectedVerses]);
   
   const allVersesSelected = useMemo(() => {
     return selectedVerses.length === leftVerses.length && leftVerses.length > 0;
