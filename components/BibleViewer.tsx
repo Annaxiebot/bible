@@ -14,6 +14,7 @@ import ContextMenu from './ContextMenu';
 import { useSeasonTheme } from '../hooks/useSeasonTheme';
 import InlineBibleAnnotation, { COLOR_PRESETS, InlineBibleAnnotationHandle } from './InlineBibleAnnotation';
 import { backgroundBibleDownload } from '../services/backgroundBibleDownload';
+import { useDebounce } from '../src/hooks/useDebounce';
 
 interface BibleViewerProps {
   onSelectionChange?: (info: SelectionInfo) => void;
@@ -278,6 +279,9 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   // Better iOS detection that works for modern iPads
   const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  // Debounce book search term to avoid filtering on every keystroke
+  const debouncedBookSearchTerm = useDebounce(bookSearchTerm, 300);
 
   // Listen for English version changes (from Sidebar dropdown or storage events)
   useEffect(() => {
@@ -908,10 +912,13 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     return isSimplified ? toSimplified(text) : text;
   };
   
-  // Filter books based on search term
-  const filteredBooks = BIBLE_BOOKS.filter(book => 
-    book.name.toLowerCase().includes(bookSearchTerm.toLowerCase()) ||
-    book.id.toLowerCase().includes(bookSearchTerm.toLowerCase())
+  // Filter books based on debounced search term (prevents filtering on every keystroke)
+  const filteredBooks = useMemo(() => 
+    BIBLE_BOOKS.filter(book => 
+      book.name.toLowerCase().includes(debouncedBookSearchTerm.toLowerCase()) ||
+      book.id.toLowerCase().includes(debouncedBookSearchTerm.toLowerCase())
+    ),
+    [debouncedBookSearchTerm]
   );
 
   // Calculate estimated time remaining for download
