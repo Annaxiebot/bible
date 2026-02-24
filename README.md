@@ -49,6 +49,15 @@
 - Export/import all notes and data as backup
 - Offline Bible download for reading without internet
 
+### ☁️ Google Drive Sync (New!)
+- **Automatic backup** of all your notes, bookmarks, and annotations
+- **Cross-device sync** — access your data on any device
+- **100% your data** — everything stays in your own Google Drive
+- **Works offline** — syncs automatically when back online
+- **Privacy-first** — no data passes through our servers
+
+📘 **[Setup Guide](GOOGLE_DRIVE_SYNC.md)** — Learn how to enable Google Drive sync
+
 ### 📅 Reading Plans
 - Built-in reading plans to guide daily Bible study
 - Track progress with completion percentage
@@ -85,10 +94,19 @@ This app was originally created in [Google AI Studio](https://ai.studio/apps/dri
    npm install
    ```
 
-3. Set your Gemini API key in `.env.local`:
+3. Set your API keys in `.env.local`:
+   ```bash
+   # Google Gemini API key (for AI research)
+   VITE_GEMINI_API_KEY=your_gemini_key_here
+   
+   # Google OAuth Client ID (for Drive sync - optional)
+   VITE_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+   
+   # Google API Key (for Drive API - optional)
+   VITE_GOOGLE_API_KEY=your_google_api_key
    ```
-   GEMINI_API_KEY=your_key_here
-   ```
+   
+   📘 See **[GOOGLE_DRIVE_SYNC.md](GOOGLE_DRIVE_SYNC.md)** for Google Drive setup instructions.
 
 4. Run the dev server:
    ```bash
