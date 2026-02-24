@@ -62,6 +62,19 @@
 
 Works on desktop browsers, iPad, and iPhone. Best experience on iPad with Apple Pencil for handwriting annotations.
 
+### 📱 Native iOS App
+
+A **native iOS app** with **PencilKit integration** is available on the `feature/ios-capacitor` branch:
+
+- ✏️ **Native Apple Pencil** support with PencilKit (5-10ms latency)
+- 📱 Native camera and file system access
+- ☁️ iCloud Drive integration
+- 📦 95% code reuse with web version
+- 🚀 App Store ready
+
+**Build instructions:** See [IOS_SETUP.md](./IOS_SETUP.md)  
+**Architecture details:** See [CAPACITOR.md](./CAPACITOR.md)
+
 ---
 
 ## 🏗️ Origin
@@ -111,6 +124,7 @@ The app auto-deploys to GitHub Pages on push to `master` via the included GitHub
 
 ## 🛠️ Tech Stack
 
+### Web
 - **React 19** + TypeScript
 - **Vite** for build tooling
 - **Google Gemini API** for AI research
@@ -119,6 +133,13 @@ The app auto-deploys to GitHub Pages on push to `master` via the included GitHub
 - **Tailwind CSS** (CDN) for styling
 - **KaTeX** for mathematical notation
 - **GitHub Pages** for deployment
+
+### iOS (branch: `feature/ios-capacitor`)
+- **Capacitor** for native iOS wrapper
+- **PencilKit** for native Apple Pencil drawing (Swift)
+- **Camera & Filesystem** plugins for native device access
+- **iCloud Drive** integration
+- **WKWebView** for rendering web app
 
 ---
 
