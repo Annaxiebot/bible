@@ -8,6 +8,7 @@
 
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
 import { verseDataStorage } from './verseDataStorage';
+import { googleDriveSyncService } from './googleDriveSyncService';
 
 /** Serialized annotation data for a single chapter */
 export interface AnnotationRecord {
@@ -89,6 +90,9 @@ class AnnotationStorageService {
         panelId,
       });
 
+      // Queue sync to Google Drive (debounced)
+      googleDriveSyncService.queueSync('annotations');
+
       // Auto-create a chapter-level note so annotations appear in notes list/print
       // Only check once per book+chapter to avoid repeated DB queries during drawing
       const noteKey = `${bookId}:${chapter}`;
@@ -144,6 +148,9 @@ class AnnotationStorageService {
       const db = await this.dbPromise;
       const id = panelId ? `${bookId}:${chapter}:${panelId}` : `${bookId}:${chapter}`;
       await db.delete('annotations', id);
+      
+      // Queue sync to Google Drive (debounced)
+      googleDriveSyncService.queueSync('annotations');
     } catch (error) {
       console.error('Failed to delete annotation:', error);
       throw error;

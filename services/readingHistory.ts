@@ -1,4 +1,6 @@
 // Reading history service for tracking Bible reading progress
+import { googleDriveSyncService } from './googleDriveSyncService';
+
 interface ReadingPosition {
   bookId: string;
   bookName: string;
@@ -75,6 +77,9 @@ class ReadingHistory {
       localStorage.setItem(this.LAST_READ_KEY, JSON.stringify(position));
       // Also save to the main storage key for compatibility
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(position));
+      
+      // Queue sync to Google Drive (debounced)
+      googleDriveSyncService.queueSync('history');
     } catch (error) {
       console.error('Failed to save last read:', error);
     }
@@ -112,6 +117,9 @@ class ReadingHistory {
       const trimmedHistory = filteredHistory.slice(0, this.MAX_HISTORY_ITEMS);
       
       localStorage.setItem(this.HISTORY_KEY, JSON.stringify(trimmedHistory));
+      
+      // Queue sync to Google Drive (debounced)
+      googleDriveSyncService.queueSync('history');
     } catch (error) {
       console.error('Failed to add to history:', error);
     }

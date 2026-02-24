@@ -1,4 +1,5 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
+import { googleDriveSyncService } from './googleDriveSyncService';
 
 export interface Bookmark {
   id: string; // format: bookId:chapter:verse
@@ -40,11 +41,17 @@ class BookmarkStorageService {
       ...bookmark,
       createdAt: Date.now(),
     });
+    
+    // Queue sync to Google Drive (debounced)
+    googleDriveSyncService.queueSync('bookmarks');
   }
 
   async removeBookmark(id: string): Promise<void> {
     const db = await this.dbPromise;
     await db.delete('bookmarks', id);
+    
+    // Queue sync to Google Drive (debounced)
+    googleDriveSyncService.queueSync('bookmarks');
   }
 
   async isBookmarked(id: string): Promise<boolean> {

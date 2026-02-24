@@ -1,4 +1,5 @@
 import { openDB, DBSchema, IDBPDatabase } from 'idb';
+import { googleDriveSyncService } from './googleDriveSyncService';
 
 interface NotesDB extends DBSchema {
   notes: {
@@ -32,6 +33,9 @@ class NotesStorageService {
         data,
         lastModified: Date.now()
       }, reference);
+      
+      // Queue sync to Google Drive (debounced)
+      googleDriveSyncService.queueSync('notes');
     } catch (error) {
       console.error('Failed to save note to IndexedDB:', error);
       throw error;
