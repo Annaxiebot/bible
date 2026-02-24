@@ -32,3 +32,6 @@ features-implementation.md
 
 # Claude specific
 .claude/
+
+# Private instructions
+instructions/
