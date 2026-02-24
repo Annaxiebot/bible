@@ -174,19 +174,6 @@ class VerseDataStorage {
     }
   }
 
-  // Get all verse data for a chapter
-  async getChapterData(bookId: string, chapter: number): Promise<VerseData[]> {
-    const db = await this.ensureDB();
-    
-    try {
-      const allData = await db.getAll('verseData');
-      return allData.filter(v => v.bookId === bookId && v.chapter === chapter);
-    } catch (error) {
-      console.error('Failed to get chapter data:', error);
-      return [];
-    }
-  }
-
   // Get all verse data for a book
   async getBookData(bookId: string): Promise<VerseData[]> {
     const db = await this.ensureDB();
