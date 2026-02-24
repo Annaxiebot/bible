@@ -1,0 +1,113 @@
+name: Tests
+
+on:
+  push:
+    branches: [main, master, feature/*]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run unit tests
+        run: npm run test
+      
+      - name: Build app
+        run: npm run build
+      
+      - name: Check bundle size
+        run: |
+          # Calculate total JS bundle size
+          SIZE=$(find dist/assets -name "*.js" -exec du -cb {} + | tail -1 | cut -f1)
+          MAX_SIZE=600000  # 600 KB limit
+          echo "Bundle size: $SIZE bytes"
+          if [ "$SIZE" -gt "$MAX_SIZE" ]; then
+            echo "⚠️ Warning: Bundle larger than $MAX_SIZE bytes"
+            # Don't fail for now, just warn
+          fi
+      
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: test-results
+          path: |
+            coverage/
+          retention-days: 30
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+      
+      - name: Run E2E tests
+        run: npm run test:e2e
+      
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30
+
+  coverage:
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+      - uses: actions/checkout@v4
+      
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Generate coverage report
+        run: npm run test:coverage
+      
+      - name: Check coverage thresholds
+        run: |
+          # Parse coverage summary
+          if [ -f coverage/coverage-summary.json ]; then
+            COVERAGE=$(node -e "const c = require('./coverage/coverage-summary.json'); console.log(c.total.lines.pct)")
+            echo "Line coverage: $COVERAGE%"
+            MIN_COVERAGE=40
+            if (( $(echo "$COVERAGE < $MIN_COVERAGE" | bc -l) )); then
+              echo "⚠️ Coverage below $MIN_COVERAGE%"
+            fi
+          fi
+      
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        if: github.event_name == 'push'
+        with:
+          files: ./coverage/coverage-final.json
+          fail_ci_if_error: false
