@@ -32,3 +32,10 @@ features-implementation.md
 
 # Claude specific
 .claude/
+
+# Capacitor
+ios/App/Pods/
+ios/App/Podfile.lock
+ios/App/build/
+ios/App/*.xcworkspace
+android/
