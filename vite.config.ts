@@ -59,6 +59,42 @@ export default defineConfig(({ mode }) => {
         alias: {
           "@": path.resolve(__dirname, "."),
         }
+      },
+      build: {
+        rollupOptions: {
+          output: {
+            manualChunks: {
+              // Vendor chunks
+              'vendor-react': ['react', 'react-dom'],
+              'vendor-supabase': ['@supabase/supabase-js'],
+              'vendor-anthropic': ['@anthropic-ai/sdk'],
+              'vendor-google': ['@google/genai'],
+              'vendor-markdown': ['react-markdown', 'rehype-katex', 'remark-math'],
+              
+              // Feature chunks - Bible reading
+              'bible-reader': [
+                './components/BibleViewer.tsx',
+                './components/VerseIndicators.tsx',
+                './components/BibleSearch.tsx'
+              ],
+              
+              // Feature chunks - Notes & Drawing
+              'notes': [
+                './components/Notebook.tsx',
+                './components/NotesList.tsx',
+                './components/DrawingCanvas.tsx',
+                './components/InlineBibleAnnotation.tsx'
+              ],
+              
+              // Feature chunks - Chat & AI
+              'chat': [
+                './components/ChatInterface.tsx',
+                './components/VoiceSession.tsx'
+              ]
+            }
+          }
+        },
+        chunkSizeWarningLimit: 1000
       }
     };
 });
