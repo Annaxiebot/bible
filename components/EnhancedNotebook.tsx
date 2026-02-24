@@ -3,9 +3,7 @@ import { SelectionInfo } from '../types';
 import { VerseData, PersonalNote, AIResearchEntry } from '../types/verseData';
 import { verseDataStorage } from '../services/verseDataStorage';
 import DrawingCanvas, { DrawingCanvasHandle } from './DrawingCanvas';
-import ReactMarkdown from 'react-markdown';
-import remarkMath from 'remark-math';
-import rehypeKatex from 'rehype-katex';
+import LazyMarkdown from './LazyMarkdown';
 import 'katex/dist/katex.min.css';
 import { CHINESE_ABBREV_TO_BOOK_ID, BIBLE_BOOKS } from '../constants';
 
@@ -519,9 +517,7 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
               </div>
               
               <div className="research-response">
-                <ReactMarkdown
-                  remarkPlugins={[remarkMath]}
-                  rehypePlugins={[rehypeKatex]}
+                <LazyMarkdown
                   components={{
                     p: ({ children }) => { const b = selection?.id?.split(':')[0]; return <p style={{ marginBottom: '0.5em' }}>{_pc(children, onNavigate, b)}</p>; },
                     li: ({ children }) => { const b = selection?.id?.split(':')[0]; return <li>{_pc(children, onNavigate, b)}</li>; },
@@ -557,7 +553,7 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
                   }}
                 >
                   {preprocessResearchText(research.response)}
-                </ReactMarkdown>
+                </LazyMarkdown>
               </div>
               
               {research.tags && research.tags.length > 0 && (
@@ -637,9 +633,7 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
                     <div className="research-preview">
                       <div className="research-q">Q: {item.content.query}</div>
                       <div className="research-a">
-                        <ReactMarkdown
-                          remarkPlugins={[remarkMath]}
-                          rehypePlugins={[rehypeKatex]}
+                        <LazyMarkdown
                           components={{
                             p: ({ children }) => { const b = selection?.id?.split(':')[0]; return <p style={{ marginBottom: '0.5em' }}>{_pc(children, onNavigate, b)}</p>; },
                             li: ({ children }) => { const b = selection?.id?.split(':')[0]; return <li>{_pc(children, onNavigate, b)}</li>; },
@@ -674,7 +668,7 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
                           }}
                         >
                           {preprocessResearchText(item.content.response)}
-                        </ReactMarkdown>
+                        </LazyMarkdown>
                       </div>
                     </div>
                   )}

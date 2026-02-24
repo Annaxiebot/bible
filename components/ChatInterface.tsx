@@ -1,7 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkMath from 'remark-math';
-import rehypeKatex from 'rehype-katex';
+import LazyMarkdown from './LazyMarkdown';
 import { ChatMessage, AspectRatio, ImageSize } from '../types';
 import * as aiService from '../services/aiProvider';
 import * as geminiService from '../services/gemini';
@@ -363,25 +361,22 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpe
       >
         <div className="flex justify-between items-start gap-2">
           <div className={`flex-1 overflow-hidden prose prose-sm sm:prose-base ${m.role === 'user' ? 'prose-invert text-white' : 'prose-slate'}`}>
-            <ReactMarkdown 
-              remarkPlugins={[remarkMath]} 
-              rehypePlugins={[
-                [rehypeKatex, { 
-                  throwOnError: false,
-                  strict: 'ignore',
-                  errorColor: '#cc0000',
-                  trust: (context) => {
-                    if (/[\u0590-\u05FF]/.test(context.command)) {
-                      return false;
-                    }
-                    return true;
-                  },
-                  output: 'html',
-                  fleqn: false,
-                  displayMode: false,
-                  macros: {}
-                }]
-              ]}
+            <LazyMarkdown 
+              katexOptions={{ 
+                throwOnError: false,
+                strict: 'ignore',
+                errorColor: '#cc0000',
+                trust: (context) => {
+                  if (/[\u0590-\u05FF]/.test(context.command)) {
+                    return false;
+                  }
+                  return true;
+                },
+                output: 'html',
+                fleqn: false,
+                displayMode: false,
+                macros: {}
+              }}
               components={(() => {
                 // Shared helper to recursively process children for Bible references
                 const processChildren = (nodes: React.ReactNode): React.ReactNode => {
@@ -419,7 +414,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpe
               })()}
             >
               {content}
-            </ReactMarkdown>
+            </LazyMarkdown>
           </div>
           {m.role === 'assistant' && (
             <div className="flex gap-2 mt-1">
