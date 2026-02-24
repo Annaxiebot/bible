@@ -250,6 +250,31 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     size: annotationSize,
   }), [annotationTool, annotationColor, annotationSize]);
   
+  // Memoize computed values to prevent unnecessary recalculations
+  const allVerseNumbers = useMemo(() => {
+    return leftVerses.map(v => v.verse);
+  }, [leftVerses]);
+  
+  const sortedLeftVerses = useMemo(() => {
+    return [...leftVerses].sort((a, b) => a.verse - b.verse);
+  }, [leftVerses]);
+  
+  const sortedRightVerses = useMemo(() => {
+    return [...rightVerses].sort((a, b) => a.verse - b.verse);
+  }, [rightVerses]);
+  
+  const hasVerses = useMemo(() => {
+    return leftVerses.length > 0 || rightVerses.length > 0;
+  }, [leftVerses, rightVerses]);
+  
+  const selectedVersesSet = useMemo(() => {
+    return new Set(selectedVerses);
+  }, [selectedVerses]);
+  
+  const allVersesSelected = useMemo(() => {
+    return selectedVerses.length === leftVerses.length && leftVerses.length > 0;
+  }, [selectedVerses, leftVerses]);
+  
   // Better iOS detection that works for modern iPads
   const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -1364,9 +1389,8 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     const selection = window.getSelection()?.toString();
     if (selection && selection.length > 0) return;
 
-    const allVerses = leftVerses.map(v => v.verse);
-    setSelectedVerses(allVerses);
-    notifySelection(allVerses);
+    setSelectedVerses(allVerseNumbers);
+    notifySelection(allVerseNumbers);
   };
 
   const handleMouseUp = (e: React.MouseEvent) => {
@@ -2048,7 +2072,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
             </div>
           )}
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hidden lg:block">
-            {selectedVerses.length === leftVerses.length && leftVerses.length > 0 ? '已选全章' : (selectedVerses.length > 0 ? `已选 ${selectedVerses.length} 节` : '点击经文或高亮文字')}
+            {allVersesSelected ? '已选全章' : (selectedVerses.length > 0 ? `已选 ${selectedVerses.length} 节` : '点击经文或高亮文字')}
           </div>
           <div className="h-4 w-[1px] bg-slate-200 hidden lg:block"></div>
           
