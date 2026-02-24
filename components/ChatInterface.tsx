@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkMath from 'remark-math';
 import rehypeKatex from 'rehype-katex';
@@ -509,6 +509,23 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
   const zhScrollRef = useRef<HTMLDivElement>(null);
   const enScrollRef = useRef<HTMLDivElement>(null);
   const lastPayloadId = useRef<number>(-1);
+
+  // Memoize computed values to prevent unnecessary recalculations
+  const hasMessages = useMemo(() => messages.length > 0, [messages]);
+  
+  const lastMessage = useMemo(() => {
+    return messages[messages.length - 1];
+  }, [messages]);
+  
+  const isWaitingForResponse = useMemo(() => {
+    return isTyping || isThinking;
+  }, [isTyping, isThinking]);
+  
+  // Memoize callbacks to prevent unnecessary re-renders
+  const handleProviderChange = useCallback((provider: 'claude' | 'gemini' | 'auto') => {
+    setCurrentProvider(provider);
+    aiService.setProvider(provider);
+  }, []);
 
   // Sync incoming verses while preserving the user's manual question
   useEffect(() => {
