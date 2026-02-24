@@ -37,7 +37,7 @@ const httpsRedirect = (): Plugin => ({
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, ".", "");
     return {
-      base: "/bible/",
+      base: process.env.VITE_BASE_PATH || "/bible/",
       server: {
         port: 3000,
         host: "0.0.0.0",
@@ -59,6 +59,39 @@ export default defineConfig(({ mode }) => {
         alias: {
           "@": path.resolve(__dirname, "."),
         }
+      },
+      build: {
+        rollupOptions: {
+          output: {
+            manualChunks: {
+              // Vendor chunks
+              'vendor-react': ['react', 'react-dom'],
+              'vendor-supabase': ['@supabase/supabase-js'],
+              'vendor-anthropic': ['@anthropic-ai/sdk'],
+              'vendor-google': ['@google/genai'],
+              // vendor-markdown removed - now lazy-loaded on demand
+              
+              // Feature chunks - Bible reading
+              'bible-reader': [
+                './components/BibleViewer.tsx',
+                './components/VerseIndicators.tsx',
+                './components/BibleSearch.tsx'
+              ],
+              
+              // Feature chunks - Notes & Drawing
+              'notes': [
+                './components/Notebook.tsx',
+                './components/NotesList.tsx',
+                './components/DrawingCanvas.tsx',
+                './components/InlineBibleAnnotation.tsx'
+              ]
+              
+              // Chat chunk removed to allow true lazy-loading of ChatInterface and markdown
+              // ChatInterface is already lazy-loaded in App.tsx
+            }
+          }
+        },
+        chunkSizeWarningLimit: 1000
       }
     };
 });
