@@ -69,7 +69,7 @@ export default defineConfig(({ mode }) => {
               'vendor-supabase': ['@supabase/supabase-js'],
               'vendor-anthropic': ['@anthropic-ai/sdk'],
               'vendor-google': ['@google/genai'],
-              'vendor-markdown': ['react-markdown', 'rehype-katex', 'remark-math'],
+              // vendor-markdown removed - now lazy-loaded on demand
               
               // Feature chunks - Bible reading
               'bible-reader': [
@@ -84,13 +84,10 @@ export default defineConfig(({ mode }) => {
                 './components/NotesList.tsx',
                 './components/DrawingCanvas.tsx',
                 './components/InlineBibleAnnotation.tsx'
-              ],
-              
-              // Feature chunks - Chat & AI
-              'chat': [
-                './components/ChatInterface.tsx',
-                './components/VoiceSession.tsx'
               ]
+              
+              // Chat chunk removed to allow true lazy-loading of ChatInterface and markdown
+              // ChatInterface is already lazy-loaded in App.tsx
             }
           }
         },
