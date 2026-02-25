@@ -110,6 +110,7 @@ const App: React.FC = () => {
   const [notesLoading, setNotesLoading] = useState(true);
   const [researchUpdateTrigger, setResearchUpdateTrigger] = useState(0);
   const [currentBibleContext, setCurrentBibleContext] = useState<{bookId: string; chapter: number} | null>(null);
+  const [currentSelectedVerses, setCurrentSelectedVerses] = useState<number[]>([]);
   const [showVibePanel, setShowVibePanel] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
   const [showPrintOptions, setShowPrintOptions] = useState(false);
@@ -450,6 +451,7 @@ const App: React.FC = () => {
               onSelectionChange={handleSelectionChange}
               onVersesSelectedForChat={(text, clearChat) => setSelectionPayload({ text, id: Date.now(), clearChat })}
               onContextChange={handleContextChange}
+              onVersesSelected={setCurrentSelectedVerses}
               sidebarOpen={isSidebarOpen}
               showSidebarToggle={!isIPhone}
               onSidebarToggle={() => setIsSidebarOpen(!isSidebarOpen)}
@@ -492,6 +494,7 @@ const App: React.FC = () => {
                incomingText={selectionPayload}
                currentBookId={currentBibleContext?.bookId}
                currentChapter={currentBibleContext?.chapter}
+               currentVerses={currentSelectedVerses}
                onResearchSaved={() => {
                  setResearchUpdateTrigger(prev => prev + 1);
                  setDataUpdateTrigger(prev => prev + 1);
