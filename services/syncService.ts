@@ -73,8 +73,6 @@ async function syncNotes(): Promise<void> {
   const userId = authManager.getUserId();
   if (!userId) return;
 
-  console.log('Syncing notes...');
-
   // Get local notes
   const localNotes = await notesStorage.getAllNotes();
   
@@ -120,7 +118,6 @@ async function syncNotes(): Promise<void> {
   }
 
   setSyncState({ lastNotesSync: Date.now() });
-  console.log('Notes sync complete');
 }
 
 // =====================================================
@@ -132,8 +129,6 @@ async function syncAnnotations(): Promise<void> {
 
   const userId = authManager.getUserId();
   if (!userId) return;
-
-  console.log('Syncing annotations...');
 
   // Get all local annotations from IndexedDB
   const db = await (annotationStorage as any).dbPromise;
@@ -188,7 +183,6 @@ async function syncAnnotations(): Promise<void> {
   }
 
   setSyncState({ lastAnnotationsSync: Date.now() });
-  console.log('Annotations sync complete');
 }
 
 // =====================================================
@@ -200,8 +194,6 @@ async function syncReadingHistory(): Promise<void> {
 
   const userId = authManager.getUserId();
   if (!userId) return;
-
-  console.log('Syncing reading history...');
 
   // Get local history
   const localHistory = readingHistory.getHistory();
@@ -277,7 +269,6 @@ async function syncReadingHistory(): Promise<void> {
   }
 
   setSyncState({ lastHistorySync: Date.now() });
-  console.log('Reading history sync complete');
 }
 
 // =====================================================
@@ -286,7 +277,6 @@ async function syncReadingHistory(): Promise<void> {
 
 export async function performFullSync(): Promise<void> {
   if (!canSync()) {
-    console.log('Sync not available - not authenticated or offline');
     return;
   }
 
@@ -300,7 +290,6 @@ export async function performFullSync(): Promise<void> {
     ]);
 
     syncManager.setStatus('idle');
-    console.log('Full sync completed successfully');
   } catch (error) {
     console.error('Sync failed:', error);
     syncManager.setStatus('error', error instanceof Error ? error.message : 'Sync failed');
@@ -314,7 +303,6 @@ export async function performFullSync(): Promise<void> {
 
 authManager.subscribe(async (state) => {
   if (state.isAuthenticated && !state.isLoading) {
-    console.log('User authenticated - starting initial sync');
     try {
       await performFullSync();
     } catch (error) {
@@ -330,7 +318,6 @@ authManager.subscribe(async (state) => {
 if (typeof window !== 'undefined') {
   setInterval(() => {
     if (canSync() && syncManager.getStatus() === 'idle') {
-      console.log('Running periodic sync');
       performFullSync().catch(err => {
         console.error('Periodic sync failed:', err);
       });

@@ -1,0 +1,22 @@
+{
+	"appId": "com.annaxiebot.scriptureScholar",
+	"appName": "Scripture Scholar",
+	"webDir": "dist",
+	"bundledWebRuntime": false,
+	"server": {},
+	"ios": {
+		"contentInset": "always",
+		"scrollEnabled": true
+	},
+	"plugins": {
+		"SplashScreen": {
+			"launchAutoHide": false,
+			"backgroundColor": "#6366f1",
+			"showSpinner": false
+		}
+	},
+	"packageClassList": [
+		"CAPCameraPlugin",
+		"FilesystemPlugin"
+	]
+}

@@ -118,7 +118,6 @@ class NotesStorageService {
         await this.importNotes(notes);
         // Remove from localStorage after successful migration
         localStorage.removeItem('scripture_scholar_notes');
-        console.log('Successfully migrated notes from localStorage to IndexedDB');
       }
     } catch (error) {
       console.error('Failed to migrate notes from localStorage:', error);
