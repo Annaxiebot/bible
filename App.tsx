@@ -616,7 +616,7 @@ const App: React.FC = () => {
         />
       )}
 
-      {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
+      {toast && <Toast message={{ id: 'app-toast', type: toast.type, message: toast.message }} onDismiss={() => setToast(null)} />}
     </div>
     </Suspense>
     </SeasonThemeProvider>

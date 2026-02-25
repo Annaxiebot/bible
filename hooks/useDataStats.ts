@@ -78,11 +78,10 @@ export function useDataStats(updateTrigger?: number) {
             researchDetails.push({
               bookId: v.bookId, bookName, chapter: v.chapter, verses: v.verses,
               query: r.query.length > 60 ? r.query.slice(0, 60) + '...' : r.query,
-              timestamp: r.timestamp || 0,
+              timestamp: r.timestamp ?? 0,
             });
           }
         }
-
         // Sort latest first
         noteDetails.sort((a, b) => b.updatedAt - a.updatedAt);
         researchDetails.sort((a, b) => b.timestamp - a.timestamp);
