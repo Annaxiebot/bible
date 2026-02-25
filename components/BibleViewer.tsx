@@ -1,4 +1,4 @@
-import { BIBLE_API_BASE } from '../services/apiConfig';
+import { buildChapterUrl } from '../services/apiConfig';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Verse, Book, SelectionInfo } from '../types';
 import { BIBLE_BOOKS, CHINESE_ABBREV_TO_BOOK_ID } from '../constants';
@@ -14,6 +14,7 @@ import ContextMenu from './ContextMenu';
 import { useSeasonTheme } from '../hooks/useSeasonTheme';
 import InlineBibleAnnotation, { COLOR_PRESETS, InlineBibleAnnotationHandle } from './InlineBibleAnnotation';
 import { backgroundBibleDownload } from '../services/backgroundBibleDownload';
+import { useDebounce } from '../hooks/useDebounce';
 
 interface BibleViewerProps {
   onSelectionChange?: (info: SelectionInfo) => void;
@@ -250,9 +251,21 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     size: annotationSize,
   }), [annotationTool, annotationColor, annotationSize]);
   
+  // Memoize computed values to prevent unnecessary recalculations
+  const allVerseNumbers = useMemo(() => {
+    return leftVerses.map(v => v.verse);
+  }, [leftVerses]);
+  
+  const allVersesSelected = useMemo(() => {
+    return selectedVerses.length === leftVerses.length && leftVerses.length > 0;
+  }, [selectedVerses, leftVerses]);
+  
   // Better iOS detection that works for modern iPads
   const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+
+  // Debounce book search term to avoid filtering on every keystroke
+  const debouncedBookSearchTerm = useDebounce(bookSearchTerm, 300);
 
   // Listen for English version changes (from Sidebar dropdown or storage events)
   useEffect(() => {
@@ -320,10 +333,8 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   // Handle external navigation requests
   useEffect(() => {
     if (navigateTo) {
-      console.log('[Navigate] Request:', navigateTo);
       const book = BIBLE_BOOKS.find(b => b.id === navigateTo.bookId);
       if (book) {
-        console.log('[Navigate] Found book:', book.name, 'chapter:', navigateTo.chapter);
         setSelectedBook(book);
         setSelectedChapter(navigateTo.chapter);
         // If specific verses are provided, select them and scroll to verse
@@ -347,7 +358,6 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
               }
             }
             if (targetEl) {
-              console.log('[Navigate] Scrolling to verse', verseNum);
               // Scroll both panels to the verse
               for (const container of containers) {
                 if (!container) continue;
@@ -784,7 +794,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
 
         // Try to update from network in background (don't show loading)
         // Only save to cache, don't update state (avoids unnecessary re-renders)
-        fetch(`${BIBLE_API_BASE}/${selectedBook.id}${selectedChapter}?translation=cuv`)
+        fetch(buildChapterUrl(selectedBook.id, selectedChapter, 'cuv', selectedBook.totalVerses))
           .then(res => res.json())
           .then(data => {
             if (!ctrl.cancelled && data.verses) {
@@ -793,7 +803,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           })
           .catch(() => {});
 
-        fetch(`${BIBLE_API_BASE}/${selectedBook.id}${selectedChapter}?translation=${englishVersion}`)
+        fetch(buildChapterUrl(selectedBook.id, selectedChapter, englishVersion, selectedBook.totalVerses))
           .then(res => res.json())
           .then(data => {
             if (!ctrl.cancelled && data.verses) {
@@ -810,8 +820,8 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     if (!loadedFromCache) {
       try {
         const [cuvRes, engRes] = await Promise.all([
-          fetch(`${BIBLE_API_BASE}/${selectedBook.id}${selectedChapter}?translation=cuv`),
-          fetch(`${BIBLE_API_BASE}/${selectedBook.id}${selectedChapter}?translation=${englishVersion}`)
+          fetch(buildChapterUrl(selectedBook.id, selectedChapter, 'cuv', selectedBook.totalVerses)),
+          fetch(buildChapterUrl(selectedBook.id, selectedChapter, englishVersion, selectedBook.totalVerses))
         ]);
 
         if (ctrl.cancelled) return;
@@ -886,10 +896,13 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     return isSimplified ? toSimplified(text) : text;
   };
   
-  // Filter books based on search term
-  const filteredBooks = BIBLE_BOOKS.filter(book => 
-    book.name.toLowerCase().includes(bookSearchTerm.toLowerCase()) ||
-    book.id.toLowerCase().includes(bookSearchTerm.toLowerCase())
+  // Filter books based on debounced search term (prevents filtering on every keystroke)
+  const filteredBooks = useMemo(() => 
+    BIBLE_BOOKS.filter(book => 
+      book.name.toLowerCase().includes(debouncedBookSearchTerm.toLowerCase()) ||
+      book.id.toLowerCase().includes(debouncedBookSearchTerm.toLowerCase())
+    ),
+    [debouncedBookSearchTerm]
   );
 
   // Calculate estimated time remaining for download
@@ -927,7 +940,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       let cuvSuccess = false;
       for (let retry = 0; retry < 3 && !cuvSuccess; retry++) {
         try {
-          const cuvRes = await fetch(`${BIBLE_API_BASE}/${selectedBook.id}${selectedChapter}?translation=cuv`);
+          const cuvRes = await fetch(buildChapterUrl(selectedBook.id, selectedChapter, 'cuv', selectedBook.totalVerses));
           if (cuvRes.ok) {
             const cuvData = await cuvRes.json();
             if (cuvData?.verses) {
@@ -945,7 +958,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       let webSuccess = false;
       for (let retry = 0; retry < 3 && !webSuccess; retry++) {
         try {
-          const webRes = await fetch(`${BIBLE_API_BASE}/${selectedBook.id}${selectedChapter}?translation=${englishVersion}`);
+          const webRes = await fetch(buildChapterUrl(selectedBook.id, selectedChapter, englishVersion, selectedBook.totalVerses));
           if (webRes.ok) {
             const webData = await webRes.json();
             if (webData?.verses) {
@@ -1009,7 +1022,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
 
         // Download CUV
         try {
-          const cuvRes = await fetch(`${BIBLE_API_BASE}/${selectedBook.id}${chapter}?translation=cuv`);
+          const cuvRes = await fetch(buildChapterUrl(selectedBook.id, chapter, 'cuv', selectedBook.totalVerses));
           if (cuvRes.ok) {
             const cuvData = await cuvRes.json();
             if (cuvData?.verses) {
@@ -1027,7 +1040,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
 
         // Download WEB
         try {
-          const webRes = await fetch(`${BIBLE_API_BASE}/${selectedBook.id}${chapter}?translation=${englishVersion}`);
+          const webRes = await fetch(buildChapterUrl(selectedBook.id, chapter, englishVersion, selectedBook.totalVerses));
           if (webRes.ok) {
             const webData = await webRes.json();
             if (webData?.verses) {
@@ -1107,7 +1120,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           let cuvSuccess = false;
           for (let retry = 0; retry < 3 && !cuvSuccess; retry++) {
             try {
-              const cuvRes = await fetch(`${BIBLE_API_BASE}/${book.id}${chapter}?translation=cuv`);
+              const cuvRes = await fetch(buildChapterUrl(book.id, chapter, 'cuv', book.totalVerses));
               if (cuvRes.ok) {
                 const cuvData = await cuvRes.json();
                 if (cuvData?.verses) {
@@ -1142,7 +1155,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           let webSuccess = false;
           for (let retry = 0; retry < 3 && !webSuccess; retry++) {
             try {
-              const webRes = await fetch(`${BIBLE_API_BASE}/${book.id}${chapter}?translation=${englishVersion}`);
+              const webRes = await fetch(buildChapterUrl(book.id, chapter, englishVersion, book.totalVerses));
               if (webRes.ok) {
                 const webData = await webRes.json();
                 if (webData?.verses) {
@@ -1367,9 +1380,8 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     const selection = window.getSelection()?.toString();
     if (selection && selection.length > 0) return;
 
-    const allVerses = leftVerses.map(v => v.verse);
-    setSelectedVerses(allVerses);
-    notifySelection(allVerses);
+    setSelectedVerses(allVerseNumbers);
+    notifySelection(allVerseNumbers);
   };
 
   const handleMouseUp = (e: React.MouseEvent) => {
@@ -2051,7 +2063,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
             </div>
           )}
           <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hidden lg:block">
-            {selectedVerses.length === leftVerses.length && leftVerses.length > 0 ? '已选全章' : (selectedVerses.length > 0 ? `已选 ${selectedVerses.length} 节` : '点击经文或高亮文字')}
+            {allVersesSelected ? '已选全章' : (selectedVerses.length > 0 ? `已选 ${selectedVerses.length} 节` : '点击经文或高亮文字')}
           </div>
           <div className="h-4 w-[1px] bg-slate-200 hidden lg:block"></div>
           
