@@ -8,7 +8,6 @@ import SaveResearchModal from './SaveResearchModal';
 import { BIBLE_BOOKS, CHINESE_ABBREV_TO_BOOK_ID } from '../constants';
 import { BOOK_ID_TO_CHINESE_NAME } from '../services/bibleBookData';
 import { verseDataStorage } from '../services/verseDataStorage';
-import { AIResearchEntry } from '../types/verseData';
 import { backgroundBibleDownload } from '../services/backgroundBibleDownload';
 
 interface ChatInterfaceProps {
@@ -533,7 +532,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
   }, [isTyping, isThinking]);
   
   // Memoize callbacks to prevent unnecessary re-renders
-  const handleProviderChange = useCallback((provider: 'claude' | 'gemini' | 'auto') => {
+  const handleProviderChange = useCallback((provider: aiService.AIProvider) => {
     setCurrentProvider(provider);
     aiService.setProvider(provider);
   }, []);
@@ -825,7 +824,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
         await verseDataStorage.addAIResearch(currentBookId, currentChapter, [], {
           query: currentInput,
           response: parsed.zh || assistantMessage.content,
-          timestamp: ts,
           tags: [],
         });
         setSavedMessageTimestamps(prev => new Set([...prev, ts]));
@@ -894,15 +892,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     const userMessage = messageIndex > 0 ? messages[messageIndex - 1] : null;
     const query = userMessage?.role === 'user' ? userMessage.content : 'AI Research';
     
-    const research: AIResearchEntry = {
-      id: Date.now().toString(),
+    await verseDataStorage.addAIResearch(bookId, chapter, verses, {
       query,
       response: content,
-      timestamp: Date.now(),
-      tags
-    };
-    
-    await verseDataStorage.addAIResearch(bookId, chapter, verses, research);
+      tags,
+    });
 
     setSavedMessageTimestamps(prev => new Set([...prev, researchToSave.message.timestamp.getTime()]));
     setShowSaveModal(false);
