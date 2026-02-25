@@ -58,7 +58,7 @@ class GoogleDriveService {
     lastError: null,
   };
 
-  private tokenClient: any = null;
+  private tokenClient: google.accounts.oauth2.TokenClient | null = null;
   private gapiInited = false;
   private gisInited = false;
   private subscribers: Array<(state: DriveState) => void> = [];
@@ -165,7 +165,7 @@ class GoogleDriveService {
 
     return new Promise((resolve, reject) => {
       try {
-        this.tokenClient.callback = async (response: any) => {
+        this.tokenClient.callback = async (response: google.accounts.oauth2.TokenResponse) => {
           if (response.error !== undefined) {
             this.state.lastError = response.error;
             this.notifySubscribers();
@@ -336,8 +336,9 @@ class GoogleDriveService {
 
   /**
    * Read a JSON file from Drive.
+   * Returns null if file doesn't exist.
    */
-  async readFile(filename: string): Promise<any> {
+  async readFile<T = unknown>(filename: string): Promise<T | null> {
     const folderId = await this.ensureAppFolder();
 
     // Find file
@@ -364,8 +365,9 @@ class GoogleDriveService {
 
   /**
    * Write a JSON file to Drive.
+   * Creates new file or updates existing file.
    */
-  async writeFile(filename: string, data: any): Promise<void> {
+  async writeFile<T = unknown>(filename: string, data: T): Promise<void> {
     const folderId = await this.ensureAppFolder();
 
     // Check if file exists
@@ -455,11 +457,11 @@ class GoogleDriveService {
       spaces: 'drive',
     });
 
-    return (response.result.files || []).map((file: any) => ({
-      id: file.id,
-      name: file.name,
-      mimeType: file.mimeType,
-      modifiedTime: file.modifiedTime,
+    return (response.result.files || []).map((file: gapi.client.drive.File) => ({
+      id: file.id || '',
+      name: file.name || '',
+      mimeType: file.mimeType || '',
+      modifiedTime: file.modifiedTime || '',
       size: parseInt(file.size || '0', 10),
     }));
   }
@@ -547,7 +549,7 @@ class GoogleDriveService {
       spaces: 'drive',
     });
 
-    return (response.result.files || []).map((file: any) => file.name);
+    return (response.result.files || []).map((file: gapi.client.drive.File) => file.name || '');
   }
 
   // =====================================================

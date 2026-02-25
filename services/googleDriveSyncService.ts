@@ -325,8 +325,8 @@ class GoogleDriveSyncService {
     console.log(`Annotations synced: ${merged.length} total`);
   }
 
-  private mergeAnnotations(local: any[], remote: any[]): any[] {
-    const merged = new Map<string, any>();
+  private mergeAnnotations(local: AnnotationRecord[], remote: AnnotationRecord[]): AnnotationRecord[] {
+    const merged = new Map<string, AnnotationRecord>();
 
     // Add all local annotations
     for (const annotation of local) {

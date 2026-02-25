@@ -190,3 +190,41 @@ export interface FileMetadata {
   modifiedTime: string;
   size: number;
 }
+
+// =====================================================
+// GENERIC JSON DATA
+// =====================================================
+
+/**
+ * Generic type for JSON-serializable data.
+ * Used for Drive file operations.
+ */
+export type JsonValue = 
+  | string 
+  | number 
+  | boolean 
+  | null 
+  | JsonValue[] 
+  | { [key: string]: JsonValue };
+
+/**
+ * Type alias for file data read from Drive.
+ * More specific than 'any' but allows flexibility for different file types.
+ */
+export type DriveFileData = JsonValue;
+
+// =====================================================
+// GOOGLE API TYPES (augmenting external types)
+// =====================================================
+
+/**
+ * File response from Google Drive API.
+ */
+export interface DriveFileResponse {
+  id?: string;
+  name?: string;
+  mimeType?: string;
+  modifiedTime?: string;
+  size?: string;
+  [key: string]: unknown;
+}
