@@ -1,4 +1,4 @@
-import { BIBLE_API_BASE } from './apiConfig';
+import { buildChapterUrl } from './apiConfig';
 import { BIBLE_BOOKS } from '../constants';
 import { bibleStorage } from './bibleStorage';
 
@@ -212,9 +212,10 @@ export class BibleCacheService {
     }
     
     // Fetch from API
+    const book = BIBLE_BOOKS.find(b => b.id === bookId);
     const [cuvRes, webRes] = await Promise.all([
-      fetch(`${BIBLE_API_BASE}/${bookId}${chapter}?translation=cuv`),
-      fetch(`${BIBLE_API_BASE}/${bookId}${chapter}?translation=web`)
+      fetch(buildChapterUrl(bookId, chapter, 'cuv', book?.totalVerses)),
+      fetch(buildChapterUrl(bookId, chapter, 'web', book?.totalVerses))
     ]);
     
     const [cuvData, webData] = await Promise.all([
