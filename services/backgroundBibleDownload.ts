@@ -21,7 +21,7 @@ export interface BgDownloadProgress {
 type ProgressCallback = (progress: BgDownloadProgress) => void;
 
 const TOTAL_CHAPTERS = BIBLE_BOOKS.reduce((sum, b) => sum + b.chapters, 0);
-const DELAY_MS = 3000; // 3 seconds between requests
+const DELAY_MS = 5000; // 5 seconds between requests
 const API_PAUSE_MS = 10000; // Pause 10 seconds when AI/research API calls happen
 const METADATA_KEY = 'bg_download_progress';
 
@@ -261,8 +261,15 @@ class BackgroundBibleDownloadService {
       const res = await fetch(url, { signal: this.abortController?.signal });
       if (!res.ok) {
         if (res.status === 429) {
-          // Rate limited - wait extra time
-          await this.sleep(10000);
+          // Rate limited — back off then retry once
+          await this.sleep(30000);
+          const retry = await fetch(url, { signal: this.abortController?.signal });
+          if (!retry.ok) return false;
+          const retryData = await retry.json();
+          if (retryData?.verses) {
+            await bibleStorage.saveChapter(bookId, chapter, translation, retryData);
+            return true;
+          }
         }
         return false;
       }
@@ -274,7 +281,11 @@ class BackgroundBibleDownloadService {
       return false;
     } catch (e) {
       if ((e as Error)?.name === 'AbortError') throw e;
+      // A TypeError here often means bible-api.com returned 429 without CORS headers,
+      // which the browser surfaces as a network error rather than an HTTP response.
+      // Back off before continuing so we don't compound the rate limiting.
       console.warn(`[BgDownload] Failed ${bookId} ${chapter} ${translation}:`, e);
+      await this.sleep(30000);
       return false;
     }
   }

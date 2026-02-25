@@ -57,7 +57,7 @@ function generateBibleInYearPlan(): ReadingPlanDay[][] {
     { id: 'EZK', name: '以西结书 Ezekiel', chapters: 48 },
     { id: 'DAN', name: '但以理书 Daniel', chapters: 12 },
     { id: 'HOS', name: '何西阿书 Hosea', chapters: 14 },
-    { id: 'JOE', name: '约珥书 Joel', chapters: 3 },
+    { id: 'JOL', name: '约珥书 Joel', chapters: 3 },
     { id: 'AMO', name: '阿摩司书 Amos', chapters: 9 },
     { id: 'OBA', name: '俄巴底亚书 Obadiah', chapters: 1 },
     { id: 'JON', name: '约拿书 Jonah', chapters: 4 },
