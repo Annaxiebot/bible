@@ -18,6 +18,7 @@ export interface ResearchDetail {
   chapter: number;
   verses: number[];
   query: string;
+  timestamp: number;
 }
 
 export interface ChapterDetail {
@@ -75,9 +76,11 @@ export function useDataStats(updateTrigger?: number) {
             researchDetails.push({
               bookId: v.bookId, bookName, chapter: v.chapter, verses: v.verses,
               query: r.query.length > 60 ? r.query.slice(0, 60) + '...' : r.query,
+              timestamp: r.timestamp ?? 0,
             });
           }
         }
+        researchDetails.sort((a, b) => b.timestamp - a.timestamp);
 
         // Get cached chapters
         let cachedChapters = 0;
