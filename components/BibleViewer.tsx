@@ -22,6 +22,7 @@ interface BibleViewerProps {
   notes: Record<string, string>;
   researchUpdateTrigger?: number;
   onContextChange?: (bookId: string, chapter: number) => void;
+  onVersesSelected?: (verses: number[]) => void;
   sidebarOpen?: boolean;
   showSidebarToggle?: boolean;
   onSidebarToggle?: () => void;
@@ -42,6 +43,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   notes, 
   researchUpdateTrigger = 0,
   onContextChange,
+  onVersesSelected,
   sidebarOpen = false,
   showSidebarToggle = true,
   onSidebarToggle,
@@ -329,6 +331,13 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       onContextChange(selectedBook.id, selectedChapter);
     }
   }, [selectedBook.id, selectedChapter, onContextChange]);
+
+  // Notify parent when verse selection changes
+  useEffect(() => {
+    if (onVersesSelected) {
+      onVersesSelected(selectedVerses);
+    }
+  }, [selectedVerses, onVersesSelected]);
 
   // Handle external navigation requests
   useEffect(() => {
