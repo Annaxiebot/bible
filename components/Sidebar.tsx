@@ -10,6 +10,7 @@ export interface BgDownloadProgress {
   cached: number;
   total: number;
   currentBook: string;
+  currentChapter: number;
   isRunning: boolean;
   isComplete: boolean;
 }

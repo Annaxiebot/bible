@@ -8,6 +8,7 @@ import { bibleStorage } from '../services/bibleStorage';
 import { readingHistory } from '../services/readingHistory';
 import { verseDataStorage } from '../services/verseDataStorage';
 import { bookmarkStorage } from '../services/bookmarkStorage';
+import { searchCachedChapters, searchNotesAndResearch, searchCurrentChapter } from '../services/bibleTextSearch';
 import { ReadingHistory } from './ReadingHistory';
 import VerseIndicators from './VerseIndicators';
 import ContextMenu from './ContextMenu';
@@ -515,107 +516,32 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     // If not a Bible reference, proceed with normal text search
     setIsSearching(true);
     try {
-      const results: Array<{
-        bookId: string;
-        bookName: string;
-        chapter: number;
-        verse: number;
-        text: string;
-        translation: string;
-      }> = [];
-      
-      const offlineChapterSet = await bibleStorage.getAllOfflineChapters();
       const queryLower = query.toLowerCase();
-      
-      // Search through all cached chapters
-      for (const chapterKey of offlineChapterSet) {
-        if (results.length >= 50) break; // Limit results
-        
-        const parts = chapterKey.split('_');
-        if (parts.length !== 2) continue;
-        const [bookId, chapterStr] = parts;
-        const chapter = parseInt(chapterStr);
-        const book = BIBLE_BOOKS.find(b => b.id === bookId);
-        if (!book) continue;
-        
-        // Search in CUV (Chinese)
-        const cuvData = await bibleStorage.getChapter(bookId, chapter, 'cuv');
-        if (cuvData?.verses) {
-          for (const verse of cuvData.verses) {
-            if (results.length >= 50) break;
-            if (verse.text.toLowerCase().includes(queryLower)) {
-              results.push({
-                bookId,
-                bookName: book.name,
-                chapter,
-                verse: verse.verse,
-                text: verse.text,
-                translation: 'CUV',
-              });
-            }
-          }
-        }
-        
-        // Search in WEB (English)
-        const webData = await bibleStorage.getChapter(bookId, chapter, englishVersion as any);
-        if (webData?.verses) {
-          for (const verse of webData.verses) {
-            if (results.length >= 50) break;
-            if (verse.text.toLowerCase().includes(queryLower)) {
-              // Avoid duplicates if already found in CUV for same verse
-              const alreadyFound = results.some(r => 
-                r.bookId === bookId && r.chapter === chapter && r.verse === verse.verse
-              );
-              if (!alreadyFound) {
-                results.push({
-                  bookId,
-                  bookName: book.name,
-                  chapter,
-                  verse: verse.verse,
-                  text: verse.text,
-                  translation: 'WEB',
-                });
-              }
-            }
-          }
-        }
+      const querySimplified = toSimplified(queryLower);
+
+      // Search cached Bible chapters
+      const results = await searchCachedChapters(querySimplified, queryLower, englishVersion);
+
+      // Search notes and AI research (isolated to avoid breaking Bible results)
+      try {
+        const noteResults = await searchNotesAndResearch(querySimplified, results);
+        results.push(...noteResults);
+      } catch (noteSearchError) {
+        console.warn('Notes/research search error:', noteSearchError);
       }
-      
-      // Also search current chapter if not already cached
+
+      // Search current chapter if not cached
+      const offlineChapterSet = await bibleStorage.getAllOfflineChapters();
       if (!offlineChapterSet.has(`${selectedBook.id}_${selectedChapter}`)) {
-        for (const verse of leftVerses) {
-          if (results.length >= 50) break;
-          if (verse.text.toLowerCase().includes(queryLower)) {
-            results.push({
-              bookId: selectedBook.id,
-              bookName: selectedBook.name,
-              chapter: selectedChapter,
-              verse: verse.verse,
-              text: verse.text,
-              translation: 'CUV',
-            });
-          }
-        }
-        for (const verse of rightVerses) {
-          if (results.length >= 50) break;
-          if (verse.text.toLowerCase().includes(queryLower)) {
-            const alreadyFound = results.some(r =>
-              r.bookId === selectedBook.id && r.chapter === selectedChapter && r.verse === verse.verse
-            );
-            if (!alreadyFound) {
-              results.push({
-                bookId: selectedBook.id,
-                bookName: selectedBook.name,
-                chapter: selectedChapter,
-                verse: verse.verse,
-                text: verse.text,
-                translation: 'WEB',
-              });
-            }
-          }
-        }
+        const currentResults = searchCurrentChapter(
+          querySimplified, queryLower,
+          leftVerses, rightVerses,
+          selectedBook.id, selectedBook.name, selectedChapter,
+          results,
+        );
+        results.push(...currentResults);
       }
-      
+
       setSearchResults(results);
     } catch (error) {
       console.error('Search error:', error);
