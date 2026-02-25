@@ -181,6 +181,7 @@ interface BibleLinkProps {
 }
 
 const BibleLink: React.FC<BibleLinkProps> = ({ children, onNavigate }) => {
+  if (typeof children !== 'string') return <>{children}</>;
   const ref = parseBibleReference(children);
   
   if (ref && onNavigate) {
@@ -216,9 +217,6 @@ const BibleLink: React.FC<BibleLinkProps> = ({ children, onNavigate }) => {
         href="#"
         onClick={(e) => {
           e.preventDefault();
-          // TODO: Add validation for invalid chapter/verse references
-          // Bible API returns 404 for non-existent chapters/verses
-          // Should show user-friendly error message like "Chapter not found"
           onNavigate(ref.bookId, ref.chapter, ref.verses);
         }}
         className="inline-flex items-center gap-1 px-2 py-0.5 mx-0.5 bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-md text-indigo-700 hover:from-indigo-100 hover:to-purple-100 hover:border-indigo-300 hover:text-indigo-900 transition-all cursor-pointer font-medium text-sm shadow-sm hover:shadow-md"
@@ -395,10 +393,11 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpe
                       <React.Fragment key={i}>{processChildren(node)}</React.Fragment>
                     );
                   }
-                  // Don't recurse into elements that already have click handlers (like BibleLink <a> tags)
+                  // Don't recurse into elements that already have click handlers or are BibleLink/anchor elements
                   if (React.isValidElement(nodes)) {
+                    // React.ReactElement.props is typed as {} — cast needed to inspect runtime shape
                     const props = nodes.props as any;
-                    if (props?.onClick || (nodes.type === 'a')) return nodes;
+                    if (props?.onClick || (nodes.type === 'a') || nodes.type === BibleLink) return nodes;
                     if (props?.children) {
                       return React.cloneElement(nodes, {}, processChildren(props.children));
                     }
@@ -850,7 +849,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
           
           // Show success toast
           toast.showSuccess(
-            `✅ AI research saved (${result.savedCount} ${result.savedCount === 1 ? 'note' : 'notes'})`,
+            `AI research saved (${result.savedCount} ${result.savedCount === 1 ? 'note' : 'notes'})`,
             2000
           );
           

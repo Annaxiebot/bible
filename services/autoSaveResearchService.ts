@@ -140,9 +140,9 @@ class AutoSaveResearchService {
     for (let i = 0; i < combined.length; i++) {
       const char = combined.charCodeAt(i);
       hash = ((hash << 5) - hash) + char;
-      hash = hash & hash; // Convert to 32-bit integer
+      hash |= 0; // Truncate to signed 32-bit integer to prevent float drift
     }
-    return hash.toString(36);
+    return (hash >>> 0).toString(36); // Unsigned 32-bit so toString(36) is always positive
   }
 
   /**
@@ -201,67 +201,25 @@ class AutoSaveResearchService {
         baseTags.push(aiProvider);
       }
 
-      const researchIds: string[] = [];
-      let savedCount = 0;
+      // Build the response to save: bilingual responses are joined into one entry
+      // so that one research → one note (not one Chinese + one English).
+      const responseToSave = isBilingual
+        ? this.truncateContent(`${parsed.zh}\n\n---\n\n${parsed.en}`, AUTO_SAVE_CONFIG.MAX_RESPONSE_SIZE)
+        : this.truncateContent((parsed as { single: string }).single, AUTO_SAVE_CONFIG.MAX_RESPONSE_SIZE);
 
-      // Save Chinese version
-      if (isBilingual && parsed.zh) {
-        const zhResponse = this.truncateContent(parsed.zh, AUTO_SAVE_CONFIG.MAX_RESPONSE_SIZE);
-        const zhTags = [...baseTags, 'chinese'];
-        
-        const zhId = await verseDataStorage.addAIResearch(
-          targetBookId,
-          targetChapter,
-          targetVerses,
-          {
-            query,
-            response: zhResponse,
-            tags: zhTags,
-          }
-        );
-        
-        researchIds.push(zhId);
-        savedCount++;
-      }
+      const id = await verseDataStorage.addAIResearch(
+        targetBookId,
+        targetChapter,
+        targetVerses,
+        {
+          query,
+          response: responseToSave,
+          tags: baseTags,
+        }
+      );
 
-      // Save English version
-      if (isBilingual && parsed.en) {
-        const enResponse = this.truncateContent(parsed.en, AUTO_SAVE_CONFIG.MAX_RESPONSE_SIZE);
-        const enTags = [...baseTags, 'english'];
-        
-        const enId = await verseDataStorage.addAIResearch(
-          targetBookId,
-          targetChapter,
-          targetVerses,
-          {
-            query,
-            response: enResponse,
-            tags: enTags,
-          }
-        );
-        
-        researchIds.push(enId);
-        savedCount++;
-      }
-
-      // Save single language version
-      if (!isBilingual && 'single' in parsed) {
-        const singleResponse = this.truncateContent(parsed.single, AUTO_SAVE_CONFIG.MAX_RESPONSE_SIZE);
-        
-        const singleId = await verseDataStorage.addAIResearch(
-          targetBookId,
-          targetChapter,
-          targetVerses,
-          {
-            query,
-            response: singleResponse,
-            tags: baseTags,
-          }
-        );
-        
-        researchIds.push(singleId);
-        savedCount++;
-      }
+      const researchIds = [id];
+      const savedCount = 1;
 
       // Add to duplicate cache
       this.duplicateCache.add(contentHash);
@@ -385,6 +343,14 @@ class AutoSaveResearchService {
         recentCount: 0,
       };
     }
+  }
+
+  /**
+   * Reset internal state. Call from test beforeEach to ensure isolation.
+   * @internal
+   */
+  resetForTesting(): void {
+    this.duplicateCache.clear();
   }
 }
 
