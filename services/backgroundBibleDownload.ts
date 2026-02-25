@@ -7,7 +7,7 @@
  */
 import { bibleStorage, BibleTranslation } from './bibleStorage';
 import { BIBLE_BOOKS } from './bibleBookData';
-import { BIBLE_API_BASE } from './apiConfig';
+import { buildChapterUrl } from './apiConfig';
 
 export interface BgDownloadProgress {
   cached: number;
@@ -257,7 +257,8 @@ class BackgroundBibleDownloadService {
 
   private async fetchAndSave(bookId: string, chapter: number, translation: BibleTranslation): Promise<boolean> {
     try {
-      const url = `${BIBLE_API_BASE}/${bookId}${chapter}?translation=${translation}`;
+      const book = BIBLE_BOOKS.find(b => b.id === bookId);
+      const url = buildChapterUrl(bookId, chapter, translation, book?.totalVerses);
       const res = await fetch(url, { signal: this.abortController?.signal });
       if (!res.ok) {
         if (res.status === 429) {
