@@ -1,25 +1,20 @@
 /**
  * syncService.ts
- * 
- * Handles bidirectional sync between local storage (IndexedDB/localStorage) 
- * and Supabase cloud storage. Works only when user is authenticated.
- * 
- * Features:
- * - Manual and automatic sync
- * - Conflict resolution (last-write-wins)
- * - Background sync on app startup
- * - Incremental sync (only changed items)
+ *
+ * Supabase sync service — DISABLED.
+ * Google Drive is now the single source of truth for all user data.
+ * This file is preserved for future use but all sync is disabled.
+ *
+ * To re-enable: set isSyncEnabled = true and restore callers.
  */
 
-import { 
-  supabase, 
-  authManager, 
-  syncManager, 
+export const isSyncEnabled = false;
+
+import {
+  supabase,
+  authManager,
+  syncManager,
   canSync,
-  DbNote,
-  DbAnnotation,
-  DbReadingHistory,
-  DbLastRead
 } from './supabase';
 import { notesStorage } from './notesStorage';
 import { annotationStorage, AnnotationRecord } from './annotationStorage';
@@ -68,7 +63,7 @@ function setSyncState(state: Partial<SyncState>) {
 // =====================================================
 
 async function syncNotes(): Promise<void> {
-  if (!supabase || !canSync()) return;
+  if (!isSyncEnabled || !supabase || !canSync()) return;
 
   const userId = authManager.getUserId();
   if (!userId) return;
@@ -125,7 +120,7 @@ async function syncNotes(): Promise<void> {
 // =====================================================
 
 async function syncAnnotations(): Promise<void> {
-  if (!supabase || !canSync()) return;
+  if (!isSyncEnabled || !supabase || !canSync()) return;
 
   const userId = authManager.getUserId();
   if (!userId) return;
@@ -190,7 +185,7 @@ async function syncAnnotations(): Promise<void> {
 // =====================================================
 
 async function syncReadingHistory(): Promise<void> {
-  if (!supabase || !canSync()) return;
+  if (!isSyncEnabled || !supabase || !canSync()) return;
 
   const userId = authManager.getUserId();
   if (!userId) return;
@@ -272,17 +267,16 @@ async function syncReadingHistory(): Promise<void> {
 }
 
 // =====================================================
-// FULL SYNC
+// FULL SYNC (DISABLED)
 // =====================================================
 
 export async function performFullSync(): Promise<void> {
-  if (!canSync()) {
-    return;
-  }
+  if (!isSyncEnabled) return;
+  if (!canSync()) return;
 
   try {
     syncManager.setStatus('syncing');
-    
+
     await Promise.all([
       syncNotes(),
       syncAnnotations(),
@@ -291,39 +285,18 @@ export async function performFullSync(): Promise<void> {
 
     syncManager.setStatus('idle');
   } catch (error) {
-    console.error('Sync failed:', error);
     syncManager.setStatus('error', error instanceof Error ? error.message : 'Sync failed');
     throw error;
   }
 }
 
-// =====================================================
-// AUTO SYNC ON AUTH STATE CHANGE
-// =====================================================
-
-authManager.subscribe(async (state) => {
-  if (state.isAuthenticated && !state.isLoading) {
-    try {
-      await performFullSync();
-    } catch (error) {
-      console.error('Initial sync failed:', error);
-    }
-  }
+// Auth-triggered sync — disabled
+authManager.subscribe(async (_state) => {
+  // Supabase sync disabled — Google Drive handles all sync
 });
 
-// =====================================================
-// PERIODIC SYNC (every 5 minutes when authenticated)
-// =====================================================
-
-if (typeof window !== 'undefined') {
-  setInterval(() => {
-    if (canSync() && syncManager.getStatus() === 'idle') {
-      performFullSync().catch(err => {
-        console.error('Periodic sync failed:', err);
-      });
-    }
-  }, 5 * 60 * 1000); // 5 minutes
-}
+// Periodic sync — disabled
+// (no setInterval registered)
 
 // =====================================================
 // EXPORT

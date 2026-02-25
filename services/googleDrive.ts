@@ -75,23 +75,16 @@ class GoogleDriveService {
     if (this.state.isInitialized) return;
 
     if (!CLIENT_ID) {
-      console.warn('Google Drive sync disabled: VITE_GOOGLE_CLIENT_ID not configured');
       return;
     }
 
     try {
-      // Load GAPI
       await this.loadGapi();
-      
-      // Load GIS
       await this.loadGis();
 
       this.state.isInitialized = true;
       this.notifySubscribers();
-      
-      console.log('Google Drive service initialized');
     } catch (error) {
-      console.error('Failed to initialize Google Drive service:', error);
       this.state.lastError = error instanceof Error ? error.message : 'Initialization failed';
       this.notifySubscribers();
     }
@@ -177,19 +170,17 @@ class GoogleDriveService {
           this.state.isSignedIn = true;
           this.state.lastError = null;
 
-          // Get user email
           try {
             const userInfo = await this.getUserInfo();
             this.state.userEmail = userInfo.email;
-          } catch (error) {
-            console.warn('Failed to get user email:', error);
+          } catch {
+            // Non-fatal: email is optional
           }
 
-          // Ensure app folder exists
           try {
             this.state.folderId = await this.ensureAppFolder();
           } catch (error) {
-            console.error('Failed to create app folder:', error);
+            this.notifyError(error instanceof Error ? error.message : 'Failed to create app folder');
           }
 
           this.notifySubscribers();
@@ -216,9 +207,7 @@ class GoogleDriveService {
   async signOut(): Promise<void> {
     const token = gapi.client.getToken();
     if (token !== null) {
-      google.accounts.oauth2.revoke(token.access_token, () => {
-        console.log('Access token revoked');
-      });
+      google.accounts.oauth2.revoke(token.access_token, () => {});
       gapi.client.setToken(null);
     }
 
@@ -366,61 +355,77 @@ class GoogleDriveService {
   /**
    * Write a JSON file to Drive.
    * Creates new file or updates existing file.
+   * Uses apiFetch for automatic 401 retry and notifies on error.
    */
   async writeFile<T = unknown>(filename: string, data: T): Promise<void> {
-    const folderId = await this.ensureAppFolder();
+    try {
+      const folderId = await this.ensureAppFolder();
 
-    // Check if file exists
-    const listResponse = await gapi.client.drive.files.list({
-      q: `name='${filename}' and '${folderId}' in parents and trashed=false`,
-      fields: 'files(id, name)',
-      spaces: 'drive',
-    });
+      const listResponse = await gapi.client.drive.files.list({
+        q: `name='${filename}' and '${folderId}' in parents and trashed=false`,
+        fields: 'files(id, name)',
+        spaces: 'drive',
+      });
 
-    const files = listResponse.result.files;
-    const content = JSON.stringify(data, null, 2);
-    const blob = new Blob([content], { type: 'application/json' });
+      const files = listResponse.result.files;
+      const content = JSON.stringify(data, null, 2);
+      const blob = new Blob([content], { type: 'application/json' });
 
-    if (files && files.length > 0) {
-      // Update existing file
-      const fileId = files[0].id;
-      
-      const form = new FormData();
-      form.append('metadata', new Blob([JSON.stringify({})], { type: 'application/json' }));
-      form.append('file', blob);
+      if (files && files.length > 0) {
+        await this.updateExistingFile(files[0].id, blob);
+      } else {
+        await this.createNewFile(filename, folderId, blob);
+      }
 
-      await fetch(`https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`, {
+      this.state.lastError = null;
+      this.notifySubscribers();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to write file';
+      this.notifyError(message);
+      throw error;
+    }
+  }
+
+  private async updateExistingFile(fileId: string, blob: Blob): Promise<void> {
+    const form = new FormData();
+    form.append('metadata', new Blob([JSON.stringify({})], { type: 'application/json' }));
+    form.append('file', blob);
+
+    const response = await this.apiFetch(
+      `https://www.googleapis.com/upload/drive/v3/files/${fileId}?uploadType=multipart`,
+      {
         method: 'PATCH',
-        headers: {
-          Authorization: `Bearer ${this.state.accessToken}`,
-        },
+        headers: { Authorization: `Bearer ${this.state.accessToken}` },
         body: form,
-      });
-    } else {
-      // Create new file
-      const form = new FormData();
-      form.append(
-        'metadata',
-        new Blob(
-          [
-            JSON.stringify({
-              name: filename,
-              mimeType: 'application/json',
-              parents: [folderId],
-            }),
-          ],
-          { type: 'application/json' }
-        )
-      );
-      form.append('file', blob);
+      }
+    );
 
-      await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
+    if (!response.ok) {
+      throw new Error(`Drive update failed: ${response.status} ${response.statusText}`);
+    }
+  }
+
+  private async createNewFile(filename: string, folderId: string, blob: Blob): Promise<void> {
+    const metadata = JSON.stringify({
+      name: filename,
+      mimeType: 'application/json',
+      parents: [folderId],
+    });
+    const form = new FormData();
+    form.append('metadata', new Blob([metadata], { type: 'application/json' }));
+    form.append('file', blob);
+
+    const response = await this.apiFetch(
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+      {
         method: 'POST',
-        headers: {
-          Authorization: `Bearer ${this.state.accessToken}`,
-        },
+        headers: { Authorization: `Bearer ${this.state.accessToken}` },
         body: form,
-      });
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Drive create failed: ${response.status} ${response.statusText}`);
     }
   }
 
@@ -476,29 +481,27 @@ class GoogleDriveService {
   async uploadPhoto(blob: Blob, filename: string): Promise<void> {
     const photosFolderId = await this.ensureSubfolder(PHOTOS_FOLDER);
 
+    const metadata = JSON.stringify({
+      name: filename,
+      mimeType: blob.type,
+      parents: [photosFolderId],
+    });
     const form = new FormData();
-    form.append(
-      'metadata',
-      new Blob(
-        [
-          JSON.stringify({
-            name: filename,
-            mimeType: blob.type,
-            parents: [photosFolderId],
-          }),
-        ],
-        { type: 'application/json' }
-      )
-    );
+    form.append('metadata', new Blob([metadata], { type: 'application/json' }));
     form.append('file', blob);
 
-    await fetch('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${this.state.accessToken}`,
-      },
-      body: form,
-    });
+    const response = await this.apiFetch(
+      'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart',
+      {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${this.state.accessToken}` },
+        body: form,
+      }
+    );
+
+    if (!response.ok) {
+      throw new Error(`Photo upload failed: ${response.status}`);
+    }
   }
 
   /**
@@ -507,31 +510,27 @@ class GoogleDriveService {
   async downloadPhoto(filename: string): Promise<Blob> {
     const photosFolderId = await this.ensureSubfolder(PHOTOS_FOLDER);
 
-    // Find photo
-    const response = await gapi.client.drive.files.list({
+    const listResponse = await gapi.client.drive.files.list({
       q: `name='${filename}' and '${photosFolderId}' in parents and trashed=false`,
       fields: 'files(id)',
       spaces: 'drive',
     });
 
-    const files = response.result.files;
+    const files = listResponse.result.files;
     if (!files || files.length === 0) {
       throw new Error(`Photo not found: ${filename}`);
     }
 
-    // Download photo
     const fileId = files[0].id;
-    const downloadResponse = await fetch(
+    const downloadResponse = await this.apiFetch(
       `https://www.googleapis.com/drive/v3/files/${fileId}?alt=media`,
       {
-        headers: {
-          Authorization: `Bearer ${this.state.accessToken}`,
-        },
+        headers: { Authorization: `Bearer ${this.state.accessToken}` },
       }
     );
 
     if (!downloadResponse.ok) {
-      throw new Error('Failed to download photo');
+      throw new Error(`Photo download failed: ${downloadResponse.status}`);
     }
 
     return downloadResponse.blob();
@@ -596,6 +595,36 @@ class GoogleDriveService {
   }
 
   /**
+   * Set lastError in state and notify subscribers.
+   */
+  private notifyError(message: string): void {
+    this.state.lastError = message;
+    this.notifySubscribers();
+  }
+
+  /**
+   * Fetch wrapper that handles 401/403 by re-authenticating and retrying once.
+   */
+  private async apiFetch(url: string, options: RequestInit): Promise<Response> {
+    const response = await fetch(url, options);
+
+    if (response.status === 401 || response.status === 403) {
+      await this.signIn();
+
+      const retryOptions: RequestInit = {
+        ...options,
+        headers: {
+          ...(options.headers as Record<string, string>),
+          Authorization: `Bearer ${this.state.accessToken}`,
+        },
+      };
+      return fetch(url, retryOptions);
+    }
+
+    return response;
+  }
+
+  /**
    * Get current state.
    */
   getState(): DriveState {
@@ -608,7 +637,5 @@ export const googleDrive = new GoogleDriveService();
 
 // Auto-initialize on module load
 if (typeof window !== 'undefined') {
-  googleDrive.initialize().catch(err => {
-    console.warn('Google Drive auto-init failed:', err);
-  });
+  googleDrive.initialize().catch(() => {});
 }

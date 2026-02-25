@@ -10,7 +10,8 @@ import { printStudyNotes, PrintOptions } from './services/printService';
 import { useSeasonThemeInit, SeasonThemeProvider } from './hooks/useSeasonTheme';
 import { VibeStyles, isVibeAvailable, loadVibeStyles, getEmptyStyles } from './services/vibe';
 import { useDataStats } from './hooks/useDataStats';
-import './services/syncService'; // Initialize sync service
+// Supabase sync disabled — Google Drive is the single source of truth
+// import './services/syncService';
 import { backgroundBibleDownload, BgDownloadProgress } from './services/backgroundBibleDownload';
 
 // Lazy load heavy components for code splitting

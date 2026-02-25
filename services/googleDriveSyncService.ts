@@ -17,10 +17,12 @@ import { notesStorage } from './notesStorage';
 import { bookmarkStorage, Bookmark } from './bookmarkStorage';
 import { annotationStorage, AnnotationRecord } from './annotationStorage';
 import { readingHistory } from './readingHistory';
+import { readingPlanStorage, ReadingPlanState } from './readingPlanStorage';
+import { verseDataStorage } from './verseDataStorage';
+import type { VerseData } from '../types/verseData';
 import type {
   Note,
   ReadingHistoryEntry,
-  ReadingPosition,
   AppSettings,
 } from './types';
 
@@ -63,9 +65,7 @@ class GoogleDriveSyncService {
 
     // Set new timer
     this.debounceTimer = window.setTimeout(() => {
-      this.syncNow().catch(err => {
-        console.error('Debounced sync failed:', err);
-      });
+      this.syncNow().catch(() => {});
     }, this.DEBOUNCE_MS);
   }
 
@@ -87,7 +87,6 @@ class GoogleDriveSyncService {
       const items = Array.from(this.syncQueue.values());
       this.syncQueue.clear();
 
-      // Sync each queued item
       for (const item of items) {
         switch (item.type) {
           case 'notes':
@@ -105,17 +104,17 @@ class GoogleDriveSyncService {
           case 'settings':
             await this.syncSettings();
             break;
-          default:
-            console.warn(`Unknown sync type: ${item.type}`);
+          case 'plans':
+            await this.syncReadingPlans();
+            break;
+          case 'verseData':
+            await this.syncVerseData();
+            break;
         }
       }
 
-      // Update last sync time
       await googleDrive.setLastSyncTime(Date.now());
-      
-      console.log('Sync completed successfully');
     } catch (error) {
-      console.error('Sync failed:', error);
       throw error;
     } finally {
       this.isSyncing = false;
@@ -128,28 +127,25 @@ class GoogleDriveSyncService {
    */
   async syncAll(): Promise<void> {
     if (!googleDrive.isSignedIn()) {
-      console.log('Cannot sync: not signed in');
       return;
     }
 
     this.isSyncing = true;
 
     try {
-      console.log('Starting full sync...');
-      
       await Promise.all([
         this.syncNotes(),
         this.syncBookmarks(),
         this.syncAnnotations(),
         this.syncReadingHistory(),
         this.syncSettings(),
+        this.syncReadingPlans(),
+        this.syncVerseData(),
+        this.syncPhotos(),
       ]);
 
       await googleDrive.setLastSyncTime(Date.now());
-      
-      console.log('Full sync completed successfully');
     } catch (error) {
-      console.error('Full sync failed:', error);
       throw error;
     } finally {
       this.isSyncing = false;
@@ -161,7 +157,6 @@ class GoogleDriveSyncService {
   // =====================================================
 
   private async syncNotes(): Promise<void> {
-    console.log('Syncing notes...');
 
     // Get local notes
     const localNotesMap = await notesStorage.getAllNotes();
@@ -198,10 +193,7 @@ class GoogleDriveSyncService {
       }
     }
 
-    // Update remote
     await googleDrive.writeFile(DRIVE_FILES.NOTES, merged);
-    
-    console.log(`Notes synced: ${merged.length} total`);
   }
 
   private mergeNotes(local: Note[], remote: Note[]): Note[] {
@@ -228,7 +220,6 @@ class GoogleDriveSyncService {
   // =====================================================
 
   private async syncBookmarks(): Promise<void> {
-    console.log('Syncing bookmarks...');
 
     // Get local bookmarks
     const localBookmarks = await bookmarkStorage.getAllBookmarks();
@@ -248,10 +239,7 @@ class GoogleDriveSyncService {
       await bookmarkStorage.importBookmark(bookmark);
     }
 
-    // Update remote
     await googleDrive.writeFile(DRIVE_FILES.BOOKMARKS, merged);
-    
-    console.log(`Bookmarks synced: ${merged.length} total`);
   }
 
   private mergeBookmarks(local: Bookmark[], remote: Bookmark[]): Bookmark[] {
@@ -278,7 +266,6 @@ class GoogleDriveSyncService {
   // =====================================================
 
   private async syncAnnotations(): Promise<void> {
-    console.log('Syncing annotations...');
 
     // Get local annotations
     const localAnnotations = await annotationStorage.getAllAnnotations();
@@ -319,10 +306,7 @@ class GoogleDriveSyncService {
       });
     }
 
-    // Update remote
     await googleDrive.writeFile(DRIVE_FILES.ANNOTATIONS, merged);
-    
-    console.log(`Annotations synced: ${merged.length} total`);
   }
 
   private mergeAnnotations(local: AnnotationRecord[], remote: AnnotationRecord[]): AnnotationRecord[] {
@@ -349,7 +333,6 @@ class GoogleDriveSyncService {
   // =====================================================
 
   private async syncReadingHistory(): Promise<void> {
-    console.log('Syncing reading history...');
 
     // Get local history
     const localHistory = readingHistory.getHistory();
@@ -392,13 +375,10 @@ class GoogleDriveSyncService {
       );
     }
 
-    // Update remote
     await googleDrive.writeFile(DRIVE_FILES.READING_HISTORY, {
       history: merged,
       lastRead: mergedLastRead,
     });
-    
-    console.log(`Reading history synced: ${merged.length} entries`);
   }
 
   private mergeReadingHistory(
@@ -430,7 +410,6 @@ class GoogleDriveSyncService {
   // =====================================================
 
   private async syncSettings(): Promise<void> {
-    console.log('Syncing settings...');
 
     // Get local settings (from localStorage)
     const localSettings: Partial<AppSettings> = {
@@ -450,10 +429,88 @@ class GoogleDriveSyncService {
     if (merged.chineseMode) localStorage.setItem('chineseMode', merged.chineseMode);
     if (merged.theme) localStorage.setItem('theme', merged.theme);
 
-    // Update remote
     await googleDrive.writeFile(DRIVE_FILES.SETTINGS, merged);
-    
-    console.log('Settings synced');
+  }
+
+  // =====================================================
+  // READING PLANS SYNC
+  // =====================================================
+
+  private async syncReadingPlans(): Promise<void> {
+    const localPlans = await readingPlanStorage.getAllPlans();
+    const remotePlans: ReadingPlanState[] = await googleDrive.readFile(DRIVE_FILES.READING_PLANS) || [];
+
+    const merged = this.mergePlans(localPlans, remotePlans);
+
+    for (const plan of merged) {
+      await readingPlanStorage.importPlan(plan);
+    }
+
+    await googleDrive.writeFile(DRIVE_FILES.READING_PLANS, merged);
+  }
+
+  private mergePlans(local: ReadingPlanState[], remote: ReadingPlanState[]): ReadingPlanState[] {
+    const merged = new Map<string, ReadingPlanState>();
+
+    for (const plan of local) {
+      merged.set(plan.id, plan);
+    }
+
+    for (const plan of remote) {
+      const existing = merged.get(plan.id);
+      if (!existing || plan.completedDays.length >= existing.completedDays.length) {
+        merged.set(plan.id, plan);
+      }
+    }
+
+    return Array.from(merged.values());
+  }
+
+  // =====================================================
+  // VERSE DATA SYNC
+  // =====================================================
+
+  private async syncVerseData(): Promise<void> {
+    const localData = await verseDataStorage.exportData();
+    const remoteData: VerseData[] = await googleDrive.readFile(DRIVE_FILES.VERSE_DATA) || [];
+
+    const merged = this.mergeVerseData(localData, remoteData);
+
+    await verseDataStorage.importData(merged, 'replace');
+    await googleDrive.writeFile(DRIVE_FILES.VERSE_DATA, merged);
+  }
+
+  private mergeVerseData(local: VerseData[], remote: VerseData[]): VerseData[] {
+    const merged = new Map<string, VerseData>();
+
+    for (const item of local) {
+      merged.set(item.id, item);
+    }
+
+    for (const item of remote) {
+      const existing = merged.get(item.id);
+      const remoteUpdated = item.personalNote?.updatedAt ?? 0;
+      const localUpdated = existing?.personalNote?.updatedAt ?? 0;
+      if (!existing || remoteUpdated > localUpdated) {
+        merged.set(item.id, item);
+      }
+    }
+
+    return Array.from(merged.values());
+  }
+
+  // =====================================================
+  // PHOTO SYNC
+  // =====================================================
+
+  private async syncPhotos(): Promise<void> {
+    const remotePhotos = await googleDrive.listPhotos();
+
+    // Photos are write-only during sync (upload happens at capture time).
+    // On restore, we verify the remote list is available for download.
+    // Full bidirectional photo sync requires a local photo index — not implemented yet.
+    // This method is a placeholder to wire into syncAll().
+    void remotePhotos;
   }
 
   // =====================================================
@@ -476,17 +533,12 @@ export const googleDriveSyncService = new GoogleDriveSyncService();
 if (typeof window !== 'undefined') {
   googleDrive.subscribe((state) => {
     if (state.isSignedIn && !state.lastError) {
-      console.log('User signed in - starting initial sync');
-      googleDriveSyncService.syncAll().catch(err => {
-        console.error('Initial sync failed:', err);
-      });
+      googleDriveSyncService.syncAll().catch(() => {});
     }
   });
 
-  // Sync before page unload
   window.addEventListener('beforeunload', () => {
     if (googleDriveSyncService.canSync() && !googleDriveSyncService.isSyncInProgress()) {
-      // Quick sync attempt (may not complete if page closes fast)
       googleDriveSyncService.syncNow().catch(() => {});
     }
   });

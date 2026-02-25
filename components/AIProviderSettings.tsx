@@ -64,8 +64,7 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
   const handleGoogleSignIn = async () => {
     try {
       await googleDrive.signIn();
-    } catch (error) {
-      console.error('Failed to sign in to Google:', error);
+    } catch {
       alert('Failed to sign in to Google. Please try again.');
     }
   };
@@ -74,8 +73,8 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
     if (confirm('Are you sure you want to sign out? Your data will remain in Google Drive.')) {
       try {
         await googleDrive.signOut();
-      } catch (error) {
-        console.error('Failed to sign out from Google:', error);
+      } catch {
+        // Sign-out failure is non-fatal
       }
     }
   };
@@ -89,8 +88,7 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
       const newLastSyncTime = await googleDrive.getLastSyncTime();
       setLastSyncTime(newLastSyncTime);
       alert('Sync completed successfully!');
-    } catch (error) {
-      console.error('Sync failed:', error);
+    } catch {
       alert('Sync failed. Please try again.');
     } finally {
       setIsSyncing(false);
@@ -309,17 +307,35 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
 
             {driveState.isSignedIn ? (
               <div className="space-y-4">
+                {/* Error banner */}
+                {driveState.lastError && (
+                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-start gap-2">
+                    <svg className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                    <p className="text-xs text-red-700">Sync error: {driveState.lastError}</p>
+                  </div>
+                )}
+
                 {/* Signed In State */}
-                <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-xl">
+                <div className={`p-4 rounded-xl border ${driveState.lastError ? 'bg-amber-50 border-amber-200' : 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200'}`}>
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                        <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${driveState.lastError ? 'bg-amber-100' : 'bg-green-100'}`}>
+                        {driveState.lastError ? (
+                          <svg className="w-6 h-6 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                          </svg>
+                        ) : (
+                          <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                        )}
                       </div>
                       <div>
-                        <p className="font-semibold text-slate-800">Synced with Google Drive</p>
+                        <p className="font-semibold text-slate-800">
+                          {driveState.lastError ? 'Sync Error' : 'Synced with Google Drive'}
+                        </p>
                         <p className="text-sm text-slate-600">{driveState.userEmail || 'Signed in'}</p>
                         <p className="text-xs text-slate-500 mt-1">
                           Last sync: {formatSyncTime(lastSyncTime)}
