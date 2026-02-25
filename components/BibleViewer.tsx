@@ -1,4 +1,4 @@
-import { BIBLE_API_BASE } from '../services/apiConfig';
+import { buildChapterUrl } from '../services/apiConfig';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Verse, Book, SelectionInfo } from '../types';
 import { BIBLE_BOOKS, CHINESE_ABBREV_TO_BOOK_ID } from '../constants';
@@ -794,7 +794,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
 
         // Try to update from network in background (don't show loading)
         // Only save to cache, don't update state (avoids unnecessary re-renders)
-        fetch(`${BIBLE_API_BASE}/${selectedBook.id}${selectedChapter}?translation=cuv`)
+        fetch(buildChapterUrl(selectedBook.id, selectedChapter, 'cuv', selectedBook.totalVerses))
           .then(res => res.json())
           .then(data => {
             if (!ctrl.cancelled && data.verses) {
@@ -803,7 +803,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           })
           .catch(() => {});
 
-        fetch(`${BIBLE_API_BASE}/${selectedBook.id}${selectedChapter}?translation=${englishVersion}`)
+        fetch(buildChapterUrl(selectedBook.id, selectedChapter, englishVersion, selectedBook.totalVerses))
           .then(res => res.json())
           .then(data => {
             if (!ctrl.cancelled && data.verses) {
@@ -820,8 +820,8 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     if (!loadedFromCache) {
       try {
         const [cuvRes, engRes] = await Promise.all([
-          fetch(`${BIBLE_API_BASE}/${selectedBook.id}${selectedChapter}?translation=cuv`),
-          fetch(`${BIBLE_API_BASE}/${selectedBook.id}${selectedChapter}?translation=${englishVersion}`)
+          fetch(buildChapterUrl(selectedBook.id, selectedChapter, 'cuv', selectedBook.totalVerses)),
+          fetch(buildChapterUrl(selectedBook.id, selectedChapter, englishVersion, selectedBook.totalVerses))
         ]);
 
         if (ctrl.cancelled) return;
@@ -940,7 +940,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       let cuvSuccess = false;
       for (let retry = 0; retry < 3 && !cuvSuccess; retry++) {
         try {
-          const cuvRes = await fetch(`${BIBLE_API_BASE}/${selectedBook.id}${selectedChapter}?translation=cuv`);
+          const cuvRes = await fetch(buildChapterUrl(selectedBook.id, selectedChapter, 'cuv', selectedBook.totalVerses));
           if (cuvRes.ok) {
             const cuvData = await cuvRes.json();
             if (cuvData?.verses) {
@@ -958,7 +958,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       let webSuccess = false;
       for (let retry = 0; retry < 3 && !webSuccess; retry++) {
         try {
-          const webRes = await fetch(`${BIBLE_API_BASE}/${selectedBook.id}${selectedChapter}?translation=${englishVersion}`);
+          const webRes = await fetch(buildChapterUrl(selectedBook.id, selectedChapter, englishVersion, selectedBook.totalVerses));
           if (webRes.ok) {
             const webData = await webRes.json();
             if (webData?.verses) {
@@ -1022,7 +1022,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
 
         // Download CUV
         try {
-          const cuvRes = await fetch(`${BIBLE_API_BASE}/${selectedBook.id}${chapter}?translation=cuv`);
+          const cuvRes = await fetch(buildChapterUrl(selectedBook.id, chapter, 'cuv', selectedBook.totalVerses));
           if (cuvRes.ok) {
             const cuvData = await cuvRes.json();
             if (cuvData?.verses) {
@@ -1040,7 +1040,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
 
         // Download WEB
         try {
-          const webRes = await fetch(`${BIBLE_API_BASE}/${selectedBook.id}${chapter}?translation=${englishVersion}`);
+          const webRes = await fetch(buildChapterUrl(selectedBook.id, chapter, englishVersion, selectedBook.totalVerses));
           if (webRes.ok) {
             const webData = await webRes.json();
             if (webData?.verses) {
@@ -1120,7 +1120,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           let cuvSuccess = false;
           for (let retry = 0; retry < 3 && !cuvSuccess; retry++) {
             try {
-              const cuvRes = await fetch(`${BIBLE_API_BASE}/${book.id}${chapter}?translation=cuv`);
+              const cuvRes = await fetch(buildChapterUrl(book.id, chapter, 'cuv', book.totalVerses));
               if (cuvRes.ok) {
                 const cuvData = await cuvRes.json();
                 if (cuvData?.verses) {
@@ -1155,7 +1155,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           let webSuccess = false;
           for (let retry = 0; retry < 3 && !webSuccess; retry++) {
             try {
-              const webRes = await fetch(`${BIBLE_API_BASE}/${book.id}${chapter}?translation=${englishVersion}`);
+              const webRes = await fetch(buildChapterUrl(book.id, chapter, englishVersion, book.totalVerses));
               if (webRes.ok) {
                 const webData = await webRes.json();
                 if (webData?.verses) {
