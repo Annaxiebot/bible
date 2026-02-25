@@ -113,7 +113,7 @@ async function syncNotes(): Promise<void> {
         verse: verse || null,
         content,
         updated_at: new Date().toISOString()
-      });
+      }, { onConflict: 'user_id,reference' });
     }
   }
 
@@ -245,7 +245,7 @@ async function syncReadingHistory(): Promise<void> {
       book_name: lastRead.bookName,
       chapter: lastRead.chapter,
       updated_at: new Date(lastRead.timestamp).toISOString()
-    });
+    }, { onConflict: 'user_id' });
   }
 
   // Get remote last read and update local if newer
