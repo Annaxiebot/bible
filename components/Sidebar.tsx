@@ -5,6 +5,7 @@ import { readingPlanStorage, ReadingPlanState, READING_PLANS, PlanType, ReadingP
 import { useSeasonTheme } from '../hooks/useSeasonTheme';
 import { ALL_SEASONS, getThemeForSeason, getSeason } from '../services/seasonTheme';
 import { AuthPanel } from './AuthPanel';
+import { autoSaveResearchService } from '../services/autoSaveResearchService';
 
 export interface BgDownloadProgress {
   cached: number;
@@ -104,6 +105,8 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [todaysReading, setTodaysReading] = useState<ReadingPlanDay[]>([]);
   const [planProgress, setPlanProgress] = useState(0);
   const [showPlanPicker, setShowPlanPicker] = useState(false);
+
+  const [autoSaveNotes, setAutoSaveNotes] = useState(() => autoSaveResearchService.isAutoSaveEnabled());
 
   // English version state
   const [englishVersion, setEnglishVersionState] = useState(() => {
@@ -899,7 +902,11 @@ const Sidebar: React.FC<SidebarProps> = ({
                     type="checkbox"
                     className="w-4 h-4 rounded focus:ring-2"
                     style={{ accentColor: theme.accent }}
-                    defaultChecked
+                    checked={autoSaveNotes}
+                    onChange={(e) => {
+                      autoSaveResearchService.setAutoSaveEnabled(e.target.checked);
+                      setAutoSaveNotes(e.target.checked);
+                    }}
                   />
                   <span className="text-sm text-slate-700">自动保存笔记 Auto-save notes</span>
                 </label>
