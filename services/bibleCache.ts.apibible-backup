@@ -1,0 +1,490 @@
+import { BIBLE_BOOKS } from '../constants';
+import { fetchEsvChapter } from './esvApi';
+
+export interface CachedChapter {
+  bookId: string;
+  chapter: number;
+  cuvVerses: any[];
+  esvVerses: any[]; // Changed from nivVerses to esvVerses (English Standard Version)
+  timestamp: number;
+}
+
+export interface DownloadProgress {
+  current: number;
+  total: number;
+  bookName: string;
+  chapter: number;
+}
+
+const CACHE_KEY_PREFIX = 'bible_cache_';
+const CACHE_INDEX_KEY = 'bible_cache_index';
+const API_BASE_URL = 'https://api.scripture.api.bible/v1';
+const CUV_BIBLE_ID = '22b934ce0f3ca409-01'; // CUV (Chinese Union Version - may need to verify)
+// ESV is now fetched from ESV API (api.esv.org) instead of API.Bible
+
+// Map bible-api.com book IDs to API.Bible book IDs
+const BOOK_ID_MAP: Record<string, string> = {
+  'Gen': 'GEN',
+  'Exod': 'EXO',
+  'Lev': 'LEV',
+  'Num': 'NUM',
+  'Deut': 'DEU',
+  'Josh': 'JOS',
+  'Judg': 'JDG',
+  'Ruth': 'RUT',
+  '1Sam': '1SA',
+  '2Sam': '2SA',
+  '1Kgs': '1KI',
+  '2Kgs': '2KI',
+  '1Chr': '1CH',
+  '2Chr': '2CH',
+  'Ezra': 'EZR',
+  'Neh': 'NEH',
+  'Esth': 'EST',
+  'Job': 'JOB',
+  'Ps': 'PSA',
+  'Prov': 'PRO',
+  'Eccl': 'ECC',
+  'Song': 'SNG',
+  'Isa': 'ISA',
+  'Jer': 'JER',
+  'Lam': 'LAM',
+  'Ezek': 'EZK',
+  'Dan': 'DAN',
+  'Hos': 'HOS',
+  'Joel': 'JOL',
+  'Amos': 'AMO',
+  'Obad': 'OBA',
+  'Jonah': 'JON',
+  'Mic': 'MIC',
+  'Nah': 'NAM',
+  'Hab': 'HAB',
+  'Zeph': 'ZEP',
+  'Hag': 'HAG',
+  'Zech': 'ZEC',
+  'Mal': 'MAL',
+  'Matt': 'MAT',
+  'Mark': 'MRK',
+  'Luke': 'LUK',
+  'John': 'JHN',
+  'Acts': 'ACT',
+  'Rom': 'ROM',
+  '1Cor': '1CO',
+  '2Cor': '2CO',
+  'Gal': 'GAL',
+  'Eph': 'EPH',
+  'Phil': 'PHP',
+  'Col': 'COL',
+  '1Thess': '1TH',
+  '2Thess': '2TH',
+  '1Tim': '1TI',
+  '2Tim': '2TI',
+  'Titus': 'TIT',
+  'Phlm': 'PHM',
+  'Heb': 'HEB',
+  'Jas': 'JAS',
+  '1Pet': '1PE',
+  '2Pet': '2PE',
+  '1John': '1JN',
+  '2John': '2JN',
+  '3John': '3JN',
+  'Jude': 'JUD',
+  'Rev': 'REV'
+};
+
+function getApiKey(): string {
+  // Try to get from import.meta.env first (Vite)
+  const apiKey = (import.meta as any).env?.VITE_BIBLE_API_KEY || 
+                 (import.meta as any).env?.BIBLE_API_KEY;
+  
+  if (!apiKey) {
+    throw new Error('BIBLE_API_KEY not found in environment variables. Please set VITE_BIBLE_API_KEY in .env.local');
+  }
+  
+  return apiKey;
+}
+
+// Convert bible-api.com book ID to API.Bible format
+function convertBookId(oldBookId: string): string {
+  return BOOK_ID_MAP[oldBookId] || oldBookId.toUpperCase();
+}
+
+// Convert API.Bible verse data to match old format
+function convertApiBibleVerse(verse: any, verseNumber: number): any {
+  return {
+    book_id: verse.bookId,
+    book_name: verse.bookName,
+    chapter: verse.chapterId?.split('.')[1] || '',
+    verse: verseNumber,
+    text: verse.text || ''
+  };
+}
+
+export class BibleCacheService {
+  // Get cached chapter from localStorage
+  static getCachedChapter(bookId: string, chapter: number): CachedChapter | null {
+    const key = `${CACHE_KEY_PREFIX}${bookId}_${chapter}`;
+    const cached = localStorage.getItem(key);
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch (e) {
+        console.error('Failed to parse cached chapter', e);
+        return null;
+      }
+    }
+    return null;
+  }
+
+  // Save chapter to localStorage
+  static cacheChapter(bookId: string, chapter: number, cuvVerses: any[], esvVerses: any[]) {
+    const key = `${CACHE_KEY_PREFIX}${bookId}_${chapter}`;
+    const data: CachedChapter = {
+      bookId,
+      chapter,
+      cuvVerses,
+      esvVerses, // ESV verses
+      timestamp: Date.now()
+    };
+    
+    try {
+      localStorage.setItem(key, JSON.stringify(data));
+      this.updateCacheIndex(bookId, chapter);
+    } catch (e) {
+      console.error('Failed to cache chapter', e);
+      // If localStorage is full, clear old cache
+      if (e instanceof DOMException && e.code === 22) {
+        this.clearOldCache();
+        try {
+          localStorage.setItem(key, JSON.stringify(data));
+          this.updateCacheIndex(bookId, chapter);
+        } catch (e2) {
+          console.error('Still failed after clearing cache', e2);
+        }
+      }
+    }
+  }
+
+  // Update cache index
+  private static updateCacheIndex(bookId: string, chapter: number) {
+    const indexStr = localStorage.getItem(CACHE_INDEX_KEY);
+    let index: Record<string, number[]> = {};
+    
+    if (indexStr) {
+      try {
+        index = JSON.parse(indexStr);
+      } catch (e) {
+        console.error('Failed to parse cache index', e);
+      }
+    }
+    
+    if (!index[bookId]) {
+      index[bookId] = [];
+    }
+    
+    if (!index[bookId].includes(chapter)) {
+      index[bookId].push(chapter);
+      index[bookId].sort((a, b) => a - b);
+    }
+    
+    localStorage.setItem(CACHE_INDEX_KEY, JSON.stringify(index));
+  }
+
+  // Get cache statistics
+  static getCacheStats(): { totalChapters: number; cachedChapters: number; books: Record<string, number[]> } {
+    const indexStr = localStorage.getItem(CACHE_INDEX_KEY);
+    let index: Record<string, number[]> = {};
+    
+    if (indexStr) {
+      try {
+        index = JSON.parse(indexStr);
+      } catch (e) {
+        console.error('Failed to parse cache index', e);
+      }
+    }
+    
+    let totalChapters = 0;
+    let cachedChapters = 0;
+    
+    BIBLE_BOOKS.forEach(book => {
+      totalChapters += book.chapters;
+      if (index[book.id]) {
+        cachedChapters += index[book.id].length;
+      }
+    });
+    
+    return { totalChapters, cachedChapters, books: index };
+  }
+
+  // Clear old cache (keep recent 100 chapters)
+  static clearOldCache() {
+    const allKeys = Object.keys(localStorage).filter(k => k.startsWith(CACHE_KEY_PREFIX));
+    const chapters: Array<{ key: string; timestamp: number }> = [];
+    
+    allKeys.forEach(key => {
+      const data = localStorage.getItem(key);
+      if (data) {
+        try {
+          const parsed = JSON.parse(data);
+          chapters.push({ key, timestamp: parsed.timestamp || 0 });
+        } catch (e) {
+          // Remove corrupted data
+          localStorage.removeItem(key);
+        }
+      }
+    });
+    
+    // Sort by timestamp and keep newest 100
+    chapters.sort((a, b) => b.timestamp - a.timestamp);
+    const toRemove = chapters.slice(100);
+    
+    toRemove.forEach(item => {
+      localStorage.removeItem(item.key);
+    });
+    
+    // Rebuild index
+    this.rebuildCacheIndex();
+  }
+
+  // Clear all Bible cache
+  static clearAllCache() {
+    const allKeys = Object.keys(localStorage).filter(k => 
+      k.startsWith(CACHE_KEY_PREFIX) || k === CACHE_INDEX_KEY
+    );
+    allKeys.forEach(key => localStorage.removeItem(key));
+  }
+
+  // Rebuild cache index from existing cached data
+  private static rebuildCacheIndex() {
+    const index: Record<string, number[]> = {};
+    const allKeys = Object.keys(localStorage).filter(k => k.startsWith(CACHE_KEY_PREFIX));
+    
+    allKeys.forEach(key => {
+      const match = key.match(new RegExp(`^${CACHE_KEY_PREFIX}(.+)_(\\d+)$`));
+      if (match) {
+        const bookId = match[1];
+        const chapter = parseInt(match[2]);
+        if (!index[bookId]) {
+          index[bookId] = [];
+        }
+        index[bookId].push(chapter);
+      }
+    });
+    
+    // Sort chapters
+    Object.keys(index).forEach(bookId => {
+      index[bookId].sort((a, b) => a - b);
+    });
+    
+    localStorage.setItem(CACHE_INDEX_KEY, JSON.stringify(index));
+  }
+
+  // Fetch chapter from API.Bible
+  private static async fetchApiBibleChapter(bibleId: string, bookId: string, chapter: number): Promise<any[]> {
+    const apiKey = getApiKey();
+    const apiBibleBookId = convertBookId(bookId);
+    const chapterId = `${apiBibleBookId}.${chapter}`;
+    
+    const response = await fetch(
+      `${API_BASE_URL}/bibles/${bibleId}/chapters/${chapterId}?content-type=text&include-notes=false&include-titles=false&include-chapter-numbers=false&include-verse-numbers=true&include-verse-spans=false`,
+      {
+        headers: {
+          'api-key': apiKey
+        }
+      }
+    );
+    
+    if (!response.ok) {
+      throw new Error(`API.Bible request failed: ${response.status} ${response.statusText}`);
+    }
+    
+    const data = await response.json();
+    
+    // Parse the content into verses
+    const content = data.data?.content || '';
+    const verses: any[] = [];
+    
+    // API.Bible returns verse markers like [1] text [2] text
+    // We need to parse this into individual verse objects
+    const versePattern = /\[(\d+)\]\s*([^\[]*?)(?=\[|$)/g;
+    let match;
+    
+    while ((match = versePattern.exec(content)) !== null) {
+      const verseNumber = parseInt(match[1]);
+      const text = match[2].trim();
+      
+      if (text) {
+        verses.push({
+          book_id: bookId,
+          book_name: data.data?.reference || '',
+          chapter: chapter,
+          verse: verseNumber,
+          text: text
+        });
+      }
+    }
+    
+    return verses;
+  }
+
+  // Download single chapter
+  static async downloadChapter(bookId: string, chapter: number): Promise<{ cuvVerses: any[]; esvVerses: any[] }> {
+    // Check cache first
+    const cached = this.getCachedChapter(bookId, chapter);
+    if (cached) {
+      return { cuvVerses: cached.cuvVerses, esvVerses: cached.esvVerses };
+    }
+    
+    try {
+      // Get book name for ESV API
+      const book = BIBLE_BOOKS.find(b => b.id === bookId);
+      if (!book) throw new Error(`Book not found: ${bookId}`);
+      
+      // Fetch CUV from API.Bible and ESV from ESV API
+      const [cuvVerses, esvVerses] = await Promise.all([
+        this.fetchApiBibleChapter(CUV_BIBLE_ID, bookId, chapter),
+        fetchEsvChapter(bookId, book.name, chapter)
+      ]);
+      
+      if (!cuvVerses || !esvVerses || cuvVerses.length === 0 || esvVerses.length === 0) {
+        throw new Error(`Failed to fetch ${bookId} chapter ${chapter}`);
+      }
+      
+      // Cache the result
+      this.cacheChapter(bookId, chapter, cuvVerses, esvVerses);
+      
+      return { cuvVerses, esvVerses };
+    } catch (error) {
+      console.error('Error fetching Bible chapter:', error);
+      throw error;
+    }
+  }
+
+  // Download entire book
+  static async downloadBook(
+    bookId: string, 
+    onProgress?: (progress: DownloadProgress) => void
+  ): Promise<void> {
+    const book = BIBLE_BOOKS.find(b => b.id === bookId);
+    if (!book) throw new Error('Book not found');
+    
+    for (let chapter = 1; chapter <= book.chapters; chapter++) {
+      if (onProgress) {
+        onProgress({
+          current: chapter - 1,
+          total: book.chapters,
+          bookName: book.name,
+          chapter
+        });
+      }
+      
+      await this.downloadChapter(bookId, chapter);
+      
+      // Add small delay to avoid overwhelming the API
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+    
+    if (onProgress) {
+      onProgress({
+        current: book.chapters,
+        total: book.chapters,
+        bookName: book.name,
+        chapter: book.chapters
+      });
+    }
+  }
+
+  // Download entire Bible
+  static async downloadWholeBible(
+    onProgress?: (progress: DownloadProgress & { bookIndex: number; totalBooks: number }) => void
+  ): Promise<void> {
+    const totalBooks = BIBLE_BOOKS.length;
+    
+    for (let bookIndex = 0; bookIndex < totalBooks; bookIndex++) {
+      const book = BIBLE_BOOKS[bookIndex];
+      
+      for (let chapter = 1; chapter <= book.chapters; chapter++) {
+        if (onProgress) {
+          onProgress({
+            current: chapter - 1,
+            total: book.chapters,
+            bookName: book.name,
+            chapter,
+            bookIndex: bookIndex + 1,
+            totalBooks
+          });
+        }
+        
+        await this.downloadChapter(book.id, chapter);
+        
+        // Add small delay to avoid overwhelming the API
+        await new Promise(resolve => setTimeout(resolve, 200));
+      }
+    }
+  }
+
+  // Export entire Bible to JSON file
+  static async exportBibleToFile(): Promise<void> {
+    const bibleData: any = {
+      version: '3.0',
+      timestamp: new Date().toISOString(),
+      translations: 'CUV+ESV',
+      books: {}
+    };
+    
+    // Collect all cached data
+    for (const book of BIBLE_BOOKS) {
+      bibleData.books[book.id] = {
+        name: book.name,
+        chapters: {}
+      };
+      
+      for (let chapter = 1; chapter <= book.chapters; chapter++) {
+        const cached = this.getCachedChapter(book.id, chapter);
+        if (cached) {
+          bibleData.books[book.id].chapters[chapter] = {
+            cuv: cached.cuvVerses,
+            esv: cached.esvVerses // ESV verses
+          };
+        }
+      }
+    }
+    
+    // Create and download file
+    const blob = new Blob([JSON.stringify(bibleData, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `bible_backup_esv_${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  // Import Bible from JSON file (backward compatible with old formats)
+  static async importBibleFromFile(file: File): Promise<void> {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    
+    if (!data.books) {
+      throw new Error('Invalid Bible backup file');
+    }
+    
+    // Import all chapters
+    for (const bookId of Object.keys(data.books)) {
+      const bookData = data.books[bookId];
+      for (const chapter of Object.keys(bookData.chapters || {})) {
+        const chapterData = bookData.chapters[chapter];
+        
+        // Support old formats (web, niv) and new format (esv)
+        const esvVerses = chapterData.esv || chapterData.niv || chapterData.web;
+        const cuvVerses = chapterData.cuv;
+        
+        if (cuvVerses && esvVerses) {
+          this.cacheChapter(bookId, parseInt(chapter), cuvVerses, esvVerses);
+        }
+      }
+    }
+  }
+}

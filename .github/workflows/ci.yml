@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [ master, main, develop ]
+  pull_request:
+    branches: [ master, main, develop ]
+
+jobs:
+  test:
+    name: Test & Build
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: Run tests
+        run: npm run test
+        continue-on-error: false
+      
+      - name: Check test coverage
+        run: |
+          npm run test:coverage
+          npx nyc check-coverage --lines 70 --branches 60 --functions 70 --statements 70
+        continue-on-error: false
+      
+      - name: Build (must succeed with zero warnings)
+        run: |
+          npm run build 2>&1 | tee build.log
+          if grep -iE "error|warning.*Duplicate|warning.*unused" build.log; then
+            echo "❌ Build has errors or warnings. Fix them before merging."
+            exit 1
+          fi
+      
+      - name: Security audit
+        run: npm audit --audit-level=high
+        continue-on-error: false
+      
+      - name: Upload coverage to Codecov (optional)
+        uses: codecov/codecov-action@v4
+        if: always()
+        with:
+          fail_ci_if_error: false
+
+  lint:
+    name: Lint & Type Check
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: TypeScript type check
+        run: npx tsc --noEmit
+        continue-on-error: false
+      
+      - name: Check for duplicate keys
+        run: |
+          echo "Checking for duplicate keys in TypeScript files..."
+          if grep -r "Duplicate key" . 2>&1 | grep -q "Duplicate"; then
+            echo "❌ Duplicate keys detected in object literals"
+            exit 1
+          fi
+          echo "✅ No duplicate keys found"
