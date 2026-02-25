@@ -315,12 +315,13 @@ interface MessageBubbleProps {
   onSpeak: (content: string) => void;
   onStop: () => void;
   onSaveResearch?: (message: ChatMessage, side: 'zh' | 'en') => void;
+  isSaved?: boolean;
   onNavigate?: (bookId: string, chapter: number, verses?: number[]) => void;
   currentBookId?: string;
   onTextSelection?: (selectedText: string, position: { x: number; y: number }) => void;
 }
 
-const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpeaking, onSpeak, onStop, onSaveResearch, onNavigate, currentBookId, onTextSelection }) => {
+const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpeaking, onSpeak, onStop, onSaveResearch, isSaved, onNavigate, currentBookId, onTextSelection }) => {
   const { zh, en } = parseMessage(m.content, m.role);
   const content = side === 'zh' ? zh : en;
 
@@ -431,13 +432,26 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpe
               </button>
               {onSaveResearch && (
                 <button
-                  onClick={() => onSaveResearch(m, side)}
-                  className="shrink-0 transition-colors p-1 rounded-full text-green-500 hover:text-green-600 hover:bg-green-50"
-                  title={side === 'zh' ? "保存到经文笔记" : "Save to verse"}
+                  onClick={() => !isSaved && onSaveResearch(m, side)}
+                  disabled={isSaved}
+                  className={`shrink-0 transition-colors p-1 rounded-full ${
+                    isSaved
+                      ? 'text-green-600 bg-green-100 cursor-default'
+                      : 'text-green-500 hover:text-green-600 hover:bg-green-50'
+                  }`}
+                  title={isSaved
+                    ? (side === 'zh' ? "已保存" : "Already saved")
+                    : (side === 'zh' ? "保存到经文笔记" : "Save to research notes")}
                 >
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/>
-                  </svg>
+                  {isSaved ? (
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/>
+                    </svg>
+                  )}
                 </button>
               )}
             </div>
@@ -474,6 +488,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [researchToSave, setResearchToSave] = useState<{ message: ChatMessage; side: 'zh' | 'en' } | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [savedMessageTimestamps, setSavedMessageTimestamps] = useState<Set<number>>(new Set());
+  const autoSaveEnabled = localStorage.getItem('auto_save_research') === 'true';
   const [input, setInput] = useState('');
   const [userQuestion, setUserQuestion] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -802,6 +818,19 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       };
 
       setMessages(prev => [...prev, assistantMessage]);
+
+      if (autoSaveEnabled && currentBookId && currentChapter) {
+        const parsed = parseMessage(assistantMessage.content, 'assistant');
+        const ts = assistantMessage.timestamp.getTime();
+        await verseDataStorage.addAIResearch(currentBookId, currentChapter, [], {
+          query: currentInput,
+          response: parsed.zh || assistantMessage.content,
+          timestamp: ts,
+          tags: [],
+        });
+        setSavedMessageTimestamps(prev => new Set([...prev, ts]));
+        if (onResearchSaved) onResearchSaved();
+      }
     } catch (error: any) {
       console.error('[AI Response Error]', error);
       const errorDetail = error?.message || error?.status || String(error);
@@ -875,10 +904,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     
     await verseDataStorage.addAIResearch(bookId, chapter, verses, research);
 
+    setSavedMessageTimestamps(prev => new Set([...prev, researchToSave.message.timestamp.getTime()]));
     setShowSaveModal(false);
     setResearchToSave(null);
 
-    // Trigger research update callback to refresh the notebook view
     if (onResearchSaved) {
       onResearchSaved();
     }
@@ -954,14 +983,15 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
             中文解读 (Scholar Research)
           </div>
           {messages.map((m, idx) => (
-            <MessageBubble 
-              key={idx} 
-              m={m} 
-              side="zh" 
-              isSpeaking={speakingMsgIndex.zh === idx} 
+            <MessageBubble
+              key={idx}
+              m={m}
+              side="zh"
+              isSpeaking={speakingMsgIndex.zh === idx}
               onSpeak={(c) => handleSpeak(c, idx, 'zh')}
               onStop={() => handleStop('zh')}
               onSaveResearch={onSaveResearch}
+              isSaved={savedMessageTimestamps.has(m.timestamp.getTime())}
               onNavigate={onNavigate}
               currentBookId={currentBookId}
               onTextSelection={handleTextSelection}
@@ -1075,14 +1105,15 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
             English Commentary (Academic)
           </div>
           {messages.map((m, idx) => (
-            <MessageBubble 
-              key={idx} 
-              m={m} 
-              side="en" 
-              isSpeaking={speakingMsgIndex.en === idx} 
+            <MessageBubble
+              key={idx}
+              m={m}
+              side="en"
+              isSpeaking={speakingMsgIndex.en === idx}
               onSpeak={(c) => handleSpeak(c, idx, 'en')}
               onStop={() => handleStop('en')}
               onSaveResearch={onSaveResearch}
+              isSaved={savedMessageTimestamps.has(m.timestamp.getTime())}
               onNavigate={onNavigate}
               currentBookId={currentBookId}
               onTextSelection={handleTextSelection}
