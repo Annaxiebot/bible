@@ -14,6 +14,7 @@ interface ChatInterfaceProps {
   incomingText?: { text: string; id: number; clearChat?: boolean } | null;
   currentBookId?: string;
   currentChapter?: number;
+  currentVerses?: number[];
   onResearchSaved?: () => void;
   onNavigate?: (bookId: string, chapter: number, verses?: number[]) => void;
   vibeClassName?: string;
@@ -483,7 +484,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpe
 });
 MessageBubble.displayName = 'MessageBubble';
 
-const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBookId, currentChapter, onResearchSaved, onNavigate, vibeClassName }) => {
+const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBookId, currentChapter, currentVerses, onResearchSaved, onNavigate, vibeClassName }) => {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [researchToSave, setResearchToSave] = useState<{ message: ChatMessage; side: 'zh' | 'en' } | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -821,7 +822,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       if (autoSaveEnabled && currentBookId && currentChapter) {
         const parsed = parseMessage(assistantMessage.content, 'assistant');
         const ts = assistantMessage.timestamp.getTime();
-        await verseDataStorage.addAIResearch(currentBookId, currentChapter, [], {
+        await verseDataStorage.addAIResearch(currentBookId, currentChapter, currentVerses ?? [], {
           query: currentInput,
           response: parsed.zh || assistantMessage.content,
           tags: [],
