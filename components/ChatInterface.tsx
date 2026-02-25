@@ -8,13 +8,13 @@ import SaveResearchModal from './SaveResearchModal';
 import { BIBLE_BOOKS, CHINESE_ABBREV_TO_BOOK_ID } from '../constants';
 import { BOOK_ID_TO_CHINESE_NAME } from '../services/bibleBookData';
 import { verseDataStorage } from '../services/verseDataStorage';
-import { AIResearchEntry } from '../types/verseData';
 import { backgroundBibleDownload } from '../services/backgroundBibleDownload';
 
 interface ChatInterfaceProps {
   incomingText?: { text: string; id: number; clearChat?: boolean } | null;
   currentBookId?: string;
   currentChapter?: number;
+  currentVerses?: number[];
   onResearchSaved?: () => void;
   onNavigate?: (bookId: string, chapter: number, verses?: number[]) => void;
   vibeClassName?: string;
@@ -315,12 +315,13 @@ interface MessageBubbleProps {
   onSpeak: (content: string) => void;
   onStop: () => void;
   onSaveResearch?: (message: ChatMessage, side: 'zh' | 'en') => void;
+  isSaved?: boolean;
   onNavigate?: (bookId: string, chapter: number, verses?: number[]) => void;
   currentBookId?: string;
   onTextSelection?: (selectedText: string, position: { x: number; y: number }) => void;
 }
 
-const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpeaking, onSpeak, onStop, onSaveResearch, onNavigate, currentBookId, onTextSelection }) => {
+const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpeaking, onSpeak, onStop, onSaveResearch, isSaved, onNavigate, currentBookId, onTextSelection }) => {
   const { zh, en } = parseMessage(m.content, m.role);
   const content = side === 'zh' ? zh : en;
 
@@ -431,13 +432,26 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpe
               </button>
               {onSaveResearch && (
                 <button
-                  onClick={() => onSaveResearch(m, side)}
-                  className="shrink-0 transition-colors p-1 rounded-full text-green-500 hover:text-green-600 hover:bg-green-50"
-                  title={side === 'zh' ? "保存到经文笔记" : "Save to verse"}
+                  onClick={() => !isSaved && onSaveResearch(m, side)}
+                  disabled={isSaved}
+                  className={`shrink-0 transition-colors p-1 rounded-full ${
+                    isSaved
+                      ? 'text-green-600 bg-green-100 cursor-default'
+                      : 'text-green-500 hover:text-green-600 hover:bg-green-50'
+                  }`}
+                  title={isSaved
+                    ? (side === 'zh' ? "已保存" : "Already saved")
+                    : (side === 'zh' ? "保存到经文笔记" : "Save to research notes")}
                 >
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                    <path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/>
-                  </svg>
+                  {isSaved ? (
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>
+                    </svg>
+                  ) : (
+                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                      <path d="M17 3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V7l-4-4zm-5 16c-1.66 0-3-1.34-3-3s1.34-3 3-3 3 1.34 3 3-1.34 3-3 3zm3-10H5V5h10v4z"/>
+                    </svg>
+                  )}
                 </button>
               )}
             </div>
@@ -470,10 +484,12 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpe
 });
 MessageBubble.displayName = 'MessageBubble';
 
-const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBookId, currentChapter, onResearchSaved, onNavigate, vibeClassName }) => {
+const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBookId, currentChapter, currentVerses, onResearchSaved, onNavigate, vibeClassName }) => {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [researchToSave, setResearchToSave] = useState<{ message: ChatMessage; side: 'zh' | 'en' } | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [savedMessageTimestamps, setSavedMessageTimestamps] = useState<Set<number>>(new Set());
+  const autoSaveEnabled = localStorage.getItem('auto_save_research') === 'true';
   const [input, setInput] = useState('');
   const [userQuestion, setUserQuestion] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -517,7 +533,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
   }, [isTyping, isThinking]);
   
   // Memoize callbacks to prevent unnecessary re-renders
-  const handleProviderChange = useCallback((provider: 'claude' | 'gemini' | 'auto') => {
+  const handleProviderChange = useCallback((provider: aiService.AIProvider) => {
     setCurrentProvider(provider);
     aiService.setProvider(provider);
   }, []);
@@ -777,6 +793,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       }
     }, 50);
 
+    let assistantMessage: ChatMessage | null = null;
     try {
       // Pause background Bible download while AI is active
       backgroundBibleDownload.notifyApiActivity();
@@ -788,26 +805,31 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
         fast: !isThinking,
         ...(currentImage ? { image: currentImage } : {}),
       });
-      
+
       const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-      const references = Array.isArray(groundingChunks) 
+      const references = Array.isArray(groundingChunks)
         ? groundingChunks.map((chunk: any) => ({ title: chunk.web?.title || '参考资料', uri: chunk.web?.uri || '' })).filter((c: any) => c.uri)
         : undefined;
 
-      const assistantMessage: ChatMessage = {
+      assistantMessage = {
         role: 'assistant',
         content: response.text || "我无法生成回应。",
         timestamp: new Date(),
         references: references
       };
 
-      setMessages(prev => [...prev, assistantMessage]);
+      setMessages(prev => [...prev, assistantMessage!]);
     } catch (error: any) {
       console.error('[AI Response Error]', error);
       const errorDetail = error?.message || error?.status || String(error);
       setMessages(prev => [...prev, { role: 'assistant', content: `连接失败：${errorDetail}\nConnection failed. Please check your API key and try again.`, timestamp: new Date() }]);
+      return;
     } finally {
       setIsTyping(false);
+    }
+
+    if (assistantMessage && autoSaveEnabled && currentBookId && currentChapter) {
+      await saveResearchEntry(assistantMessage, 'zh', currentBookId, currentChapter, currentVerses ?? [], [], currentInput);
     }
   };
 
@@ -852,36 +874,29 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     setResearchToSave({ message, side });
     setShowSaveModal(true);
   };
-  
-  const handleSaveResearch = async (bookId: string, chapter: number, verses: number[], tags: string[]) => {
-    if (!researchToSave) return;
-    
-    const { message, side } = researchToSave;
+
+  const saveResearchEntry = async (message: ChatMessage, side: 'zh' | 'en', bookId: string, chapter: number, verses: number[], tags: string[], queryOverride?: string) => {
     const parsed = parseMessage(message.content, message.role);
     const content = side === 'zh' ? parsed.zh : parsed.en;
-    
-    // Extract the query from the original message if it's a response
-    const messageIndex = messages.findIndex(m => m === message);
-    const userMessage = messageIndex > 0 ? messages[messageIndex - 1] : null;
-    const query = userMessage?.role === 'user' ? userMessage.content : 'AI Research';
-    
-    const research: AIResearchEntry = {
-      id: Date.now().toString(),
-      query,
-      response: content,
-      timestamp: Date.now(),
-      tags
-    };
-    
-    await verseDataStorage.addAIResearch(bookId, chapter, verses, research);
+    let query: string;
+    if (queryOverride) {
+      query = queryOverride;
+    } else {
+      const messageIndex = messages.findIndex(m => m === message);
+      const userMessage = messageIndex > 0 ? messages[messageIndex - 1] : null;
+      query = userMessage?.role === 'user' ? userMessage.content : 'AI Research';
+    }
 
+    await verseDataStorage.addAIResearch(bookId, chapter, verses, { query, response: content, tags });
+    setSavedMessageTimestamps(prev => new Set([...prev, message.timestamp.getTime()]));
+    if (onResearchSaved) onResearchSaved();
+  };
+
+  const handleSaveResearch = async (bookId: string, chapter: number, verses: number[], tags: string[]) => {
+    if (!researchToSave) return;
+    await saveResearchEntry(researchToSave.message, researchToSave.side, bookId, chapter, verses, tags);
     setShowSaveModal(false);
     setResearchToSave(null);
-
-    // Trigger research update callback to refresh the notebook view
-    if (onResearchSaved) {
-      onResearchSaved();
-    }
   };
 
   const resizeRafRef = useRef(0);
@@ -954,14 +969,15 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
             中文解读 (Scholar Research)
           </div>
           {messages.map((m, idx) => (
-            <MessageBubble 
-              key={idx} 
-              m={m} 
-              side="zh" 
-              isSpeaking={speakingMsgIndex.zh === idx} 
+            <MessageBubble
+              key={idx}
+              m={m}
+              side="zh"
+              isSpeaking={speakingMsgIndex.zh === idx}
               onSpeak={(c) => handleSpeak(c, idx, 'zh')}
               onStop={() => handleStop('zh')}
               onSaveResearch={onSaveResearch}
+              isSaved={savedMessageTimestamps.has(m.timestamp.getTime())}
               onNavigate={onNavigate}
               currentBookId={currentBookId}
               onTextSelection={handleTextSelection}
@@ -1075,14 +1091,15 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
             English Commentary (Academic)
           </div>
           {messages.map((m, idx) => (
-            <MessageBubble 
-              key={idx} 
-              m={m} 
-              side="en" 
-              isSpeaking={speakingMsgIndex.en === idx} 
+            <MessageBubble
+              key={idx}
+              m={m}
+              side="en"
+              isSpeaking={speakingMsgIndex.en === idx}
               onSpeak={(c) => handleSpeak(c, idx, 'en')}
               onStop={() => handleStop('en')}
               onSaveResearch={onSaveResearch}
+              isSaved={savedMessageTimestamps.has(m.timestamp.getTime())}
               onNavigate={onNavigate}
               currentBookId={currentBookId}
               onTextSelection={handleTextSelection}
