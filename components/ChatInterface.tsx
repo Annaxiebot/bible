@@ -793,6 +793,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       }
     }, 50);
 
+    let assistantMessage: ChatMessage | null = null;
     try {
       // Pause background Bible download while AI is active
       backgroundBibleDownload.notifyApiActivity();
@@ -804,20 +805,20 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
         fast: !isThinking,
         ...(currentImage ? { image: currentImage } : {}),
       });
-      
+
       const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-      const references = Array.isArray(groundingChunks) 
+      const references = Array.isArray(groundingChunks)
         ? groundingChunks.map((chunk: any) => ({ title: chunk.web?.title || '参考资料', uri: chunk.web?.uri || '' })).filter((c: any) => c.uri)
         : undefined;
 
-      const assistantMessage: ChatMessage = {
+      assistantMessage = {
         role: 'assistant',
         content: response.text || "我无法生成回应。",
         timestamp: new Date(),
         references: references
       };
 
-      setMessages(prev => [...prev, assistantMessage]);
+      setMessages(prev => [...prev, assistantMessage!]);
     } catch (error: any) {
       console.error('[AI Response Error]', error);
       const errorDetail = error?.message || error?.status || String(error);
@@ -827,7 +828,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       setIsTyping(false);
     }
 
-    if (autoSaveEnabled && currentBookId && currentChapter) {
+    if (assistantMessage && autoSaveEnabled && currentBookId && currentChapter) {
       await saveResearchEntry(assistantMessage, 'zh', currentBookId, currentChapter, currentVerses ?? [], [], currentInput);
     }
   };
