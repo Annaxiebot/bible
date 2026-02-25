@@ -18,6 +18,10 @@ class VerseDataStorage {
   private readonly DB_NAME = 'BibleVerseData';
   private readonly VERSION = 1;
 
+  private notifyUpdate(): void {
+    window.dispatchEvent(new CustomEvent('versedata-updated'));
+  }
+
   async initialize(): Promise<void> {
     try {
       this.db = await openDB<VerseDataDB>(this.DB_NAME, this.VERSION, {
@@ -85,6 +89,7 @@ class VerseDataStorage {
       };
       
       await db.put('verseData', verseData);
+      this.notifyUpdate();
     } catch (error) {
       console.error('Failed to save personal note:', error);
     }
@@ -106,6 +111,7 @@ class VerseDataStorage {
         } else {
           await db.put('verseData', existing);
         }
+        this.notifyUpdate();
       }
     } catch (error) {
       console.error('Failed to delete personal note:', error);
@@ -143,8 +149,7 @@ class VerseDataStorage {
       
       verseData.aiResearch.push(aiEntry);
       await db.put('verseData', verseData);
-      
-      
+      this.notifyUpdate();
       return researchId;
     } catch (error) {
       console.error('Failed to add AI research:', error);
@@ -168,6 +173,7 @@ class VerseDataStorage {
         } else {
           await db.put('verseData', existing);
         }
+        this.notifyUpdate();
       }
     } catch (error) {
       console.error('Failed to delete AI research:', error);
@@ -308,9 +314,10 @@ class VerseDataStorage {
   // Clear all data
   async clearAll(): Promise<void> {
     const db = await this.ensureDB();
-    
+
     try {
       await db.clear('verseData');
+      this.notifyUpdate();
     } catch (error) {
       console.error('Failed to clear all data:', error);
     }
@@ -350,7 +357,7 @@ class VerseDataStorage {
         }
       }
       
-      await tx.complete;
+      await tx.done;
     } catch (error) {
       console.error('Failed to migrate IDs:', error);
     }
@@ -377,7 +384,8 @@ class VerseDataStorage {
         }
       }
       
-      await tx.oncomplete;
+      await tx.done;
+      this.notifyUpdate();
     } catch (error) {
       console.error('Failed to clear all personal notes:', error);
       throw error;
@@ -405,7 +413,8 @@ class VerseDataStorage {
         }
       }
       
-      await tx.oncomplete;
+      await tx.done;
+      this.notifyUpdate();
     } catch (error) {
       console.error('Failed to clear all AI research:', error);
       throw error;
@@ -442,6 +451,7 @@ class VerseDataStorage {
         }
         // 'skip' strategy does nothing if data exists
       }
+      this.notifyUpdate();
     } catch (error) {
       console.error('Failed to import data:', error);
       throw error;

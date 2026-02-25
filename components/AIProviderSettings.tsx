@@ -12,32 +12,33 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
   const [claudeApiKey, setClaudeApiKey] = useState('');
   const [showGeminiKey, setShowGeminiKey] = useState(false);
   const [showClaudeKey, setShowClaudeKey] = useState(false);
+  const [autoSaveResearch, setAutoSaveResearch] = useState(false);
 
   useEffect(() => {
-    // Load API keys from localStorage
     setGeminiApiKey(localStorage.getItem('gemini_api_key') || '');
     setClaudeApiKey(localStorage.getItem('claude_api_key') || '');
+    setAutoSaveResearch(localStorage.getItem('auto_save_research') === 'true');
   }, [isOpen]);
 
   const handleSave = () => {
-    // Save provider
     aiProvider.setProvider(currentProvider);
-    
-    // Save API keys
+
     if (geminiApiKey.trim()) {
       localStorage.setItem('gemini_api_key', geminiApiKey.trim());
     } else {
       localStorage.removeItem('gemini_api_key');
     }
-    
+
     if (claudeApiKey.trim()) {
       localStorage.setItem('claude_api_key', claudeApiKey.trim());
     } else {
       localStorage.removeItem('claude_api_key');
     }
-    
+
+    localStorage.setItem('auto_save_research', String(autoSaveResearch));
+
     onClose();
-    
+
     // Reload page to apply changes
     window.location.reload();
   };
@@ -199,6 +200,34 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
                   Anthropic Console
                 </a>
               </p>
+            </div>
+          </div>
+
+          {/* Research Behavior */}
+          <div className="mt-6 border-t pt-6">
+            <h3 className="text-sm font-semibold text-slate-700 mb-3">Research Behavior</h3>
+            <div className="flex items-center justify-between p-4 border border-slate-200 rounded-xl">
+              <div>
+                <div className="font-medium text-slate-800 text-sm">Auto-save AI research notes</div>
+                <div className="text-xs text-slate-500 mt-0.5">
+                  Automatically save each AI response to the current chapter's research notes
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAutoSaveResearch(v => !v)}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+                  autoSaveResearch ? 'bg-indigo-600' : 'bg-slate-200'
+                }`}
+                role="switch"
+                aria-checked={autoSaveResearch}
+              >
+                <span
+                  className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ${
+                    autoSaveResearch ? 'translate-x-5' : 'translate-x-0'
+                  }`}
+                />
+              </button>
             </div>
           </div>
 
