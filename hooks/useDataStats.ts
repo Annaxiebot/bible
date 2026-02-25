@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { verseDataStorage } from '../services/verseDataStorage';
 import { bibleStorage } from '../services/bibleStorage';
 import { BIBLE_BOOKS } from '../constants';
+import { useStorageUpdate } from './useStorageUpdate';
 
 export interface NoteDetail {
   bookId: string;
@@ -37,6 +38,7 @@ export interface DataStats {
 }
 
 export function useDataStats(updateTrigger?: number) {
+  const storageTick = useStorageUpdate();
   const [stats, setStats] = useState<DataStats>({
     personalNotes: 0,
     aiResearch: 0,
@@ -124,7 +126,7 @@ export function useDataStats(updateTrigger?: number) {
     };
 
     fetchStats();
-  }, [updateTrigger]);
+  }, [updateTrigger, storageTick]);
 
   return { stats, loading };
 }

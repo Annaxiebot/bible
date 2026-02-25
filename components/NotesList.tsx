@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { verseDataStorage } from '../services/verseDataStorage';
 import { notesStorage } from '../services/notesStorage';
+import { useStorageUpdate } from '../hooks/useStorageUpdate';
 import { BIBLE_BOOKS } from '../constants';
 import { VerseData } from '../types/verseData';
 import { exportImportService } from '../services/exportImportService';
@@ -26,6 +27,7 @@ interface NoteItem {
 type SortMode = 'bible-order' | 'latest-first';
 
 const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
+  const storageTick = useStorageUpdate();
   const [notes, setNotes] = useState<NoteItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -38,7 +40,7 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
 
   useEffect(() => {
     loadNotes();
-  }, []);
+  }, [storageTick]);
 
   const loadNotes = async () => {
     try {
