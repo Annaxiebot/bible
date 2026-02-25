@@ -12,6 +12,7 @@ services/backup/__tests__/
   ├── BackupService.test.ts
   ├── RestoreService.test.ts
   ├── BackupValidator.test.ts
+  ├── FileLocationService.test.ts        # NEW
   ├── integration.test.ts
   └── fixtures/
       ├── sample-image.jpg
@@ -20,7 +21,8 @@ services/backup/__tests__/
       └── backup-v4.0.json
 
 tests/e2e/
-  └── backup-restore.spec.ts
+  ├── backup-restore.spec.ts
+  └── backup-icloud.spec.ts             # NEW - iOS testing
 ```
 
 ## Unit Test Specifications

@@ -166,6 +166,21 @@ All three documents include:
 - [ ] Verify >95% coverage
 - [ ] Build succeeds
 
+### Phase 1.5: FileLocationService ✨ NEW
+**Priority**: High (iOS cross-device support)  
+**Effort**: 2 days  
+**Coverage Target**: >90%
+
+**Tasks:**
+- [ ] Install Capacitor dependencies (`@capacitor/filesystem`, `@capacitor/file-picker`)
+- [ ] Configure iOS iCloud entitlements
+- [ ] Implement FileLocationService.ts
+- [ ] iOS: iCloud Drive integration
+- [ ] Web: File System Access API
+- [ ] Android: Native file picker
+- [ ] Write 15 unit tests
+- [ ] Test on iOS device/simulator
+
 ### Phase 2: BackupService
 **Priority**: High  
 **Effort**: 2-3 days  
@@ -209,6 +224,17 @@ All three documents include:
 - [ ] Create e2e/backup-restore.spec.ts
 - [ ] Test user workflows
 - [ ] Cross-browser testing
+
+### Phase 5.5: iOS Cross-Device Testing ✨ NEW
+**Priority**: High  
+**Effort**: 1 day
+
+**Tasks:**
+- [ ] Test backup to iCloud Drive on iOS
+- [ ] Verify sync across devices
+- [ ] Test restore from iCloud on different device
+- [ ] Verify images sync correctly
+- [ ] Document any issues/workarounds
 
 ### Phase 6: Documentation
 **Priority**: High  
@@ -316,7 +342,16 @@ Before merge, ALL must be checked:
    - Coverage requirements
    - Manual testing checklist
 
-**Total documentation**: 59,379 bytes
+4. **BACKUP_RESTORE_ICLOUD_DESIGN.md** (20,709 bytes) ✨ NEW
+   - iOS file picker integration
+   - iCloud Drive implementation details
+   - FileLocationService API
+   - Cross-device restore flow
+   - Platform-specific code (iOS/Web/Android)
+   - User documentation for iCloud setup
+   - Updated testing scenarios
+
+**Total documentation**: 80,088 bytes (~80KB)
 
 ---
 
@@ -413,20 +448,28 @@ Before starting implementation:
    - Any deadline considerations?
    - Should I proceed with Phase 1?
 
+5. **iCloud Drive** ✨ NEW
+   - Do you have an Apple Developer account for iCloud entitlements?
+   - Should iCloud Drive be the default on iOS?
+   - Should we support other cloud storage (Google Drive, OneDrive)?
+   - Test devices available for cross-device testing?
+
 ---
 
 ## Estimated Timeline
 
-**Total Effort**: 10-14 days (full-time)
+**Total Effort**: 12-16 days (full-time)
 
 - Phase 1 (MediaStorageService): 2-3 days
+- Phase 1.5 (FileLocationService): 2 days ✨ NEW
 - Phase 2 (BackupService): 2-3 days
 - Phase 3 (RestoreService): 2-3 days
 - Phase 4 (Integration Tests): 1-2 days
 - Phase 5 (E2E Tests): 2 days
+- Phase 5.5 (iOS Cross-Device Testing): 1 day ✨ NEW
 - Phase 6 (Documentation): 1 day
 
-**Note**: This assumes focused development time and no major blockers.
+**Note**: This assumes focused development time and no major blockers. iOS testing requires physical devices or simulator with iCloud configured.
 
 ---
 
