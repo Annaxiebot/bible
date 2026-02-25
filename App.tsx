@@ -1,28 +1,30 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
-import BibleViewer from './components/BibleViewer';
-import ChatInterface from './components/ChatInterface';
-import VoiceSession from './components/VoiceSession';
-import EnhancedNotebook from './components/EnhancedNotebook';
-import Sidebar from './components/Sidebar';
-import VibePanel from './components/VibePanel';
+import React, { useState, useCallback, useRef, useEffect, lazy, Suspense } from 'react';
 import { SelectionInfo } from './types';
 import { exportImportService, BackupSummaryData } from './services/exportImportService';
-import BackupSummaryDialog from './components/BackupSummaryDialog';
 import { notesStorage } from './services/notesStorage';
 import { readingHistory } from './services/readingHistory';
 import { verseDataStorage } from './services/verseDataStorage';
 import { BIBLE_BOOKS } from './constants';
 import { Toast } from './components/Toast';
-import NotesList from './components/NotesList';
-import BibleSearch from './components/BibleSearch';
 import { printStudyNotes, PrintOptions } from './services/printService';
-import PrintOptionsDialog from './components/PrintOptionsDialog';
 import { useSeasonThemeInit, SeasonThemeProvider } from './hooks/useSeasonTheme';
 import { VibeStyles, isVibeAvailable, loadVibeStyles, getEmptyStyles } from './services/vibe';
-import DataDetailDialog from './components/DataDetailDialog';
 import { useDataStats } from './hooks/useDataStats';
 import './services/syncService'; // Initialize sync service
 import { backgroundBibleDownload, BgDownloadProgress } from './services/backgroundBibleDownload';
+
+// Lazy load heavy components for code splitting
+const BibleViewer = lazy(() => import('./components/BibleViewer'));
+const ChatInterface = lazy(() => import('./components/ChatInterface'));
+const VoiceSession = lazy(() => import('./components/VoiceSession'));
+const EnhancedNotebook = lazy(() => import('./components/EnhancedNotebook'));
+const Sidebar = lazy(() => import('./components/Sidebar'));
+const VibePanel = lazy(() => import('./components/VibePanel'));
+const BackupSummaryDialog = lazy(() => import('./components/BackupSummaryDialog'));
+const NotesList = lazy(() => import('./components/NotesList'));
+const BibleSearch = lazy(() => import('./components/BibleSearch'));
+const PrintOptionsDialog = lazy(() => import('./components/PrintOptionsDialog'));
+const DataDetailDialog = lazy(() => import('./components/DataDetailDialog'));
 
 // Simplified split view hook
 function useSplitView(initialV = 100, initialH = 100) {
@@ -378,6 +380,14 @@ const App: React.FC = () => {
 
   return (
     <SeasonThemeProvider value={themeCtx}>
+    <Suspense fallback={
+      <div className="flex items-center justify-center h-screen" style={{ backgroundColor: theme.background }}>
+        <div className="text-center">
+          <div className="w-16 h-16 mx-auto rounded-2xl flex items-center justify-center text-white text-3xl font-bold mb-4 shadow-lg animate-pulse" style={{ backgroundColor: theme.accent }}>圣</div>
+          <p className="text-slate-600">加载中...</p>
+        </div>
+      </div>
+    }>
     <div className={`flex flex-col h-screen w-screen overflow-hidden ${vibeStyles.background}`} style={{ backgroundColor: vibeStyles.background ? undefined : theme.background }}>
       <input type="file" ref={libraryInputRef} onChange={handleLibraryImport} accept=".json,.bible-library" className="hidden" />
       
@@ -605,6 +615,7 @@ const App: React.FC = () => {
 
       {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
     </div>
+    </Suspense>
     </SeasonThemeProvider>
   );
 };
