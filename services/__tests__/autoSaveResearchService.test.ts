@@ -48,7 +48,8 @@ describe('AutoSaveResearchService', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    
+    autoSaveResearchService.resetForTesting();
+
     // Create fresh localStorage mock for each test
     localStorageMock = new LocalStorageMock();
     Object.defineProperty(global, 'localStorage', {
@@ -56,7 +57,7 @@ describe('AutoSaveResearchService', () => {
       writable: true,
       configurable: true,
     });
-    
+
     // Default: auto-save enabled
     localStorage.setItem('auto_save_research', 'true');
   });
@@ -114,10 +115,10 @@ describe('AutoSaveResearchService', () => {
       });
 
       expect(result.success).toBe(true);
-      expect(result.savedCount).toBe(2); // Chinese + English
-      expect(verseDataStorage.addAIResearch).toHaveBeenCalledTimes(2);
-      
-      // Check Chinese save
+      expect(result.savedCount).toBe(1); // One combined bilingual note
+      expect(verseDataStorage.addAIResearch).toHaveBeenCalledTimes(1);
+
+      // Combined note contains both Chinese and English content
       expect(verseDataStorage.addAIResearch).toHaveBeenCalledWith(
         'genesis',
         1,
@@ -125,19 +126,15 @@ describe('AutoSaveResearchService', () => {
         expect.objectContaining({
           query: mockQuery,
           response: expect.stringContaining('中文回答'),
-          tags: expect.arrayContaining(['faith', 'creation', 'auto-saved', 'chinese']),
+          tags: expect.arrayContaining(['faith', 'creation', 'auto-saved']),
         })
       );
-
-      // Check English save
       expect(verseDataStorage.addAIResearch).toHaveBeenCalledWith(
         'genesis',
         1,
         [1, 2, 3],
         expect.objectContaining({
-          query: mockQuery,
           response: expect.stringContaining('English response'),
-          tags: expect.arrayContaining(['faith', 'creation', 'auto-saved', 'english']),
         })
       );
     });
@@ -150,8 +147,8 @@ describe('AutoSaveResearchService', () => {
       });
 
       expect(result.success).toBe(true);
-      expect(result.savedCount).toBe(2);
-      
+      expect(result.savedCount).toBe(1);
+
       // Should save to GENERAL book, chapter 0
       const calls = vi.mocked(verseDataStorage.addAIResearch).mock.calls;
       expect(calls[0][0]).toBe('GENERAL');
@@ -196,16 +193,9 @@ describe('AutoSaveResearchService', () => {
     });
 
     it('should include AI provider metadata in tags', async () => {
-      // Use unique message to avoid duplicate detection
-      const uniqueMessage: ChatMessage = {
-        role: 'assistant',
-        content: 'Unique Chinese content\n[SPLIT]\nUnique English content',
-        timestamp: new Date('2026-02-25T00:00:00Z'),
-      };
-
       const result = await autoSaveResearchService.saveAIResearch({
-        message: uniqueMessage,
-        query: 'Unique query for provider test',
+        message: mockMessage,
+        query: mockQuery,
         bookId: 'exodus',
         chapter: 2,
         aiProvider: 'claude',
@@ -223,20 +213,13 @@ describe('AutoSaveResearchService', () => {
     });
 
     it('should handle save failures gracefully', async () => {
-      // Use unique message to avoid duplicate detection
-      const errorTestMessage: ChatMessage = {
-        role: 'assistant',
-        content: 'Error test Chinese\n[SPLIT]\nError test English',
-        timestamp: new Date('2026-02-25T01:00:00Z'),
-      };
-
       vi.mocked(verseDataStorage.addAIResearch).mockRejectedValue(
         new Error('Database error')
       );
 
       const result = await autoSaveResearchService.saveAIResearch({
-        message: errorTestMessage,
-        query: 'Error test query',
+        message: mockMessage,
+        query: mockQuery,
         bookId: 'leviticus',
         chapter: 3,
       });
@@ -286,19 +269,12 @@ describe('AutoSaveResearchService', () => {
     });
 
     it('should handle verses array being undefined', async () => {
-      // Use unique message
-      const undefinedVersesMessage: ChatMessage = {
-        role: 'assistant',
-        content: 'Undefined verses Chinese\n[SPLIT]\nUndefined verses English',
-        timestamp: new Date('2026-02-25T02:00:00Z'),
-      };
-
       const result = await autoSaveResearchService.saveAIResearch({
-        message: undefinedVersesMessage,
-        query: 'Undefined verses query',
+        message: mockMessage,
+        query: mockQuery,
         bookId: 'numbers',
         chapter: 4,
-        verses: undefined, // Explicitly undefined
+        verses: undefined,
       });
 
       expect(result.success).toBe(true);
@@ -311,17 +287,10 @@ describe('AutoSaveResearchService', () => {
     });
 
     it('should prevent duplicate saves based on content hash', async () => {
-      // Use unique message for this test
-      const duplicateTestMessage: ChatMessage = {
-        role: 'assistant',
-        content: 'Duplicate test Chinese\n[SPLIT]\nDuplicate test English',
-        timestamp: new Date('2026-02-25T03:00:00Z'),
-      };
-
       // First save
       await autoSaveResearchService.saveAIResearch({
-        message: duplicateTestMessage,
-        query: 'Duplicate test query',
+        message: mockMessage,
+        query: mockQuery,
         bookId: 'deuteronomy',
         chapter: 5,
         verses: [1],
@@ -329,10 +298,10 @@ describe('AutoSaveResearchService', () => {
 
       vi.clearAllMocks();
 
-      // Attempt duplicate save with same content
+      // Attempt duplicate save with identical content
       const result = await autoSaveResearchService.saveAIResearch({
-        message: duplicateTestMessage,
-        query: 'Duplicate test query',
+        message: mockMessage,
+        query: mockQuery,
         bookId: 'deuteronomy',
         chapter: 5,
         verses: [1],

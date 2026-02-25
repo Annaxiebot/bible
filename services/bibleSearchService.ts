@@ -7,6 +7,7 @@
 
 import { bibleStorage } from './bibleStorage';
 import { BIBLE_BOOKS, TOTAL_CHAPTERS, OT_BOOKS, NT_BOOKS } from './bibleBookData';
+import { toSimplified } from './chineseConverter';
 
 export interface SearchResult {
   bookId: string;
@@ -37,7 +38,8 @@ class BibleSearchService {
     const { query, translation = 'both', testament = 'all', maxResults = 200, onProgress, signal } = options;
     if (!query.trim()) return [];
 
-    const queryLower = query.toLowerCase();
+    // Normalise to Simplified so Traditional text and Simplified queries both match.
+    const queryNorm = toSimplified(query).toLowerCase();
     const results: SearchResult[] = [];
     const books = testament === 'ot' ? OT_BOOKS : testament === 'nt' ? NT_BOOKS : BIBLE_BOOKS;
     const translations: Array<'cuv' | 'web'> = translation === 'both' ? ['cuv', 'web'] : [translation];
@@ -59,7 +61,7 @@ class BibleSearchService {
             if (data?.verses) {
               for (const verse of data.verses) {
                 if (results.length >= maxResults) break;
-                if (verse.text && verse.text.toLowerCase().includes(queryLower)) {
+                if (verse.text && toSimplified(verse.text).toLowerCase().includes(queryNorm)) {
                   results.push({
                     bookId: book.id,
                     bookName: book.name.split(' ')[0],

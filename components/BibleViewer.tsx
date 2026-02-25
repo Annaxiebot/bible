@@ -525,25 +525,27 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       }> = [];
       
       const offlineChapterSet = await bibleStorage.getAllOfflineChapters();
-      const queryLower = query.toLowerCase();
-      
+      // Normalise query to Simplified so it matches regardless of whether the
+      // user typed Traditional or Simplified, and regardless of how the text is stored.
+      const queryNorm = toSimplified(query).toLowerCase();
+
       // Search through all cached chapters
       for (const chapterKey of offlineChapterSet) {
         if (results.length >= 50) break; // Limit results
-        
+
         const parts = chapterKey.split('_');
         if (parts.length !== 2) continue;
         const [bookId, chapterStr] = parts;
         const chapter = parseInt(chapterStr);
         const book = BIBLE_BOOKS.find(b => b.id === bookId);
         if (!book) continue;
-        
+
         // Search in CUV (Chinese)
         const cuvData = await bibleStorage.getChapter(bookId, chapter, 'cuv');
         if (cuvData?.verses) {
           for (const verse of cuvData.verses) {
             if (results.length >= 50) break;
-            if (verse.text.toLowerCase().includes(queryLower)) {
+            if (toSimplified(verse.text).toLowerCase().includes(queryNorm)) {
               results.push({
                 bookId,
                 bookName: book.name,
@@ -561,7 +563,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         if (webData?.verses) {
           for (const verse of webData.verses) {
             if (results.length >= 50) break;
-            if (verse.text.toLowerCase().includes(queryLower)) {
+            if (verse.text.toLowerCase().includes(queryNorm)) {
               // Avoid duplicates if already found in CUV for same verse
               const alreadyFound = results.some(r => 
                 r.bookId === bookId && r.chapter === chapter && r.verse === verse.verse
@@ -585,7 +587,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       if (!offlineChapterSet.has(`${selectedBook.id}_${selectedChapter}`)) {
         for (const verse of leftVerses) {
           if (results.length >= 50) break;
-          if (verse.text.toLowerCase().includes(queryLower)) {
+          if (toSimplified(verse.text).toLowerCase().includes(queryNorm)) {
             results.push({
               bookId: selectedBook.id,
               bookName: selectedBook.name,
@@ -598,7 +600,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         }
         for (const verse of rightVerses) {
           if (results.length >= 50) break;
-          if (verse.text.toLowerCase().includes(queryLower)) {
+          if (verse.text.toLowerCase().includes(queryNorm)) {
             const alreadyFound = results.some(r =>
               r.bookId === selectedBook.id && r.chapter === selectedChapter && r.verse === verse.verse
             );
