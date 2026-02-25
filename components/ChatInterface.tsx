@@ -820,15 +820,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       setMessages(prev => [...prev, assistantMessage]);
 
       if (autoSaveEnabled && currentBookId && currentChapter) {
-        const parsed = parseMessage(assistantMessage.content, 'assistant');
-        const ts = assistantMessage.timestamp.getTime();
-        await verseDataStorage.addAIResearch(currentBookId, currentChapter, currentVerses ?? [], {
-          query: currentInput,
-          response: parsed.zh || assistantMessage.content,
-          tags: [],
-        });
-        setSavedMessageTimestamps(prev => new Set([...prev, ts]));
-        if (onResearchSaved) onResearchSaved();
+        await saveResearchEntry(assistantMessage, 'zh', currentBookId, currentChapter, currentVerses ?? [], []);
       }
     } catch (error: any) {
       console.error('[AI Response Error]', error);
@@ -880,32 +872,24 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     setResearchToSave({ message, side });
     setShowSaveModal(true);
   };
-  
-  const handleSaveResearch = async (bookId: string, chapter: number, verses: number[], tags: string[]) => {
-    if (!researchToSave) return;
-    
-    const { message, side } = researchToSave;
+
+  const saveResearchEntry = async (message: ChatMessage, side: 'zh' | 'en', bookId: string, chapter: number, verses: number[], tags: string[]) => {
     const parsed = parseMessage(message.content, message.role);
     const content = side === 'zh' ? parsed.zh : parsed.en;
-    
-    // Extract the query from the original message if it's a response
     const messageIndex = messages.findIndex(m => m === message);
     const userMessage = messageIndex > 0 ? messages[messageIndex - 1] : null;
     const query = userMessage?.role === 'user' ? userMessage.content : 'AI Research';
-    
-    await verseDataStorage.addAIResearch(bookId, chapter, verses, {
-      query,
-      response: content,
-      tags,
-    });
 
-    setSavedMessageTimestamps(prev => new Set([...prev, researchToSave.message.timestamp.getTime()]));
+    await verseDataStorage.addAIResearch(bookId, chapter, verses, { query, response: content, tags });
+    setSavedMessageTimestamps(prev => new Set([...prev, message.timestamp.getTime()]));
+    if (onResearchSaved) onResearchSaved();
+  };
+
+  const handleSaveResearch = async (bookId: string, chapter: number, verses: number[], tags: string[]) => {
+    if (!researchToSave) return;
+    await saveResearchEntry(researchToSave.message, researchToSave.side, bookId, chapter, verses, tags);
     setShowSaveModal(false);
     setResearchToSave(null);
-
-    if (onResearchSaved) {
-      onResearchSaved();
-    }
   };
 
   const resizeRafRef = useRef(0);
