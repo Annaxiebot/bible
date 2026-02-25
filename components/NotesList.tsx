@@ -3,7 +3,7 @@ import { verseDataStorage } from '../services/verseDataStorage';
 import { notesStorage } from '../services/notesStorage';
 import { useStorageUpdate } from '../hooks/useStorageUpdate';
 import { BIBLE_BOOKS } from '../constants';
-import { VerseData } from '../types/verseData';
+import { VerseData, AIResearchEntry } from '../types/verseData';
 import { exportImportService } from '../services/exportImportService';
 
 interface NotesListProps {
@@ -18,6 +18,7 @@ interface NoteItem {
   chapter: number;
   verses: number[];
   personalNote?: string;
+  aiResearch: AIResearchEntry[];
   aiResearchCount: number;
   createdAt: number;
   updatedAt: number;
@@ -66,12 +67,13 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
             chapter: data.chapter,
             verses: data.verses,
             personalNote: data.personalNote?.text,
+            aiResearch: data.aiResearch,
             aiResearchCount: data.aiResearch.length,
             createdAt: data.personalNote?.createdAt
               || (data.aiResearch.length > 0 ? Math.min(...data.aiResearch.map(r => r.timestamp || 0)) : 0),
             updatedAt: data.personalNote?.updatedAt
               || (data.aiResearch.length > 0 ? Math.max(...data.aiResearch.map(r => r.timestamp || 0)) : 0),
-            verseText: data.verseText
+            verseText: (data as VerseData & { verseText?: string }).verseText
           });
         }
       });
@@ -100,6 +102,7 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
                 chapter,
                 verses,
                 personalNote: content,
+                aiResearch: [],
                 aiResearchCount: 0,
                 createdAt: 0, // Old notes don't have timestamps
                 updatedAt: 0,
@@ -123,10 +126,11 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
     // Apply search filter
     if (searchTerm) {
       const term = searchTerm.toLowerCase();
-      filtered = notes.filter(note => 
+      filtered = notes.filter(note =>
         note.bookName.toLowerCase().includes(term) ||
         note.personalNote?.toLowerCase().includes(term) ||
         note.verseText?.toLowerCase().includes(term) ||
+        note.aiResearch.some(r => r.query.toLowerCase().includes(term) || r.response.toLowerCase().includes(term)) ||
         `${note.chapter}`.includes(term) ||
         note.verses.some(v => `${v}`.includes(term))
       );
@@ -135,7 +139,7 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
     // Apply sort
     const sorted = [...filtered];
     if (sortMode === 'latest-first') {
-      sorted.sort((a, b) => b.createdAt - a.createdAt);
+      sorted.sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt));
     } else {
       // Bible order: sort by book index, then chapter, then verse
       sorted.sort((a, b) => {
@@ -508,22 +512,57 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
                     )}
                   </div>
 
-                  {/* Note Content Preview */}
+                  {/* Personal Note Content */}
                   {note.personalNote && (
                     <div className="text-sm text-slate-600 mt-2">
                       {isExpanded ? (
-                        <div 
-                          dangerouslySetInnerHTML={{ 
-                            __html: note.personalNote 
-                          }} 
+                        <div
+                          dangerouslySetInnerHTML={{ __html: note.personalNote }}
                           className="prose prose-sm max-w-none"
                         />
                       ) : (
-                        <div 
-                          dangerouslySetInnerHTML={{ 
-                            __html: truncateText(note.personalNote.replace(/<[^>]*>/g, '')) 
-                          }} 
+                        <div
+                          dangerouslySetInnerHTML={{
+                            __html: truncateText(note.personalNote.replace(/<[^>]*>/g, ''))
+                          }}
                         />
+                      )}
+                    </div>
+                  )}
+
+                  {/* AI Research Preview */}
+                  {note.aiResearch.length > 0 && (
+                    <div className="mt-2 space-y-2">
+                      {(isExpanded ? note.aiResearch : note.aiResearch.slice(0, 1)).map((research) => (
+                        <div key={research.id} className="p-2.5 bg-indigo-50 rounded-lg border border-indigo-100">
+                          <div className="flex items-start gap-1.5">
+                            <span className="text-xs mt-0.5">🔍</span>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-xs font-medium text-indigo-700">
+                                {truncateText(research.query, 80)}
+                              </div>
+                              <div className="text-xs text-slate-600 mt-1">
+                                {isExpanded
+                                  ? research.response
+                                  : truncateText(research.response.replace(/<[^>]*>/g, ''), 120)}
+                              </div>
+                              {research.tags && research.tags.length > 0 && isExpanded && (
+                                <div className="flex gap-1 mt-1.5 flex-wrap">
+                                  {research.tags.map((tag, i) => (
+                                    <span key={i} className="px-1.5 py-0.5 text-[10px] bg-indigo-100 text-indigo-600 rounded">
+                                      {tag}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                      {!isExpanded && note.aiResearch.length > 1 && (
+                        <div className="text-xs text-indigo-500 pl-5">
+                          +{note.aiResearch.length - 1} more research
+                        </div>
                       )}
                     </div>
                   )}

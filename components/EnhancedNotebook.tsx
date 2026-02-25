@@ -130,6 +130,17 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
     if (selection) loadVerseData();
   }, [storageTick]);
 
+  // Populate editor when switching to the notes tab (editor may not have
+  // existed in the DOM when loadVerseData originally ran)
+  useEffect(() => {
+    if (activeTab === 'notes' && editorRef.current && personalNote) {
+      // Only populate if editor is empty to avoid resetting cursor position
+      if (!editorRef.current.innerHTML.trim()) {
+        editorRef.current.innerHTML = personalNote;
+      }
+    }
+  }, [activeTab]);
+
   const loadVerseData = async () => {
     if (!selection) return;
     
@@ -428,7 +439,7 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
           className="note-editor"
           contentEditable
           onInput={handleContentChange}
-          placeholder="Write your notes here..."
+          data-placeholder="Write your notes here..."
           style={{
             minHeight: '200px',
             padding: '12px',
@@ -458,7 +469,7 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
           </button>
 
           <button
-            onClick={handleSaveNote}
+            onClick={() => handleSaveNote()}
             className="toolbar-btn"
             style={{ background: '#4CAF50', color: 'white' }}
           >
