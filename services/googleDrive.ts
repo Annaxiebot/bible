@@ -167,6 +167,7 @@ class GoogleDriveService {
           }
 
           this.state.accessToken = response.access_token;
+          gapi.client.setToken({ access_token: response.access_token });
           this.state.isSignedIn = true;
           this.state.lastError = null;
 
