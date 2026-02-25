@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import * as aiProvider from '../services/aiProvider';
+import { autoSaveResearchService } from '../services/autoSaveResearchService';
 
 interface AIProviderSettingsProps {
   isOpen: boolean;
@@ -12,12 +13,12 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
   const [claudeApiKey, setClaudeApiKey] = useState('');
   const [showGeminiKey, setShowGeminiKey] = useState(false);
   const [showClaudeKey, setShowClaudeKey] = useState(false);
-  const [autoSaveResearch, setAutoSaveResearch] = useState(false);
+  const [autoSaveResearch, setAutoSaveResearch] = useState(() => autoSaveResearchService.isAutoSaveEnabled());
 
   useEffect(() => {
     setGeminiApiKey(localStorage.getItem('gemini_api_key') || '');
     setClaudeApiKey(localStorage.getItem('claude_api_key') || '');
-    setAutoSaveResearch(localStorage.getItem('auto_save_research') === 'true');
+    setAutoSaveResearch(autoSaveResearchService.isAutoSaveEnabled());
   }, [isOpen]);
 
   const handleSave = () => {
@@ -35,7 +36,7 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
       localStorage.removeItem('claude_api_key');
     }
 
-    localStorage.setItem('auto_save_research', String(autoSaveResearch));
+    autoSaveResearchService.setAutoSaveEnabled(autoSaveResearch);
 
     onClose();
 
