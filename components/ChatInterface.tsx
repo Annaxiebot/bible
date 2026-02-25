@@ -9,6 +9,8 @@ import { BIBLE_BOOKS, CHINESE_ABBREV_TO_BOOK_ID } from '../constants';
 import { BOOK_ID_TO_CHINESE_NAME } from '../services/bibleBookData';
 import { verseDataStorage } from '../services/verseDataStorage';
 import { backgroundBibleDownload } from '../services/backgroundBibleDownload';
+import { autoSaveResearchService } from '../services/autoSaveResearchService';
+import { ToastContainer, useToast } from './Toast';
 
 interface ChatInterfaceProps {
   incomingText?: { text: string; id: number; clearChat?: boolean } | null;
@@ -489,11 +491,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
   const [researchToSave, setResearchToSave] = useState<{ message: ChatMessage; side: 'zh' | 'en' } | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [savedMessageTimestamps, setSavedMessageTimestamps] = useState<Set<number>>(new Set());
-  const autoSaveEnabled = localStorage.getItem('auto_save_research') === 'true';
   const [input, setInput] = useState('');
   const [userQuestion, setUserQuestion] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
+  
+  // Toast notifications
+  const toast = useToast();
   const [imageAttachment, setImageAttachment] = useState<{ data: string; mimeType: string } | null>(null);
   const [showImageMenu, setShowImageMenu] = useState(false);
   const [showWebcam, setShowWebcam] = useState(false);
@@ -828,8 +832,40 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       setIsTyping(false);
     }
 
-    if (assistantMessage && autoSaveEnabled && currentBookId && currentChapter) {
-      await saveResearchEntry(assistantMessage, 'zh', currentBookId, currentChapter, currentVerses ?? [], [], currentInput);
+    // Auto-save research using new service
+    if (assistantMessage && autoSaveResearchService.isAutoSaveEnabled()) {
+      try {
+        const result = await autoSaveResearchService.saveAIResearch({
+          message: assistantMessage,
+          query: currentInput,
+          bookId: currentBookId,
+          chapter: currentChapter,
+          verses: currentVerses,
+          aiProvider: currentProvider,
+        });
+
+        if (result.success) {
+          // Mark message as saved
+          setSavedMessageTimestamps(prev => new Set([...prev, assistantMessage.timestamp.getTime()]));
+          
+          // Show success toast
+          toast.showSuccess(
+            `✅ AI research saved (${result.savedCount} ${result.savedCount === 1 ? 'note' : 'notes'})`,
+            2000
+          );
+          
+          // Notify parent component
+          if (onResearchSaved) {
+            onResearchSaved();
+          }
+        } else if (result.error && !result.error.includes('already been saved')) {
+          // Show error toast only if it's not a duplicate
+          toast.showError(`Failed to save research: ${result.error}`, 4000);
+        }
+      } catch (error) {
+        console.error('[Auto-save] Unexpected error:', error);
+        toast.showError('Failed to auto-save research', 3000);
+      }
     }
   };
 
@@ -1334,6 +1370,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
           onClick={() => setContextMenu(null)}
         />
       )}
+
+      {/* Toast Notifications */}
+      <ToastContainer
+        messages={toast.messages}
+        onDismiss={toast.dismissToast}
+        position="top-right"
+      />
     </div>
   );
 };
