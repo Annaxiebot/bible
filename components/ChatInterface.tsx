@@ -818,16 +818,17 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       };
 
       setMessages(prev => [...prev, assistantMessage]);
-
-      if (autoSaveEnabled && currentBookId && currentChapter) {
-        await saveResearchEntry(assistantMessage, 'zh', currentBookId, currentChapter, currentVerses ?? [], []);
-      }
     } catch (error: any) {
       console.error('[AI Response Error]', error);
       const errorDetail = error?.message || error?.status || String(error);
       setMessages(prev => [...prev, { role: 'assistant', content: `连接失败：${errorDetail}\nConnection failed. Please check your API key and try again.`, timestamp: new Date() }]);
+      return;
     } finally {
       setIsTyping(false);
+    }
+
+    if (autoSaveEnabled && currentBookId && currentChapter) {
+      await saveResearchEntry(assistantMessage, 'zh', currentBookId, currentChapter, currentVerses ?? [], [], currentInput);
     }
   };
 
@@ -873,12 +874,17 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     setShowSaveModal(true);
   };
 
-  const saveResearchEntry = async (message: ChatMessage, side: 'zh' | 'en', bookId: string, chapter: number, verses: number[], tags: string[]) => {
+  const saveResearchEntry = async (message: ChatMessage, side: 'zh' | 'en', bookId: string, chapter: number, verses: number[], tags: string[], queryOverride?: string) => {
     const parsed = parseMessage(message.content, message.role);
     const content = side === 'zh' ? parsed.zh : parsed.en;
-    const messageIndex = messages.findIndex(m => m === message);
-    const userMessage = messageIndex > 0 ? messages[messageIndex - 1] : null;
-    const query = userMessage?.role === 'user' ? userMessage.content : 'AI Research';
+    let query: string;
+    if (queryOverride) {
+      query = queryOverride;
+    } else {
+      const messageIndex = messages.findIndex(m => m === message);
+      const userMessage = messageIndex > 0 ? messages[messageIndex - 1] : null;
+      query = userMessage?.role === 'user' ? userMessage.content : 'AI Research';
+    }
 
     await verseDataStorage.addAIResearch(bookId, chapter, verses, { query, response: content, tags });
     setSavedMessageTimestamps(prev => new Set([...prev, message.timestamp.getTime()]));
