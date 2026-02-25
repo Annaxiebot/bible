@@ -108,7 +108,6 @@ export const chatWithAI = async (
         // Rate limited - wait with more aggressive exponential backoff
         // Start with 2 seconds, then 5 seconds, then 10 seconds
         const baseWaitTime = attempt === 0 ? 2000 : attempt === 1 ? 5000 : 10000;
-        console.log(`Rate limited (attempt ${attempt + 1}/3), waiting ${baseWaitTime}ms before retry...`);
         await new Promise(resolve => setTimeout(resolve, baseWaitTime));
       } else {
         // Non-rate limit error, throw immediately

@@ -1,7 +1,5 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkMath from 'remark-math';
-import rehypeKatex from 'rehype-katex';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import LazyMarkdown from './LazyMarkdown';
 import { ChatMessage, AspectRatio, ImageSize } from '../types';
 import * as aiService from '../services/aiProvider';
 import * as geminiService from '../services/gemini';
@@ -363,25 +361,22 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpe
       >
         <div className="flex justify-between items-start gap-2">
           <div className={`flex-1 overflow-hidden prose prose-sm sm:prose-base ${m.role === 'user' ? 'prose-invert text-white' : 'prose-slate'}`}>
-            <ReactMarkdown 
-              remarkPlugins={[remarkMath]} 
-              rehypePlugins={[
-                [rehypeKatex, { 
-                  throwOnError: false,
-                  strict: 'ignore',
-                  errorColor: '#cc0000',
-                  trust: (context) => {
-                    if (/[\u0590-\u05FF]/.test(context.command)) {
-                      return false;
-                    }
-                    return true;
-                  },
-                  output: 'html',
-                  fleqn: false,
-                  displayMode: false,
-                  macros: {}
-                }]
-              ]}
+            <LazyMarkdown 
+              katexOptions={{ 
+                throwOnError: false,
+                strict: 'ignore',
+                errorColor: '#cc0000',
+                trust: (context) => {
+                  if (/[\u0590-\u05FF]/.test(context.command)) {
+                    return false;
+                  }
+                  return true;
+                },
+                output: 'html',
+                fleqn: false,
+                displayMode: false,
+                macros: {}
+              }}
               components={(() => {
                 // Shared helper to recursively process children for Bible references
                 const processChildren = (nodes: React.ReactNode): React.ReactNode => {
@@ -419,7 +414,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpe
               })()}
             >
               {content}
-            </ReactMarkdown>
+            </LazyMarkdown>
           </div>
           {m.role === 'assistant' && (
             <div className="flex gap-2 mt-1">
@@ -509,6 +504,23 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
   const zhScrollRef = useRef<HTMLDivElement>(null);
   const enScrollRef = useRef<HTMLDivElement>(null);
   const lastPayloadId = useRef<number>(-1);
+
+  // Memoize computed values to prevent unnecessary recalculations
+  const hasMessages = useMemo(() => messages.length > 0, [messages]);
+  
+  const lastMessage = useMemo(() => {
+    return messages[messages.length - 1];
+  }, [messages]);
+  
+  const isWaitingForResponse = useMemo(() => {
+    return isTyping || isThinking;
+  }, [isTyping, isThinking]);
+  
+  // Memoize callbacks to prevent unnecessary re-renders
+  const handleProviderChange = useCallback((provider: 'claude' | 'gemini' | 'auto') => {
+    setCurrentProvider(provider);
+    aiService.setProvider(provider);
+  }, []);
 
   // Sync incoming verses while preserving the user's manual question
   useEffect(() => {
@@ -777,15 +789,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
         ...(currentImage ? { image: currentImage } : {}),
       });
       
-      // Console logging for debugging AI responses
-      console.log('[AI Response]', {
-        timestamp: new Date().toISOString(),
-        userInput: currentInput,
-        responseText: response.text,
-        responseLength: response.text?.length || 0,
-        hasGroundingMetadata: !!response.candidates?.[0]?.groundingMetadata
-      });
-      
       const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
       const references = Array.isArray(groundingChunks) 
         ? groundingChunks.map((chunk: any) => ({ title: chunk.web?.title || '参考资料', uri: chunk.web?.uri || '' })).filter((c: any) => c.uri)
@@ -797,13 +800,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
         timestamp: new Date(),
         references: references
       };
-
-      // Log detected Bible references in the response
-      const colonPattern = /\d{1,3}:\d{1,3}(?:-\d{1,3})?/g;
-      const detectedColonRefs = response.text?.match(colonPattern) || [];
-      if (detectedColonRefs.length > 0) {
-        console.log('[Bible References Detected]', detectedColonRefs);
-      }
 
       setMessages(prev => [...prev, assistantMessage]);
     } catch (error: any) {

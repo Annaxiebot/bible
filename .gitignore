@@ -35,3 +35,11 @@ features-implementation.md
 
 # Private instructions
 instructions/
+
+# iOS build output (contains sensitive data)
+ios/App/App/public/
+
+# Test coverage and reports
+coverage/
+playwright-report/
+test-results/

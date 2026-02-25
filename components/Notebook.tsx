@@ -252,7 +252,6 @@ const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialConte
     }
     
     hasInsertedTimestamp.current = true;
-    console.log('Timestamp inserted:', dateStr, timeStr);
   };
 
   const onEditorInput = (e?: React.FormEvent) => {
@@ -285,7 +284,6 @@ const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialConte
                                    (!noteData.text || noteData.text === '<p><br></p>' || isJustQuote));
     
     if (shouldInsertTimestamp && hasContentChanged) {
-      console.log('Inserting timestamp - idle time:', timeSinceLastActivity);
       insertTimestamp();
       hasInsertedTimestamp.current = true;
     }
@@ -322,7 +320,6 @@ const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialConte
         if (selection && selection.rangeCount > 0) {
           // Let the default Enter behavior happen first
           setTimeout(() => {
-            console.log('New line created after idle, inserting timestamp');
             insertTimestamp();
           }, 10);
         }
