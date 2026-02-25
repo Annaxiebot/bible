@@ -10,6 +10,7 @@ export interface BgDownloadProgress {
   cached: number;
   total: number;
   currentBook: string;
+  currentChapter: number;
   isRunning: boolean;
   isComplete: boolean;
 }
@@ -554,9 +555,14 @@ const Sidebar: React.FC<SidebarProps> = ({
                   {/* Background download progress */}
                   {bgDownloadProgress && !bgDownloadProgress.isComplete && bgDownloadProgress.isRunning && (
                     <div className="px-2 py-1.5">
-                      <div className="text-[10px] text-slate-500">
-                        {bgDownloadProgress.currentBook ? `${bgDownloadProgress.currentBook} 第${bgDownloadProgress.currentChapter}章` : '缓存中 Caching...'}
+                      <div className="text-[10px] text-indigo-500 font-medium">
+                        缓存中 Caching...
                       </div>
+                      {bgDownloadProgress.currentBook && (
+                        <div className="text-[10px] text-slate-500 mt-0.5">
+                          {bgDownloadProgress.currentBook} 第{bgDownloadProgress.currentChapter}章
+                        </div>
+                      )}
                       <div className="flex items-center gap-2 mt-1">
                         <div className="flex-1 bg-slate-200 rounded-full h-1">
                           <div
@@ -570,7 +576,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   )}
                   {bgDownloadProgress && bgDownloadProgress.isComplete && (
                     <div className="px-2 py-1 text-[10px] text-green-600 font-medium">
-                      ✓ 全部已缓存 All cached
+                      缓存完成 All cached
                     </div>
                   )}
                   {stats.totalSize && (
