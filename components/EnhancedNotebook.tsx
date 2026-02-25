@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { SelectionInfo } from '../types';
 import { VerseData, PersonalNote, AIResearchEntry } from '../types/verseData';
 import { verseDataStorage } from '../services/verseDataStorage';
+import { useStorageUpdate } from '../hooks/useStorageUpdate';
 import DrawingCanvas, { DrawingCanvasHandle } from './DrawingCanvas';
 import LazyMarkdown from './LazyMarkdown';
 import 'katex/dist/katex.min.css';
@@ -88,9 +89,10 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
   onSaveNote,
   initialContent,
   initialTab = 'research',
-  researchUpdateTrigger = 0,
+  researchUpdateTrigger: _researchUpdateTrigger = 0,
   onNavigate
 }) => {
+  const storageTick = useStorageUpdate();
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);
   const [verseData, setVerseData] = useState<VerseData | null>(null);
   const [personalNote, setPersonalNote] = useState<string>('');
@@ -123,12 +125,10 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
     }
   }, [selection?.id]);
 
-  // Reload data when AI research is saved
+  // Reload data whenever any verseDataStorage write occurs
   useEffect(() => {
-    if (selection && researchUpdateTrigger > 0) {
-      loadVerseData();
-    }
-  }, [researchUpdateTrigger]);
+    if (selection) loadVerseData();
+  }, [storageTick]);
 
   const loadVerseData = async () => {
     if (!selection) return;
