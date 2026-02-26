@@ -262,9 +262,9 @@ class VerseDataStorage {
       const allData = await db.getAll('verseData');
       
       for (const data of allData) {
-        const hasMatch = data.aiResearch.some(r => 
+        const hasMatch = data.aiResearch.some(r =>
           r.query.toLowerCase().includes(searchTerm) ||
-          r.response.toLowerCase().includes(searchTerm) ||
+          r.response.replace(/<[^>]*>/g, '').toLowerCase().includes(searchTerm) ||
           r.tags?.some(tag => tag.toLowerCase().includes(searchTerm))
         );
         
