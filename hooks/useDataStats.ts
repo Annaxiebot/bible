@@ -10,6 +10,7 @@ export interface NoteDetail {
   chapter: number;
   verses: number[];
   preview: string;
+  updatedAt: number;
 }
 
 export interface ResearchDetail {
@@ -70,6 +71,7 @@ export function useDataStats(updateTrigger?: number) {
             noteDetails.push({
               bookId: v.bookId, bookName, chapter: v.chapter, verses: v.verses,
               preview: raw.length > 60 ? raw.slice(0, 60) + '...' : raw,
+              updatedAt: v.personalNote.updatedAt || v.personalNote.createdAt || 0,
             });
           }
           for (const r of v.aiResearch) {
@@ -80,6 +82,8 @@ export function useDataStats(updateTrigger?: number) {
             });
           }
         }
+        // Sort latest first
+        noteDetails.sort((a, b) => b.updatedAt - a.updatedAt);
         researchDetails.sort((a, b) => b.timestamp - a.timestamp);
 
         // Get cached chapters
