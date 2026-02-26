@@ -1,7 +1,7 @@
 import { buildChapterUrl } from '../services/apiConfig';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { Verse, Book, SelectionInfo } from '../types';
-import { BIBLE_BOOKS, CHINESE_ABBREV_TO_BOOK_ID } from '../constants';
+import { BIBLE_BOOKS } from '../constants';
 import { parseBibleReference } from '../services/bibleBookData';
 import { toSimplified } from '../services/chineseConverter';
 import { bibleStorage } from '../services/bibleStorage';
@@ -13,9 +13,18 @@ import { ReadingHistory } from './ReadingHistory';
 import VerseIndicators from './VerseIndicators';
 import ContextMenu from './ContextMenu';
 import { useSeasonTheme } from '../hooks/useSeasonTheme';
-import InlineBibleAnnotation, { COLOR_PRESETS, InlineBibleAnnotationHandle } from './InlineBibleAnnotation';
-import { backgroundBibleDownload } from '../services/backgroundBibleDownload';
+import { COLOR_PRESETS } from './InlineBibleAnnotation';
 import { useDebounce } from '../hooks/useDebounce';
+import { useBibleSettings } from '../hooks/useBibleSettings';
+import { useDownloadState } from '../hooks/useDownloadState';
+import { useAnnotationState } from '../hooks/useAnnotationState';
+import { useSwipeNavigation } from '../hooks/useSwipeNavigation';
+import { useBibleDownload } from '../hooks/useBibleDownload';
+import { useBibleContextMenu } from '../hooks/useBibleContextMenu';
+import AnnotationToolbar from './AnnotationToolbar';
+import BibleSearchPanel from './BibleSearchPanel';
+import BibleHeader from './BibleHeader';
+import BibleVersePanel from './BibleVersePanel';
 
 interface BibleViewerProps {
   onSelectionChange?: (info: SelectionInfo) => void;
@@ -73,36 +82,19 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   const [loading, setLoading] = useState(false);
   const [selectedVerses, setSelectedVerses] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [isSimplified, setIsSimplified] = useState(() => {
-    const saved = localStorage.getItem('bibleChineseMode');
-    return saved === 'simplified';
-  });
-  const [englishVersion, setEnglishVersion] = useState<string>(() => {
-    return localStorage.getItem('bibleEnglishVersion') || 'web';
-  });
-  const [fontSize, setFontSize] = useState(() => {
-    const saved = localStorage.getItem('bibleFontSize');
-    return saved ? parseInt(saved) : 18;
-  });
-  const [isDownloading, setIsDownloading] = useState(false);
-  const [downloadProgress, setDownloadProgress] = useState(0);
-  const [downloadStatus, setDownloadStatus] = useState<string>('');
-  const [downloadStartTime, setDownloadStartTime] = useState<number>(0);
-  const [downloadTimeRemaining, setDownloadTimeRemaining] = useState<string>('');
-  const [isOffline, setIsOffline] = useState(false);
-  const [touchStartX, setTouchStartX] = useState<number | null>(null);
-  const [touchStartY, setTouchStartY] = useState<number | null>(null);
-  const [swipeDirection, setSwipeDirection] = useState<'horizontal' | 'vertical' | null>(null);
-  const [isSwiping, setIsSwiping] = useState(false);
-  const [swipeOffset, setSwipeOffset] = useState(0);
-  const [isPageFlipping, setIsPageFlipping] = useState(false);
-  const [flipDirection, setFlipDirection] = useState<'left' | 'right' | null>(null);
-  const [nextChapterVerses, setNextChapterVerses] = useState<Verse[]>([]);
-  const [prevChapterVerses, setPrevChapterVerses] = useState<Verse[]>([]);
-  const [showDownloadMenu, setShowDownloadMenu] = useState(false);
-  const [offlineChapters, setOfflineChapters] = useState<Set<string>>(new Set());
-  const [autoDownloadInProgress, setAutoDownloadInProgress] = useState(false);
-  const downloadCancelRef = useRef(false);
+  const { isSimplified, setIsSimplified, englishVersion, setEnglishVersion, fontSize, setFontSize } = useBibleSettings();
+  const {
+    isDownloading, setIsDownloading,
+    downloadProgress, setDownloadProgress,
+    downloadStatus, setDownloadStatus,
+    downloadStartTime, setDownloadStartTime,
+    downloadTimeRemaining, setDownloadTimeRemaining,
+    isOffline, setIsOffline,
+    showDownloadMenu, setShowDownloadMenu,
+    offlineChapters, setOfflineChapters,
+    autoDownloadInProgress, setAutoDownloadInProgress,
+    downloadCancelRef,
+  } = useDownloadState();
   
   // Book search state
   const [bookSearchTerm, setBookSearchTerm] = useState('');
@@ -176,84 +168,38 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   
   // iOS two-step text selection state (isolated)
   const [iosTextSelectionReady, setIosTextSelectionReady] = useState(false);
-  
-  // ── Annotation mode state ──────────────────────────────────────────────
-  const [isAnnotationMode, setIsAnnotationMode] = useState(false);
+
+  // ── Annotation mode state (via hook) ──────────────────────────────────
   const [leftPanelContentHeight, setLeftPanelContentHeight] = useState(0);
   const [rightPanelContentHeight, setRightPanelContentHeight] = useState(0);
   const leftContentMeasureRef = useRef<HTMLDivElement>(null);
   const rightContentMeasureRef = useRef<HTMLDivElement>(null);
-  
-  // Shared annotation tool state (controls both panels)
-  const [annotationTool, setAnnotationTool] = useState<'pen' | 'marker' | 'highlighter' | 'eraser'>('pen');
-  const [annotationColor, setAnnotationColor] = useState('#3b82f6');
-  const [annotationSize, setAnnotationSize] = useState(2);
-  const [toolSizes, setToolSizes] = useState<Record<string, number>>({
-    pen: 2, marker: 3, highlighter: 4, eraser: 8,
-  });
-  const [toolColors, setToolColors] = useState<Record<string, string>>({
-    pen: '#3b82f6', marker: '#3b82f6', highlighter: '#fbbf24', eraser: '#000000',
-  });
-  const [showAnnotationColorPicker, setShowAnnotationColorPicker] = useState(false);
-  const [isAnnotationToolbarCollapsed, setIsAnnotationToolbarCollapsed] = useState(false);
-  /** Stored layout from when annotations were drawn, for "Restore Alignment" */
-  const [annotationOriginalLayout, setAnnotationOriginalLayout] = useState<{ fontSize: number; vSplitOffset: number } | null>(null);
 
-  // Refs to annotation components for undo/clear
-  const chineseAnnotationRef = useRef<InlineBibleAnnotationHandle | null>(null);
-  const englishAnnotationRef = useRef<InlineBibleAnnotationHandle | null>(null);
-  
-  // Handler to select annotation tool
-  const selectAnnotationTool = useCallback((tool: 'pen' | 'marker' | 'highlighter' | 'eraser') => {
-    // Save current size and color for the current tool before switching
-    setToolSizes(prev => ({ ...prev, [annotationTool]: annotationSize }));
-    setToolColors(prev => ({ ...prev, [annotationTool]: annotationColor }));
-    setAnnotationTool(tool);
-    // Restore the saved size and color for the new tool
-    setAnnotationSize(toolSizes[tool]);
-    setAnnotationColor(toolColors[tool]);
-  }, [annotationTool, annotationSize, annotationColor, toolSizes, toolColors]);
-  
-  // Handler when annotation layout doesn't match current layout
-  const handleAlignmentMismatch = useCallback((storedFontSize: number, storedVSplitOffset: number) => {
-    setAnnotationOriginalLayout({ fontSize: storedFontSize, vSplitOffset: storedVSplitOffset });
-  }, []);
+  const {
+    isAnnotationMode, setIsAnnotationMode,
+    annotationTool, annotationColor, setAnnotationColor,
+    annotationSize, setAnnotationSize,
+    showAnnotationColorPicker, setShowAnnotationColorPicker,
+    isAnnotationToolbarCollapsed, setIsAnnotationToolbarCollapsed,
+    annotationOriginalLayout,
+    chineseAnnotationRef, englishAnnotationRef,
+    selectAnnotationTool,
+    handleAlignmentMismatch, handleRestoreAlignment,
+    handleAnnotationUndo, handleAnnotationClearAll,
+    annotationToolState,
+  } = useAnnotationState(setFontSize, setVSplitOffset, selectedBook.id, selectedChapter);
 
-  // Restore layout to match annotation alignment
-  const handleRestoreAlignment = useCallback(() => {
-    if (annotationOriginalLayout) {
-      setFontSize(annotationOriginalLayout.fontSize);
-      setVSplitOffset(annotationOriginalLayout.vSplitOffset);
-      setAnnotationOriginalLayout(null);
-    }
-  }, [annotationOriginalLayout]);
+  // ── Swipe navigation (via hook) ────────────────────────────────────────
+  const navigateChapterRef = useRef<(dir: 'prev' | 'next') => void>(() => {});
+  const {
+    isSwiping, swipeOffset,
+    isPageFlipping, setIsPageFlipping,
+    flipDirection, setFlipDirection,
+    nextChapterVerses, setNextChapterVerses,
+    prevChapterVerses, setPrevChapterVerses,
+    handleTouchStart, handleTouchMove, handleTouchEnd,
+  } = useSwipeNavigation((dir) => navigateChapterRef.current(dir));
 
-  // Clear stale alignment state when navigating to a different chapter
-  useEffect(() => {
-    setAnnotationOriginalLayout(null);
-  }, [selectedBook.id, selectedChapter]);
-
-  // Handler to undo on both panels
-  const handleAnnotationUndo = useCallback(() => {
-    chineseAnnotationRef.current?.undo();
-    englishAnnotationRef.current?.undo();
-  }, []);
-  
-  // Handler to clear all on both panels (single confirmation)
-  const handleAnnotationClearAll = useCallback(() => {
-    if (confirm('清除此章所有标注？\nClear all annotations for this chapter?')) {
-      chineseAnnotationRef.current?.clearAll();
-      englishAnnotationRef.current?.clearAll();
-    }
-  }, []);
-  
-  // Memoize tool state to prevent unnecessary re-renders
-  const annotationToolState = useMemo(() => ({
-    tool: annotationTool,
-    color: annotationColor,
-    size: annotationSize,
-  }), [annotationTool, annotationColor, annotationSize]);
-  
   // Memoize computed values to prevent unnecessary recalculations
   const allVerseNumbers = useMemo(() => {
     return leftVerses.map(v => v.verse);
@@ -269,24 +215,6 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
 
   // Debounce book search term to avoid filtering on every keystroke
   const debouncedBookSearchTerm = useDebounce(bookSearchTerm, 300);
-
-  // Listen for English version changes (from Sidebar dropdown or storage events)
-  useEffect(() => {
-    const handleVersionChange = (e: Event) => {
-      const version = localStorage.getItem('bibleEnglishVersion') || 'web';
-      setEnglishVersion(version);
-    };
-    window.addEventListener('bibleEnglishVersionChanged', handleVersionChange);
-    window.addEventListener('storage', (e: StorageEvent) => {
-      if (e.key === 'bibleEnglishVersion') {
-        setEnglishVersion(e.newValue || 'web');
-      }
-    });
-    return () => {
-      window.removeEventListener('bibleEnglishVersionChanged', handleVersionChange);
-      // storage event listener is fine to leave (or we could track ref)
-    };
-  }, []);
 
   // ── Measure content heights for annotation canvas sizing ──────────────
   useEffect(() => {
@@ -840,518 +768,65 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     [debouncedBookSearchTerm]
   );
 
-  // Calculate estimated time remaining for download
-  const calculateTimeRemaining = (progress: number, startTime: number): string => {
-    if (progress === 0 || progress === 100) return '';
-    
-    const elapsed = Date.now() - startTime;
-    const estimatedTotal = (elapsed / progress) * 100;
-    const remaining = estimatedTotal - elapsed;
-    
-    if (remaining < 1000) return '即将完成';
-    
-    const seconds = Math.floor(remaining / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-    
-    if (hours > 0) {
-      return `约 ${hours} 小时 ${minutes % 60} 分钟`;
-    } else if (minutes > 0) {
-      return `约 ${minutes} 分钟 ${seconds % 60} 秒`;
-    } else {
-      return `约 ${seconds} 秒`;
-    }
-  };
+  const { handleDownloadCurrentChapter, handleDownloadCurrentBook, handleDownloadBible, handleAutoDownloadBible, handleResumeDownload } = useBibleDownload({
+    selectedBookId: selectedBook.id,
+    selectedBookName: selectedBook.name,
+    selectedBookTotalVerses: selectedBook.totalVerses,
+    selectedBookChapters: selectedBook.chapters,
+    selectedChapter,
+    englishVersion,
+    isDownloading,
+    setIsDownloading,
+    downloadProgress,
+    setDownloadProgress,
+    setDownloadStatus,
+    setDownloadStartTime,
+    setDownloadTimeRemaining,
+    setIsOffline,
+    setShowDownloadMenu,
+    setOfflineChapters,
+    setAutoDownloadInProgress,
+    autoDownloadInProgress,
+    downloadStartTime,
+    downloadStatus,
+    downloadTimeRemaining,
+    downloadCancelRef,
+    onDownloadStateChange,
+    onDownloadFunctionsReady,
+  });
 
-  const handleDownloadCurrentChapter = useCallback(async () => {
-    setIsDownloading(true);
-    setDownloadProgress(0);
-    setDownloadStartTime(Date.now());
-    setDownloadTimeRemaining('');
-    setDownloadStatus(`正在下载: ${selectedBook.name} 第 ${selectedChapter} 章`);
-    
-    try {
-      // Download current chapter with retry logic
-      let cuvSuccess = false;
-      for (let retry = 0; retry < 3 && !cuvSuccess; retry++) {
-        try {
-          const cuvRes = await fetch(buildChapterUrl(selectedBook.id, selectedChapter, 'cuv', selectedBook.totalVerses));
-          if (cuvRes.ok) {
-            const cuvData = await cuvRes.json();
-            if (cuvData?.verses) {
-              await bibleStorage.saveChapter(selectedBook.id, selectedChapter, 'cuv', cuvData);
-              cuvSuccess = true;
-            }
-          }
-        } catch (e) {
-          if (retry === 2) throw e;
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      }
-      setDownloadProgress(50);
-      
-      let webSuccess = false;
-      for (let retry = 0; retry < 3 && !webSuccess; retry++) {
-        try {
-          const webRes = await fetch(buildChapterUrl(selectedBook.id, selectedChapter, englishVersion, selectedBook.totalVerses));
-          if (webRes.ok) {
-            const webData = await webRes.json();
-            if (webData?.verses) {
-              await bibleStorage.saveChapter(selectedBook.id, selectedChapter, englishVersion as any, webData);
-              webSuccess = true;
-            }
-          }
-        } catch (e) {
-          if (retry === 2) throw e;
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        }
-      }
-      setDownloadProgress(100);
-      
-      await checkOfflineStatus();
-      fetchChapter(); // Refresh to show offline status
-      alert(`${selectedBook.name} 第 ${selectedChapter} 章已下载！`);
-    } catch (err) {
-      console.error('Download error:', err);
-      alert('下载失败，请检查网络连接后重试。');
-    } finally {
-      setIsDownloading(false);
-      setDownloadProgress(0);
-      setDownloadStatus('');
-      setDownloadTimeRemaining('');
-      setShowDownloadMenu(false);
-    }
-  }, [selectedBook, selectedChapter]);
-
-  const handleDownloadCurrentBook = useCallback(async () => {
-    setIsDownloading(true);
-    setDownloadProgress(0);
-    setDownloadStartTime(Date.now());
-    setDownloadTimeRemaining('');
-    
-    try {
-      const totalChapters = selectedBook.chapters || 1;
-      let completed = 0;
-      const total = totalChapters * 2; // *2 for both translations
-      
-      for (let chapter = 1; chapter <= totalChapters; chapter++) {
-        // Check if download was cancelled
-        if (downloadCancelRef.current) {
-          alert('下载已取消');
-          return;
-        }
-
-        // Update status
-        setDownloadStatus(`正在下载: ${selectedBook.name} 第 ${chapter} 章`);
-
-        // Skip if already downloaded
-        const hasChapter = await bibleStorage.hasChapter(selectedBook.id, chapter);
-        if (hasChapter) {
-          completed += 2;
-          setDownloadProgress(Math.round((completed / total) * 100));
-          continue;
-        }
-
-        // Add delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-        // Download CUV
-        try {
-          const cuvRes = await fetch(buildChapterUrl(selectedBook.id, chapter, 'cuv', selectedBook.totalVerses));
-          if (cuvRes.ok) {
-            const cuvData = await cuvRes.json();
-            if (cuvData?.verses) {
-              await bibleStorage.saveChapter(selectedBook.id, chapter, 'cuv', cuvData);
-            }
-          }
-        } catch (e) {
-          console.error(`Failed to download ${selectedBook.id} ${chapter} CUV:`, e);
-        }
-        completed++;
-        setDownloadProgress(Math.round((completed / total) * 100));
-
-        // Add delay between translations
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-        // Download WEB
-        try {
-          const webRes = await fetch(buildChapterUrl(selectedBook.id, chapter, englishVersion, selectedBook.totalVerses));
-          if (webRes.ok) {
-            const webData = await webRes.json();
-            if (webData?.verses) {
-              await bibleStorage.saveChapter(selectedBook.id, chapter, englishVersion as any, webData);
-            }
-          }
-        } catch (e) {
-          console.error(`Failed to download ${selectedBook.id} ${chapter} WEB:`, e);
-        }
-        completed++;
-        setDownloadProgress(Math.round((completed / total) * 100));
-      }
-
-      await checkOfflineStatus();
-      alert(`${selectedBook.name} 已下载完成！`);
-    } catch (err) {
-      console.error('Download error:', err);
-      alert('下载失败，请检查网络连接后重试。');
-    } finally {
-      setIsDownloading(false);
-      setDownloadProgress(0);
-      setDownloadStatus('');
-      setDownloadTimeRemaining('');
-      setShowDownloadMenu(false);
-    }
-  }, [selectedBook]);
-
-  const downloadBibleInternal = async (startBookIndex = 0, startChapter = 0, startCompleted = 0, existingFailedChapters: string[] = [], saveProgress = true, isAuto = false) => {
-    const books = BIBLE_BOOKS;
-    let completed = startCompleted;
-    const total = books.reduce((sum, book) => sum + (book.chapters || 0), 0) * 2; // *2 for both translations
-    let failedChapters = [...existingFailedChapters];
-    
-    for (let bookIndex = startBookIndex; bookIndex < books.length; bookIndex++) {
-      const book = books[bookIndex];
-      const startChapterForBook = bookIndex === startBookIndex ? startChapter : 1;
-      
-      for (let chapter = startChapterForBook; chapter <= (book.chapters || 1); chapter++) {
-        // Check if download was cancelled
-        if (downloadCancelRef.current) {
-          if (saveProgress) {
-            await bibleStorage.saveMetadata('download_progress', {
-              bookIndex,
-              chapter,
-              completed,
-              totalChapters: total,
-              failedChapters,
-              timestamp: Date.now()
-            });
-          }
-          return { cancelled: true, failedChapters };
-        }
-
-        // Skip if already downloaded
-        const hasChapter = await bibleStorage.hasChapter(book.id, chapter);
-        if (hasChapter) {
-          completed += 2;
-          setDownloadProgress(Math.round((completed / total) * 100));
-          continue;
-        }
-
-        // Skip if previously failed
-        if (failedChapters.includes(`${book.id} ${chapter}`)) {
-          completed += 2;
-          setDownloadProgress(Math.round((completed / total) * 100));
-          continue;
-        }
-
-        try {
-          // Update download status
-          setDownloadStatus(`正在下载: ${book.name} 第 ${chapter} 章`);
-          
-          // Add longer rate limiting delay between requests (2 seconds)
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          
-          // Download CUV with retry logic
-          let cuvSuccess = false;
-          for (let retry = 0; retry < 3 && !cuvSuccess; retry++) {
-            try {
-              const cuvRes = await fetch(buildChapterUrl(book.id, chapter, 'cuv', book.totalVerses));
-              if (cuvRes.ok) {
-                const cuvData = await cuvRes.json();
-                if (cuvData?.verses) {
-                  await bibleStorage.saveChapter(book.id, chapter, 'cuv', cuvData);
-                  cuvSuccess = true;
-                }
-              } else if (cuvRes.status === 429) {
-                // Rate limited - wait much longer
-                const waitTime = (5 + retry * 5);
-                await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
-              } else if (retry < 2) {
-                await new Promise(resolve => setTimeout(resolve, 2000));
-              }
-            } catch (e) {
-              if (retry === 2) {
-                console.error(`Failed to download ${book.id} ${chapter} CUV after retries:`, e);
-                break; // Don't throw, just skip this chapter
-              }
-              await new Promise(resolve => setTimeout(resolve, 3000));
-            }
-          }
-          if (!cuvSuccess) {
-            failedChapters.push(`${book.id} ${chapter} CUV`);
-          }
-          completed++;
-          setDownloadProgress(Math.round((completed / total) * 100));
-          
-          // Add delay between translations too (2 seconds)
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          
-          // Download WEB with retry logic
-          let webSuccess = false;
-          for (let retry = 0; retry < 3 && !webSuccess; retry++) {
-            try {
-              const webRes = await fetch(buildChapterUrl(book.id, chapter, englishVersion, book.totalVerses));
-              if (webRes.ok) {
-                const webData = await webRes.json();
-                if (webData?.verses) {
-                  await bibleStorage.saveChapter(book.id, chapter, englishVersion as any, webData);
-                  webSuccess = true;
-                }
-              } else if (webRes.status === 429) {
-                // Rate limited - wait much longer
-                const waitTime = (5 + retry * 5);
-                await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
-              } else if (retry < 2) {
-                await new Promise(resolve => setTimeout(resolve, 2000));
-              }
-            } catch (e) {
-              if (retry === 2) {
-                console.error(`Failed to download ${book.id} ${chapter} WEB after retries:`, e);
-                break; // Don't throw, just skip this chapter
-              }
-              await new Promise(resolve => setTimeout(resolve, 3000));
-            }
-          }
-          if (!webSuccess) {
-            failedChapters.push(`${book.id} ${chapter} WEB`);
-          }
-          completed++;
-          setDownloadProgress(Math.round((completed / total) * 100));
-          
-        } catch (chapterErr) {
-          console.error(`Failed to download ${book.id} ${chapter}:`, chapterErr);
-          failedChapters.push(`${book.id} ${chapter}`);
-          completed += 2; // Skip both translations
-          setDownloadProgress(Math.round((completed / total) * 100));
-        }
-        
-        // Save progress periodically
-        if (saveProgress && completed % 10 === 0) {
-          await bibleStorage.saveMetadata('download_progress', {
-            bookIndex,
-            chapter,
-            completed,
-            totalChapters: total,
-            failedChapters,
-            timestamp: Date.now()
-          });
-        }
-        
-        // Delay between chapters to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, isAuto ? 800 : 500));
-      }
-    }
-    
-    if (saveProgress) {
-      await bibleStorage.deleteMetadata('download_progress');
-    }
-    
-    return { cancelled: false, failedChapters };
-  };
-
-  const handleDownloadBible = useCallback(async () => {
-    // Warn user about download time due to rate limiting
-    if (!confirm('下载整本圣经需要较长时间（约30-60分钟）以避免服务器限制。是否继续？\n\nDownloading the entire Bible will take 30-60 minutes to avoid server rate limits. Continue?')) {
-      return;
-    }
-
-    // Stop background download to avoid dual processes
-    backgroundBibleDownload.stop();
-    setIsDownloading(true);
-    setDownloadProgress(0);
-    setDownloadStartTime(Date.now());
-    setDownloadTimeRemaining('');
-    downloadCancelRef.current = false;
-    
-    try {
-      const result = await downloadBibleInternal();
-      
-      if (!result.cancelled) {
-        if (result.failedChapters.length > 0) {
-          alert(`部分章节下载失败：${result.failedChapters.join(', ')}。其他章节已成功下载。`);
-        } else {
-          await bibleStorage.saveMetadata('bible_offline_downloaded', true);
-          alert('圣经已成功下载供离线使用！');
-        }
-      }
-    } catch (err) {
-      console.error('Download error:', err);
-      alert('下载失败，请检查网络连接后重试。');
-    } finally {
-      setIsDownloading(false);
-      setDownloadProgress(0);
-      setDownloadStatus('');
-      setShowDownloadMenu(false);
-      await checkOfflineStatus();
-      // Restart background download to pick up any remaining chapters
-      backgroundBibleDownload.start();
-    }
-  }, []);
-
-  const handleAutoDownloadBible = async () => {
-    if (autoDownloadInProgress) return;
-
-    // Stop background download to avoid dual processes
-    backgroundBibleDownload.stop();
-    setAutoDownloadInProgress(true);
-    setDownloadProgress(0);
-    setDownloadStartTime(Date.now());
-    setDownloadTimeRemaining('');
-    downloadCancelRef.current = false;
-    
-    try {
-      const result = await downloadBibleInternal(0, 0, 0, [], true, true);
-      
-      if (!result.cancelled) {
-        await bibleStorage.saveMetadata('bible_offline_downloaded', true);
-      }
-    } catch (err) {
-      console.error('Auto-download error:', err);
-    } finally {
-      setAutoDownloadInProgress(false);
-      setDownloadProgress(0);
-      setDownloadStatus('');
-      setDownloadTimeRemaining('');
-      await checkOfflineStatus();
-      // Restart background download to pick up any remaining chapters
-      backgroundBibleDownload.start();
-    }
-  };
-
-  const handleResumeDownload = async () => {
-    const progress = await bibleStorage.getMetadata('download_progress');
-    if (!progress) return;
-
-    // Stop background download to avoid dual processes
-    backgroundBibleDownload.stop();
-    try {
-      const { bookIndex, chapter, completed, failedChapters } = progress;
-      setIsDownloading(true);
-      setDownloadProgress(Math.round((completed / progress.totalChapters) * 100));
-      downloadCancelRef.current = false;
-      
-      const result = await downloadBibleInternal(bookIndex, chapter + 1, completed, failedChapters || []);
-      
-      if (!result.cancelled) {
-        if (result.failedChapters.length > 0) {
-          alert(`部分章节下载失败：${result.failedChapters.join(', ')}。其他章节已成功下载。`);
-        } else {
-          await bibleStorage.saveMetadata('bible_offline_downloaded', true);
-          alert('圣经已成功下载供离线使用！');
-        }
-      }
-    } catch (err) {
-      console.error('Resume download error:', err);
-      alert('恢复下载失败，请重试。');
-    } finally {
-      setIsDownloading(false);
-      setDownloadProgress(0);
-      setDownloadStatus('');
-      setShowDownloadMenu(false);
-      await checkOfflineStatus();
-    }
-  };
-
-  const notifySelection = useCallback((verseNums: number[], manualText?: string) => {
-    const id = verseNums.length > 0 
-      ? `${selectedBook.id}:${selectedChapter}:${verseNums[0]}`
-      : `${selectedBook.id}:${selectedChapter}`;
-    
-    let fullText = "";
-    if (manualText) {
-      fullText = manualText;
-    } else if (verseNums.length > 0) {
-      fullText = verseNums.map(vNum => {
-        const leftV = leftVerses.find(v => v.verse === vNum);
-        const rightV = rightVerses.find(v => v.verse === vNum);
-        return `[${selectedBook.name} ${selectedChapter}:${vNum}]\n和合本: ${leftV?.text || ''}\n${englishVersion.toUpperCase()}: ${rightV?.text || ''}`;
-      }).join('\n\n');
-    }
-
-    if (onSelectionChange) {
-      onSelectionChange({
-        bookId: selectedBook.id,
-        bookName: selectedBook.name,
-        chapter: selectedChapter,
-        verseNums,
-        id,
-        selectedRawText: fullText
-      });
-    }
-
-    // Add "解读:" prefix for research
-    const textToSend = fullText && !manualText 
-      ? `解读: ${fullText}` 
-      : fullText;
-    
-    onVersesSelectedForChat(textToSend);
-  }, [selectedBook, selectedChapter, leftVerses, rightVerses, onSelectionChange, onVersesSelectedForChat]);
-
-  const handleVerseClick = (verseNum: number, e: React.MouseEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    
-    // Don't respond to verse clicks if there's already text selection
-    // (text selection takes priority over verse selection on all platforms)
-    
-    // If there's text selection, don't handle the click
-    const selection = window.getSelection()?.toString();
-    if (selection && selection.length > 0) return;
-
-    // Toggle verse selection - deselect if already selected, select if not
-    // Clear any text selection when clicking a verse
-    window.getSelection()?.removeAllRanges();
-    
-    const isCurrentlySelected = selectedVerses.includes(verseNum);
-    const newSelection = isCurrentlySelected ? [] : [verseNum];
-    setSelectedVerses(newSelection);
-    notifySelection(newSelection);
-  };
+  const { notifySelection, handleVerseClick, handleMouseUp, handleIOSTouchEnd, handleTextSelection, handleContextMenuAction, handleSelectFromHistory } = useBibleContextMenu({
+    selectedBook,
+    selectedChapter,
+    leftVerses,
+    rightVerses,
+    selectedVerses,
+    setSelectedVerses,
+    contextMenu,
+    setContextMenu,
+    isTransitioning,
+    setIsTransitioning,
+    iosTextSelectionReady,
+    setIosTextSelectionReady,
+    isIPhone,
+    isIOS,
+    englishVersion,
+    onSelectionChange,
+    onVersesSelectedForChat,
+    setSelectedBook,
+    setSelectedChapter,
+    onLayoutChange,
+  });
 
   const handleEmptySpaceClick = (e: React.MouseEvent) => {
     // Don't select all verses in research mode (text selection preferred)
     return;
-    
+
     const selection = window.getSelection()?.toString();
     if (selection && selection.length > 0) return;
 
     setSelectedVerses(allVerseNumbers);
     notifySelection(allVerseNumbers);
-  };
-
-  const handleMouseUp = (e: React.MouseEvent) => {
-    // Skip on iOS - use touch events instead for two-step selection
-    if (isIOS) return;
-    
-    const selection = window.getSelection();
-    const text = selection?.toString().trim();
-    if (text && text.length > 0) {
-      // Don't notify selection here - let handleTextSelection determine the correct verse
-      // Only show the context menu
-      handleTextSelection();
-    }
-  };
-
-  // iOS-only touch handler for two-step text selection
-  const handleIOSTouchEnd = (e: React.TouchEvent) => {
-    if (!isIOS) return;
-    
-    const selection = window.getSelection();
-    const text = selection?.toString().trim();
-    
-    if (text && text.length > 0) {
-      if (!iosTextSelectionReady) {
-        // First selection - just mark as ready, don't show context menu
-        setIosTextSelectionReady(true);
-      } else {
-        // Second tap on selected text - show context menu
-        handleTextSelection();
-        setIosTextSelectionReady(false);
-      }
-    } else {
-      // No text selected - reset state
-      setIosTextSelectionReady(false);
-    }
   };
 
   const handleScroll = (source: 'left' | 'right') => {
@@ -1426,318 +901,8 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     }
     setSelectedVerses([]);
   };
-
-  // Handler for selecting chapter from history
-  const handleSelectFromHistory = (bookId: string, chapter: number) => {
-    const book = BIBLE_BOOKS.find(b => b.id === bookId);
-    if (book) {
-      setSelectedBook(book);
-      setSelectedChapter(chapter);
-      setSelectedVerses([]);
-    }
-  };
-
-  // Handle text selection for context menu
-  const handleTextSelection = () => {
-    const selection = window.getSelection();
-    if (selection && selection.toString().trim()) {
-      const range = selection.getRangeAt(0);
-      const rect = range.getBoundingClientRect();
-      const selectedText = selection.toString();
-      
-      // Find which verse element contains the selection by checking the DOM
-      let verseInfo = undefined;
-      
-      // Get the container element of the selection's anchor node
-      let containerElement = selection.anchorNode?.parentElement;
-      
-      // Traverse up the DOM tree to find the verse container div with data-verse attribute
-      let traversalDepth = 0;
-      while (containerElement && !containerElement.hasAttribute('data-verse') && traversalDepth < 10) {
-        containerElement = containerElement.parentElement;
-        traversalDepth++;
-      }
-      
-      
-      // If we found a verse container, extract the verse number from its data-verse attribute
-      if (containerElement && containerElement.hasAttribute('data-verse')) {
-        const verseNum = parseInt(containerElement.getAttribute('data-verse') || '0');
-        
-        if (verseNum > 0) {
-          // Find the verse data
-          const allVerses = [...leftVerses, ...rightVerses];
-          const verseData = allVerses.find(v => v.verse === verseNum);
-          
-          if (verseData) {
-            verseInfo = {
-              bookId: selectedBook.id,
-              bookName: selectedBook.name,
-              chapter: selectedChapter,
-              verseNum: verseData.verse,
-              fullVerseText: verseData.text
-            };
-          } else {
-          }
-        }
-      } else {
-      }
-      
-      // Fallback: if we couldn't find it by DOM, search by text (but this may get the wrong verse)
-      if (!verseInfo) {
-        const allVerses = [...leftVerses, ...rightVerses];
-        for (const verse of allVerses) {
-          const cleanVerseText = verse.text.replace(/\s+/g, ' ').trim();
-          const cleanSelectedText = selectedText.replace(/\s+/g, ' ').trim();
-          
-          if (cleanVerseText.includes(cleanSelectedText)) {
-            verseInfo = {
-              bookId: selectedBook.id,
-              bookName: selectedBook.name,
-              chapter: selectedChapter,
-              verseNum: verse.verse,
-              fullVerseText: verse.text
-            };
-            break;
-          }
-        }
-      }
-      
-      // Clear any existing verse selection first (text selection takes priority)
-      setSelectedVerses([]);
-      
-      // If we have verse info and not on iOS, highlight just that verse
-      // On iOS, avoid verse selection to prevent interference with page flipping
-      if (verseInfo && !isIOS) {
-        setSelectedVerses([verseInfo.verseNum]);
-      }
-      
-      // Show context menu with the selected text and verse info
-      setContextMenu({
-        position: {
-          x: rect.left + window.scrollX,
-          y: rect.bottom + window.scrollY
-        },
-        selectedText: selectedText,
-        verseInfo: verseInfo
-      });
-    } else {
-      setContextMenu(null);
-    }
-  };
-
-  // Context menu actions
-  const handleContextMenuAction = (action: 'research' | 'note' | 'copy') => {
-    if (!contextMenu) return;
-    
-    switch (action) {
-      case 'research':
-        // Save the selected text and verse info before clearing
-        const selectedText = contextMenu.selectedText;
-        const verseInfo = contextMenu.verseInfo;
-        
-        // If we have verse info, select that verse
-        if (verseInfo) {
-          setSelectedVerses([verseInfo.verseNum]);
-        } else {
-          // Clear verse selection if we couldn't find the verse
-          setSelectedVerses([]);
-        }
-        
-        // Immediately clear ALL text selections to prevent any expansion
-        window.getSelection()?.removeAllRanges();
-        document.getSelection()?.removeAllRanges();
-        
-        // Close context menu first
-        setContextMenu(null);
-        
-        // Format the selected text with context
-        const formattedText = verseInfo 
-          ? `解读："${selectedText}" in ${verseInfo.bookName} ${verseInfo.chapter}:${verseInfo.verseNum}\n\n完整经文：${verseInfo.fullVerseText}`
-          : `解读："${selectedText}"`;
-        
-        // Send to AI chat - don't clear previous chat
-        onVersesSelectedForChat(formattedText, false);
-        
-        // Adjust layout: horizontal divider to 50%, research view to 100%
-        if (onLayoutChange) {
-          onLayoutChange(50, 100);
-        }
-        
-        break;
-      case 'note':
-        // Use verse info from context menu
-        const noteVerseInfo = contextMenu.verseInfo;
-        const noteSelectedText = contextMenu.selectedText;
-        
-        
-        // If we have verse info, use it directly
-        const versesToUse = noteVerseInfo 
-          ? [noteVerseInfo.verseNum]
-          : selectedVerses.length > 0 ? selectedVerses : [];
-        
-        if (versesToUse.length > 0 || noteVerseInfo) {
-          // Set the selected verses for visual feedback
-          if (noteVerseInfo) {
-            setSelectedVerses([noteVerseInfo.verseNum]);
-          } else if (versesToUse.length > 0) {
-            setSelectedVerses(versesToUse);
-          }
-          
-          const noteId = noteVerseInfo
-            ? `${noteVerseInfo.bookId}:${noteVerseInfo.chapter}:${noteVerseInfo.verseNum}`
-            : `${selectedBook.id}:${selectedChapter}:${versesToUse[0]}`;
-            
-          
-          onSelectionChange?.({
-            id: noteId,
-            bookId: noteVerseInfo?.bookId || selectedBook.id,
-            bookName: noteVerseInfo?.bookName || selectedBook.name,
-            chapter: noteVerseInfo?.chapter || selectedChapter,
-            verseNums: noteVerseInfo ? [noteVerseInfo.verseNum] : versesToUse,
-            selectedRawText: noteSelectedText
-          });
-          
-          // Clear text selection but keep verse selection
-          window.getSelection()?.removeAllRanges();
-          document.getSelection()?.removeAllRanges();
-          
-          // No mode switching needed anymore
-        }
-        break;
-      case 'copy':
-        navigator.clipboard.writeText(contextMenu.selectedText);
-        break;
-    }
-    
-    // Close context menu
-    setContextMenu(null);
-  };
-
-  const handleTouchStart = (e: React.TouchEvent) => {
-    // Enable page flip on iOS
-    if (isIOS) {
-      // Don't start swipe if user is selecting text
-      const selection = window.getSelection();
-      if (selection && selection.toString().length > 0) return;
-      
-      // Don't start swipe if verses are selected (user might be trying to copy)
-      if (selectedVerses.length > 0) return;
-      
-      // Allow swiping from anywhere on the screen
-      // Store the starting position for swipe detection
-      setTouchStartX(e.touches[0].clientX);
-      setTouchStartY(e.touches[0].clientY);
-      setSwipeDirection(null); // Reset swipe direction detection
-      setIsSwiping(false);
-      setSwipeOffset(0);
-    }
-  };
-
-  const handleTouchMove = (e: React.TouchEvent) => {
-    if (touchStartX === null || touchStartY === null) return;
-    
-    // Stop if text is being selected
-    const selection = window.getSelection();
-    if (selection && selection.toString().length > 0) {
-      setTouchStartX(null);
-      setTouchStartY(null);
-      setSwipeDirection(null);
-      setIsSwiping(false);
-      setSwipeOffset(0);
-      return;
-    }
-    
-    // Stop if verses are selected
-    if (selectedVerses.length > 0) {
-      setTouchStartX(null);
-      setTouchStartY(null);
-      setSwipeDirection(null);
-      setIsSwiping(false);
-      setSwipeOffset(0);
-      return;
-    }
-    
-    const horizontalDiff = e.touches[0].clientX - touchStartX;
-    const verticalDiff = e.touches[0].clientY - touchStartY;
-    
-    // Determine swipe direction on first significant movement
-    if (swipeDirection === null) {
-      const absHorizontal = Math.abs(horizontalDiff);
-      const absVertical = Math.abs(verticalDiff);
-      
-      // Need minimum movement to determine direction
-      if (absHorizontal > 10 || absVertical > 10) {
-        // Check if swipe is more horizontal than vertical (within 30-degree angle)
-        if (absHorizontal > absVertical * 1.5) {
-          setSwipeDirection('horizontal');
-        } else {
-          setSwipeDirection('vertical');
-          // Cancel any page flip for vertical swipes
-          setTouchStartX(null);
-          setTouchStartY(null);
-          setIsSwiping(false);
-          setSwipeOffset(0);
-          return;
-        }
-      }
-    }
-    
-    // Only process horizontal swipes
-    if (swipeDirection === 'horizontal') {
-      setIsSwiping(true);
-      // Update swipe offset for visual feedback
-      setSwipeOffset(horizontalDiff);
-      setFlipDirection(horizontalDiff > 0 ? 'right' : 'left');
-      
-      // Prevent vertical scrolling while swiping horizontally
-      e.preventDefault();
-    }
-  };
-
-  const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartX === null || !isSwiping || swipeDirection !== 'horizontal') {
-      // Reset all states
-      setTouchStartX(null);
-      setTouchStartY(null);
-      setSwipeDirection(null);
-      setIsSwiping(false);
-      setSwipeOffset(0);
-      return;
-    }
-    const diff = e.changedTouches[0].clientX - touchStartX;
-    
-    // Determine if we should complete the flip based on distance
-    const shouldFlip = Math.abs(diff) > window.innerWidth * 0.25; // 25% of screen width
-    
-    if (shouldFlip) {
-      // Animate to completion
-      setIsPageFlipping(true);
-      const targetOffset = diff > 0 ? window.innerWidth : -window.innerWidth;
-      setSwipeOffset(targetOffset);
-      
-      // Navigate after animation
-      setTimeout(() => {
-        navigateChapter(diff > 0 ? 'prev' : 'next');
-        setSwipeOffset(0);
-        setIsPageFlipping(false);
-        setFlipDirection(null);
-        setIsSwiping(false);
-      }, 300);
-    } else {
-      // Snap back
-      setIsPageFlipping(true);
-      setSwipeOffset(0);
-      setTimeout(() => {
-        setIsPageFlipping(false);
-        setFlipDirection(null);
-        setIsSwiping(false);
-      }, 300);
-    }
-    
-    setTouchStartX(null);
-    setTouchStartY(null);
-    setSwipeDirection(null);
-  };
+  // Wire navigateChapterRef so useSwipeNavigation can call navigateChapter
+  navigateChapterRef.current = navigateChapter;
 
   const canNavigatePrev = selectedChapter > 1 || BIBLE_BOOKS.findIndex(b => b.id === selectedBook.id) > 0;
   const canNavigateNext = selectedChapter < (selectedBook.chapters || 1) || BIBLE_BOOKS.findIndex(b => b.id === selectedBook.id) < BIBLE_BOOKS.length - 1;
@@ -1749,28 +914,6 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       setHasIncompleteDownload(!!progress);
     });
   }, [isDownloading]);
-
-  // Expose download functions to parent (use ref to avoid infinite loop from inline callback)
-  const onDownloadFunctionsReadyRef = useRef(onDownloadFunctionsReady);
-  onDownloadFunctionsReadyRef.current = onDownloadFunctionsReady;
-  useEffect(() => {
-    onDownloadFunctionsReadyRef.current?.(handleDownloadBible, handleDownloadCurrentChapter, handleDownloadCurrentBook);
-  }, [handleDownloadBible, handleDownloadCurrentChapter, handleDownloadCurrentBook]);
-
-  // Calculate time remaining whenever progress updates
-  useEffect(() => {
-    if ((isDownloading || autoDownloadInProgress) && downloadStartTime > 0 && downloadProgress > 0) {
-      const timeRemaining = calculateTimeRemaining(downloadProgress, downloadStartTime);
-      setDownloadTimeRemaining(timeRemaining);
-    }
-  }, [downloadProgress, downloadStartTime, isDownloading, autoDownloadInProgress]);
-
-  // Notify parent of download state changes (use ref to avoid infinite loop from inline callback)
-  const onDownloadStateChangeRef = useRef(onDownloadStateChange);
-  onDownloadStateChangeRef.current = onDownloadStateChange;
-  useEffect(() => {
-    onDownloadStateChangeRef.current?.(isDownloading || autoDownloadInProgress, downloadProgress, downloadStatus, downloadTimeRemaining);
-  }, [isDownloading, autoDownloadInProgress, downloadProgress, downloadStatus, downloadTimeRemaining]);
 
   return (
     <div 
@@ -1785,339 +928,83 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         WebkitUserSelect: isTransitioning ? 'none' : 'auto'
       }}
     >
-      <div className={`flex items-center justify-between px-3 py-2 border-b bg-slate-50 sticky top-0 z-10 shrink-0 shadow-sm ${isIPhone ? 'gap-2' : ''}`} onClick={e => e.stopPropagation()}>
-        <div className={`flex ${isIPhone ? 'gap-1' : 'gap-3'} items-center`}>
-          {/* App Title integrated into Bible controls - responsive positioning */}
-          <div 
-            className={`flex items-center gap-2 ${!showSidebarToggle ? 'cursor-pointer' : ''}`}
-            style={{ 
-              marginLeft: showSidebarToggle ? (sidebarOpen ? '12px' : '52px') : '0px'
-            }}
-            onClick={!showSidebarToggle ? onSidebarToggle : undefined}
-          >
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold shadow-sm" style={{ backgroundColor: theme.accent }}>圣</div>
-            {!isIPhone && (
-              <h1 className="text-lg font-bold tracking-tight text-slate-800">经学研</h1>
-            )}
-            {!showSidebarToggle && (
-              <svg className="w-4 h-4 text-slate-400 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-              </svg>
-            )}
-          </div>
-          {!isIPhone && <div className="h-6 w-[1px] bg-slate-300"></div>}
-          <button 
-            onClick={() => navigateChapter('prev')}
-            disabled={!canNavigatePrev}
-            className="p-1.5 rounded hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            title="上一章"
-          >
-            <svg className="w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <div className="relative" ref={bookSearchRef}>
-            <input
-              type="text"
-              className={`p-1.5 rounded border bg-white text-sm focus:ring-2 focus:ring-indigo-500 font-medium ${isIPhone ? 'w-24' : 'w-40'}`}
-              value={showBookDropdown ? bookSearchTerm : selectedBook.name}
-              onChange={(e) => setBookSearchTerm(e.target.value)}
-              onFocus={() => {
-                setShowBookDropdown(true);
-                setBookSearchTerm('');
-              }}
-              placeholder="搜索书卷..."
-            />
-            {showBookDropdown && (
-              <div className="absolute top-full mt-1 w-full max-h-60 overflow-y-scroll bg-white border border-slate-200 rounded-lg shadow-lg z-50 book-dropdown-scroll">
-                {filteredBooks.length > 0 ? (
-                  filteredBooks.map(book => (
-                    <button
-                      key={book.id}
-                      onClick={() => {
-                        setSelectedBook(book);
-                        setSelectedChapter(1);
-                        setShowBookDropdown(false);
-                        setBookSearchTerm('');
-                      }}
-                      className={`w-full text-left px-3 py-2 text-sm hover:bg-indigo-50 transition-colors ${
-                        book.id === selectedBook.id ? 'bg-indigo-100 font-semibold' : ''
-                      }`}
-                    >
-                      {book.name}
-                    </button>
-                  ))
-                ) : (
-                  <div className="px-3 py-2 text-sm text-slate-500">没有找到匹配的书卷</div>
-                )}
-              </div>
-            )}
-          </div>
-          <select 
-            className={`p-1.5 rounded border bg-white text-sm focus:ring-2 focus:ring-indigo-500 font-medium ${isIPhone ? 'w-16' : 'w-24'}`}
-            value={selectedChapter}
-            onChange={(e) => setSelectedChapter(Number(e.target.value))}
-          >
-            {Array.from({ length: selectedBook.chapters || 1 }, (_, i) => i + 1).map(num => {
-              const isOffline = offlineChapters.has(`${selectedBook.id}_${num}`);
-              const hasNotes = chaptersWithContent.withNotes.has(num);
-              const hasResearch = chaptersWithContent.withResearch.has(num);
-              
-              let indicators = '';
-              if (isOffline) indicators += '✓ ';
-              if (hasNotes) indicators += '📝 ';
-              if (hasResearch) indicators += '🤖 ';
-              
-              return (
-                <option key={num} value={num}>
-                  {indicators}{isIPhone ? num : `第 ${num} 章`}
-                </option>
-              );
-            })}
-          </select>
-          <button 
-            onClick={() => navigateChapter('next')}
-            disabled={!canNavigateNext}
-            className="p-1.5 rounded hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-            title="下一章"
-          >
-            <svg className="w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
-        </div>
-        <div className={`flex items-center ${isIPhone ? 'gap-1' : 'gap-3'}`}>
-          {/* Annotate Toggle Button */}
-          <button
-            onClick={() => setIsAnnotationMode(!isAnnotationMode)}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-all shadow-sm ${
-              isAnnotationMode 
-                ? 'border-amber-400 text-amber-700 shadow-amber-100' 
-                : 'bg-white border-slate-200 hover:border-amber-300'
-            }`}
-            style={{
-              backgroundColor: isAnnotationMode ? 'rgba(251, 191, 36, 0.15)' : undefined,
-            }}
-            title={isAnnotationMode ? '退出标注 Exit annotation' : '标注经文 Annotate verses'}
-          >
-            <span className="text-sm">{isAnnotationMode ? '✏️' : '✏️'}</span>
-            {!isIPhone && <span className="text-xs font-medium">{isAnnotationMode ? '标注中' : '标注'}</span>}
-          </button>
-
-          {/* Search Button */}
-          <button
-            onClick={() => setShowSearch(!showSearch)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-full border transition-colors shadow-sm ${
-              showSearch 
-                ? 'bg-indigo-100 border-indigo-300 text-indigo-600' 
-                : 'bg-white border-slate-200 hover:border-indigo-300'
-            }`}
-            title="搜索经文 Search verses"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-            </svg>
-            {!isIPhone && <span className="text-xs font-medium">搜索</span>}
-          </button>
-
-          {/* Reading History Button */}
-          <button
-            onClick={() => setShowReadingHistory(true)}
-            className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-full border border-slate-200 hover:border-indigo-300 transition-colors shadow-sm"
-            title="阅读历史"
-          >
-            <span className="text-sm">📚</span>
-            {!isIPhone && <span className="text-xs font-medium text-slate-600">历史</span>}
-          </button>
-          
-          {!isIPhone && (
-            <button
-              onClick={toggleChineseMode}
-              className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-full border border-slate-200 hover:border-indigo-300 transition-colors shadow-sm"
-              title="切换简繁体"
-            >
-              <span className="text-xs font-medium text-slate-600">{isSimplified ? '简' : '繁'}</span>
-            </button>
-          )}
-          <div className="flex items-center gap-1 px-2 py-1 bg-white rounded-full border border-slate-200 shadow-sm">
-            <button
-              onClick={() => adjustFontSize(-2)}
-              className="p-0.5 hover:bg-slate-100 rounded transition-colors"
-              title="缩小字体"
-              disabled={fontSize <= 12}
-            >
-              <svg className="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-              </svg>
-            </button>
-            <span className="text-xs font-medium text-slate-600 px-1 min-w-[20px] text-center">{fontSize}</span>
-            <button
-              onClick={() => adjustFontSize(2)}
-              className="p-0.5 hover:bg-slate-100 rounded transition-colors"
-              title="放大字体"
-              disabled={fontSize >= 36}
-            >
-              <svg className="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-              </svg>
-            </button>
-          </div>
-          {(isDownloading || autoDownloadInProgress) && (
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => {
-                  downloadCancelRef.current = true;
-                  setIsDownloading(false);
-                  setAutoDownloadInProgress(false);
-                  setDownloadStatus('');
-                  setDownloadTimeRemaining('');
-                  setDownloadProgress(0);
-                }}
-                className="flex items-center gap-1 px-2 py-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-sm"
-                title="停止下载"
-              >
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-                <span className="text-xs font-medium">停止</span>
-              </button>
-              <div className="flex items-center gap-2 px-2 py-1 bg-white rounded-full border border-slate-200 shadow-sm">
-                <div className="w-3 h-3 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-                <div className="flex flex-col items-start">
-                  <span className="text-xs font-medium text-slate-600">
-                    {autoDownloadInProgress ? '自动 ' : ''}{downloadProgress}%
-                    {downloadTimeRemaining && ` • ${downloadTimeRemaining}`}
-                  </span>
-                  {downloadStatus && (
-                    <span className="text-[10px] text-slate-500">
-                      {downloadStatus}
-                    </span>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hidden lg:block">
-            {allVersesSelected ? '已选全章' : (selectedVerses.length > 0 ? `已选 ${selectedVerses.length} 节` : '点击经文或高亮文字')}
-          </div>
-          <div className="h-4 w-[1px] bg-slate-200 hidden lg:block"></div>
-          
-          {/* Mobile Menu Button for iPhone */}
-          {isIPhone && (
-            <div className="relative" ref={mobileMenuRef}>
-              <button
-                onClick={() => setShowMobileMenu(!showMobileMenu)}
-                className="p-1.5 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors shadow-sm"
-                title="更多选项"
-              >
-                <svg className="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
-                </svg>
-              </button>
-              
-              {showMobileMenu && (
-                <div className="absolute right-0 top-full mt-2 w-48 bg-white rounded-lg shadow-lg border border-slate-200 z-50">
-                  
-                  {/* Chinese Mode Toggle */}
-                  <button
-                    onClick={() => {
-                      toggleChineseMode();
-                      setShowMobileMenu(false);
-                    }}
-                    className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50 transition-colors"
-                  >
-                    <span className="text-slate-700">切换简繁体</span>
-                    <span className="float-right text-slate-500">{isSimplified ? '简' : '繁'}</span>
-                  </button>
-                </div>
-              )}
-            </div>
-          )}
-          <div className="flex items-center gap-1.5 px-3 py-1 bg-white rounded-full border border-slate-200 shadow-sm">
-             <div className={`w-1.5 h-1.5 rounded-full ${isOffline ? 'bg-green-500' : 'bg-indigo-500 animate-pulse'}`}></div>
-             <span className="text-[10px] font-bold text-slate-500">{isOffline ? '离线模式' : '在线'}</span>
-             <span className="text-[8px] text-slate-400 ml-1">v2.2.0</span>
-          </div>
-        </div>
-      </div>
+      <BibleHeader
+        selectedBook={selectedBook}
+        selectedChapter={selectedChapter}
+        canNavigatePrev={canNavigatePrev}
+        canNavigateNext={canNavigateNext}
+        onNavigateChapter={navigateChapter}
+        bookSearchTerm={bookSearchTerm}
+        showBookDropdown={showBookDropdown}
+        filteredBooks={filteredBooks}
+        bookSearchRef={bookSearchRef}
+        onBookSearchTermChange={setBookSearchTerm}
+        onBookDropdownOpen={() => { setShowBookDropdown(true); setBookSearchTerm(''); }}
+        onBookSelect={(book) => { setSelectedBook(book); setSelectedChapter(1); setShowBookDropdown(false); setBookSearchTerm(''); }}
+        offlineChapters={offlineChapters}
+        chaptersWithContent={chaptersWithContent}
+        onChapterChange={setSelectedChapter}
+        fontSize={fontSize}
+        onAdjustFontSize={adjustFontSize}
+        isSimplified={isSimplified}
+        onToggleChineseMode={toggleChineseMode}
+        isOffline={isOffline}
+        isDownloading={isDownloading}
+        autoDownloadInProgress={autoDownloadInProgress}
+        downloadProgress={downloadProgress}
+        downloadTimeRemaining={downloadTimeRemaining}
+        downloadStatus={downloadStatus}
+        showDownloadMenu={showDownloadMenu}
+        onStopDownload={() => {
+          downloadCancelRef.current = true;
+          setIsDownloading(false);
+          setAutoDownloadInProgress(false);
+          setDownloadStatus('');
+          setDownloadTimeRemaining('');
+          setDownloadProgress(0);
+        }}
+        onToggleDownloadMenu={() => setShowDownloadMenu(p => !p)}
+        onDownloadCurrentChapter={handleDownloadCurrentChapter}
+        onDownloadCurrentBook={handleDownloadCurrentBook}
+        onDownloadBible={handleDownloadBible}
+        isAnnotationMode={isAnnotationMode}
+        onToggleAnnotationMode={() => setIsAnnotationMode(!isAnnotationMode)}
+        showSearch={showSearch}
+        onToggleSearch={() => setShowSearch(!showSearch)}
+        onShowReadingHistory={() => setShowReadingHistory(true)}
+        isIPhone={isIPhone}
+        showMobileMenu={showMobileMenu}
+        mobileMenuRef={mobileMenuRef}
+        onToggleMobileMenu={() => setShowMobileMenu(p => !p)}
+        sidebarOpen={sidebarOpen}
+        showSidebarToggle={showSidebarToggle}
+        onSidebarToggle={onSidebarToggle}
+        allVersesSelected={allVersesSelected}
+        selectedVersesCount={selectedVerses.length}
+      />
 
       {/* Search Panel */}
       {showSearch && (
-        <div className="border-b border-slate-200 bg-slate-50 px-4 py-2 shrink-0 z-10" onClick={e => e.stopPropagation()}>
-          <div className="flex items-center gap-2 mb-2">
-            <div className="flex-1 relative">
-              <input
-                ref={searchInputRef}
-                type="text"
-                className="w-full px-3 py-1.5 pl-8 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
-                placeholder="搜索经文... Search verses..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleSearch(searchQuery);
-                  if (e.key === 'Escape') { setShowSearch(false); setSearchQuery(''); setSearchResults([]); }
-                }}
-              />
-              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-              </svg>
-            </div>
-            <button
-              onClick={() => handleSearch(searchQuery)}
-              disabled={isSearching || !searchQuery.trim()}
-              className="px-3 py-1.5 text-xs text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              style={{ backgroundColor: theme.accent }}
-            >
-              {isSearching ? '搜索中...' : '搜索 Search'}
-            </button>
-            <button
-              onClick={() => { setShowSearch(false); setSearchQuery(''); setSearchResults([]); }}
-              className="p-1.5 text-slate-400 hover:text-slate-600 transition-colors"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          
-          {searchResults.length > 0 && (
-            <div className="max-h-48 overflow-y-auto space-y-1 mb-1">
-              <div className="text-[10px] text-slate-400 mb-1">
-                找到 {searchResults.length} 条结果 {searchResults.length >= 50 ? '(显示前50条)' : ''} 
-                {' · '}在已缓存的章节中搜索
-              </div>
-              {searchResults.map((result, idx) => (
-                <button
-                  key={`${result.bookId}-${result.chapter}-${result.verse}-${idx}`}
-                  onClick={() => {
-                    const book = BIBLE_BOOKS.find(b => b.id === result.bookId);
-                    if (book) {
-                      setSelectedBook(book);
-                      setSelectedChapter(result.chapter);
-                      setSelectedVerses([result.verse]);
-                      setShowSearch(false);
-                      setSearchQuery('');
-                      setSearchResults([]);
-                    }
-                  }}
-                  className="w-full text-left px-2 py-1.5 rounded-md hover:bg-indigo-50 transition-colors flex items-start gap-2"
-                >
-                  <span className="text-[10px] font-semibold text-indigo-500 whitespace-nowrap mt-0.5">
-                    {result.bookName.split(' ')[0]} {result.chapter}:{result.verse}
-                  </span>
-                  <span className="text-xs text-slate-600 line-clamp-2">{result.text}</span>
-                  <span className="text-[8px] text-slate-300 mt-0.5 shrink-0">{result.translation}</span>
-                </button>
-              ))}
-            </div>
-          )}
-          
-          {searchQuery && searchResults.length === 0 && !isSearching && (
-            <div className="text-xs text-slate-400 py-1">
-              未找到结果 No results found. 尝试搜索已下载的书卷。
-            </div>
-          )}
-        </div>
+        <BibleSearchPanel
+          searchQuery={searchQuery}
+          searchResults={searchResults}
+          isSearching={isSearching}
+          onSearchChange={setSearchQuery}
+          onSearch={handleSearch}
+          onClose={() => { setShowSearch(false); setSearchQuery(''); setSearchResults([]); }}
+          onResultClick={(result) => {
+            const book = BIBLE_BOOKS.find(b => b.id === result.bookId);
+            if (book) {
+              setSelectedBook(book);
+              setSelectedChapter(result.chapter);
+              setSelectedVerses([result.verse]);
+              setShowSearch(false);
+              setSearchQuery('');
+              setSearchResults([]);
+            }
+          }}
+          inputRef={searchInputRef}
+        />
       )}
 
       <div 
@@ -2180,137 +1067,47 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
             ))}
           </div>
         )}
-        <div 
-          ref={leftScrollRef}
+        <BibleVersePanel
+          language="chinese"
+          verses={leftVerses}
+          selectedVerses={selectedVerses}
+          bookmarkedVerses={bookmarkedVerses}
+          verseData={verseData}
+          fontSize={fontSize}
+          isSimplified={isSimplified}
+          loading={loading}
+          scrollRef={leftScrollRef}
+          contentMeasureRef={leftContentMeasureRef}
+          annotationRef={chineseAnnotationRef}
+          annotationToolState={annotationToolState}
+          isAnnotationMode={isAnnotationMode}
+          panelWidth={leftPanelWidth}
+          contentHeight={leftPanelContentHeight}
+          bookId={selectedBook.id}
+          chapter={selectedChapter}
+          vSplitOffset={vSplitOffset}
+          isSwiping={isSwiping}
+          swipeOffset={swipeOffset}
+          isPageFlipping={isPageFlipping}
+          onVerseClick={handleVerseClick}
           onScroll={() => handleScroll('left')}
           onTouchStart={handleAnnotationTouchStart}
           onContextMenu={isAnnotationMode ? (e) => e.preventDefault() : undefined}
-          className="overflow-y-auto p-4 md:p-6 space-y-0.5 font-serif-sc border-r border-slate-100"
-          style={{ 
-            flexGrow: vSplitOffset >= 100 ? 1 : 0,
-            flexShrink: vSplitOffset >= 100 ? 1 : 0,
-            flexBasis: vSplitOffset >= 100 ? 'calc(100% - 20px)' : vSplitOffset <= 0 ? '0%' : `calc(${vSplitOffset}% - 10px)`,
-            minWidth: 0,
-            display: vSplitOffset <= 0 ? 'none' : 'block',
-            // Seasonal paper-like background
-            backgroundColor: theme.paperBg,
-            backgroundImage: theme.paperGradient,
-            boxShadow: theme.paperShadow,
-            position: 'relative' as const,
-            // Simple page slide animation for iOS
-            ...(isIOS && !isAnnotationMode && {
-              transform: `translateX(${swipeOffset}px)`,
-              transition: isPageFlipping ? 'transform 0.3s ease-out' : 'none',
-              willChange: isSwiping ? 'transform' : 'auto'
-            }),
-            // In annotation mode, disable touch scrolling and text selection
-            ...(isAnnotationMode && {
-              touchAction: 'pan-y pinch-zoom',
-              overflowY: 'auto' as const,
-              userSelect: 'none',
-              WebkitUserSelect: 'none',
-              WebkitTouchCallout: 'none',
-            })
+          onVerseIndicatorClick={(verseNum, verseText) => {
+            const noteId = `${selectedBook.id}:${selectedChapter}:${verseNum}`;
+            setSelectedVerses([verseNum]);
+            onSelectionChange?.({
+              id: noteId,
+              bookId: selectedBook.id,
+              bookName: selectedBook.name,
+              chapter: selectedChapter,
+              verseNums: [verseNum],
+              selectedRawText: verseText
+            });
           }}
-        >
-          {/* Annotation overlay for left (Chinese) panel */}
-          <InlineBibleAnnotation
-            ref={chineseAnnotationRef}
-            bookId={selectedBook.id}
-            chapter={selectedChapter}
-            isActive={isAnnotationMode && vSplitOffset > 0}
-            contentHeight={leftPanelContentHeight}
-            containerWidth={leftPanelWidth}
-            fontSize={fontSize}
-            vSplitOffset={vSplitOffset}
-            accentColor={theme.accent}
-            panelId="chinese"
-            toolState={annotationToolState}
-            onAlignmentMismatch={handleAlignmentMismatch}
-          />
-          <div ref={leftContentMeasureRef}>
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">和合本 CUV</div>
-          {loading ? (
-            <div className="animate-pulse space-y-2">
-              {[1,2,3,4,5].map(n => <div key={n} className="h-4 bg-slate-100 rounded w-full"></div>)}
-            </div>
-          ) : (
-            leftVerses.map(v => (
-              <div 
-                key={`left-${v.verse}`}
-                data-verse={v.verse}
-                onClick={(e) => !isAnnotationMode && handleVerseClick(v.verse, e)}
-                className={`verse-content p-1 rounded-lg transition-all border relative group/verse ${
-                  selectedVerses.includes(v.verse) ? 'shadow-sm' : 
-                  'border-transparent hover:bg-slate-50'
-                }`}
-                style={{ 
-                  cursor: isAnnotationMode ? 'default' : 'pointer',
-                  // Disable ALL interactions in annotation mode
-                  pointerEvents: isAnnotationMode ? 'none' : 'auto',
-                  userSelect: isAnnotationMode ? 'none' : 'text',
-                  WebkitUserSelect: isAnnotationMode ? 'none' : 'text',
-                  WebkitTouchCallout: isAnnotationMode ? 'none' : 'default',
-                  touchAction: isAnnotationMode ? 'none' : 'auto',
-                  ...(selectedVerses.includes(v.verse) ? { backgroundColor: theme.verseHighlight, borderColor: theme.verseBorder } : {})
-                }}
-              >
-                <span className="font-bold mr-3 text-xs" style={{ color: '#8B7355' }}>{v.verse}</span>
-                <span className="leading-relaxed" style={{ 
-                  fontSize: `${fontSize}px`,
-                  color: '#3A3028'
-                }}>{processChineseText(v.text)}</span>
-                {/* Bookmark icon */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleToggleBookmark(v.verse, v.text);
-                  }}
-                  className={`inline-block ml-1 align-middle transition-all ${
-                    bookmarkedVerses.has(`${selectedBook.id}:${selectedChapter}:${v.verse}`)
-                      ? 'opacity-100'
-                      : 'text-slate-400 opacity-100 sm:opacity-0 sm:group-hover/verse:opacity-60 hover:!opacity-100'
-                  }`}
-                  title={bookmarkedVerses.has(`${selectedBook.id}:${selectedChapter}:${v.verse}`) ? '取消收藏 Remove bookmark' : '收藏 Bookmark'}
-                  style={{ 
-                    fontSize: '14px', lineHeight: 1, padding: '4px',
-                    color: bookmarkedVerses.has(`${selectedBook.id}:${selectedChapter}:${v.verse}`) ? theme.heartColor : undefined
-                  }}
-                >
-                  {bookmarkedVerses.has(`${selectedBook.id}:${selectedChapter}:${v.verse}`) ? '♥' : '♡'}
-                </button>
-                <VerseIndicators
-                  hasNote={verseData[`${selectedBook.id}:${selectedChapter}:${v.verse}`]?.hasNote || false}
-                  hasResearch={verseData[`${selectedBook.id}:${selectedChapter}:${v.verse}`]?.hasResearch || false}
-                  notePreview={verseData[`${selectedBook.id}:${selectedChapter}:${v.verse}`]?.notePreview}
-                  researchCount={verseData[`${selectedBook.id}:${selectedChapter}:${v.verse}`]?.researchCount || 0}
-                  onClick={() => {
-                    const noteId = `${selectedBook.id}:${selectedChapter}:${v.verse}`;
-                    
-                    // Select this verse first
-                    setSelectedVerses([v.verse]);
-                    
-                    // Create the selection object
-                    const selectionInfo = {
-                      id: noteId,
-                      bookId: selectedBook.id,
-                      bookName: selectedBook.name,
-                      chapter: selectedChapter,
-                      verseNums: [v.verse],
-                      selectedRawText: v.text
-                    };
-                    
-                    
-                    // Notify the parent about the selection
-                    onSelectionChange?.(selectionInfo);
-                    
-                  }}
-                />
-              </div>
-            ))
-          )}
-          </div>{/* end leftContentMeasureRef */}
-        </div>
+          onToggleBookmark={handleToggleBookmark}
+          onAlignmentMismatch={handleAlignmentMismatch}
+        />
 
         <div 
           className={`relative h-full flex items-center justify-center select-none z-30 transition-all group hover:bg-blue-50 flex-shrink-0`}
@@ -2396,100 +1193,35 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           </div>
         </div>
 
-        <div 
-          ref={rightScrollRef}
+        <BibleVersePanel
+          language="english"
+          verses={rightVerses}
+          selectedVerses={selectedVerses}
+          bookmarkedVerses={bookmarkedVerses}
+          verseData={verseData}
+          fontSize={fontSize}
+          isSimplified={isSimplified}
+          loading={loading}
+          scrollRef={rightScrollRef}
+          contentMeasureRef={rightContentMeasureRef}
+          annotationRef={englishAnnotationRef}
+          annotationToolState={annotationToolState}
+          isAnnotationMode={isAnnotationMode}
+          panelWidth={rightPanelWidth}
+          contentHeight={rightPanelContentHeight}
+          bookId={selectedBook.id}
+          chapter={selectedChapter}
+          vSplitOffset={vSplitOffset}
+          englishVersion={englishVersion}
+          vibeVerseClassName={vibeVerseClassName}
+          onVerseClick={handleVerseClick}
           onScroll={() => handleScroll('right')}
           onTouchStart={handleAnnotationTouchStart}
           onContextMenu={isAnnotationMode ? (e) => e.preventDefault() : undefined}
-          className="overflow-y-auto p-4 md:p-6 space-y-0.5 font-sans"
-          style={{ 
-            flexGrow: vSplitOffset <= 0 ? 1 : 0,
-            flexShrink: vSplitOffset <= 0 ? 1 : 0,
-            flexBasis: vSplitOffset <= 0 ? 'calc(100% - 20px)' : vSplitOffset >= 100 ? '0%' : `calc(${100 - vSplitOffset}% - 10px)`,
-            minWidth: 0,
-            display: vSplitOffset >= 100 ? 'none' : 'block',
-            // Seasonal paper-like background for English panel
-            backgroundColor: theme.paperBg,
-            backgroundImage: theme.paperGradient,
-            boxShadow: theme.paperShadow,
-            position: 'relative' as const,
-            // In annotation mode, disable text selection and touch callouts
-            ...(isAnnotationMode && {
-              touchAction: 'pan-y pinch-zoom',
-              userSelect: 'none',
-              WebkitUserSelect: 'none',
-              WebkitTouchCallout: 'none',
-            })
-          }}
-        >
-          {/* Annotation overlay for right (English) panel */}
-          <InlineBibleAnnotation
-            ref={englishAnnotationRef}
-            bookId={`${selectedBook.id}_en`}
-            chapter={selectedChapter}
-            isActive={isAnnotationMode && vSplitOffset < 100}
-            contentHeight={rightPanelContentHeight}
-            containerWidth={rightPanelWidth}
-            fontSize={fontSize}
-            vSplitOffset={vSplitOffset}
-            accentColor={theme.accent}
-            panelId="english"
-            toolState={annotationToolState}
-            onAlignmentMismatch={handleAlignmentMismatch}
-          />
-          <div ref={rightContentMeasureRef}>
-          <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">English ({englishVersion.toUpperCase()})</div>
-          {loading ? (
-            <div className="animate-pulse space-y-2">
-              {[1,2,3,4,5].map(n => <div key={n} className="h-4 bg-slate-100 rounded w-full"></div>)}
-            </div>
-          ) : (
-            rightVerses.map(v => (
-              <div 
-                key={`right-${v.verse}`}
-                data-verse={v.verse}
-                onClick={(e) => !isAnnotationMode && handleVerseClick(v.verse, e)}
-                className={`verse-content p-1 rounded-lg transition-all border group/verse ${
-                  selectedVerses.includes(v.verse) ? 'shadow-sm' : 
-                  'border-transparent hover:bg-slate-50'
-                }`}
-                style={{ 
-                  cursor: isAnnotationMode ? 'default' : 'pointer',
-                  // Disable ALL interactions in annotation mode
-                  pointerEvents: isAnnotationMode ? 'none' : 'auto',
-                  userSelect: isAnnotationMode ? 'none' : 'text',
-                  WebkitUserSelect: isAnnotationMode ? 'none' : 'text',
-                  WebkitTouchCallout: isAnnotationMode ? 'none' : 'default',
-                  touchAction: isAnnotationMode ? 'none' : 'auto',
-                  ...(selectedVerses.includes(v.verse) ? { backgroundColor: theme.verseHighlight, borderColor: theme.verseBorder } : {})
-                }}
-              >
-                <span className="font-bold mr-3 text-xs" style={{ color: theme.accentMedium }}>{v.verse}</span>
-                <span className={`leading-relaxed text-slate-700 italic ${vibeVerseClassName || ''}`} style={{ fontSize: `${fontSize}px` }}>{v.text}</span>
-                {/* Bookmark icon */}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleToggleBookmark(v.verse, v.text);
-                  }}
-                  className={`inline-block ml-1 align-middle transition-all ${
-                    bookmarkedVerses.has(`${selectedBook.id}:${selectedChapter}:${v.verse}`)
-                      ? 'opacity-100'
-                      : 'text-slate-400 opacity-100 sm:opacity-0 sm:group-hover/verse:opacity-60 hover:!opacity-100'
-                  }`}
-                  title={bookmarkedVerses.has(`${selectedBook.id}:${selectedChapter}:${v.verse}`) ? '取消收藏 Remove bookmark' : '收藏 Bookmark'}
-                  style={{ 
-                    fontSize: '14px', lineHeight: 1, padding: '4px',
-                    color: bookmarkedVerses.has(`${selectedBook.id}:${selectedChapter}:${v.verse}`) ? theme.heartColor : undefined
-                  }}
-                >
-                  {bookmarkedVerses.has(`${selectedBook.id}:${selectedChapter}:${v.verse}`) ? '♥' : '♡'}
-                </button>
-              </div>
-            ))
-          )}
-          </div>{/* end rightContentMeasureRef */}
-        </div>
+          onVerseIndicatorClick={() => {}}
+          onToggleBookmark={handleToggleBookmark}
+          onAlignmentMismatch={handleAlignmentMismatch}
+        />
       </div>
       
       {/* Non-blocking error notification */}
@@ -2554,239 +1286,25 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
 
       {/* ─── Shared Annotation Toolbar ─────────────────────────────────────── */}
       {isAnnotationMode && (
-        <>
-          {/* Collapsed toolbar toggle button */}
-          {isAnnotationToolbarCollapsed && (
-            <button
-              onClick={() => setIsAnnotationToolbarCollapsed(false)}
-              className="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 px-6 py-3 rounded-2xl shadow-2xl border-2 transition-all hover:scale-105 active:scale-95"
-              style={{
-                backgroundColor: theme.accent,
-                borderColor: 'white',
-              }}
-            >
-              <span className="text-2xl">✏️</span>
-              <span className="text-sm font-bold text-white">展开工具栏</span>
-              <svg className="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
-              </svg>
-            </button>
-          )}
-
-          {/* Floating mini-toolbar */}
-          <div
-            className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-0.5 sm:gap-1 px-2 sm:px-3 py-1.5 sm:py-2 rounded-2xl shadow-2xl border transition-all max-w-[95vw] ${
-              isAnnotationToolbarCollapsed ? 'opacity-0 pointer-events-none scale-95' : 'opacity-100'
-            }`}
-            style={{
-              backgroundColor: 'rgba(255, 255, 255, 0.95)',
-              backdropFilter: 'blur(12px)',
-              WebkitBackdropFilter: 'blur(12px)',
-              borderColor: 'rgba(0, 0, 0, 0.08)',
-              touchAction: 'auto',
-            }}
-            onTouchStart={(e) => e.stopPropagation()}
-            onTouchMove={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-          >
-            {/* Tool buttons */}
-            {([
-              { tool: 'pen' as const, icon: '✒️', label: '笔', labelEn: 'Pen' },
-              { tool: 'highlighter' as const, icon: '🖍️', label: '荧光', labelEn: 'Highlight' },
-              { tool: 'marker' as const, icon: '🖊️', label: '马克', labelEn: 'Marker' },
-              { tool: 'eraser' as const, icon: '🧹', label: '擦除', labelEn: 'Eraser' },
-            ]).map(({ tool, icon, label, labelEn }) => (
-              <button
-                key={tool}
-                onClick={() => selectAnnotationTool(tool)}
-                className={`flex flex-col items-center justify-center p-1.5 sm:px-2 sm:py-1 rounded-lg sm:rounded-xl transition-all ${
-                  annotationTool === tool
-                    ? 'shadow-md'
-                    : 'hover:bg-slate-100 opacity-70'
-                }`}
-                style={{
-                  backgroundColor: annotationTool === tool ? `${theme.accent}20` : undefined,
-                  border: annotationTool === tool ? `2px solid ${theme.accent}` : '2px solid transparent',
-                  minWidth: '36px',
-                }}
-                title={labelEn}
-              >
-                <span className="text-base leading-none">{icon}</span>
-                <span className="hidden sm:block text-[9px] font-medium text-slate-500 mt-0.5">{label}</span>
-              </button>
-            ))}
-
-            {/* Divider */}
-            <div className="w-[1px] h-5 sm:h-6 bg-slate-200 mx-0.5 sm:mx-1" />
-
-            {/* Color picker */}
-            <div className="relative">
-              <button
-                onClick={() => setShowAnnotationColorPicker(!showAnnotationColorPicker)}
-                className="flex flex-col items-center justify-center p-1.5 sm:px-2 sm:py-1 rounded-lg sm:rounded-xl hover:bg-slate-100 transition-all"
-                style={{ minWidth: '36px' }}
-                title="Color"
-              >
-                <div
-                  className="w-5 h-5 rounded-full border-2 border-white shadow-sm"
-                  style={{ backgroundColor: annotationColor }}
-                />
-                <span className="hidden sm:block text-[9px] font-medium text-slate-500 mt-0.5">颜色</span>
-              </button>
-              {showAnnotationColorPicker && (
-                <div
-                  className="absolute bottom-full mb-2 left-1/2 -translate-x-1/2 p-2 rounded-xl shadow-xl border"
-                  style={{
-                    backgroundColor: 'rgba(255, 255, 255, 0.98)',
-                    borderColor: 'rgba(0, 0, 0, 0.08)',
-                  }}
-                  onTouchStart={(e) => e.stopPropagation()}
-                >
-                  {/* Color grid */}
-                  <div className="flex flex-col gap-px">
-                    {/* Grayscale row */}
-                    <div className="flex gap-px">
-                      {[100, 95, 88, 80, 70, 60, 50, 40, 30, 20, 10, 0].map((l) => {
-                        const color = `hsl(0, 0%, ${l}%)`;
-                        return (
-                          <button
-                            key={`gray-${l}`}
-                            onClick={() => { setAnnotationColor(color); setToolColors(prev => ({ ...prev, [annotationTool]: color })); setShowAnnotationColorPicker(false); }}
-                            className={`w-5 h-5 sm:w-6 sm:h-6 rounded-sm transition-all hover:scale-125 hover:z-10 ${
-                              annotationColor === color ? 'ring-2 ring-indigo-400 z-10 scale-125' : ''
-                            }`}
-                            style={{ backgroundColor: color }}
-                          />
-                        );
-                      })}
-                    </div>
-                    {/* Hue rows: dark to light */}
-                    {[25, 35, 45, 55, 65, 75, 85].map((lightness) => (
-                      <div key={`row-${lightness}`} className="flex gap-px">
-                        {[190, 210, 240, 270, 300, 340, 10, 30, 50, 80, 110, 150].map((hue) => {
-                          const saturation = lightness > 75 ? 70 : lightness < 35 ? 80 : 85;
-                          const color = `hsl(${hue}, ${saturation}%, ${lightness}%)`;
-                          return (
-                            <button
-                              key={`${hue}-${lightness}`}
-                              onClick={() => { setAnnotationColor(color); setToolColors(prev => ({ ...prev, [annotationTool]: color })); setShowAnnotationColorPicker(false); }}
-                              className={`w-5 h-5 sm:w-6 sm:h-6 rounded-sm transition-all hover:scale-125 hover:z-10 ${
-                                annotationColor === color ? 'ring-2 ring-indigo-400 z-10 scale-125' : ''
-                              }`}
-                              style={{ backgroundColor: color }}
-                            />
-                          );
-                        })}
-                      </div>
-                    ))}
-                  </div>
-                  {/* Selected color preview */}
-                  <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-100">
-                    <div
-                      className="w-8 h-8 rounded-lg border border-slate-200 shadow-sm"
-                      style={{ backgroundColor: annotationColor }}
-                    />
-                    <span className="text-[10px] text-slate-400 font-mono">{annotationColor}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Size controls */}
-            <div className="flex items-center gap-1 px-1 sm:px-2">
-              <button
-                onClick={() => {
-                  const newSize = Math.max(1, annotationSize - 1);
-                  setAnnotationSize(newSize);
-                  setToolSizes(prev => ({ ...prev, [annotationTool]: newSize }));
-                }}
-                className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-all text-slate-500"
-                disabled={annotationSize <= 1}
-              >
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 12H4" />
-                </svg>
-              </button>
-              <span className="text-xs font-bold text-slate-600 min-w-[16px] text-center">{annotationSize}</span>
-              <button
-                onClick={() => {
-                  const newSize = Math.min(12, annotationSize + 1);
-                  setAnnotationSize(newSize);
-                  setToolSizes(prev => ({ ...prev, [annotationTool]: newSize }));
-                }}
-                className="w-6 h-6 sm:w-7 sm:h-7 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-all text-slate-500"
-                disabled={annotationSize >= 12}
-              >
-                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                </svg>
-              </button>
-            </div>
-
-            {/* Divider */}
-            <div className="w-[1px] h-5 sm:h-6 bg-slate-200 mx-0.5 sm:mx-1" />
-
-            {/* Undo */}
-            <button
-              onClick={handleAnnotationUndo}
-              className="flex flex-col items-center justify-center p-1.5 sm:px-2 sm:py-1 rounded-lg sm:rounded-xl hover:bg-slate-100 transition-all"
-              style={{ minWidth: '32px' }}
-              title="Undo 撤销"
-            >
-              <svg className="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h10a5 5 0 015 5v2M3 10l4-4M3 10l4 4" />
-              </svg>
-              <span className="hidden sm:block text-[9px] font-medium text-slate-500 mt-0.5">撤销</span>
-            </button>
-
-            {/* Clear all */}
-            <button
-              onClick={handleAnnotationClearAll}
-              className="flex flex-col items-center justify-center p-1.5 sm:px-2 sm:py-1 rounded-lg sm:rounded-xl hover:bg-red-50 text-slate-400 hover:text-red-500 transition-all"
-              style={{ minWidth: '32px' }}
-              title="Clear all 清除全部"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-              </svg>
-              <span className="hidden sm:block text-[9px] font-medium text-slate-500 mt-0.5">清除</span>
-            </button>
-
-            {/* Restore Alignment - only shows when annotations are misaligned */}
-            {annotationOriginalLayout && (
-              <>
-                <div className="w-[1px] h-5 sm:h-6 bg-slate-200 mx-0.5 sm:mx-1" />
-                <button
-                  onClick={handleRestoreAlignment}
-                  className="flex flex-col items-center justify-center p-1.5 sm:px-2 sm:py-1 rounded-lg sm:rounded-xl bg-amber-50 hover:bg-amber-100 border border-amber-300 transition-all animate-pulse"
-                  style={{ minWidth: '32px' }}
-                  title="Restore original font size and layout to re-align annotations 恢复标注对齐"
-                >
-                  <svg className="w-4 h-4 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                  </svg>
-                  <span className="text-[9px] font-medium text-amber-700 mt-0.5 whitespace-nowrap">对齐</span>
-                </button>
-              </>
-            )}
-
-            {/* Divider */}
-            <div className="w-[1px] h-5 sm:h-6 bg-slate-200 mx-0.5 sm:mx-1" />
-
-            {/* Collapse button */}
-            <button
-              onClick={() => setIsAnnotationToolbarCollapsed(true)}
-              className="flex flex-col items-center justify-center p-1.5 sm:px-2 sm:py-1 rounded-lg sm:rounded-xl hover:bg-slate-100 transition-all"
-              style={{ minWidth: '32px' }}
-              title="收起工具栏 Collapse toolbar"
-            >
-              <svg className="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-              <span className="text-[9px] font-medium text-slate-500 mt-0.5">收起</span>
-            </button>
-          </div>
-        </>
+        <AnnotationToolbar
+          isAnnotationMode={isAnnotationMode}
+          annotationTool={annotationTool}
+          annotationColor={annotationColor}
+          annotationSize={annotationSize}
+          showAnnotationColorPicker={showAnnotationColorPicker}
+          isAnnotationToolbarCollapsed={isAnnotationToolbarCollapsed}
+          annotationOriginalLayout={annotationOriginalLayout}
+          colorPresets={COLOR_PRESETS}
+          onSelectTool={selectAnnotationTool}
+          onColorChange={setAnnotationColor}
+          onSizeChange={setAnnotationSize}
+          onToggleColorPicker={() => setShowAnnotationColorPicker(p => !p)}
+          onToggleCollapsed={() => setIsAnnotationToolbarCollapsed(p => !p)}
+          onUndo={handleAnnotationUndo}
+          onClearAll={handleAnnotationClearAll}
+          onRestoreAlignment={handleRestoreAlignment}
+          onClose={() => setIsAnnotationMode(false)}
+        />
       )}
     </div>
   );
