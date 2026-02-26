@@ -142,12 +142,13 @@ export async function searchNotesAndResearch(
     for (const research of vd.aiResearch) {
       if (existingResults.length + results.length >= MAX_SEARCH_RESULTS) break;
       const matchInQuery = toSimplified(research.query.toLowerCase()).includes(querySimplified);
-      const matchInResponse = toSimplified(research.response.toLowerCase()).includes(querySimplified);
+      const plainResponse = research.response.replace(/<[^>]*>/g, '');
+      const matchInResponse = toSimplified(plainResponse.toLowerCase()).includes(querySimplified);
       if (matchInQuery || matchInResponse) {
         if (!isDuplicate(existingResults, vd.bookId, vd.chapter, vd.verses[0], '研究 Research')) {
           const snippet = matchInQuery
             ? research.query
-            : research.response.replace(/<[^>]*>/g, '').slice(0, SNIPPET_MAX_LENGTH) + '...';
+            : plainResponse.slice(0, SNIPPET_MAX_LENGTH) + '...';
           results.push({
             bookId: vd.bookId,
             bookName: book.name,
