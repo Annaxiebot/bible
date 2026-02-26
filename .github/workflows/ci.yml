@@ -74,7 +74,7 @@ jobs:
       - name: Check for duplicate keys
         run: |
           echo "Checking for duplicate keys in TypeScript files..."
-          if grep -r "Duplicate key" --exclude-dir=docs --exclude-dir=node_modules --exclude-dir=dist . 2>&1 | grep -q "Duplicate"; then
+          if grep -r "Duplicate key" components/ services/ hooks/ src/ 2>&1 | grep -q "Duplicate"; then
             echo "❌ Duplicate keys detected in object literals"
             exit 1
           fi
