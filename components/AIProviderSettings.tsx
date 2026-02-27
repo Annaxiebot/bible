@@ -58,9 +58,6 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
     autoSaveResearchService.setAutoSaveEnabled(autoSaveResearch);
 
     onClose();
-
-    // Reload page to apply changes
-    window.location.reload();
   };
 
   const providers = aiProvider.getAvailableProviders();
