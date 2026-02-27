@@ -5,6 +5,7 @@ import { useStorageUpdate } from '../hooks/useStorageUpdate';
 import { BIBLE_BOOKS } from '../constants';
 import { VerseData, AIResearchEntry } from '../types/verseData';
 import { exportImportService } from '../services/exportImportService';
+import { stripHTML } from '../utils/textUtils';
 
 interface NotesListProps {
   onSelectNote?: (bookId: string, chapter: number, verses?: number[]) => void;
@@ -523,7 +524,7 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
                       ) : (
                         <div
                           dangerouslySetInnerHTML={{
-                            __html: truncateText(note.personalNote.replace(/<[^>]*>/g, ''))
+                            __html: truncateText(stripHTML(note.personalNote))
                           }}
                         />
                       )}
@@ -544,7 +545,7 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
                               <div className="text-xs text-slate-600 mt-1">
                                 {isExpanded
                                   ? research.response
-                                  : truncateText(research.response.replace(/<[^>]*>/g, ''), 120)}
+                                  : truncateText(stripHTML(research.response), 120)}
                               </div>
                               {research.tags && research.tags.length > 0 && isExpanded && (
                                 <div className="flex gap-1 mt-1.5 flex-wrap">

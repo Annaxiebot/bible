@@ -1,58 +1,23 @@
-import { openDB, DBSchema, IDBPDatabase } from 'idb';
+import { idbService } from './idbService';
 import { VerseData, PersonalNote, AIResearchEntry } from '../types/verseData';
-
-interface VerseDataDB extends DBSchema {
-  verseData: {
-    key: string;
-    value: VerseData;
-    indexes: { 
-      'by-book': string;
-      'by-chapter': string;
-      'by-timestamp': number;
-    };
-  };
-}
+import { stripHTML } from '../utils/textUtils';
 
 class VerseDataStorage {
-  private db: IDBPDatabase<VerseDataDB> | null = null;
-  private readonly DB_NAME = 'BibleVerseData';
-  private readonly VERSION = 1;
+  /** No-op: retained for backward compatibility. DB is initialized by idbService. */
+  async initialize(): Promise<void> {
+    // DB is managed by the unified idbService singleton
+  }
 
   private notifyUpdate(): void {
     window.dispatchEvent(new CustomEvent('versedata-updated'));
   }
 
-  async initialize(): Promise<void> {
-    try {
-      this.db = await openDB<VerseDataDB>(this.DB_NAME, this.VERSION, {
-        upgrade(db) {
-          if (!db.objectStoreNames.contains('verseData')) {
-            const store = db.createObjectStore('verseData', { keyPath: 'id' });
-            store.createIndex('by-book', 'bookId');
-            store.createIndex('by-chapter', ['bookId', 'chapter']);
-            store.createIndex('by-timestamp', 'personalNote.updatedAt');
-          }
-        },
-      });
-    } catch (error) {
-      // TODO: use error reporting service
-    }
-  }
-
-  private async ensureDB(): Promise<IDBPDatabase<VerseDataDB>> {
-    if (!this.db) await this.initialize();
-    if (!this.db) throw new Error('Database initialization failed');
-    return this.db;
-  }
-
   // Get verse data for a specific verse
   async getVerseData(bookId: string, chapter: number, verses: number[]): Promise<VerseData | null> {
-    const db = await this.ensureDB();
     const id = this.createId(bookId, chapter, verses);
-    
-    
+
     try {
-      const data = await db.get('verseData', id);
+      const data = await idbService.get('verseData', id);
       return data || null;
     } catch (error) {
       // silently handle
@@ -62,18 +27,16 @@ class VerseDataStorage {
 
   // Save or update personal note
   async savePersonalNote(
-    bookId: string, 
-    chapter: number, 
-    verses: number[], 
+    bookId: string,
+    chapter: number,
+    verses: number[],
     note: PersonalNote
   ): Promise<void> {
-    const db = await this.ensureDB();
     const id = this.createId(bookId, chapter, verses);
-    
-    
+
     try {
-      const existing = await db.get('verseData', id);
-      
+      const existing = await idbService.get('verseData', id);
+
       const verseData: VerseData = existing || {
         id,
         bookId,
@@ -81,14 +44,14 @@ class VerseDataStorage {
         verses,
         aiResearch: []
       };
-      
+
       verseData.personalNote = {
         ...note,
         createdAt: existing?.personalNote?.createdAt || note.createdAt || Date.now(),
         updatedAt: Date.now()
       };
-      
-      await db.put('verseData', verseData);
+
+      await idbService.put('verseData', verseData);
       this.notifyUpdate();
     } catch (error) {
       // TODO: use error reporting service
@@ -97,19 +60,18 @@ class VerseDataStorage {
 
   // Delete personal note
   async deletePersonalNote(bookId: string, chapter: number, verses: number[]): Promise<void> {
-    const db = await this.ensureDB();
     const id = this.createId(bookId, chapter, verses);
-    
+
     try {
-      const existing = await db.get('verseData', id);
+      const existing = await idbService.get('verseData', id);
       if (existing) {
         delete existing.personalNote;
-        
+
         // If no AI research exists either, delete the entire record
         if (existing.aiResearch.length === 0) {
-          await db.delete('verseData', id);
+          await idbService.delete('verseData', id);
         } else {
-          await db.put('verseData', existing);
+          await idbService.put('verseData', existing);
         }
         this.notifyUpdate();
       }
@@ -120,19 +82,17 @@ class VerseDataStorage {
 
   // Add AI research entry
   async addAIResearch(
-    bookId: string, 
-    chapter: number, 
-    verses: number[], 
+    bookId: string,
+    chapter: number,
+    verses: number[],
     research: Omit<AIResearchEntry, 'id' | 'timestamp'>
   ): Promise<string> {
-    const db = await this.ensureDB();
     const id = this.createId(bookId, chapter, verses);
     const researchId = `ai_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-    
-    
+
     try {
-      const existing = await db.get('verseData', id);
-      
+      const existing = await idbService.get('verseData', id);
+
       const verseData: VerseData = existing || {
         id,
         bookId,
@@ -140,15 +100,15 @@ class VerseDataStorage {
         verses,
         aiResearch: []
       };
-      
+
       const aiEntry: AIResearchEntry = {
         ...research,
         id: researchId,
         timestamp: Date.now()
       };
-      
+
       verseData.aiResearch.push(aiEntry);
-      await db.put('verseData', verseData);
+      await idbService.put('verseData', verseData);
       this.notifyUpdate();
       return researchId;
     } catch (error) {
@@ -159,19 +119,18 @@ class VerseDataStorage {
 
   // Delete AI research entry
   async deleteAIResearch(bookId: string, chapter: number, verses: number[], researchId: string): Promise<void> {
-    const db = await this.ensureDB();
     const id = this.createId(bookId, chapter, verses);
-    
+
     try {
-      const existing = await db.get('verseData', id);
+      const existing = await idbService.get('verseData', id);
       if (existing) {
         existing.aiResearch = existing.aiResearch.filter(r => r.id !== researchId);
-        
+
         // If no content remains, delete the entire record
         if (!existing.personalNote && existing.aiResearch.length === 0) {
-          await db.delete('verseData', id);
+          await idbService.delete('verseData', id);
         } else {
-          await db.put('verseData', existing);
+          await idbService.put('verseData', existing);
         }
         this.notifyUpdate();
       }
@@ -182,12 +141,8 @@ class VerseDataStorage {
 
   // Get all verse data for a book
   async getBookData(bookId: string): Promise<VerseData[]> {
-    const db = await this.ensureDB();
-    
     try {
-      const index = db.transaction('verseData').store.index('by-book');
-      const data = await index.getAll(bookId);
-      return data;
+      return await idbService.getAllFromIndex('verseData', 'by-book', bookId);
     } catch (error) {
       // silently handle
       return [];
@@ -196,9 +151,9 @@ class VerseDataStorage {
 
   // Get all verse data for a specific chapter in a single DB transaction
   async getChapterData(bookId: string, chapter: number): Promise<Map<string, VerseData>> {
-    const db = await this.ensureDB();
     const result = new Map<string, VerseData>();
     try {
+      const db = await idbService.getDB();
       const tx = db.transaction('verseData', 'readonly');
       const store = tx.objectStore('verseData');
       const prefix = `${bookId}:${chapter}:`;
@@ -219,10 +174,8 @@ class VerseDataStorage {
 
   // Get all verse data
   async getAllData(): Promise<VerseData[]> {
-    const db = await this.ensureDB();
-    
     try {
-      return await db.getAll('verseData');
+      return await idbService.getAll('verseData');
     } catch (error) {
       // silently handle
       return [];
@@ -231,20 +184,19 @@ class VerseDataStorage {
 
   // Search in personal notes
   async searchNotes(query: string): Promise<VerseData[]> {
-    const db = await this.ensureDB();
     const results: VerseData[] = [];
     const searchTerm = query.toLowerCase();
-    
+
     try {
-      const allData = await db.getAll('verseData');
-      
+      const allData = await idbService.getAll('verseData');
+
       for (const data of allData) {
-        if (data.personalNote?.text && 
+        if (data.personalNote?.text &&
             data.personalNote.text.toLowerCase().includes(searchTerm)) {
           results.push(data);
         }
       }
-      
+
       return results;
     } catch (error) {
       // silently handle
@@ -254,25 +206,24 @@ class VerseDataStorage {
 
   // Search in AI research
   async searchResearch(query: string): Promise<VerseData[]> {
-    const db = await this.ensureDB();
     const results: VerseData[] = [];
     const searchTerm = query.toLowerCase();
-    
+
     try {
-      const allData = await db.getAll('verseData');
-      
+      const allData = await idbService.getAll('verseData');
+
       for (const data of allData) {
         const hasMatch = data.aiResearch.some(r =>
           r.query.toLowerCase().includes(searchTerm) ||
-          r.response.replace(/<[^>]*>/g, '').toLowerCase().includes(searchTerm) ||
+          stripHTML(r.response).toLowerCase().includes(searchTerm) ||
           r.tags?.some(tag => tag.toLowerCase().includes(searchTerm))
         );
-        
+
         if (hasMatch) {
           results.push(data);
         }
       }
-      
+
       return results;
     } catch (error) {
       // silently handle
@@ -282,8 +233,6 @@ class VerseDataStorage {
 
   // Migrate from old notes format
   async migrateFromOldNotes(oldNotes: Record<string, string>): Promise<void> {
-    const db = await this.ensureDB();
-    
     try {
       for (const [key, content] of Object.entries(oldNotes)) {
         // Parse the old key format: "bookId:chapter:verse"
@@ -292,17 +241,17 @@ class VerseDataStorage {
           const bookId = parts[0];
           const chapter = parseInt(parts[1]);
           const verses = [parseInt(parts[2])];
-          
+
           // Skip if already migrated
           const existing = await this.getVerseData(bookId, chapter, verses);
           if (existing?.personalNote) continue;
-          
+
           const note: PersonalNote = {
             text: content,
             createdAt: Date.now(),
             updatedAt: Date.now()
           };
-          
+
           await this.savePersonalNote(bookId, chapter, verses, note);
         }
       }
@@ -313,10 +262,8 @@ class VerseDataStorage {
 
   // Clear all data
   async clearAll(): Promise<void> {
-    const db = await this.ensureDB();
-
     try {
-      await db.clear('verseData');
+      await idbService.clear('verseData');
       this.notifyUpdate();
     } catch (error) {
       // silently handle
@@ -332,13 +279,12 @@ class VerseDataStorage {
 
   // Migrate old IDs from underscore to colon format
   async migrateIds(): Promise<void> {
-    const db = await this.ensureDB();
-    
     try {
+      const db = await idbService.getDB();
       const tx = db.transaction('verseData', 'readwrite');
       const store = tx.objectStore('verseData');
       const allData = await store.getAll();
-      
+
       for (const data of allData) {
         // Check if ID uses old underscore format
         if (data.id && data.id.includes('_') && !data.id.includes(':')) {
@@ -346,17 +292,17 @@ class VerseDataStorage {
           const parts = data.id.split('_');
           if (parts.length >= 3) {
             const newId = `${parts[0]}:${parts[1]}:${parts.slice(2).join('_')}`;
-            
+
             // Delete old entry
             await store.delete(data.id);
-            
+
             // Add with new ID
             data.id = newId;
             await store.put(data);
           }
         }
       }
-      
+
       await tx.done;
     } catch (error) {
       // silently handle
@@ -365,13 +311,12 @@ class VerseDataStorage {
 
   // Clear all personal notes
   async clearAllPersonalNotes(): Promise<void> {
-    const db = await this.ensureDB();
-    
     try {
+      const db = await idbService.getDB();
       const tx = db.transaction('verseData', 'readwrite');
       const store = tx.objectStore('verseData');
       const allData = await store.getAll();
-      
+
       for (const data of allData) {
         if (data.personalNote) {
           delete data.personalNote;
@@ -383,7 +328,7 @@ class VerseDataStorage {
           }
         }
       }
-      
+
       await tx.done;
       this.notifyUpdate();
     } catch (error) {
@@ -394,13 +339,12 @@ class VerseDataStorage {
 
   // Clear all AI research
   async clearAllAIResearch(): Promise<void> {
-    const db = await this.ensureDB();
-    
     try {
+      const db = await idbService.getDB();
       const tx = db.transaction('verseData', 'readwrite');
       const store = tx.objectStore('verseData');
       const allData = await store.getAll();
-      
+
       for (const data of allData) {
         if (data.aiResearch && data.aiResearch.length > 0) {
           data.aiResearch = [];
@@ -412,7 +356,7 @@ class VerseDataStorage {
           }
         }
       }
-      
+
       await tx.done;
       this.notifyUpdate();
     } catch (error) {
@@ -428,18 +372,16 @@ class VerseDataStorage {
 
   // Import data from backup
   async importData(data: VerseData[], strategy: 'replace' | 'merge' | 'skip' = 'merge'): Promise<void> {
-    const db = await this.ensureDB();
-    
     try {
       for (const item of data) {
-        const existing = await db.get('verseData', item.id);
-        
+        const existing = await idbService.get('verseData', item.id);
+
         if (!existing) {
           // No existing data, just add it
-          await db.put('verseData', item);
+          await idbService.put('verseData', item);
         } else if (strategy === 'replace') {
           // Replace existing data
-          await db.put('verseData', item);
+          await idbService.put('verseData', item);
         } else if (strategy === 'merge') {
           // Merge data (combine AI research, keep newer personal note)
           const merged: VerseData = {
@@ -447,7 +389,7 @@ class VerseDataStorage {
             personalNote: this.mergePersonalNotes(existing.personalNote, item.personalNote),
             aiResearch: this.mergeAIResearch(existing.aiResearch, item.aiResearch)
           };
-          await db.put('verseData', merged);
+          await idbService.put('verseData', merged);
         }
         // 'skip' strategy does nothing if data exists
       }
@@ -461,7 +403,7 @@ class VerseDataStorage {
   private mergePersonalNotes(existing?: PersonalNote, incoming?: PersonalNote): PersonalNote | undefined {
     if (!existing) return incoming;
     if (!incoming) return existing;
-    
+
     // Keep the newer note
     return existing.updatedAt >= incoming.updatedAt ? existing : incoming;
   }
@@ -469,14 +411,14 @@ class VerseDataStorage {
   private mergeAIResearch(existing: AIResearchEntry[], incoming: AIResearchEntry[]): AIResearchEntry[] {
     const merged = [...existing];
     const existingIds = new Set(existing.map(r => r.id));
-    
+
     // Add new research entries that don't exist
     for (const research of incoming) {
       if (!existingIds.has(research.id)) {
         merged.push(research);
       }
     }
-    
+
     // Sort by timestamp, newest first
     return merged.sort((a, b) => b.timestamp - a.timestamp);
   }

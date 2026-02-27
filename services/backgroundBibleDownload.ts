@@ -9,6 +9,7 @@ import { bibleStorage, BibleTranslation } from './bibleStorage';
 import { BIBLE_BOOKS } from './bibleBookData';
 import { buildChapterUrl } from './apiConfig';
 import { TIMING } from '../constants/appConfig';
+import { STORAGE_KEYS } from '../constants/storageKeys';
 
 export interface BgDownloadProgress {
   cached: number;
@@ -38,7 +39,7 @@ function buildChapterList(): Array<{ bookId: string; bookName: string; chapter: 
 }
 
 function getEnglishVersion(): BibleTranslation {
-  return (localStorage.getItem('bibleEnglishVersion') as BibleTranslation) || 'web';
+  return (localStorage.getItem(STORAGE_KEYS.ENGLISH_VERSION) as BibleTranslation) || 'web';
 }
 
 class BackgroundBibleDownloadService {

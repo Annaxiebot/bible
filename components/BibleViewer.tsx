@@ -1,5 +1,6 @@
 import { buildChapterUrl } from '../services/apiConfig';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { STORAGE_KEYS } from '../constants/storageKeys';
 import { Verse, Book, SelectionInfo } from '../types';
 import { BIBLE_BOOKS } from '../constants';
 import { parseBibleReference } from '../services/bibleBookData';
@@ -106,7 +107,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   
   const [vSplitOffset, setVSplitOffset] = useState(() => {
-    const saved = localStorage.getItem('bibleViewLayout');
+    const saved = localStorage.getItem(STORAGE_KEYS.VIEW_LAYOUT);
     if (saved !== null) return parseInt(saved);
     return 50; // Default: bilingual side-by-side for new users
   });
@@ -114,7 +115,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   
   // Persist bilingual layout preference
   useEffect(() => {
-    localStorage.setItem('bibleViewLayout', vSplitOffset.toString());
+    localStorage.setItem(STORAGE_KEYS.VIEW_LAYOUT, vSplitOffset.toString());
   }, [vSplitOffset]);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -746,13 +747,13 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   const toggleChineseMode = () => {
     const newMode = !isSimplified;
     setIsSimplified(newMode);
-    localStorage.setItem('bibleChineseMode', newMode ? 'simplified' : 'traditional');
+    localStorage.setItem(STORAGE_KEYS.CHINESE_MODE, newMode ? 'simplified' : 'traditional');
   };
 
   const adjustFontSize = (delta: number) => {
     const newSize = Math.min(Math.max(fontSize + delta, 12), 36);
     setFontSize(newSize);
-    localStorage.setItem('bibleFontSize', newSize.toString());
+    localStorage.setItem(STORAGE_KEYS.FONT_SIZE, newSize.toString());
   };
 
   const processChineseText = (text: string): string => {
