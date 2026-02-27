@@ -23,7 +23,7 @@ const VibePanel: React.FC<VibePanelProps> = ({ onClose, onApplyStyles, currentSt
       onApplyStyles(styles);
       saveVibeStyles(styles);
     } catch (err) {
-      console.error('Vibe coding failed:', err);
+      // TODO: use error reporting service
       setError(err instanceof Error ? err.message : 'Failed to generate vibe');
       setActiveVibe(null);
     } finally {

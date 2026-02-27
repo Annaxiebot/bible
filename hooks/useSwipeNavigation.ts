@@ -1,8 +1,9 @@
 import { useState, useCallback } from 'react';
 import { Verse } from '../types';
+import { SWIPE } from '../constants/appConfig';
 
-const SWIPE_THRESHOLD = 100;
-const DIRECTION_LOCK_THRESHOLD = 10;
+const SWIPE_THRESHOLD = SWIPE.THRESHOLD_PX;
+const DIRECTION_LOCK_THRESHOLD = SWIPE.DIRECTION_LOCK_PX;
 
 export function useSwipeNavigation(
   onNavigate: (direction: 'prev' | 'next') => void,

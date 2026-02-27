@@ -11,16 +11,17 @@
  * - Incremental sync (only changed items)
  */
 
-import { 
-  supabase, 
-  authManager, 
-  syncManager, 
+import {
+  supabase,
+  authManager,
+  syncManager,
   canSync,
   DbNote,
   DbAnnotation,
   DbReadingHistory,
   DbLastRead
 } from './supabase';
+import { STORAGE_KEYS } from '../constants/storageKeys';
 import { notesStorage } from './notesStorage';
 import { annotationStorage, AnnotationRecord } from './annotationStorage';
 import { readingHistory } from './readingHistory';
@@ -36,7 +37,7 @@ interface SyncState {
   lastSettingsSync: number;
 }
 
-const SYNC_STATE_KEY = 'bible-app-sync-state';
+const SYNC_STATE_KEY = STORAGE_KEYS.SYNC_STATE;
 
 function getSyncState(): SyncState {
   try {
@@ -85,7 +86,7 @@ async function syncNotes(): Promise<void> {
     .gte('updated_at', new Date(syncState.lastNotesSync).toISOString());
 
   if (error) {
-    console.error('Failed to fetch remote notes:', error);
+    // TODO: use error reporting service
     throw error;
   }
 
@@ -143,7 +144,7 @@ async function syncAnnotations(): Promise<void> {
     .gte('updated_at', new Date(syncState.lastAnnotationsSync).toISOString());
 
   if (error) {
-    console.error('Failed to fetch remote annotations:', error);
+    // TODO: use error reporting service
     throw error;
   }
 
@@ -207,7 +208,7 @@ async function syncReadingHistory(): Promise<void> {
     .eq('user_id', userId);
 
   if (historyError) {
-    console.error('Failed to fetch remote history:', historyError);
+    // TODO: use error reporting service
     throw historyError;
   }
 
@@ -291,7 +292,7 @@ export async function performFullSync(): Promise<void> {
 
     syncManager.setStatus('idle');
   } catch (error) {
-    console.error('Sync failed:', error);
+    // TODO: use error reporting service
     syncManager.setStatus('error', error instanceof Error ? error.message : 'Sync failed');
     throw error;
   }
@@ -306,7 +307,7 @@ authManager.subscribe(async (state) => {
     try {
       await performFullSync();
     } catch (error) {
-      console.error('Initial sync failed:', error);
+      // silently handle
     }
   }
 });
@@ -318,8 +319,8 @@ authManager.subscribe(async (state) => {
 if (typeof window !== 'undefined') {
   setInterval(() => {
     if (canSync() && syncManager.getStatus() === 'idle') {
-      performFullSync().catch(err => {
-        console.error('Periodic sync failed:', err);
+      performFullSync().catch(() => {
+        // silently handle
       });
     }
   }, 5 * 60 * 1000); // 5 minutes

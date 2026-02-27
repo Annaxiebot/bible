@@ -1,13 +1,17 @@
 /**
  * Backup/Restore Types for v4.0 Format
- * 
+ *
  * Enhanced types for backup with images support
  */
 
 import { VerseData } from '../../types/verseData';
+import { ChapterStorageData } from '../bibleStorage';
 import { AnnotationRecord } from '../annotationStorage';
 import { Bookmark } from '../bookmarkStorage';
 import { ReadingPlanState } from '../readingPlanStorage';
+import { ReadingPosition, ChapterHistory } from '../readingHistory';
+
+export type { ReadingPosition, ChapterHistory };
 
 // ============================================================================
 // Enhanced MediaAttachment (v4.0)
@@ -16,24 +20,24 @@ import { ReadingPlanState } from '../readingPlanStorage';
 export interface MediaAttachment {
   id: string;                    // UUID
   type: 'image' | 'audio' | 'video';
-  
+
   // Storage
   data: string;                  // base64 encoded image data
   mimeType: string;              // e.g., 'image/jpeg', 'image/png'
   size: number;                  // bytes
-  
+
   // Thumbnails
   thumbnail?: string;            // base64 encoded thumbnail (max 150x150)
-  
+
   // Metadata
   caption?: string;
   filename?: string;             // original filename
   timestamp: number;             // when added
-  
+
   // Dimensions (for images)
   width?: number;
   height?: number;
-  
+
   // Compression info
   originalSize?: number;         // pre-compression size
   quality?: number;              // compression quality (0-100)
@@ -68,7 +72,7 @@ export interface BibleTextExport {
     bookId: string;
     chapter: number;
     translation: 'cuv' | 'web';
-    data: any;
+    data: ChapterStorageData;
   }>;
 }
 
@@ -76,25 +80,25 @@ export interface FullBackupExport_v4 {
   version: '4.0';
   exportDate: string;
   deviceId?: string;
-  
+
   // Existing data
   notes: BibleNotesExport;
   bibleTexts: BibleTextExport;
   annotations: AnnotationRecord[];
   bookmarks: Bookmark[];
   readingHistory: {
-    history: any[];
-    lastRead: any | null;
-    position: any | null;
+    history: ChapterHistory[];
+    lastRead: ReadingPosition | null;
+    position: ReadingPosition | null;
   };
   readingPlans: ReadingPlanState[];
-  
+
   // NEW: Media attachments
   media: {
     images: MediaAttachment[];
     // Future: audio, video
   };
-  
+
   // Enhanced metadata
   metadata: {
     totalNotes: number;
@@ -126,10 +130,10 @@ export interface BackupOptions {
   includeHistory?: boolean;        // default: true
   includePlans?: boolean;          // default: true
   includeMedia?: boolean;          // default: true
-  
+
   compressImages?: boolean;        // default: true
   imageQuality?: number;           // default: 0.85
-  
+
   onProgress?: ProgressCallback;
 }
 
@@ -141,9 +145,9 @@ export interface RestoreOptions {
   historyStrategy?: MergeStrategy;      // default: 'merge_combine'
   plansStrategy?: MergeStrategy;        // default: 'skip_existing'
   mediaStrategy?: MergeStrategy;        // default: 'skip_existing'
-  
+
   onProgress?: ProgressCallback;
-  
+
   // Safety options
   dryRun?: boolean;                     // Validate only, don't import
   createBackupBefore?: boolean;         // Create backup before restore

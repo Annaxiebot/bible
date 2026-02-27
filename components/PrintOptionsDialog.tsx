@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { BIBLE_BOOKS } from '../constants';
 import { getChineseName } from '../services/bibleBookData';
 import type { PrintOptions } from '../services/printService';
+import { Dialog } from './Dialog';
 
 interface PrintOptionsDialogProps {
   onClose: () => void;
@@ -55,22 +56,35 @@ const PrintOptionsDialog: React.FC<PrintOptionsDialogProps> = ({ onClose, onPrin
     onPrint(options);
   };
 
-  return (
-    <div className="flex flex-col max-h-[80vh]">
-      {/* Header */}
-      <div className="px-5 py-4 border-b bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-t-lg">
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-bold">Print Options</h2>
-          <button onClick={onClose} className="p-1 hover:bg-white/20 rounded">
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-      </div>
+  const actions = (
+    <>
+      <button
+        onClick={onClose}
+        className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+      >
+        Cancel
+      </button>
+      <button
+        onClick={handlePrint}
+        className="px-5 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2"
+      >
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+        </svg>
+        Print
+      </button>
+    </>
+  );
 
-      {/* Body */}
-      <div className="flex-1 overflow-y-auto p-5 space-y-5">
+  return (
+    <Dialog
+      isOpen={true}
+      onClose={onClose}
+      title="Print Options"
+      maxWidth="max-w-md"
+      actions={actions}
+    >
+      <div className="space-y-5 overflow-y-auto max-h-[60vh]">
 
         {/* Content Toggles */}
         <div>
@@ -193,26 +207,7 @@ const PrintOptionsDialog: React.FC<PrintOptionsDialogProps> = ({ onClose, onPrin
           )}
         </div>
       </div>
-
-      {/* Footer */}
-      <div className="px-5 py-4 border-t bg-slate-50 flex justify-end gap-3 rounded-b-lg">
-        <button
-          onClick={onClose}
-          className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
-        >
-          Cancel
-        </button>
-        <button
-          onClick={handlePrint}
-          className="px-5 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2"
-        >
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-          </svg>
-          Print
-        </button>
-      </div>
-    </div>
+    </Dialog>
   );
 };
 

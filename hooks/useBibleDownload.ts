@@ -3,6 +3,7 @@ import { BIBLE_BOOKS } from '../constants';
 import { bibleStorage } from '../services/bibleStorage';
 import { backgroundBibleDownload } from '../services/backgroundBibleDownload';
 import { buildChapterUrl } from '../services/apiConfig';
+import { DOWNLOAD, TIMING } from '../constants/appConfig';
 
 interface UseBibleDownloadParams {
   selectedBookId: string;
@@ -86,7 +87,7 @@ export function useBibleDownload({
       const offline = await bibleStorage.getAllOfflineChapters();
       setOfflineChapters(offline);
     } catch (error) {
-      console.error('Error checking offline status:', error);
+      // silently handle
     }
   };
 
@@ -100,7 +101,7 @@ export function useBibleDownload({
     try {
       // Download current chapter with retry logic
       let cuvSuccess = false;
-      for (let retry = 0; retry < 3 && !cuvSuccess; retry++) {
+      for (let retry = 0; retry < DOWNLOAD.MAX_RETRIES && !cuvSuccess; retry++) {
         try {
           const cuvRes = await fetch(buildChapterUrl(selectedBookId, selectedChapter, 'cuv', selectedBookTotalVerses));
           if (cuvRes.ok) {
@@ -111,14 +112,14 @@ export function useBibleDownload({
             }
           }
         } catch (e) {
-          if (retry === 2) throw e;
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          if (retry === DOWNLOAD.MAX_RETRIES - 1) throw e;
+          await new Promise(resolve => setTimeout(resolve, TIMING.DOWNLOAD_RETRY_DELAY_MS));
         }
       }
       setDownloadProgress(50);
 
       let webSuccess = false;
-      for (let retry = 0; retry < 3 && !webSuccess; retry++) {
+      for (let retry = 0; retry < DOWNLOAD.MAX_RETRIES && !webSuccess; retry++) {
         try {
           const webRes = await fetch(buildChapterUrl(selectedBookId, selectedChapter, englishVersion, selectedBookTotalVerses));
           if (webRes.ok) {
@@ -129,8 +130,8 @@ export function useBibleDownload({
             }
           }
         } catch (e) {
-          if (retry === 2) throw e;
-          await new Promise(resolve => setTimeout(resolve, 1000));
+          if (retry === DOWNLOAD.MAX_RETRIES - 1) throw e;
+          await new Promise(resolve => setTimeout(resolve, TIMING.DOWNLOAD_RETRY_DELAY_MS));
         }
       }
       setDownloadProgress(100);
@@ -138,7 +139,7 @@ export function useBibleDownload({
       await checkOfflineStatus();
       alert(`${selectedBookName} 第 ${selectedChapter} 章已下载！`);
     } catch (err) {
-      console.error('Download error:', err);
+      // TODO: use error reporting service
       alert('下载失败，请检查网络连接后重试。');
     } finally {
       setIsDownloading(false);
@@ -179,7 +180,7 @@ export function useBibleDownload({
         }
 
         // Add delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, TIMING.MANUAL_DOWNLOAD_CHAPTER_DELAY_MS));
 
         // Download CUV
         try {
@@ -191,13 +192,13 @@ export function useBibleDownload({
             }
           }
         } catch (e) {
-          console.error(`Failed to download ${selectedBookId} ${chapter} CUV:`, e);
+          // silently handle — chapter skipped
         }
         completed++;
         setDownloadProgress(Math.round((completed / total) * 100));
 
         // Add delay between translations
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, TIMING.MANUAL_DOWNLOAD_TRANSLATION_DELAY_MS));
 
         // Download WEB
         try {
@@ -209,7 +210,7 @@ export function useBibleDownload({
             }
           }
         } catch (e) {
-          console.error(`Failed to download ${selectedBookId} ${chapter} WEB:`, e);
+          // silently handle — chapter skipped
         }
         completed++;
         setDownloadProgress(Math.round((completed / total) * 100));
@@ -218,7 +219,7 @@ export function useBibleDownload({
       await checkOfflineStatus();
       alert(`${selectedBookName} 已下载完成！`);
     } catch (err) {
-      console.error('Download error:', err);
+      // TODO: use error reporting service
       alert('下载失败，请检查网络连接后重试。');
     } finally {
       setIsDownloading(false);
@@ -274,12 +275,12 @@ export function useBibleDownload({
           // Update download status
           setDownloadStatus(`正在下载: ${book.name} 第 ${chapter} 章`);
 
-          // Add longer rate limiting delay between requests (2 seconds)
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          // Add longer rate limiting delay between requests
+          await new Promise(resolve => setTimeout(resolve, TIMING.MANUAL_DOWNLOAD_CHAPTER_DELAY_MS));
 
           // Download CUV with retry logic
           let cuvSuccess = false;
-          for (let retry = 0; retry < 3 && !cuvSuccess; retry++) {
+          for (let retry = 0; retry < DOWNLOAD.MAX_RETRIES && !cuvSuccess; retry++) {
             try {
               const cuvRes = await fetch(buildChapterUrl(book.id, chapter, 'cuv', book.totalVerses));
               if (cuvRes.ok) {
@@ -292,15 +293,15 @@ export function useBibleDownload({
                 // Rate limited - wait much longer
                 const waitTime = (5 + retry * 5);
                 await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
-              } else if (retry < 2) {
-                await new Promise(resolve => setTimeout(resolve, 2000));
+              } else if (retry < DOWNLOAD.MAX_RETRIES - 1) {
+                await new Promise(resolve => setTimeout(resolve, TIMING.MANUAL_DOWNLOAD_CHAPTER_DELAY_MS));
               }
             } catch (e) {
-              if (retry === 2) {
-                console.error(`Failed to download ${book.id} ${chapter} CUV after retries:`, e);
+              if (retry === DOWNLOAD.MAX_RETRIES - 1) {
+                // silently handle — CUV chapter skipped after retries
                 break; // Don't throw, just skip this chapter
               }
-              await new Promise(resolve => setTimeout(resolve, 3000));
+              await new Promise(resolve => setTimeout(resolve, TIMING.DOWNLOAD_RETRY_LONG_DELAY_MS));
             }
           }
           if (!cuvSuccess) {
@@ -309,12 +310,12 @@ export function useBibleDownload({
           completed++;
           setDownloadProgress(Math.round((completed / total) * 100));
 
-          // Add delay between translations too (2 seconds)
-          await new Promise(resolve => setTimeout(resolve, 2000));
+          // Add delay between translations too
+          await new Promise(resolve => setTimeout(resolve, TIMING.MANUAL_DOWNLOAD_TRANSLATION_DELAY_MS));
 
           // Download WEB with retry logic
           let webSuccess = false;
-          for (let retry = 0; retry < 3 && !webSuccess; retry++) {
+          for (let retry = 0; retry < DOWNLOAD.MAX_RETRIES && !webSuccess; retry++) {
             try {
               const webRes = await fetch(buildChapterUrl(book.id, chapter, englishVersion, book.totalVerses));
               if (webRes.ok) {
@@ -327,15 +328,15 @@ export function useBibleDownload({
                 // Rate limited - wait much longer
                 const waitTime = (5 + retry * 5);
                 await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
-              } else if (retry < 2) {
-                await new Promise(resolve => setTimeout(resolve, 2000));
+              } else if (retry < DOWNLOAD.MAX_RETRIES - 1) {
+                await new Promise(resolve => setTimeout(resolve, TIMING.MANUAL_DOWNLOAD_CHAPTER_DELAY_MS));
               }
             } catch (e) {
-              if (retry === 2) {
-                console.error(`Failed to download ${book.id} ${chapter} WEB after retries:`, e);
+              if (retry === DOWNLOAD.MAX_RETRIES - 1) {
+                // silently handle — WEB chapter skipped after retries
                 break; // Don't throw, just skip this chapter
               }
-              await new Promise(resolve => setTimeout(resolve, 3000));
+              await new Promise(resolve => setTimeout(resolve, TIMING.DOWNLOAD_RETRY_LONG_DELAY_MS));
             }
           }
           if (!webSuccess) {
@@ -345,14 +346,14 @@ export function useBibleDownload({
           setDownloadProgress(Math.round((completed / total) * 100));
 
         } catch (chapterErr) {
-          console.error(`Failed to download ${book.id} ${chapter}:`, chapterErr);
+          // silently handle — chapter skipped, tracked in failedChapters
           failedChapters.push(`${book.id} ${chapter}`);
           completed += 2; // Skip both translations
           setDownloadProgress(Math.round((completed / total) * 100));
         }
 
         // Save progress periodically
-        if (saveProgress && completed % 10 === 0) {
+        if (saveProgress && completed % DOWNLOAD.PROGRESS_SAVE_INTERVAL === 0) {
           await bibleStorage.saveMetadata('download_progress', {
             bookIndex,
             chapter,
@@ -364,7 +365,7 @@ export function useBibleDownload({
         }
 
         // Delay between chapters to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, isAuto ? 800 : 500));
+        await new Promise(resolve => setTimeout(resolve, isAuto ? TIMING.AUTO_DOWNLOAD_CHAPTER_DELAY_MS : TIMING.DOWNLOAD_POLL_MS));
       }
     }
 
@@ -401,7 +402,7 @@ export function useBibleDownload({
         }
       }
     } catch (err) {
-      console.error('Download error:', err);
+      // TODO: use error reporting service
       alert('下载失败，请检查网络连接后重试。');
     } finally {
       setIsDownloading(false);
@@ -432,7 +433,7 @@ export function useBibleDownload({
         await bibleStorage.saveMetadata('bible_offline_downloaded', true);
       }
     } catch (err) {
-      console.error('Auto-download error:', err);
+      // TODO: use error reporting service
     } finally {
       setAutoDownloadInProgress(false);
       setDownloadProgress(0);
@@ -445,8 +446,9 @@ export function useBibleDownload({
   };
 
   const handleResumeDownload = async () => {
-    const progress = await bibleStorage.getMetadata('download_progress');
-    if (!progress) return;
+    const progressRaw = await bibleStorage.getMetadata('download_progress');
+    if (!progressRaw) return;
+    const progress = progressRaw as { bookIndex: number; chapter: number; completed: number; failedChapters: string[]; totalChapters: number };
 
     // Stop background download to avoid dual processes
     backgroundBibleDownload.stop();
@@ -467,7 +469,7 @@ export function useBibleDownload({
         }
       }
     } catch (err) {
-      console.error('Resume download error:', err);
+      // TODO: use error reporting service
       alert('恢复下载失败，请重试。');
     } finally {
       setIsDownloading(false);

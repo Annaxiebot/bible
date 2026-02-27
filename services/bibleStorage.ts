@@ -1,89 +1,30 @@
 // Bible Storage Service using IndexedDB for large data storage
-const DB_NAME = 'BibleAppDB';
-const DB_VERSION = 1;
-const STORE_NAME = 'bibleChapters';
-const METADATA_STORE = 'metadata';
+import { idbService, ChapterStorageData, ChapterRecord } from './idbService';
+
+export type { ChapterStorageData } from './idbService';
 
 export type BibleTranslation = 'cuv' | 'web' | 'kjv' | 'asv';
 
-interface ChapterData {
-  id: string;
-  bookId: string;
-  chapter: number;
-  translation: BibleTranslation;
-  data: any;
-}
-
 class BibleStorageService {
-  private db: IDBDatabase | null = null;
-
+  /** No-op: retained for backward compatibility. DB is initialized by idbService. */
   async init(): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const request = indexedDB.open(DB_NAME, DB_VERSION);
-
-      request.onerror = () => reject(request.error);
-      request.onsuccess = () => {
-        this.db = request.result;
-        resolve();
-      };
-
-      request.onupgradeneeded = (event) => {
-        const db = (event.target as IDBOpenDBRequest).result;
-        
-        // Create object store for bible chapters
-        if (!db.objectStoreNames.contains(STORE_NAME)) {
-          const store = db.createObjectStore(STORE_NAME, { keyPath: 'id' });
-          store.createIndex('bookChapter', ['bookId', 'chapter', 'translation'], { unique: false });
-        }
-
-        // Create metadata store for tracking progress
-        if (!db.objectStoreNames.contains(METADATA_STORE)) {
-          db.createObjectStore(METADATA_STORE, { keyPath: 'key' });
-        }
-      };
-    });
+    // DB is managed by the unified idbService singleton
   }
 
-  private async ensureDB(): Promise<IDBDatabase> {
-    if (!this.db) {
-      await this.init();
-    }
-    return this.db!;
-  }
-
-  async saveChapter(bookId: string, chapter: number, translation: BibleTranslation, data: any): Promise<void> {
-    const db = await this.ensureDB();
-    const transaction = db.transaction([STORE_NAME], 'readwrite');
-    const store = transaction.objectStore(STORE_NAME);
-    
-    const chapterData: ChapterData = {
+  async saveChapter(bookId: string, chapter: number, translation: BibleTranslation, data: ChapterStorageData): Promise<void> {
+    const chapterData: ChapterRecord = {
       id: `${bookId}_${chapter}_${translation}`,
       bookId,
       chapter,
       translation,
       data
     };
-
-    return new Promise((resolve, reject) => {
-      const request = store.put(chapterData);
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
+    await idbService.put('bibleChapters', chapterData);
   }
 
-  async getChapter(bookId: string, chapter: number, translation: BibleTranslation): Promise<any | null> {
-    const db = await this.ensureDB();
-    const transaction = db.transaction([STORE_NAME], 'readonly');
-    const store = transaction.objectStore(STORE_NAME);
-    
-    return new Promise((resolve, reject) => {
-      const request = store.get(`${bookId}_${chapter}_${translation}`);
-      request.onsuccess = () => {
-        const result = request.result;
-        resolve(result ? result.data : null);
-      };
-      request.onerror = () => reject(request.error);
-    });
+  async getChapter(bookId: string, chapter: number, translation: BibleTranslation): Promise<ChapterStorageData | null> {
+    const result = await idbService.get('bibleChapters', `${bookId}_${chapter}_${translation}`);
+    return result ? result.data : null;
   }
 
   async hasChapter(bookId: string, chapter: number): Promise<boolean> {
@@ -98,96 +39,49 @@ class BibleStorageService {
   }
 
   async getAllOfflineChapters(): Promise<Set<string>> {
-    const db = await this.ensureDB();
-    const transaction = db.transaction([STORE_NAME], 'readonly');
-    const store = transaction.objectStore(STORE_NAME);
-    
-    return new Promise((resolve, reject) => {
-      const request = store.getAllKeys();
-      request.onsuccess = () => {
-        const keys = request.result as string[];
-        const chapters = new Set<string>();
-        
-        // Group by bookId_chapter to check if both translations exist
-        const chapterMap = new Map<string, Set<string>>();
-        
-        keys.forEach(key => {
-          const parts = key.split('_');
-          if (parts.length === 3) {
-            const baseKey = `${parts[0]}_${parts[1]}`;
-            if (!chapterMap.has(baseKey)) {
-              chapterMap.set(baseKey, new Set());
-            }
-            chapterMap.get(baseKey)!.add(parts[2]);
-          }
-        });
-        
-        // Only add to offline set if both translations exist
-        chapterMap.forEach((translations, baseKey) => {
-          if (translations.has('cuv') && translations.has('web')) {
-            chapters.add(baseKey);
-          }
-        });
-        
-        resolve(chapters);
-      };
-      request.onerror = () => reject(request.error);
+    const keys = await idbService.getAllKeys('bibleChapters');
+    const chapters = new Set<string>();
+
+    // Group by bookId_chapter to check if both translations exist
+    const chapterMap = new Map<string, Set<string>>();
+
+    (keys as string[]).forEach(key => {
+      const parts = key.split('_');
+      if (parts.length === 3) {
+        const baseKey = `${parts[0]}_${parts[1]}`;
+        if (!chapterMap.has(baseKey)) {
+          chapterMap.set(baseKey, new Set());
+        }
+        chapterMap.get(baseKey)!.add(parts[2]);
+      }
     });
+
+    // Only add to offline set if both translations exist
+    chapterMap.forEach((translations, baseKey) => {
+      if (translations.has('cuv') && translations.has('web')) {
+        chapters.add(baseKey);
+      }
+    });
+
+    return chapters;
   }
 
-  async saveMetadata(key: string, value: any): Promise<void> {
-    const db = await this.ensureDB();
-    const transaction = db.transaction([METADATA_STORE], 'readwrite');
-    const store = transaction.objectStore(METADATA_STORE);
-    
-    return new Promise((resolve, reject) => {
-      const request = store.put({ key, value });
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
+  async saveMetadata(key: string, value: string | number | boolean | object): Promise<void> {
+    await idbService.put('metadata', { key, value });
   }
 
-  async getMetadata(key: string): Promise<any | null> {
-    const db = await this.ensureDB();
-    const transaction = db.transaction([METADATA_STORE], 'readonly');
-    const store = transaction.objectStore(METADATA_STORE);
-    
-    return new Promise((resolve, reject) => {
-      const request = store.get(key);
-      request.onsuccess = () => {
-        const result = request.result;
-        resolve(result ? result.value : null);
-      };
-      request.onerror = () => reject(request.error);
-    });
+  async getMetadata(key: string): Promise<string | number | boolean | object | null> {
+    const result = await idbService.get('metadata', key);
+    return result ? result.value : null;
   }
 
   async deleteMetadata(key: string): Promise<void> {
-    const db = await this.ensureDB();
-    const transaction = db.transaction([METADATA_STORE], 'readwrite');
-    const store = transaction.objectStore(METADATA_STORE);
-    
-    return new Promise((resolve, reject) => {
-      const request = store.delete(key);
-      request.onsuccess = () => resolve();
-      request.onerror = () => reject(request.error);
-    });
+    await idbService.delete('metadata', key);
   }
 
   async clearAll(): Promise<void> {
-    const db = await this.ensureDB();
-    const transaction = db.transaction([STORE_NAME, METADATA_STORE], 'readwrite');
-    
-    return new Promise((resolve, reject) => {
-      const chapterStore = transaction.objectStore(STORE_NAME);
-      const metadataStore = transaction.objectStore(METADATA_STORE);
-      
-      const clearChapters = chapterStore.clear();
-      const clearMetadata = metadataStore.clear();
-      
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error);
-    });
+    await idbService.clear('bibleChapters');
+    await idbService.clear('metadata');
   }
 
   async getStorageInfo(): Promise<{ used: number; quota: number }> {
@@ -206,26 +100,15 @@ class BibleStorageService {
     bookId: string;
     chapter: number;
     translation: BibleTranslation;
-    data: any;
+    data: ChapterStorageData;
   }>> {
-    const db = await this.ensureDB();
-    const transaction = db.transaction([STORE_NAME], 'readonly');
-    const store = transaction.objectStore(STORE_NAME);
-    
-    return new Promise((resolve, reject) => {
-      const request = store.getAll();
-      request.onsuccess = () => {
-        const results = request.result || [];
-        const chapters = results.map(item => ({
-          bookId: item.bookId,
-          chapter: item.chapter,
-          translation: item.translation,
-          data: item.data
-        }));
-        resolve(chapters);
-      };
-      request.onerror = () => reject(request.error);
-    });
+    const results = await idbService.getAll('bibleChapters');
+    return results.map(item => ({
+      bookId: item.bookId,
+      chapter: item.chapter,
+      translation: item.translation as BibleTranslation,
+      data: item.data
+    }));
   }
 }
 

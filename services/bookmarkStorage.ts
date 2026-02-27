@@ -1,72 +1,37 @@
-import { openDB, DBSchema, IDBPDatabase } from 'idb';
+import { idbService } from './idbService';
 
-export interface Bookmark {
-  id: string; // format: bookId:chapter:verse
-  bookId: string;
-  bookName: string;
-  chapter: number;
-  verse: number;
-  textPreview: string; // first ~80 chars of the verse text
-  createdAt: number;
-}
-
-interface BookmarksDB extends DBSchema {
-  bookmarks: {
-    key: string;
-    value: Bookmark;
-    indexes: {
-      'by-created': number;
-    };
-  };
-}
+// Re-export Bookmark from idbService so consumers don't need to change imports
+export type { Bookmark } from './idbService';
+import type { Bookmark } from './idbService';
 
 class BookmarkStorageService {
-  private dbPromise: Promise<IDBPDatabase<BookmarksDB>>;
-
-  constructor() {
-    this.dbPromise = openDB<BookmarksDB>('BibleBookmarksDB', 1, {
-      upgrade(db) {
-        if (!db.objectStoreNames.contains('bookmarks')) {
-          const store = db.createObjectStore('bookmarks', { keyPath: 'id' });
-          store.createIndex('by-created', 'createdAt');
-        }
-      },
-    });
-  }
-
   async addBookmark(bookmark: Omit<Bookmark, 'createdAt'>): Promise<void> {
-    const db = await this.dbPromise;
-    await db.put('bookmarks', {
+    await idbService.put('bookmarks', {
       ...bookmark,
       createdAt: Date.now(),
     });
   }
 
   async removeBookmark(id: string): Promise<void> {
-    const db = await this.dbPromise;
-    await db.delete('bookmarks', id);
+    await idbService.delete('bookmarks', id);
   }
 
   async isBookmarked(id: string): Promise<boolean> {
-    const db = await this.dbPromise;
-    const bookmark = await db.get('bookmarks', id);
+    const bookmark = await idbService.get('bookmarks', id);
     return !!bookmark;
   }
 
   async getAllBookmarks(): Promise<Bookmark[]> {
-    const db = await this.dbPromise;
-    const all = await db.getAllFromIndex('bookmarks', 'by-created');
+    const all = await idbService.getAllFromIndex('bookmarks', 'by-created');
     return all.reverse(); // newest first
   }
 
   async getBookmarkCount(): Promise<number> {
-    const db = await this.dbPromise;
-    return await db.count('bookmarks');
+    return idbService.count('bookmarks');
   }
 
   async importBookmark(bookmark: Bookmark): Promise<void> {
-    const db = await this.dbPromise;
-    await db.put('bookmarks', bookmark);
+    await idbService.put('bookmarks', bookmark);
   }
 
   async toggleBookmark(bookmark: Omit<Bookmark, 'createdAt'>): Promise<boolean> {

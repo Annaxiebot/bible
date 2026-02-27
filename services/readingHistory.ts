@@ -1,12 +1,14 @@
 // Reading history service for tracking Bible reading progress
-interface ReadingPosition {
+import { safeGetJSON, safeSetJSON, safeRemove } from '../utils/localStorageUtil';
+import { STORAGE_KEYS } from '../constants/storageKeys';
+export interface ReadingPosition {
   bookId: string;
   bookName: string;
   chapter: number;
   timestamp: number;
 }
 
-interface ChapterHistory {
+export interface ChapterHistory {
   bookId: string;
   bookName: string;
   chapter: number;
@@ -21,111 +23,81 @@ interface ChaptersWithContent {
 }
 
 class ReadingHistory {
-  private readonly STORAGE_KEY = 'bibleReadingHistory';
-  private readonly LAST_READ_KEY = 'bibleLastRead';
-  private readonly HISTORY_KEY = 'bibleChapterHistory';
+  private readonly STORAGE_KEY = STORAGE_KEYS.READING_HISTORY;
+  private readonly LAST_READ_KEY = STORAGE_KEYS.LAST_READ;
+  private readonly HISTORY_KEY = STORAGE_KEYS.CHAPTER_HISTORY;
   private readonly MAX_HISTORY_ITEMS = 100;
 
   // Get last reading position (for automatic resume)
   async getLastReadingPosition(): Promise<ReadingPosition | null> {
-    try {
-      const data = localStorage.getItem(this.STORAGE_KEY);
-      return data ? JSON.parse(data) : null;
-    } catch (error) {
-      console.error('Failed to get reading position:', error);
-      return null;
-    }
+    return safeGetJSON<ReadingPosition | null>(this.STORAGE_KEY, null);
   }
 
   // Save reading position
   async saveReadingPosition(bookId: string, chapter: number): Promise<void> {
-    try {
-      const position: ReadingPosition = {
-        bookId,
-        bookName: '', // Will be filled by other method
-        chapter,
-        timestamp: Date.now()
-      };
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(position));
-    } catch (error) {
-      console.error('Failed to save reading position:', error);
-    }
+    const position: ReadingPosition = {
+      bookId,
+      bookName: '', // Will be filled by other method
+      chapter,
+      timestamp: Date.now()
+    };
+    safeSetJSON(this.STORAGE_KEY, position);
   }
 
   // Get last read (synchronous version for App component)
   getLastRead(): ReadingPosition | null {
-    try {
-      const data = localStorage.getItem(this.LAST_READ_KEY);
-      return data ? JSON.parse(data) : null;
-    } catch (error) {
-      console.error('Failed to get last read:', error);
-      return null;
-    }
+    return safeGetJSON<ReadingPosition | null>(this.LAST_READ_KEY, null);
   }
 
   // Save last read position with book name
   saveLastRead(bookId: string, bookName: string, chapter: number): void {
-    try {
-      const position: ReadingPosition = {
-        bookId,
-        bookName,
-        chapter,
-        timestamp: Date.now()
-      };
-      localStorage.setItem(this.LAST_READ_KEY, JSON.stringify(position));
-      // Also save to the main storage key for compatibility
-      localStorage.setItem(this.STORAGE_KEY, JSON.stringify(position));
-    } catch (error) {
-      console.error('Failed to save last read:', error);
-    }
+    const position: ReadingPosition = {
+      bookId,
+      bookName,
+      chapter,
+      timestamp: Date.now()
+    };
+    safeSetJSON(this.LAST_READ_KEY, position);
+    // Also save to the main storage key for compatibility
+    safeSetJSON(this.STORAGE_KEY, position);
   }
 
   // Add to reading history
   addToHistory(
-    bookId: string, 
-    bookName: string, 
+    bookId: string,
+    bookName: string,
     chapter: number,
     hasNotes: boolean = false,
     hasAIResearch: boolean = false
   ): void {
-    try {
-      const history = this.getHistory();
-      
-      // Remove existing entry if present
-      const filteredHistory = history.filter(
-        h => !(h.bookId === bookId && h.chapter === chapter)
-      );
-      
-      // Add new entry at the beginning
-      const newEntry: ChapterHistory = {
-        bookId,
-        bookName,
-        chapter,
-        lastRead: Date.now(),
-        hasNotes,
-        hasAIResearch
-      };
-      
-      filteredHistory.unshift(newEntry);
-      
-      // Keep only the most recent entries
-      const trimmedHistory = filteredHistory.slice(0, this.MAX_HISTORY_ITEMS);
-      
-      localStorage.setItem(this.HISTORY_KEY, JSON.stringify(trimmedHistory));
-    } catch (error) {
-      console.error('Failed to add to history:', error);
-    }
+    const history = this.getHistory();
+
+    // Remove existing entry if present
+    const filteredHistory = history.filter(
+      h => !(h.bookId === bookId && h.chapter === chapter)
+    );
+
+    // Add new entry at the beginning
+    const newEntry: ChapterHistory = {
+      bookId,
+      bookName,
+      chapter,
+      lastRead: Date.now(),
+      hasNotes,
+      hasAIResearch
+    };
+
+    filteredHistory.unshift(newEntry);
+
+    // Keep only the most recent entries
+    const trimmedHistory = filteredHistory.slice(0, this.MAX_HISTORY_ITEMS);
+
+    safeSetJSON(this.HISTORY_KEY, trimmedHistory);
   }
 
   // Get reading history
   getHistory(): ChapterHistory[] {
-    try {
-      const data = localStorage.getItem(this.HISTORY_KEY);
-      return data ? JSON.parse(data) : [];
-    } catch (error) {
-      console.error('Failed to get history:', error);
-      return [];
-    }
+    return safeGetJSON<ChapterHistory[]>(this.HISTORY_KEY, []);
   }
 
   // Get recent reading (last N items)
@@ -149,7 +121,7 @@ class ReadingHistory {
       
       return { withNotes, withResearch };
     } catch (error) {
-      console.error('Failed to get chapters with content:', error);
+      // silently handle
       return { withNotes: new Set(), withResearch: new Set() };
     }
   }
@@ -161,29 +133,21 @@ class ReadingHistory {
     hasNotes?: boolean,
     hasAIResearch?: boolean
   ): Promise<void> {
-    try {
-      const history = this.getHistory();
-      const entry = history.find(h => h.bookId === bookId && h.chapter === chapter);
-      
-      if (entry) {
-        if (hasNotes !== undefined) entry.hasNotes = hasNotes;
-        if (hasAIResearch !== undefined) entry.hasAIResearch = hasAIResearch;
-        localStorage.setItem(this.HISTORY_KEY, JSON.stringify(history));
-      }
-    } catch (error) {
-      console.error('Failed to update chapter status:', error);
+    const history = this.getHistory();
+    const entry = history.find(h => h.bookId === bookId && h.chapter === chapter);
+
+    if (entry) {
+      if (hasNotes !== undefined) entry.hasNotes = hasNotes;
+      if (hasAIResearch !== undefined) entry.hasAIResearch = hasAIResearch;
+      safeSetJSON(this.HISTORY_KEY, history);
     }
   }
 
   // Clear all history
   clearHistory(): void {
-    try {
-      localStorage.removeItem(this.HISTORY_KEY);
-      localStorage.removeItem(this.LAST_READ_KEY);
-      localStorage.removeItem(this.STORAGE_KEY);
-    } catch (error) {
-      console.error('Failed to clear history:', error);
-    }
+    safeRemove(this.HISTORY_KEY);
+    safeRemove(this.LAST_READ_KEY);
+    safeRemove(this.STORAGE_KEY);
   }
 
   // Get reading statistics

@@ -2,22 +2,13 @@ import { VerseData } from '../../types/verseData';
 import { AnnotationRecord } from '../annotationStorage';
 import { Bookmark } from '../bookmarkStorage';
 import { ReadingPlanState } from '../readingPlanStorage';
+import { ReadingPosition, ChapterHistory } from '../readingHistory';
 
-export interface ReadingPositionData {
-  bookId: string;
-  bookName: string;
-  chapter: number;
-  timestamp: number;
-}
+/** @deprecated Use ReadingPosition from services/readingHistory */
+export type ReadingPositionData = ReadingPosition;
 
-export interface ChapterHistoryEntry {
-  bookId: string;
-  bookName: string;
-  chapter: number;
-  lastRead: number;
-  hasNotes?: boolean;
-  hasAIResearch?: boolean;
-}
+/** @deprecated Use ChapterHistory from services/readingHistory */
+export type ChapterHistoryEntry = ChapterHistory;
 
 export interface BibleNotesExport {
   version: '1.0';
@@ -52,6 +43,10 @@ export type MergeStrategy = 'replace' | 'merge_newer' | 'merge_combine' | 'skip_
 
 export type ProgressCallback = (stage: string, percent: number) => void;
 
+/**
+ * @deprecated v3.0 format. Use FullBackupExport_v4 from services/backup/types for new code.
+ * Kept for backward compatibility with existing export/import flow.
+ */
 export interface FullBackupExport {
   version: '3.0';
   exportDate: string;
@@ -75,6 +70,9 @@ export interface FullBackupExport {
     totalPlans: number;
   };
 }
+
+// Re-export v4 canonical backup type from backup/types.ts
+export type { FullBackupExport_v4 } from '../backup/types';
 
 export interface BackupSummaryData {
   version?: string;
