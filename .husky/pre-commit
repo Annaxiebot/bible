@@ -1,0 +1,16 @@
+#!/bin/sh
+. "$(dirname "$0")/_/husky.sh"
+
+echo "🧪 Running tests before commit..."
+npm run test -- --run
+
+if [ $? -ne 0 ]; then
+  echo ""
+  echo "❌ TESTS FAILED!"
+  echo "Fix the failing tests before committing."
+  echo "Run 'npm run test' to see details."
+  exit 1
+fi
+
+echo "✅ All tests passed!"
+echo ""
