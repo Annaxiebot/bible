@@ -58,7 +58,7 @@ Text containing both types works correctly:
 ## 📊 Testing
 
 ### Test Files Created:
-1. **test-chinese-refs.html** - Standalone HTML test with interactive examples
+1. **demos/test-chinese-refs.html** - Standalone HTML test with interactive examples
 2. **TEST_CHINESE_REFS.md** - Comprehensive test cases and documentation
 3. **CHINESE_REFS_IMPLEMENTATION.md** - This file
 
@@ -77,7 +77,7 @@ Text containing both types works correctly:
    - Chapter and verses are correctly highlighted
 
 #### Option 2: Standalone Test
-1. Open: `bible-app/test-chinese-refs.html` in a browser
+1. Open: `bible-app/demos/test-chinese-refs.html` in a browser
 2. Click on highlighted references
 3. Verify parsed data in popup alerts
 
@@ -173,7 +173,7 @@ Dev server is running at: http://localhost:3000/bible/
 
 - **Modified**: `bible-app/components/ChatInterface.tsx`
 - **Reference**: `bible-app/constants.tsx` (BIBLE_BOOKS)
-- **Test**: `bible-app/test-chinese-refs.html`
+- **Test**: `bible-app/demos/test-chinese-refs.html`
 - **Docs**: `bible-app/TEST_CHINESE_REFS.md`
 
 ## 🎉 Status: COMPLETE
