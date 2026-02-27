@@ -4,6 +4,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Force no caching -->
+    <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+    <meta http-equiv="Pragma" content="no-cache">
+    <meta http-equiv="Expires" content="0">
+    <link rel="icon" type="image/svg+xml" href="/bible/favicon.svg?v=2">
+    <link rel="icon" type="image/png" sizes="32x32" href="/bible/favicon-32.png">
+    <link rel="apple-touch-icon" sizes="180x180" href="/bible/apple-touch-icon.png">
     <title>Scripture Scholar</title>
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -51,6 +58,49 @@
         }
         canvas {
           touch-action: none;
+        }
+        
+        /* Annotation mode: completely disable all text selection and iOS callouts */
+        html.annotation-mode-active,
+        html.annotation-mode-active body,
+        html.annotation-mode-active * {
+          -webkit-touch-callout: none !important;
+          -webkit-user-select: none !important;
+          -moz-user-select: none !important;
+          -ms-user-select: none !important;
+          user-select: none !important;
+          -webkit-tap-highlight-color: transparent !important;
+        }
+        
+        /* Prevent iOS magnifier glass and text selection handles */
+        html.annotation-mode-active input,
+        html.annotation-mode-active textarea {
+          pointer-events: none !important;
+        }
+        
+        /* Block all touch behaviors on text content in annotation mode */
+        html.annotation-mode-active .verse-content {
+          pointer-events: none !important;
+          touch-action: none !important;
+        }
+        
+        /* Ensure the annotation canvas captures ALL touches */
+        html.annotation-mode-active .annotation-overlay {
+          pointer-events: auto !important;
+          touch-action: none !important;
+        }
+        
+        /* Hide iOS selection elements */
+        html.annotation-mode-active ::selection {
+          background: transparent !important;
+        }
+        html.annotation-mode-active ::-moz-selection {
+          background: transparent !important;
+        }
+        
+        /* Disable iOS text size adjustment which can cause selection issues */
+        html.annotation-mode-active {
+          -webkit-text-size-adjust: none !important;
         }
         /* Book dropdown scrollbar styles */
         .book-dropdown-scroll {
