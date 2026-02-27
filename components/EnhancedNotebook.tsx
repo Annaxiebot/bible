@@ -321,7 +321,8 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
       editorRef.current.appendChild(spaceNode);
     }
 
-    // Restore cursor position
+    // Restore cursor position — do NOT call focus() here, editor already has focus
+    // and calling focus() after addRange() causes browsers to reset cursor position
     if (windowSelection && savedRange && cursorContainer) {
       try {
         const newRange = document.createRange();
@@ -330,7 +331,7 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
         windowSelection.removeAllRanges();
         windowSelection.addRange(newRange);
       } catch (e) {
-        // If restoring fails, place cursor after the space
+        // If restoring fails, place cursor after the space node
         const newRange = document.createRange();
         newRange.setStartAfter(spaceNode);
         newRange.setEndAfter(spaceNode);
@@ -338,9 +339,6 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
         windowSelection.addRange(newRange);
       }
     }
-
-    // Focus the editor
-    editorRef.current.focus();
 
     hasInsertedTimestamp.current = true;
   };
