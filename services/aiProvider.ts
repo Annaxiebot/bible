@@ -111,7 +111,8 @@ export const isProviderConfigured = (provider: AIProvider): boolean => {
   if (provider === 'gemini') {
     return !!(import.meta.env.VITE_GEMINI_API_KEY || localStorage.getItem(STORAGE_KEYS.GEMINI_API_KEY) || process.env.API_KEY);
   } else if (provider === 'claude') {
-    return !!(import.meta.env.VITE_ANTHROPIC_API_KEY || localStorage.getItem(STORAGE_KEYS.CLAUDE_API_KEY));
+    // Claude API key must be user-provided (never from environment/secrets)
+    return !!localStorage.getItem(STORAGE_KEYS.CLAUDE_API_KEY);
   } else if (provider === 'kimi') {
     return !!(import.meta.env.VITE_KIMI_API_KEY || localStorage.getItem(STORAGE_KEYS.KIMI_API_KEY) || process.env.KIMI_API_KEY);
   }
