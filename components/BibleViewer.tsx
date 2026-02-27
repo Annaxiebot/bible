@@ -4,7 +4,7 @@ import { Verse, Book, SelectionInfo } from '../types';
 import { BIBLE_BOOKS } from '../constants';
 import { parseBibleReference } from '../services/bibleBookData';
 import { toSimplified } from '../services/chineseConverter';
-import { bibleStorage } from '../services/bibleStorage';
+import { bibleStorage, BibleTranslation } from '../services/bibleStorage';
 import { readingHistory } from '../services/readingHistory';
 import { verseDataStorage } from '../services/verseDataStorage';
 import { bookmarkStorage } from '../services/bookmarkStorage';
@@ -314,13 +314,13 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
               // Verse element not in DOM yet, retry
               setTimeout(tryScroll, 300);
             } else {
-              console.warn('[Navigate] Could not find verse element after', maxAttempts, 'attempts');
+              // silently handle — verse not found in DOM after retries
             }
           };
           setTimeout(tryScroll, 500);
         }
       } else {
-        console.warn('[Navigate] Book not found:', navigateTo.bookId);
+        // silently handle — unknown bookId
       }
     }
   }, [navigateTo]);
@@ -455,7 +455,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         const noteResults = await searchNotesAndResearch(querySimplified, results);
         results.push(...noteResults);
       } catch (noteSearchError) {
-        console.warn('Notes/research search error:', noteSearchError);
+        // silently handle — notes search is non-critical
       }
 
       // Search current chapter if not cached
@@ -472,7 +472,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
 
       setSearchResults(results);
     } catch (error) {
-      console.error('Search error:', error);
+      // TODO: use error reporting service
     } finally {
       setIsSearching(false);
     }
@@ -591,7 +591,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       await checkOfflineStatus();
       await checkAndStartAutoDownload();
     } catch (error) {
-      console.error('Error initializing storage:', error);
+      // silently handle
     }
   };
 
@@ -600,7 +600,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       const offline = await bibleStorage.getAllOfflineChapters();
       setOfflineChapters(offline);
     } catch (error) {
-      console.error('Error checking offline status:', error);
+      // silently handle
     }
   };
 
@@ -613,7 +613,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       if (hasDownloadProgress && !isDownloading) {
       }
     } catch (error) {
-      console.error('Error checking auto-download status:', error);
+      // silently handle
     }
   };
 
@@ -622,7 +622,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     // Always check cache first to avoid unnecessary API calls
     try {
       const cachedCuv = await bibleStorage.getChapter(bookId, chapter, 'cuv');
-      const cachedWeb = await bibleStorage.getChapter(bookId, chapter, englishVersion as any);
+      const cachedWeb = await bibleStorage.getChapter(bookId, chapter, englishVersion as BibleTranslation);
       if (cachedCuv && cachedWeb && cachedCuv.verses && cachedWeb.verses) {
         return {
           left: cachedCuv.verses,
@@ -644,7 +644,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     let loadedFromCache = false;
     try {
       const cachedCuv = await bibleStorage.getChapter(selectedBook.id, selectedChapter, 'cuv');
-      const cachedWeb = await bibleStorage.getChapter(selectedBook.id, selectedChapter, englishVersion as any);
+      const cachedWeb = await bibleStorage.getChapter(selectedBook.id, selectedChapter, englishVersion as BibleTranslation);
 
       if (ctrl.cancelled) return;
       if (cachedCuv && cachedWeb && cachedCuv.verses && cachedWeb.verses) {
@@ -670,13 +670,13 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           .then(res => res.json())
           .then(data => {
             if (!ctrl.cancelled && data.verses) {
-              bibleStorage.saveChapter(selectedBook.id, selectedChapter, englishVersion as any, data).catch(() => {});
+              bibleStorage.saveChapter(selectedBook.id, selectedChapter, englishVersion as BibleTranslation, data).catch(() => {});
             }
           })
           .catch(() => {});
       }
     } catch (err) {
-      console.error('Cache check error:', err);
+      // silently handle
     }
 
     // If not loaded from cache, try to fetch from API
@@ -702,17 +702,17 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           // Save to IndexedDB in background (non-blocking)
           Promise.all([
             bibleStorage.saveChapter(selectedBook.id, selectedChapter, 'cuv', cuvData),
-            bibleStorage.saveChapter(selectedBook.id, selectedChapter, englishVersion as any, engData)
+            bibleStorage.saveChapter(selectedBook.id, selectedChapter, englishVersion as BibleTranslation, engData)
           ]).then(() => {
             checkOfflineStatus();
-          }).catch(err => console.error('Failed to cache chapter:', err));
+          }).catch(() => {});
         }
-      } catch (fetchErr: any) {
+      } catch (fetchErr: unknown) {
         if (ctrl.cancelled) return;
         // If online fetch fails, try IndexedDB
         try {
           const cachedCuv = await bibleStorage.getChapter(selectedBook.id, selectedChapter, 'cuv');
-          const cachedWeb = await bibleStorage.getChapter(selectedBook.id, selectedChapter, englishVersion as any);
+          const cachedWeb = await bibleStorage.getChapter(selectedBook.id, selectedChapter, englishVersion as BibleTranslation);
 
           if (ctrl.cancelled) return;
           if (cachedCuv && cachedWeb) {
@@ -725,7 +725,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
             setError(`无法加载 ${selectedBook.name} 第 ${selectedChapter} 章。请检查网络连接。`);
           }
         } catch (storageErr) {
-          console.error("Storage error:", storageErr);
+          // TODO: use error reporting service
           if (!ctrl.cancelled) {
             setLeftVerses([]);
             setRightVerses([]);

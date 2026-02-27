@@ -8,6 +8,7 @@
 import { bibleStorage, BibleTranslation } from './bibleStorage';
 import { BIBLE_BOOKS } from './bibleBookData';
 import { buildChapterUrl } from './apiConfig';
+import { TIMING } from '../constants/appConfig';
 
 export interface BgDownloadProgress {
   cached: number;
@@ -21,8 +22,8 @@ export interface BgDownloadProgress {
 type ProgressCallback = (progress: BgDownloadProgress) => void;
 
 const TOTAL_CHAPTERS = BIBLE_BOOKS.reduce((sum, b) => sum + b.chapters, 0);
-const DELAY_MS = 5000; // 5 seconds between requests
-const API_PAUSE_MS = 10000; // Pause 10 seconds when AI/research API calls happen
+const DELAY_MS = TIMING.BG_DOWNLOAD_DELAY_MS;
+const API_PAUSE_MS = TIMING.BG_DOWNLOAD_API_PAUSE_MS;
 const METADATA_KEY = 'bg_download_progress';
 
 /** Build a flat list of all chapters in order */
@@ -96,7 +97,7 @@ class BackgroundBibleDownloadService {
       await this.run();
     } catch (e) {
       if ((e as Error)?.name !== 'AbortError') {
-        console.error('[BgDownload] Error:', e);
+        // TODO: use error reporting service
       }
     } finally {
       this.running = false;
@@ -152,7 +153,8 @@ class BackgroundBibleDownloadService {
     }
 
     // Load saved progress to know where to resume
-    const savedProgress = await bibleStorage.getMetadata(METADATA_KEY);
+    const savedProgressRaw = await bibleStorage.getMetadata(METADATA_KEY);
+    const savedProgress = savedProgressRaw as { englishVersion?: string; lastIndex?: number } | null;
     let startIndex = 0;
     if (savedProgress && savedProgress.englishVersion === englishVersion && savedProgress.lastIndex != null) {
       startIndex = savedProgress.lastIndex;
@@ -168,13 +170,13 @@ class BackgroundBibleDownloadService {
 
       // Wait while paused
       while (this.paused && this.running) {
-        await this.sleep(500);
+        await this.sleep(TIMING.DOWNLOAD_POLL_MS);
       }
       if (!this.running) return;
 
       // Wait for API pause to expire
       while (Date.now() < this.apiPauseUntil && this.running) {
-        await this.sleep(500);
+        await this.sleep(TIMING.DOWNLOAD_POLL_MS);
       }
       if (!this.running) return;
 
@@ -233,8 +235,8 @@ class BackgroundBibleDownloadService {
 
       for (const item of retries) {
         if (!this.running) return;
-        while (this.paused && this.running) await this.sleep(500);
-        while (Date.now() < this.apiPauseUntil && this.running) await this.sleep(500);
+        while (this.paused && this.running) await this.sleep(TIMING.DOWNLOAD_POLL_MS);
+        while (Date.now() < this.apiPauseUntil && this.running) await this.sleep(TIMING.DOWNLOAD_POLL_MS);
         if (!this.running) return;
 
         const ok = await this.fetchAndSave(item.bookId, item.chapter, item.translation);
@@ -263,7 +265,7 @@ class BackgroundBibleDownloadService {
       if (!res.ok) {
         if (res.status === 429) {
           // Rate limited — back off then retry once
-          await this.sleep(30000);
+          await this.sleep(TIMING.BG_DOWNLOAD_RATE_LIMIT_MS);
           const retry = await fetch(url, { signal: this.abortController?.signal });
           if (!retry.ok) return false;
           const retryData = await retry.json();
@@ -285,8 +287,8 @@ class BackgroundBibleDownloadService {
       // A TypeError here often means bible-api.com returned 429 without CORS headers,
       // which the browser surfaces as a network error rather than an HTTP response.
       // Back off before continuing so we don't compound the rate limiting.
-      console.warn(`[BgDownload] Failed ${bookId} ${chapter} ${translation}:`, e);
-      await this.sleep(30000);
+      // silently handle — rate limited or network error, back off before continuing
+      await this.sleep(TIMING.BG_DOWNLOAD_RATE_LIMIT_MS);
       return false;
     }
   }

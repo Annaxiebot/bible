@@ -3,6 +3,7 @@ import { getChineseName, getBookIndex, BIBLE_BOOKS } from './bibleBookData';
 import { verseDataStorage } from './verseDataStorage';
 import { annotationStorage } from './annotationStorage';
 import { bibleStorage } from './bibleStorage';
+import { PRINT, TIMING, DRAWING } from '../constants/appConfig';
 import { renderPathsToDataURL } from './canvasRenderer';
 import type { SerializedPath } from '../components/DrawingCanvas';
 import type { VerseData, AIResearchEntry } from '../types/verseData';
@@ -257,7 +258,7 @@ export const generatePrintHTML = (notes: PrintableNote[]): string => {
 `;
 
   // Add table of contents
-  if (notes.length > 5) {
+  if (notes.length > PRINT.TOC_MIN_NOTES) {
     html += `
   <div class="toc no-print">
     <h2>目录</h2>`;
@@ -275,7 +276,7 @@ export const generatePrintHTML = (notes: PrintableNote[]): string => {
   
   // Add statistics
   const bookCount = new Set(notes.map(n => n.bookName)).size;
-  const notesWithDrawings = notes.filter(n => n.content.drawing && n.content.drawing.length > 200).length;
+  const notesWithDrawings = notes.filter(n => n.content.drawing && n.content.drawing.length > PRINT.DRAWING_MIN_LENGTH).length;
   
   html += `
   <div class="statistics no-print">
@@ -326,7 +327,7 @@ export const generatePrintHTML = (notes: PrintableNote[]): string => {
       html += '<span class="empty-note">（无文字笔记）</span>';
     }
     
-    if (note.content.drawing && note.content.drawing.length > 200) {
+    if (note.content.drawing && note.content.drawing.length > PRINT.DRAWING_MIN_LENGTH) {
       html += `
       <div class="note-drawing">
         <img src="${note.content.drawing}" alt="手绘图" />
@@ -358,7 +359,7 @@ export const printNotes = (notes: Record<string, string>) => {
   if (printWindow) {
     printWindow.document.write(printHTML);
     printWindow.document.close();
-    printWindow.onload = () => setTimeout(() => printWindow.print(), 500);
+    printWindow.onload = () => setTimeout(() => printWindow.print(), TIMING.PRINT_WINDOW_DELAY_MS);
   }
 };
 
@@ -537,7 +538,7 @@ export async function gatherPrintData(options?: PrintOptions): Promise<Printable
       try {
         const paths: SerializedPath[] = JSON.parse(vd.personalNote.drawing);
         if (paths.length > 0) {
-          const dataURL = renderPathsToDataURL(paths, 600, 400, { background: 'white' });
+          const dataURL = renderPathsToDataURL(paths, PRINT.DRAWING_RENDER_WIDTH, PRINT.DRAWING_RENDER_HEIGHT, { background: 'white' });
           section.drawings = [dataURL];
         }
       } catch { /* invalid drawing data */ }
@@ -595,7 +596,7 @@ export async function gatherPrintData(options?: PrintOptions): Promise<Printable
 
             // Render annotation at a large fixed height to cover all text + extra
             // The overlay image will be stretched to match the text container
-            const renderH = 4000; // tall enough to cover any chapter
+            const renderH = DRAWING.PRINT_RENDER_HEIGHT; // tall enough to cover any chapter
             const annotationImage = renderPathsToDataURL(paths, w, renderH, { scale: 2 });
 
             // Find existing section or create new one
@@ -821,6 +822,6 @@ export async function printStudyNotes(options?: PrintOptions) {
   if (printWindow) {
     printWindow.document.write(html);
     printWindow.document.close();
-    printWindow.onload = () => setTimeout(() => printWindow.print(), 500);
+    printWindow.onload = () => setTimeout(() => printWindow.print(), TIMING.PRINT_WINDOW_DELAY_MS);
   }
 }

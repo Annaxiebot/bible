@@ -113,7 +113,7 @@ export function useDataStats(updateTrigger?: number) {
             return ai - bi;
           });
         } catch (e) {
-          console.warn('Could not get cached chapters:', e);
+          // silently handle
         }
 
         let totalSize;
@@ -121,12 +121,12 @@ export function useDataStats(updateTrigger?: number) {
           const storageInfo = await bibleStorage.getStorageInfo();
           if (storageInfo.used) totalSize = storageInfo.used;
         } catch (e) {
-          console.warn('Could not get storage info:', e);
+          // silently handle
         }
 
         setStats({ personalNotes, aiResearch, cachedChapters, totalSize, noteDetails, researchDetails, chapterDetails });
       } catch (error) {
-        console.error('Failed to fetch data stats:', error);
+        // TODO: use error reporting service
       } finally {
         setLoading(false);
       }

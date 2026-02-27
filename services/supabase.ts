@@ -13,7 +13,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
 
 if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  console.warn('Supabase credentials not configured. Cloud sync will be disabled.');
+  // Cloud sync will be disabled when credentials are not configured
 }
 
 // Create Supabase client
@@ -151,7 +151,7 @@ class AuthManager {
 
   async signInWithGoogle(): Promise<{ error: AuthError | null }> {
     if (!supabase) {
-      return { error: new Error('Supabase not configured') as any };
+      return { error: new Error('Supabase not configured') as unknown as AuthError };
     }
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
@@ -162,7 +162,7 @@ class AuthManager {
 
   async signOut(): Promise<{ error: AuthError | null }> {
     if (!supabase) {
-      return { error: new Error('Supabase not configured') as any };
+      return { error: new Error('Supabase not configured') as unknown as AuthError };
     }
     const { error } = await supabase.auth.signOut();
     return { error };

@@ -89,7 +89,7 @@ class ExportImportService {
       downloadFile(content, `bible-notes-${timestamp}.${ext}`, mime);
       return { success: true };
     } catch (error) {
-      console.error('Export failed:', error);
+      // TODO: use error reporting service
       return { success: false, error };
     }
   }

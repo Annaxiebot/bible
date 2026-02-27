@@ -124,7 +124,7 @@ const VoiceSession: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOp
         },
         onclose: () => setIsActive(false),
         onerror: (e) => {
-          console.error('Live error:', e);
+          // TODO: use error reporting service
           setIsActive(false);
         }
       }

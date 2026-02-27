@@ -139,7 +139,7 @@ const App: React.FC = () => {
         const loadedNotes = await notesStorage.getAllNotes();
         setNotes(loadedNotes);
       } catch (error) {
-        console.error('Failed to load notes:', error);
+        // TODO: use error reporting service
       } finally {
         setNotesLoading(false);
       }
@@ -166,7 +166,7 @@ const App: React.FC = () => {
           setHasKey(true);
         }
       } catch (error) {
-        console.error('Error checking API key:', error);
+        // silently handle
         setHasKey(true);
       }
     };
@@ -207,7 +207,7 @@ const App: React.FC = () => {
       }
       setHasKey(true);
     } catch (error) {
-      console.error('Error selecting API key:', error);
+      // silently handle
     }
   };
 
@@ -244,7 +244,7 @@ const App: React.FC = () => {
         }
       }
     } catch (error) {
-      console.error('Failed to save note:', error);
+      // TODO: use error reporting service
     }
   }, [notes]);
 

@@ -35,7 +35,7 @@ class VerseDataStorage {
         },
       });
     } catch (error) {
-      console.error('Failed to initialize verse data database:', error);
+      // TODO: use error reporting service
     }
   }
 
@@ -55,7 +55,7 @@ class VerseDataStorage {
       const data = await db.get('verseData', id);
       return data || null;
     } catch (error) {
-      console.error('Failed to get verse data:', error);
+      // silently handle
       return null;
     }
   }
@@ -91,7 +91,7 @@ class VerseDataStorage {
       await db.put('verseData', verseData);
       this.notifyUpdate();
     } catch (error) {
-      console.error('Failed to save personal note:', error);
+      // TODO: use error reporting service
     }
   }
 
@@ -114,7 +114,7 @@ class VerseDataStorage {
         this.notifyUpdate();
       }
     } catch (error) {
-      console.error('Failed to delete personal note:', error);
+      // silently handle
     }
   }
 
@@ -152,7 +152,7 @@ class VerseDataStorage {
       this.notifyUpdate();
       return researchId;
     } catch (error) {
-      console.error('Failed to add AI research:', error);
+      // TODO: use error reporting service
       throw error;
     }
   }
@@ -176,7 +176,7 @@ class VerseDataStorage {
         this.notifyUpdate();
       }
     } catch (error) {
-      console.error('Failed to delete AI research:', error);
+      // silently handle
     }
   }
 
@@ -189,7 +189,7 @@ class VerseDataStorage {
       const data = await index.getAll(bookId);
       return data;
     } catch (error) {
-      console.error('Failed to get book data:', error);
+      // silently handle
       return [];
     }
   }
@@ -212,7 +212,7 @@ class VerseDataStorage {
         cursor = await cursor.continue();
       }
     } catch (error) {
-      console.error('Failed to get chapter data:', error);
+      // silently handle
     }
     return result;
   }
@@ -224,7 +224,7 @@ class VerseDataStorage {
     try {
       return await db.getAll('verseData');
     } catch (error) {
-      console.error('Failed to get all data:', error);
+      // silently handle
       return [];
     }
   }
@@ -247,7 +247,7 @@ class VerseDataStorage {
       
       return results;
     } catch (error) {
-      console.error('Failed to search notes:', error);
+      // silently handle
       return [];
     }
   }
@@ -275,7 +275,7 @@ class VerseDataStorage {
       
       return results;
     } catch (error) {
-      console.error('Failed to search research:', error);
+      // silently handle
       return [];
     }
   }
@@ -307,7 +307,7 @@ class VerseDataStorage {
         }
       }
     } catch (error) {
-      console.error('Failed to migrate old notes:', error);
+      // silently handle
     }
   }
 
@@ -319,7 +319,7 @@ class VerseDataStorage {
       await db.clear('verseData');
       this.notifyUpdate();
     } catch (error) {
-      console.error('Failed to clear all data:', error);
+      // silently handle
     }
   }
 
@@ -359,7 +359,7 @@ class VerseDataStorage {
       
       await tx.done;
     } catch (error) {
-      console.error('Failed to migrate IDs:', error);
+      // silently handle
     }
   }
 
@@ -387,7 +387,7 @@ class VerseDataStorage {
       await tx.done;
       this.notifyUpdate();
     } catch (error) {
-      console.error('Failed to clear all personal notes:', error);
+      // TODO: use error reporting service
       throw error;
     }
   }
@@ -416,7 +416,7 @@ class VerseDataStorage {
       await tx.done;
       this.notifyUpdate();
     } catch (error) {
-      console.error('Failed to clear all AI research:', error);
+      // TODO: use error reporting service
       throw error;
     }
   }
@@ -453,7 +453,7 @@ class VerseDataStorage {
       }
       this.notifyUpdate();
     } catch (error) {
-      console.error('Failed to import data:', error);
+      // TODO: use error reporting service
       throw error;
     }
   }

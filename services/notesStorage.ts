@@ -33,7 +33,7 @@ class NotesStorageService {
         lastModified: Date.now()
       }, reference);
     } catch (error) {
-      console.error('Failed to save note to IndexedDB:', error);
+      // TODO: use error reporting service
       throw error;
     }
   }
@@ -44,7 +44,7 @@ class NotesStorageService {
       const note = await db.get('notes', reference);
       return note?.data || null;
     } catch (error) {
-      console.error('Failed to get note from IndexedDB:', error);
+      // silently handle
       return null;
     }
   }
@@ -63,7 +63,7 @@ class NotesStorageService {
       
       return notesMap;
     } catch (error) {
-      console.error('Failed to get all notes from IndexedDB:', error);
+      // silently handle
       return {};
     }
   }
@@ -73,7 +73,7 @@ class NotesStorageService {
       const db = await this.dbPromise;
       await db.delete('notes', reference);
     } catch (error) {
-      console.error('Failed to delete note from IndexedDB:', error);
+      // TODO: use error reporting service
       throw error;
     }
   }
@@ -83,7 +83,7 @@ class NotesStorageService {
       const db = await this.dbPromise;
       await db.clear('notes');
     } catch (error) {
-      console.error('Failed to clear all notes from IndexedDB:', error);
+      // TODO: use error reporting service
       throw error;
     }
   }
@@ -104,7 +104,7 @@ class NotesStorageService {
       
       await tx.done;
     } catch (error) {
-      console.error('Failed to import notes to IndexedDB:', error);
+      // TODO: use error reporting service
       throw error;
     }
   }
@@ -120,7 +120,7 @@ class NotesStorageService {
         localStorage.removeItem('scripture_scholar_notes');
       }
     } catch (error) {
-      console.error('Failed to migrate notes from localStorage:', error);
+      // silently handle
     }
   }
 }

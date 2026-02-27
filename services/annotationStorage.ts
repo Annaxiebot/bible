@@ -97,7 +97,7 @@ class AnnotationStorageService {
         this.ensureChapterNote(bookId, chapter, canvasData).catch(() => {});
       }
     } catch (error) {
-      console.error('Failed to save annotation:', error);
+      // TODO: use error reporting service
       throw error;
     }
   }
@@ -131,7 +131,7 @@ class AnnotationStorageService {
         vSplitOffset: record.vSplitOffset ?? -1, // -1 = not stored
       };
     } catch (error) {
-      console.error('Failed to get annotation:', error);
+      // silently handle
       return null;
     }
   }
@@ -145,7 +145,7 @@ class AnnotationStorageService {
       const id = panelId ? `${bookId}:${chapter}:${panelId}` : `${bookId}:${chapter}`;
       await db.delete('annotations', id);
     } catch (error) {
-      console.error('Failed to delete annotation:', error);
+      // TODO: use error reporting service
       throw error;
     }
   }
@@ -180,7 +180,7 @@ class AnnotationStorageService {
       const db = await this.dbPromise;
       return await db.getAll('annotations');
     } catch (error) {
-      console.error('Failed to get all annotations:', error);
+      // silently handle
       return [];
     }
   }
@@ -195,7 +195,7 @@ class AnnotationStorageService {
       const db = await this.dbPromise;
       return await db.getAllFromIndex('annotations', 'by-book', bookId);
     } catch (error) {
-      console.error('Failed to get annotations for book:', error);
+      // silently handle
       return [];
     }
   }

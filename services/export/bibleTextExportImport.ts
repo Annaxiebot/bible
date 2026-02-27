@@ -1,4 +1,4 @@
-import { bibleStorage, BibleTranslation } from '../bibleStorage';
+import { bibleStorage, BibleTranslation, ChapterStorageData } from '../bibleStorage';
 import { BibleTextExport, BibleImportResult } from './exportTypes';
 
 export async function exportBibleTexts(): Promise<string> {
@@ -19,7 +19,7 @@ export async function exportBibleTexts(): Promise<string> {
 
     return JSON.stringify(exportData, null, 2);
   } catch (error) {
-    console.error('exportBibleTexts failed:', error);
+    // TODO: use error reporting service
     return JSON.stringify({
       version: '1.0',
       exportDate: new Date().toISOString(),
@@ -47,7 +47,7 @@ export async function importBibleTexts(jsonString: string): Promise<BibleImportR
           chapter.bookId,
           chapter.chapter,
           chapter.translation as BibleTranslation,
-          chapter.data,
+          chapter.data as ChapterStorageData,
         );
         imported++;
       } catch (error) {
