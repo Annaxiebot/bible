@@ -11,16 +11,17 @@
  * - Incremental sync (only changed items)
  */
 
-import { 
-  supabase, 
-  authManager, 
-  syncManager, 
+import {
+  supabase,
+  authManager,
+  syncManager,
   canSync,
   DbNote,
   DbAnnotation,
   DbReadingHistory,
   DbLastRead
 } from './supabase';
+import { STORAGE_KEYS } from '../constants/storageKeys';
 import { notesStorage } from './notesStorage';
 import { annotationStorage, AnnotationRecord } from './annotationStorage';
 import { readingHistory } from './readingHistory';
@@ -36,7 +37,7 @@ interface SyncState {
   lastSettingsSync: number;
 }
 
-const SYNC_STATE_KEY = 'bible-app-sync-state';
+const SYNC_STATE_KEY = STORAGE_KEYS.SYNC_STATE;
 
 function getSyncState(): SyncState {
   try {

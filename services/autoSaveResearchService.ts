@@ -11,6 +11,8 @@ import { verseDataStorage } from './verseDataStorage';
 import { ChatMessage } from '../types';
 import { AIResearchEntry } from '../types/verseData';
 import { AUTO_SAVE } from '../constants/appConfig';
+import { STORAGE_KEYS } from '../constants/storageKeys';
+import { safeGetJSON, safeSetJSON } from '../utils/localStorageUtil';
 
 /**
  * Configuration for auto-save behavior
@@ -18,7 +20,7 @@ import { AUTO_SAVE } from '../constants/appConfig';
 const AUTO_SAVE_CONFIG = {
   MAX_RESPONSE_SIZE: AUTO_SAVE.MAX_RESPONSE_SIZE,
   DEFAULT_ENABLED: true,
-  STORAGE_KEY: 'auto_save_research',
+  STORAGE_KEY: STORAGE_KEYS.AUTO_SAVE_RESEARCH,
   GENERAL_BOOK_ID: 'GENERAL',
   GENERAL_CHAPTER: 0,
   DUPLICATE_CACHE_SIZE: AUTO_SAVE.DUPLICATE_CACHE_SIZE,
@@ -93,18 +95,14 @@ class AutoSaveResearchService {
    * Check if auto-save is enabled
    */
   isAutoSaveEnabled(): boolean {
-    const setting = localStorage.getItem(AUTO_SAVE_CONFIG.STORAGE_KEY);
-    if (setting === null) {
-      return AUTO_SAVE_CONFIG.DEFAULT_ENABLED;
-    }
-    return setting === 'true';
+    return safeGetJSON<boolean>(AUTO_SAVE_CONFIG.STORAGE_KEY, AUTO_SAVE_CONFIG.DEFAULT_ENABLED);
   }
 
   /**
    * Enable or disable auto-save
    */
   setAutoSaveEnabled(enabled: boolean): void {
-    localStorage.setItem(AUTO_SAVE_CONFIG.STORAGE_KEY, enabled.toString());
+    safeSetJSON(AUTO_SAVE_CONFIG.STORAGE_KEY, enabled);
   }
 
   /**

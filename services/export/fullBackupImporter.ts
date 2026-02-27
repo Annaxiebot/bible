@@ -10,6 +10,7 @@ import {
 } from './exportTypes';
 import { importFromJSON } from './notesImporter';
 import { importBibleTexts } from './bibleTextExportImport';
+import { STORAGE_KEYS } from '../../constants/storageKeys';
 
 function createEmptyResult(): CombinedImportResult {
   return {
@@ -184,12 +185,12 @@ async function importReadingHistory(
       }
     }
     if (rh.lastRead && !readingHistory.getLastRead()) {
-      localStorage.setItem('bibleLastRead', JSON.stringify(rh.lastRead));
+      localStorage.setItem(STORAGE_KEYS.LAST_READ, JSON.stringify(rh.lastRead));
     }
     if (rh.position) {
       const currentPos = await readingHistory.getLastReadingPosition();
       if (!currentPos) {
-        localStorage.setItem('bibleReadingHistory', JSON.stringify(rh.position));
+        localStorage.setItem(STORAGE_KEYS.READING_HISTORY, JSON.stringify(rh.position));
       }
     }
     result.historyRestored = true;

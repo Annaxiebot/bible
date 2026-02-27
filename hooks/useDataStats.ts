@@ -3,6 +3,7 @@ import { verseDataStorage } from '../services/verseDataStorage';
 import { bibleStorage } from '../services/bibleStorage';
 import { BIBLE_BOOKS } from '../constants';
 import { useStorageUpdate } from './useStorageUpdate';
+import { stripHTML } from '../utils/textUtils';
 
 export interface NoteDetail {
   bookId: string;
@@ -67,7 +68,7 @@ export function useDataStats(updateTrigger?: number) {
           const book = BIBLE_BOOKS.find(b => b.id === v.bookId);
           const bookName = book?.name || v.bookId;
           if (v.personalNote) {
-            const raw = v.personalNote.text?.replace(/<[^>]*>/g, '').trim() || '';
+            const raw = stripHTML(v.personalNote.text ?? '').trim();
             noteDetails.push({
               bookId: v.bookId, bookName, chapter: v.chapter, verses: v.verses,
               preview: raw.length > 60 ? raw.slice(0, 60) + '...' : raw,
