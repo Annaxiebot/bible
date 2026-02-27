@@ -24,7 +24,6 @@ From the `bible` repo root:
 
 ```bash
 cd ~/bible
-./setup-enforcement.sh
 ```
 
 This installs:

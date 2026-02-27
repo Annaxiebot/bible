@@ -70,7 +70,7 @@ const CHINESE_BOOK_MAP: { [key: string]: string } = {
 - Production build successful
 
 #### Test Files Created
-1. **test-chinese-refs.html** - Interactive standalone test
+1. **demos/test-chinese-refs.html** - Interactive standalone test
 2. **TEST_CHINESE_REFS.md** - Comprehensive test cases
 3. **CHINESE_REFS_IMPLEMENTATION.md** - Full implementation docs
 4. **TASK_COMPLETE.md** - This summary
@@ -129,7 +129,7 @@ const CHINESE_BOOK_MAP: { [key: string]: string } = {
   - Updated: processTextWithBibleRefs() (lines 224-255)
 
 ### Created (for testing/docs):
-- `bible-app/test-chinese-refs.html`
+- `bible-app/demos/test-chinese-refs.html`
 - `bible-app/TEST_CHINESE_REFS.md`
 - `bible-app/CHINESE_REFS_IMPLEMENTATION.md`
 - `bible-app/TASK_COMPLETE.md`

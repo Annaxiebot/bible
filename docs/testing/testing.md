@@ -111,7 +111,7 @@ Run the test script to verify search bar parsing:
 
 ```bash
 cd bible-app
-node test-search-refs.js
+node demos/test-search-refs.js
 ```
 
 **Expected output**: All 13 tests should pass
@@ -130,6 +130,6 @@ node test-search-refs.js
 
 After testing, you can remove:
 - `bible-app/test-refs.js`
-- `bible-app/test-search-refs.js` ⭐ NEW
-- `bible-app/test-chinese-refs.html`
+- `bible-app/demos/test-search-refs.js` ⭐ NEW
+- `bible-app/demos/test-chinese-refs.html`
 - `bible-app/TESTING.md` (this file)
