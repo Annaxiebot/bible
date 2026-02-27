@@ -335,14 +335,41 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
                 <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
               </svg>
               <div className="text-sm text-blue-800">
-                <p className="font-semibold mb-1">About AI Providers</p>
-                <ul className="space-y-1 text-xs">
-                  <li>• <strong>Gemini</strong>: Google's AI with native search grounding support</li>
-                  <li>• <strong>Claude</strong>: Anthropic's AI with extended thinking capabilities</li>
-                  <li>• <strong>ChatGPT</strong>: OpenAI's GPT-4o with vision and fast responses</li>
-                  <li>• <strong>Kimi</strong>: Moonshot AI (月之暗面) with 128K context window</li>
-                  <li>• All providers maintain the same bilingual format (Chinese + English)</li>
-                  <li>• You can switch providers at any time in settings</li>
+                <p className="font-semibold mb-2">About AI Providers</p>
+                <ul className="space-y-2 text-xs">
+                  <li>
+                    <strong>Gemini</strong>: Google's AI with native search grounding support<br />
+                    <span className="text-blue-600">Get API key: </span>
+                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-900">
+                      Google AI Studio
+                    </a>
+                  </li>
+                  <li>
+                    <strong>Claude</strong>: Anthropic's AI with extended thinking capabilities<br />
+                    <span className="text-blue-600">Get API key: </span>
+                    <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-900">
+                      Anthropic Console
+                    </a>
+                  </li>
+                  <li>
+                    <strong>ChatGPT</strong>: OpenAI's GPT-4o with vision and fast responses<br />
+                    <span className="text-blue-600">Get API key: </span>
+                    <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-900">
+                      OpenAI Platform
+                    </a>
+                  </li>
+                  <li>
+                    <strong>Kimi</strong>: Moonshot AI (月之暗面) with 128K context window<br />
+                    <span className="text-blue-600">Get API key: </span>
+                    <a href="https://platform.moonshot.cn/" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-900">
+                      Moonshot Platform
+                    </a>
+                  </li>
+                  <li className="pt-1 border-t border-blue-200 mt-2">
+                    • All providers maintain the same bilingual format (Chinese + English)<br />
+                    • You can switch providers at any time in settings<br />
+                    • API keys are stored locally in your browser
+                  </li>
                 </ul>
               </div>
             </div>
