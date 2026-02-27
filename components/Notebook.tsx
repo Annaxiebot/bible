@@ -4,6 +4,7 @@ import { SelectionInfo, NoteData, MediaAttachment } from '../types';
 import DrawingCanvas, { DrawingCanvasHandle } from './DrawingCanvas';
 import { downloadNote, readNoteFile } from '../services/fileSystem';
 import * as aiService from '../services/gemini';
+import { IMAGE, TIMING, DRAWING } from '../constants/appConfig';
 
 interface NotebookProps {
   selection: SelectionInfo | null;
@@ -42,7 +43,7 @@ const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialConte
   const isDirtyRef = useRef(false);
 
   const isContentEmpty = (html: string, drawing: string) => {
-    const hasDrawing = !!drawing && drawing.length > 200; 
+    const hasDrawing = !!drawing && drawing.length > IMAGE.DRAWING_MIN_LENGTH;
     if (hasDrawing) return false;
 
     // Check if it's just the auto-inserted verse quote with no additional content
@@ -269,7 +270,7 @@ const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialConte
     // Insert timestamp when:
     // 1. Starting a new note (empty note, first input)
     // 2. After 2+ minutes of idle time
-    if (timeSinceLastActivity > 2 * 60 * 1000) {
+    if (timeSinceLastActivity > TIMING.INACTIVITY_THRESHOLD_MS) {
       // Reset the flag when idle time has passed
       hasInsertedTimestamp.current = false;
     }
@@ -279,8 +280,8 @@ const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialConte
                         noteData.text.endsWith('</blockquote><p><br></p>');
     
     // Check if we should insert timestamp for empty note or after idle
-    const shouldInsertTimestamp = !hasInsertedTimestamp.current && currentText.length > 0 && 
-                                  (timeSinceLastActivity > 2 * 60 * 1000 || 
+    const shouldInsertTimestamp = !hasInsertedTimestamp.current && currentText.length > 0 &&
+                                  (timeSinceLastActivity > TIMING.INACTIVITY_THRESHOLD_MS ||
                                    (!noteData.text || noteData.text === '<p><br></p>' || isJustQuote));
     
     if (shouldInsertTimestamp && hasContentChanged) {
@@ -301,7 +302,7 @@ const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialConte
       if (autoSaveTimer.current) window.clearTimeout(autoSaveTimer.current);
       autoSaveTimer.current = window.setTimeout(() => {
         if (currentIdRef.current && selection) performSave(currentIdRef.current, { ...noteData, text: currentHTML });
-      }, 2000);
+      }, TIMING.AUTO_SAVE_DEBOUNCE_MS);
     }
   };
 
@@ -312,7 +313,7 @@ const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialConte
       const timeSinceLastActivity = now - lastActivityTime.current;
       
       // Only insert timestamp if MORE than 2 minutes have passed since last activity
-      if (timeSinceLastActivity > 2 * 60 * 1000 && editorRef.current) {
+      if (timeSinceLastActivity > TIMING.INACTIVITY_THRESHOLD_MS && editorRef.current) {
         // Reset the flag since idle time has passed
         hasInsertedTimestamp.current = false;
         
@@ -407,7 +408,7 @@ const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialConte
       };
       reader.readAsDataURL(file);
     } catch (err) {
-      console.error('Error capturing photo:', err);
+      // silently handle
     } finally {
       e.target.value = "";
     }
@@ -428,9 +429,9 @@ const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialConte
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
         }
-      }, 100);
+      }, TIMING.SCROLL_RETRY_MS);
     } catch (err) {
-      console.error('Error accessing webcam:', err);
+      // silently handle
       alert('Unable to access camera. Please check your camera permissions.');
     }
   };
@@ -561,7 +562,7 @@ const Notebook: React.FC<NotebookProps> = ({ selection, onSaveNote, initialConte
         };
         reader.readAsDataURL(file);
       } catch (err) {
-        console.error(`Error uploading file ${file.name}:`, err);
+        // silently handle
       }
     }
     

@@ -1,7 +1,14 @@
 import React, { lazy, Suspense, ComponentType } from 'react';
 
+interface LazyMarkdownProps {
+  children: string;
+  katexOptions?: object;
+  className?: string;
+  components?: Record<string, React.ComponentType<unknown>>;
+}
+
 // Lazy load the entire markdown rendering module
-const MarkdownRenderer = lazy(() => 
+const MarkdownRenderer = lazy(() =>
   Promise.all([
     import('react-markdown'),
     import('remark-math'),
@@ -10,28 +17,21 @@ const MarkdownRenderer = lazy(() =>
     const ReactMarkdown = ReactMarkdownModule.default;
     const remarkMath = remarkMathModule.default;
     const rehypeKatex = rehypeKatexModule.default;
-    
+
     // Create a component that wraps ReactMarkdown with the plugins
-    const Component: ComponentType<any> = ({ katexOptions, ...props }) => {
+    const Component: ComponentType<LazyMarkdownProps> = ({ katexOptions, ...props }) => {
       return (
-        <ReactMarkdown 
-          remarkPlugins={[remarkMath]} 
+        <ReactMarkdown
+          remarkPlugins={[remarkMath]}
           rehypePlugins={katexOptions ? [[rehypeKatex, katexOptions]] : [rehypeKatex]}
           {...props}
         />
       );
     };
-    
+
     return { default: Component };
   })
 );
-
-interface LazyMarkdownProps {
-  children: string;
-  katexOptions?: any;
-  className?: string;
-  components?: any;
-}
 
 // Loading fallback component
 const MarkdownFallback: React.FC<{ className?: string }> = ({ className }) => (

@@ -32,7 +32,7 @@ class ReadingHistory {
       const data = localStorage.getItem(this.STORAGE_KEY);
       return data ? JSON.parse(data) : null;
     } catch (error) {
-      console.error('Failed to get reading position:', error);
+      // silently handle
       return null;
     }
   }
@@ -48,7 +48,7 @@ class ReadingHistory {
       };
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(position));
     } catch (error) {
-      console.error('Failed to save reading position:', error);
+      // silently handle
     }
   }
 
@@ -58,7 +58,7 @@ class ReadingHistory {
       const data = localStorage.getItem(this.LAST_READ_KEY);
       return data ? JSON.parse(data) : null;
     } catch (error) {
-      console.error('Failed to get last read:', error);
+      // silently handle
       return null;
     }
   }
@@ -76,7 +76,7 @@ class ReadingHistory {
       // Also save to the main storage key for compatibility
       localStorage.setItem(this.STORAGE_KEY, JSON.stringify(position));
     } catch (error) {
-      console.error('Failed to save last read:', error);
+      // silently handle
     }
   }
 
@@ -113,7 +113,7 @@ class ReadingHistory {
       
       localStorage.setItem(this.HISTORY_KEY, JSON.stringify(trimmedHistory));
     } catch (error) {
-      console.error('Failed to add to history:', error);
+      // silently handle
     }
   }
 
@@ -123,7 +123,7 @@ class ReadingHistory {
       const data = localStorage.getItem(this.HISTORY_KEY);
       return data ? JSON.parse(data) : [];
     } catch (error) {
-      console.error('Failed to get history:', error);
+      // silently handle
       return [];
     }
   }
@@ -149,7 +149,7 @@ class ReadingHistory {
       
       return { withNotes, withResearch };
     } catch (error) {
-      console.error('Failed to get chapters with content:', error);
+      // silently handle
       return { withNotes: new Set(), withResearch: new Set() };
     }
   }
@@ -171,7 +171,7 @@ class ReadingHistory {
         localStorage.setItem(this.HISTORY_KEY, JSON.stringify(history));
       }
     } catch (error) {
-      console.error('Failed to update chapter status:', error);
+      // silently handle
     }
   }
 
@@ -182,7 +182,7 @@ class ReadingHistory {
       localStorage.removeItem(this.LAST_READ_KEY);
       localStorage.removeItem(this.STORAGE_KEY);
     } catch (error) {
-      console.error('Failed to clear history:', error);
+      // silently handle
     }
   }
 

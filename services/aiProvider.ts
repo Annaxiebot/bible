@@ -62,7 +62,7 @@ export const chatWithAI = async (
       return await gemini.chatWithAI(prompt, history, options);
     }
   } catch (error: any) {
-    console.error(`Error with ${provider} provider:`, error);
+    // TODO: use error reporting service
     throw error;
   }
 };
