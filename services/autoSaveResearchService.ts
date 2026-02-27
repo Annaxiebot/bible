@@ -36,7 +36,7 @@ export interface SaveAIResearchParams {
   chapter?: number;
   verses?: number[];
   tags?: string[];
-  aiProvider?: 'claude' | 'gemini' | 'kimi';
+  aiProvider?: 'claude' | 'gemini' | 'kimi' | 'openai';
 }
 
 /**
