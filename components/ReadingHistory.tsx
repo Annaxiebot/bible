@@ -20,7 +20,7 @@ export const ReadingHistory: React.FC<ReadingHistoryProps> = ({ onSelectChapter,
       const recentHistory = readingHistory.getRecentReading(30);
       setHistory(recentHistory);
     } catch (error) {
-      console.error('Failed to load reading history:', error);
+      // silently handle
     } finally {
       setLoading(false);
     }
@@ -37,16 +37,16 @@ export const ReadingHistory: React.FC<ReadingHistoryProps> = ({ onSelectChapter,
     const date = new Date(timestamp);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor(diff / (1000 * 60 * 60));
     const minutes = Math.floor(diff / (1000 * 60));
 
-    if (minutes < 1) return 'Just now';
-    if (minutes < 60) return `${minutes}m ago`;
-    if (hours < 24) return `${hours}h ago`;
-    if (days < 7) return `${days}d ago`;
-    
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    const weekday = date.toLocaleDateString('en-US', { weekday: 'long' });
+    const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    const full = `${weekday}, ${dateStr} · ${timeStr}`;
+
+    if (minutes < 1) return `Just now · ${full}`;
+    if (minutes < 60) return `${minutes}m ago · ${full}`;
+    return full;
   };
 
   return (

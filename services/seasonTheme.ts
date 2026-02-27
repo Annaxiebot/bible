@@ -1,12 +1,14 @@
 /**
  * Seasonal Theme Service
  * Changes the Bible app's look and feel based on the current season.
- * 
- * 🌸 Spring (Mar-May): Fresh greens, cherry blossom pinks, renewal
- * ☀️ Summer (Jun-Aug): Warm golden tones, vibrant life
- * 🍂 Autumn (Sep-Nov): Rich amber, warm oranges, harvest warmth
- * ❄️ Winter (Dec-Feb): Cool serene blues, peaceful whites
+ *
+ * Spring (Mar-May): Fresh greens, cherry blossom pinks, renewal
+ * Summer (Jun-Aug): Warm golden tones, vibrant life
+ * Autumn (Sep-Nov): Rich amber, warm oranges, harvest warmth
+ * Winter (Dec-Feb): Cool serene blues, peaceful whites
  */
+
+import { STORAGE_KEYS } from '../constants/storageKeys';
 
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
 
@@ -221,7 +223,7 @@ const THEMES: Record<Season, SeasonTheme> = {
 
 export const ALL_SEASONS: Season[] = ['spring', 'summer', 'autumn', 'winter'];
 
-const STORAGE_KEY = 'bible-app-season-override';
+const STORAGE_KEY = STORAGE_KEYS.SEASON_OVERRIDE;
 
 /**
  * Get the user's saved theme preference, or null for auto-detect.

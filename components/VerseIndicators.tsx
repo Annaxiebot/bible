@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { stripHTML } from '../utils/textUtils';
 
 interface VerseIndicatorsProps {
   hasNote: boolean;
@@ -51,7 +52,7 @@ const VerseIndicators: React.FC<VerseIndicatorsProps> = ({
     }
     
     // Remove HTML tags
-    text = text.replace(/<[^>]*>/g, '');
+    text = stripHTML(text);
     
     // Remove metadata patterns like timestamps
     text = text.replace(/\[\d{4}年\d{1,2}月\d{1,2}日.*?\]/g, '');

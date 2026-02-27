@@ -8,6 +8,7 @@
  */
 
 import React, { useRef, useEffect, forwardRef, useImperativeHandle, useCallback } from 'react';
+import { TIMING, DRAWING } from '../constants/appConfig';
 
 // ─── Types ──────────────────────────────────────────────────────────────────
 
@@ -29,6 +30,17 @@ export interface DrawingCanvasHandle {
   redraw: () => void;
   loadPaths: (paths: SerializedPath[]) => void;
 }
+
+/** Extra Apple Pencil / stylus properties not in the standard Touch API */
+interface ExtendedTouchProps {
+  force?: number;
+  tiltX?: number;
+  tiltY?: number;
+  touchType?: string;
+  azimuthAngle?: number;
+  altitudeAngle?: number;
+}
+type ExtendedTouch = Touch & ExtendedTouchProps;
 
 interface Point {
   x: number;
@@ -183,29 +195,29 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
 
       // Very low pressure floor for light touches
       let lineWidth = size;
-      const p = to.pressure > 0 ? to.pressure : 0.5;
-      lineWidth = size * (0.1 + p * 1.8);
+      const p = to.pressure > 0 ? to.pressure : DRAWING.DEFAULT_PRESSURE;
+      lineWidth = size * (DRAWING.PRESSURE_MIN_FACTOR + p * DRAWING.PRESSURE_MAX_FACTOR);
 
-      if (tool === 'pen' && (Math.abs(to.tiltX) > 15 || Math.abs(to.tiltY) > 15)) {
-        const tiltFactor = 1 + (Math.abs(to.tiltX) + Math.abs(to.tiltY)) / 180;
+      if (tool === 'pen' && (Math.abs(to.tiltX) > DRAWING.TILT_THRESHOLD_DEG || Math.abs(to.tiltY) > DRAWING.TILT_THRESHOLD_DEG)) {
+        const tiltFactor = 1 + (Math.abs(to.tiltX) + Math.abs(to.tiltY)) / DRAWING.TILT_DIVISOR;
         lineWidth *= tiltFactor;
       }
 
       switch (tool) {
         case 'eraser':
           ctx.globalCompositeOperation = 'destination-out';
-          ctx.lineWidth = size * 4;
+          ctx.lineWidth = size * DRAWING.ERASER_WIDTH_MULTIPLIER;
           ctx.strokeStyle = 'rgba(0,0,0,1)';
           break;
         case 'highlighter':
           ctx.globalCompositeOperation = 'multiply';
-          ctx.globalAlpha = 0.25;
-          ctx.lineWidth = size * 5;
+          ctx.globalAlpha = DRAWING.HIGHLIGHTER_ALPHA;
+          ctx.lineWidth = size * DRAWING.HIGHLIGHTER_WIDTH_MULTIPLIER;
           ctx.strokeStyle = color;
           break;
         case 'marker':
-          ctx.globalAlpha = 0.7;
-          ctx.lineWidth = lineWidth * 2.5;
+          ctx.globalAlpha = DRAWING.MARKER_ALPHA;
+          ctx.lineWidth = lineWidth * DRAWING.MARKER_WIDTH_MULTIPLIER;
           ctx.strokeStyle = color;
           break;
         default:
@@ -284,14 +296,15 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
     const getPointFromTouch = useCallback((touch: Touch): Point => {
       const canvas = canvasRef.current!;
       const rect = canvas.getBoundingClientRect();
+      const extTouch = touch as ExtendedTouch;
       return {
         x: touch.clientX - rect.left,
         y: touch.clientY - rect.top,
         // Apple Pencil provides force (0-1), use it as pressure
-        pressure: (touch as any).force || 0.5,
+        pressure: extTouch.force || DRAWING.DEFAULT_PRESSURE,
         // Tilt from touch (Apple Pencil)
-        tiltX: (touch as any).tiltX || (touch as any).azimuthAngle ? Math.cos((touch as any).azimuthAngle) * 45 : 0,
-        tiltY: (touch as any).tiltY || (touch as any).altitudeAngle ? (1 - (touch as any).altitudeAngle / (Math.PI / 2)) * 45 : 0,
+        tiltX: extTouch.tiltX || extTouch.azimuthAngle ? Math.cos(extTouch.azimuthAngle ?? 0) * 45 : 0,
+        tiltY: extTouch.tiltY || extTouch.altitudeAngle ? (1 - (extTouch.altitudeAngle ?? 0) / (Math.PI / 2)) * 45 : 0,
       };
     }, []);
 
@@ -301,7 +314,7 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
       return {
         x: e.clientX - rect.left,
         y: e.clientY - rect.top,
-        pressure: e.pressure || 0.5,
+        pressure: e.pressure || DRAWING.DEFAULT_PRESSURE,
         tiltX: e.tiltX || 0,
         tiltY: e.tiltY || 0,
       };
@@ -315,7 +328,7 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
       // Apple Pencil double-tap detection
       if (isPen) {
         const now = Date.now();
-        if (now - lastPenDownRef.current < 300 && now - lastPenDownRef.current > 50) {
+        if (now - lastPenDownRef.current < TIMING.DOUBLE_TAP_MS && now - lastPenDownRef.current > TIMING.DOUBLE_TAP_MIN_INTERVAL) {
           toolRef.current = toolRef.current === 'eraser' ? 'pen' : 'eraser';
           lastPenDownRef.current = 0;
           return;
@@ -382,7 +395,8 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
       const touch = e.touches[0];
       
       // Check if this is Apple Pencil (has force or touchType)
-      const isPen = (touch as any).touchType === 'stylus' || (touch as any).force > 0;
+      const extTouch = touch as ExtendedTouch;
+      const isPen = extTouch.touchType === 'stylus' || (extTouch.force ?? 0) > 0;
       
       // Mark that we're using touch (to skip pointer events)
       usingTouchRef.current = true;
@@ -446,7 +460,7 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
       // Reset touch flag after a delay
       setTimeout(() => {
         usingTouchRef.current = false;
-      }, 100);
+      }, TIMING.SCROLL_RETRY_MS);
     }, [isWritingMode, endDrawing]);
 
     const handleTouchCancel = useCallback((e: TouchEvent) => {
@@ -579,7 +593,7 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
         className={`w-full ${
           overlayMode ? 'absolute inset-0 bg-transparent' : 'bg-slate-50/30 rounded-lg'
         }`}
-        style={{
+        style={({
           height: canvasHeight ? `${canvasHeight}px` : '100%',
           // Disable ALL default touch behaviors when writing
           touchAction: isWritingMode ? 'none' : 'auto',
@@ -590,7 +604,6 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
           MozUserSelect: 'none',
           msUserSelect: 'none',
           // Prevent iOS text input behaviors
-          // @ts-ignore
           WebkitUserModify: 'read-only',
           // Prevent tap highlight
           WebkitTapHighlightColor: 'transparent',
@@ -598,7 +611,7 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
           cursor: isWritingMode ? 'crosshair' : 'default',
           // Only capture events in writing mode; read-only overlay should not block clicks
           pointerEvents: isWritingMode ? 'auto' : 'none',
-        }}
+        } as React.CSSProperties & { WebkitUserModify?: string })}
         // React event handlers as backup
         onContextMenu={(e) => { e.preventDefault(); e.stopPropagation(); }}
         onSelect={(e) => { e.preventDefault(); e.stopPropagation(); }}

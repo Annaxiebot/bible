@@ -2,6 +2,7 @@ import { verseDataStorage } from '../verseDataStorage';
 import { VerseData } from '../../types/verseData';
 import { BIBLE_BOOKS } from '../../constants';
 import { BibleNotesExport } from './exportTypes';
+import { stripHTML } from '../../utils/textUtils';
 
 export function calculateMetadata(data: VerseData[]) {
   const booksSet = new Set<string>();
@@ -52,11 +53,11 @@ export async function exportToJSON(deviceId: string): Promise<string> {
 }
 
 function htmlToMarkdown(html: string): string {
-  return html
+  const withNewlines = html
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<p>/gi, '\n')
-    .replace(/<\/p>/gi, '\n')
-    .replace(/<[^>]*>/g, '')
+    .replace(/<\/p>/gi, '\n');
+  return stripHTML(withNewlines)
     .replace(/&nbsp;/g, ' ')
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
