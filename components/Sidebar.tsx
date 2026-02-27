@@ -6,6 +6,7 @@ import { useSeasonTheme } from '../hooks/useSeasonTheme';
 import { ALL_SEASONS, getThemeForSeason, getSeason } from '../services/seasonTheme';
 import { AuthPanel } from './AuthPanel';
 import { autoSaveResearchService } from '../services/autoSaveResearchService';
+import { STORAGE_KEYS } from '../constants/storageKeys';
 
 export interface BgDownloadProgress {
   cached: number;
@@ -110,12 +111,12 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   // English version state
   const [englishVersion, setEnglishVersionState] = useState(() => {
-    return localStorage.getItem('bibleEnglishVersion') || 'web';
+    return localStorage.getItem(STORAGE_KEYS.ENGLISH_VERSION) || 'web';
   });
 
   const handleEnglishVersionChange = (version: string) => {
     setEnglishVersionState(version);
-    localStorage.setItem('bibleEnglishVersion', version);
+    localStorage.setItem(STORAGE_KEYS.ENGLISH_VERSION, version);
     window.dispatchEvent(new CustomEvent('bibleEnglishVersionChanged'));
   };
 
@@ -133,7 +134,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       const bm = await bookmarkStorage.getAllBookmarks();
       setBookmarks(bm);
     } catch (e) {
-      console.error('Failed to load bookmarks:', e);
+      // silently handle
     } finally {
       setBookmarksLoading(false);
     }
@@ -149,7 +150,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         setPlanProgress(readingPlanStorage.getProgress(plan));
       }
     } catch (e) {
-      console.error('Failed to load reading plan:', e);
+      // silently handle
     }
   };
 
@@ -162,7 +163,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       setPlanProgress(0);
       setShowPlanPicker(false);
     } catch (e) {
-      console.error('Failed to start plan:', e);
+      // silently handle
     }
   };
 
@@ -172,7 +173,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       await readingPlanStorage.markDayComplete(activePlan.planType);
       await loadReadingPlan();
     } catch (e) {
-      console.error('Failed to mark day complete:', e);
+      // silently handle
     }
   };
 
@@ -185,7 +186,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         setTodaysReading([]);
         setPlanProgress(0);
       } catch (e) {
-        console.error('Failed to stop plan:', e);
+        // silently handle
       }
     }
   };
@@ -195,7 +196,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       await bookmarkStorage.removeBookmark(id);
       setBookmarks(prev => prev.filter(b => b.id !== id));
     } catch (e) {
-      console.error('Failed to remove bookmark:', e);
+      // silently handle
     }
   };
 

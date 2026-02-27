@@ -6,6 +6,7 @@
  */
 
 import { chatWithAI, getCurrentProvider, isProviderConfigured } from './aiProvider';
+import { STORAGE_KEYS } from '../constants/storageKeys';
 
 export interface VibeStyles {
   bible_panel: string;
@@ -81,12 +82,12 @@ Use only standard Tailwind CSS classes. Keep it tasteful and readable. Output ON
 }
 
 export function saveVibeStyles(styles: VibeStyles): void {
-  localStorage.setItem('bible_vibe_styles', JSON.stringify(styles));
+  localStorage.setItem(STORAGE_KEYS.VIBE_STYLES, JSON.stringify(styles));
 }
 
 export function loadVibeStyles(): VibeStyles {
   try {
-    const stored = localStorage.getItem('bible_vibe_styles');
+    const stored = localStorage.getItem(STORAGE_KEYS.VIBE_STYLES);
     return stored ? JSON.parse(stored) : EMPTY_STYLES;
   } catch {
     return EMPTY_STYLES;
@@ -94,7 +95,7 @@ export function loadVibeStyles(): VibeStyles {
 }
 
 export function clearVibeStyles(): void {
-  localStorage.removeItem('bible_vibe_styles');
+  localStorage.removeItem(STORAGE_KEYS.VIBE_STYLES);
 }
 
 export function getEmptyStyles(): VibeStyles {

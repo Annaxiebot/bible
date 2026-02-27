@@ -1,4 +1,5 @@
 import React from 'react';
+import { Dialog } from './Dialog';
 
 export interface BackupSummary {
   version?: string;
@@ -36,71 +37,69 @@ const BackupSummaryDialog: React.FC<BackupSummaryDialogProps> = ({
 
   const totalItems = rows.reduce((a, r) => a + r.count, 0);
 
+  const title = mode === 'export'
+    ? '📦 备份摘要 Backup Summary'
+    : '📥 恢复摘要 Restore Summary';
+
+  const actions = (
+    <>
+      <button
+        onClick={onCancel}
+        className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+      >
+        取消 Cancel
+      </button>
+      <button
+        onClick={onConfirm}
+        disabled={loading || totalItems === 0}
+        className="px-4 py-2 text-sm text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-50"
+      >
+        {loading
+          ? '处理中...'
+          : mode === 'export'
+            ? '导出 Export'
+            : '恢复 Restore'}
+      </button>
+    </>
+  );
+
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50" onClick={onCancel}>
-      <div className="bg-white rounded-xl shadow-2xl max-w-sm w-[90%] overflow-hidden" onClick={e => e.stopPropagation()}>
-        {/* Header */}
-        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 px-5 py-4">
-          <h3 className="text-white font-bold text-base">
-            {mode === 'export' ? '📦 备份摘要 Backup Summary' : '📥 恢复摘要 Restore Summary'}
-          </h3>
-          {summary.exportDate && mode === 'import' && (
-            <p className="text-indigo-200 text-xs mt-1">
-              Backup from: {new Date(summary.exportDate).toLocaleString()}
-              {summary.version && ` (v${summary.version})`}
-            </p>
-          )}
-        </div>
-
-        {/* Content */}
-        <div className="px-5 py-4">
-          <div className="space-y-2">
-            {rows.map(row => (
-              <div key={row.label} className="flex items-center justify-between">
-                <span className="text-sm text-slate-600">
-                  {row.icon} {row.zhLabel} {row.label}
-                </span>
-                <span className={`text-sm font-semibold ${row.count > 0 ? 'text-indigo-600' : 'text-slate-300'}`}>
-                  {row.count}
-                </span>
-              </div>
-            ))}
+    <Dialog
+      isOpen={true}
+      onClose={onCancel}
+      title={title}
+      actions={actions}
+    >
+      {summary.exportDate && mode === 'import' && (
+        <p className="text-indigo-200 text-xs -mt-3 mb-3">
+          Backup from: {new Date(summary.exportDate).toLocaleString()}
+          {summary.version && ` (v${summary.version})`}
+        </p>
+      )}
+      <div className="space-y-2">
+        {rows.map(row => (
+          <div key={row.label} className="flex items-center justify-between">
+            <span className="text-sm text-slate-600">
+              {row.icon} {row.zhLabel} {row.label}
+            </span>
+            <span className={`text-sm font-semibold ${row.count > 0 ? 'text-indigo-600' : 'text-slate-300'}`}>
+              {row.count}
+            </span>
           </div>
-
-          <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
-            <span className="text-sm font-medium text-slate-700">Total</span>
-            <span className="text-sm font-bold text-indigo-700">{totalItems} items</span>
-          </div>
-
-          {mode === 'import' && (
-            <p className="mt-3 text-xs text-slate-500">
-              Data will be merged with your existing data. Existing entries won't be overwritten.
-            </p>
-          )}
-        </div>
-
-        {/* Actions */}
-        <div className="px-5 py-3 bg-slate-50 flex gap-3 justify-end">
-          <button
-            onClick={onCancel}
-            className="px-4 py-2 text-sm text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
-          >
-            取消 Cancel
-          </button>
-          <button
-            onClick={onConfirm}
-            disabled={loading || totalItems === 0}
-            className="px-4 py-2 text-sm text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition-colors disabled:opacity-50"
-          >
-            {loading
-              ? '处理中...'
-              : mode === 'export'
-                ? '导出 Export'
-                : '恢复 Restore'}
-          </button>
-        </div>
+        ))}
       </div>
-    </div>
+
+      <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between">
+        <span className="text-sm font-medium text-slate-700">Total</span>
+        <span className="text-sm font-bold text-indigo-700">{totalItems} items</span>
+      </div>
+
+      {mode === 'import' && (
+        <p className="mt-3 text-xs text-slate-500">
+          Data will be merged with your existing data. Existing entries won't be overwritten.
+        </p>
+      )}
+    </Dialog>
   );
 };
 
