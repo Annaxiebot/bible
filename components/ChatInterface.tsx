@@ -12,6 +12,13 @@ import { verseDataStorage } from '../services/verseDataStorage';
 import { backgroundBibleDownload } from '../services/backgroundBibleDownload';
 import { autoSaveResearchService } from '../services/autoSaveResearchService';
 import { ToastContainer, useToast } from './Toast';
+import { compressImage, compressImageFromUrl } from '../services/imageCompressionService';
+import {
+  parseMessage,
+  parseBibleReference,
+  processTextWithBibleRefs,
+  BOOK_ID_TO_ENGLISH,
+} from '../services/messageParsingService';
 
 interface GroundingChunk {
   web?: {
@@ -30,158 +37,7 @@ interface ChatInterfaceProps {
   vibeClassName?: string;
 }
 
-const parseMessage = (content: string, role: string) => {
-  if (role === 'assistant') {
-    const parts = content.split('[SPLIT]');
-    if (parts.length >= 2) {
-      return {
-        zh: parts[0]?.trim() || '',
-        en: parts[1]?.trim() || ''
-      };
-    }
-    return { zh: content, en: 'Analysis in progress...' };
-  }
-
-  if (content.includes('中文:') && content.includes('English:')) {
-    const zhMatch = content.match(/中文:([\s\S]*?)English:/);
-    const enMatch = content.match(/English:([\s\S]*)$/);
-    const prefixMatch = content.match(/^([\s\S]*?)\n\n\[/);
-    const suffixMatch = content.match(/\]\n中文:[\s\S]*?\n\n([\s\S]*)$/);
-
-    const prefix = prefixMatch ? prefixMatch[1].trim() : "";
-    const suffix = suffixMatch ? suffixMatch[1].trim() : "";
-
-    return {
-      zh: (prefix ? prefix + '\n\n' : '') + (zhMatch ? zhMatch[1].trim() : content) + (suffix ? '\n\n' + suffix : ''),
-      en: (enMatch ? enMatch[1].trim() : content)
-    };
-  }
-
-  return { zh: content, en: content };
-};
-
 // Bible reference detection and linking
-interface BibleRef {
-  bookId: string;
-  chapter: number;
-  verses?: number[];
-}
-
-// Use centralized book data
-const CHINESE_BOOK_MAP = CHINESE_ABBREV_TO_BOOK_ID;
-
-// English book name aliases (common variations AI models use)
-const ENGLISH_BOOK_ALIASES: { [key: string]: string } = {
-  'Psalm': 'Psalms',
-  'Song of Solomon': 'Song of Songs',
-  'Revelation': 'Revelations',
-  'Revelations': 'Revelation',
-};
-
-// Create reverse mapping: ID -> English
-const BOOK_ID_TO_ENGLISH: { [key: string]: string } = {};
-BIBLE_BOOKS.forEach(book => {
-  const parts = book.name.split(' ');
-  BOOK_ID_TO_ENGLISH[book.id] = parts.slice(1).join(' ');
-});
-
-const parseBibleReference = (text: string): BibleRef | null => {
-  // First try to parse as Chinese reference with chapter:verse
-  const chineseBookNames = Object.keys(CHINESE_BOOK_MAP).sort((a, b) => b.length - a.length).join('|');
-  const chinesePattern = new RegExp(`《?(${chineseBookNames})》?\\s*(\\d+)[:：](\\d+)(?:-(\\d+))?`);
-  const chineseMatch = text.match(chinesePattern);
-  
-  if (chineseMatch) {
-    const bookName = chineseMatch[1];
-    const chapter = parseInt(chineseMatch[2]);
-    const verseStart = parseInt(chineseMatch[3]);
-    const verseEnd = chineseMatch[4] ? parseInt(chineseMatch[4]) : undefined;
-    
-    const bookId = CHINESE_BOOK_MAP[bookName];
-    if (!bookId) return null;
-    
-    const verses: number[] = [];
-    if (verseEnd) {
-      for (let v = verseStart; v <= verseEnd; v++) {
-        verses.push(v);
-      }
-    } else {
-      verses.push(verseStart);
-    }
-    
-    return {
-      bookId,
-      chapter,
-      verses
-    };
-  }
-  
-  // Try to parse Chinese chapter-only reference (e.g., "希伯来书95章" or "诗篇95篇")
-  const chineseChapterPattern = new RegExp(`《?(${chineseBookNames})》?\\s*(\\d+)[章篇]`);
-  const chineseChapterMatch = text.match(chineseChapterPattern);
-  
-  if (chineseChapterMatch) {
-    const bookName = chineseChapterMatch[1];
-    const chapter = parseInt(chineseChapterMatch[2]);
-    
-    const bookId = CHINESE_BOOK_MAP[bookName];
-    if (!bookId) return null;
-    
-    return {
-      bookId,
-      chapter
-      // No verses specified - chapter-only reference
-    };
-  }
-  
-  // Then try to parse as English reference
-  // Extract only English names from BIBLE_BOOKS, plus aliases
-  const englishNames = BIBLE_BOOKS.map(b => {
-    const parts = b.name.split(' ');
-    return parts.slice(1).join(' ');
-  });
-  const allEnglishNames = [...englishNames, ...Object.keys(ENGLISH_BOOK_ALIASES)];
-  const bookPattern = `(${allEnglishNames.map(n => n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`;
-
-  // Pattern: "Book chapter:verse" or "Book chapter:verse-verse"
-  const refPattern = new RegExp(`${bookPattern}\\s+(\\d+)[:：](\\d+)(?:-(\\d+))?`, 'i');
-  const match = text.match(refPattern);
-
-  if (match) {
-    let bookName = match[1];
-    // Resolve alias to canonical name
-    const alias = ENGLISH_BOOK_ALIASES[bookName] || ENGLISH_BOOK_ALIASES[bookName.charAt(0).toUpperCase() + bookName.slice(1)];
-    if (alias) bookName = alias;
-    const chapter = parseInt(match[2]);
-    const verseStart = parseInt(match[3]);
-    const verseEnd = match[4] ? parseInt(match[4]) : undefined;
-
-    // Find book by matching English name only
-    const book = BIBLE_BOOKS.find(b => {
-      const parts = b.name.split(' ');
-      const englishName = parts.slice(1).join(' ');
-      return englishName.toLowerCase() === bookName.toLowerCase();
-    });
-    if (!book) return null;
-    
-    const verses: number[] = [];
-    if (verseEnd) {
-      for (let v = verseStart; v <= verseEnd; v++) {
-        verses.push(v);
-      }
-    } else {
-      verses.push(verseStart);
-    }
-    
-    return {
-      bookId: book.id,
-      chapter,
-      verses
-    };
-  }
-  
-  return null;
-};
 
 interface BibleLinkProps {
   children: string;
@@ -194,7 +50,7 @@ const BibleLink: React.FC<BibleLinkProps> = ({ children, onNavigate }) => {
   
   if (ref && onNavigate) {
     // Detect whether the original reference was in Chinese or English
-    const chineseBookNames = Object.keys(CHINESE_BOOK_MAP);
+    const chineseBookNames = Object.keys(CHINESE_ABBREV_TO_BOOK_ID);
     const isChinese = chineseBookNames.some(name => children.includes(name));
     
     // Get book names
@@ -241,80 +97,6 @@ const BibleLink: React.FC<BibleLinkProps> = ({ children, onNavigate }) => {
   return <>{children}</>;
 };
 
-const processTextWithBibleRefs = (text: string, onNavigate?: (bookId: string, chapter: number, verses?: number[]) => void, currentBookId?: string): React.ReactNode => {
-  if (typeof text !== 'string') return text;
-  // Create patterns for both Chinese and English references
-  // Escape special regex characters in book names
-  const escapeRegex = (str: string) => str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  // Sort by length descending so longer names match first (创世记 before 创)
-  const chineseBookNames = Object.keys(CHINESE_BOOK_MAP).sort((a, b) => b.length - a.length).map(escapeRegex).join('|');
-  // Extract only English names from BIBLE_BOOKS, plus aliases
-  const englishNames = BIBLE_BOOKS.map(b => {
-    const parts = b.name.split(' ');
-    return parts.slice(1).join(' '); // Get everything after the first part (Chinese)
-  });
-  const allEnglishNames = [...englishNames, ...Object.keys(ENGLISH_BOOK_ALIASES)];
-  const englishBookNames = allEnglishNames.map(escapeRegex).join('|');
-
-  // Combined pattern that matches:
-  // 1. Chinese with chapter:verse: 书名 章:节 (with optional space) - e.g., "诗篇95:11" or "创2：2"
-  // 2. Chinese chapter-only: 书名 章章 (with optional space) - e.g., "希伯来书95章"
-  // 3. English: Book chapter:verse (with space) - e.g., "Psalm 95:11"
-  // 4. Standalone: chapter:verse (like "2:3") when in context
-  // Note: [:：] matches both ASCII and fullwidth colons
-  const combinedPattern = new RegExp(
-    `《?(${chineseBookNames})》?\\s*\\d+[:：]\\d+(?:-\\d+)?|《?(${chineseBookNames})》?\\s*\\d+[章篇]|(${englishBookNames})\\s+\\d+[:：]\\d+(?:-\\d+)?|(?<!\\d)\\d{1,3}[:：]\\d{1,3}(?:-\\d{1,3})?(?!\\d)`,
-    'gi'
-  );
-  
-  const parts: React.ReactNode[] = [];
-  let lastIndex = 0;
-  let match;
-  
-  while ((match = combinedPattern.exec(text)) !== null) {
-    // Add text before the reference
-    if (match.index > lastIndex) {
-      parts.push(text.substring(lastIndex, match.index));
-    }
-    
-    // Check if this is a standalone chapter:verse pattern
-    const matchedText = match[0];
-    const isStandalone = /^\d{1,3}[:：]\d{1,3}(?:-\d{1,3})?$/.test(matchedText);
-    
-    if (isStandalone && currentBookId) {
-      // For standalone patterns, use the current book context
-      const currentBook = BIBLE_BOOKS.find(b => b.id === currentBookId);
-      if (currentBook) {
-        const chineseName = BOOK_ID_TO_CHINESE_NAME[currentBookId];
-        const displayRef = `${chineseName}${matchedText}`;
-        parts.push(
-          <BibleLink key={match.index} onNavigate={onNavigate}>
-            {displayRef}
-          </BibleLink>
-        );
-      } else {
-        // No book context, just show as plain text
-        parts.push(matchedText);
-      }
-    } else {
-      // Add the clickable reference (full book name included)
-      parts.push(
-        <BibleLink key={match.index} onNavigate={onNavigate}>
-          {matchedText}
-        </BibleLink>
-      );
-    }
-    
-    lastIndex = match.index + match[0].length;
-  }
-  
-  // Add remaining text
-  if (lastIndex < text.length) {
-    parts.push(text.substring(lastIndex));
-  }
-  
-  return parts.length > 0 ? <>{parts}</> : text;
-};
 
 interface MessageBubbleProps {
   m: ChatMessage;
@@ -387,13 +169,17 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpe
                 macros: {}
               }}
               components={(() => {
+                // Factory for BibleLink elements — passed to the parsing service
+                const makeBibleLink = (matchedText: string, key: number): React.ReactNode => (
+                  <BibleLink key={key} onNavigate={onNavigate}>{matchedText}</BibleLink>
+                );
                 // Shared helper to recursively process children for Bible references
                 const processChildren = (nodes: React.ReactNode): React.ReactNode => {
                   if (typeof nodes === 'string') {
-                    return processTextWithBibleRefs(nodes, onNavigate, currentBookId);
+                    return processTextWithBibleRefs(nodes, currentBookId, makeBibleLink);
                   }
                   if (typeof nodes === 'number') {
-                    return processTextWithBibleRefs(String(nodes), onNavigate, currentBookId);
+                    return processTextWithBibleRefs(String(nodes), currentBookId, makeBibleLink);
                   }
                   if (nodes == null || typeof nodes === 'boolean') return nodes;
                   if (Array.isArray(nodes)) {
@@ -669,60 +455,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     return () => clearTimeout(scrollTimeout);
   }, [messages, isTyping]);
 
-  const compressImage = useCallback((dataUrl: string): Promise<{ data: string; mimeType: string }> => {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.crossOrigin = 'anonymous';
-      img.onload = () => {
-        try {
-          // iOS Safari canvas limit: ~16MP. Scale aggressively for safety.
-          let { width, height } = img;
-
-          if (width > IMAGE.MAX_DIMENSION || height > IMAGE.MAX_DIMENSION) {
-            const scale = IMAGE.MAX_DIMENSION / Math.max(width, height);
-            width = Math.round(width * scale);
-            height = Math.round(height * scale);
-          }
-
-          const canvas = document.createElement('canvas');
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) { reject(new Error('Canvas context failed')); return; }
-          ctx.drawImage(img, 0, 0, width, height);
-
-          let quality = IMAGE.INITIAL_QUALITY;
-          let result = canvas.toDataURL('image/jpeg', quality);
-          while (result.length * 0.75 > IMAGE.MAX_BYTES && quality > IMAGE.MIN_QUALITY) {
-            quality -= 0.1;
-            result = canvas.toDataURL('image/jpeg', quality);
-          }
-
-          // Clean up canvas memory (important for iOS)
-          canvas.width = 0;
-          canvas.height = 0;
-
-          resolve({ data: result, mimeType: 'image/jpeg' });
-        } catch (err) {
-          reject(err);
-        }
-      };
-      img.onerror = () => reject(new Error('Image load failed'));
-      img.src = dataUrl;
-    });
-  }, []);
-
   const handleImageSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Use createObjectURL for better iOS compatibility (avoids base64 memory issues)
-    const objectUrl = URL.createObjectURL(file);
     try {
-      const compressed = await compressImage(objectUrl);
-      setImageAttachment(compressed);
+      const compressed = await compressImage(file);
+      setImageAttachment({ data: `data:${compressed.mimeType};base64,${compressed.base64}`, mimeType: compressed.mimeType });
     } catch (err) {
-      // silently handle — fallback below reads file directly
       // Fallback: read as data URL directly without compression
       const reader = new FileReader();
       reader.onload = (ev) => {
@@ -730,12 +470,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
         setImageAttachment({ data, mimeType: file.type || 'image/jpeg' });
       };
       reader.readAsDataURL(file);
-    } finally {
-      URL.revokeObjectURL(objectUrl);
     }
     // Reset input so the same file can be re-selected
     e.target.value = '';
-  }, [compressImage]);
+  }, []);
 
   const openWebcam = useCallback(async () => {
     setShowImageMenu(false);
@@ -762,10 +500,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     canvas.height = video.videoHeight;
     canvas.getContext('2d')!.drawImage(video, 0, 0);
     const dataUrl = canvas.toDataURL('image/jpeg', IMAGE.THUMBNAIL_QUALITY);
-    const compressed = await compressImage(dataUrl);
-    setImageAttachment(compressed);
+    const compressed = await compressImageFromUrl(dataUrl);
+    setImageAttachment({ data: `data:${compressed.mimeType};base64,${compressed.base64}`, mimeType: compressed.mimeType });
     closeWebcam();
-  }, [compressImage]);
+  }, []);
 
   const closeWebcam = useCallback(() => {
     if (webcamStreamRef.current) {
