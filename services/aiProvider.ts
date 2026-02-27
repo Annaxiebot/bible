@@ -1,16 +1,17 @@
 /**
  * AI Provider Abstraction Layer
  * 
- * This module provides a unified interface for AI research providers (Gemini and Claude).
+ * This module provides a unified interface for AI research providers (Gemini, Claude, and Kimi).
  * It routes requests to the appropriate provider based on user settings.
  */
 
 import * as gemini from './gemini';
 import * as claude from './claude';
+import * as kimi from './kimi';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 
-export type AIProvider = 'gemini' | 'claude';
-export type AIModel = 'claude-haiku-4-5' | 'claude-sonnet-4-5' | 'claude-opus-4-5' | 'gemini-3-flash-preview' | 'gemini-3-pro-preview' | 'gemini-flash-lite-latest';
+export type AIProvider = 'gemini' | 'claude' | 'kimi';
+export type AIModel = 'claude-haiku-4-5' | 'claude-sonnet-4-5' | 'claude-opus-4-5' | 'gemini-3-flash-preview' | 'gemini-3-pro-preview' | 'gemini-flash-lite-latest' | 'moonshot-v1-128k';
 
 // Storage keys
 const PROVIDER_KEY = STORAGE_KEYS.AI_PROVIDER;
@@ -21,7 +22,7 @@ const MODEL_KEY = STORAGE_KEYS.AI_MODEL;
  */
 export const getCurrentProvider = (): AIProvider => {
   const stored = localStorage.getItem(PROVIDER_KEY);
-  return (stored === 'claude' || stored === 'gemini') ? stored : 'gemini';
+  return (stored === 'claude' || stored === 'gemini' || stored === 'kimi') ? stored : 'gemini';
 };
 
 /**
@@ -59,6 +60,8 @@ export const chatWithAI = async (
   try {
     if (provider === 'claude') {
       return await claude.chatWithAI(prompt, history, options);
+    } else if (provider === 'kimi') {
+      return await kimi.chatWithAI(prompt, history, options);
     } else {
       return await gemini.chatWithAI(prompt, history, options);
     }
@@ -90,6 +93,13 @@ export const getAvailableProviders = (): { id: AIProvider; name: string; models:
         'claude-sonnet-4-5' as AIModel,
         'claude-opus-4-5' as AIModel
       ]
+    },
+    {
+      id: 'kimi',
+      name: 'Kimi Moonshot (月之暗面)',
+      models: [
+        'moonshot-v1-128k' as AIModel
+      ]
     }
   ];
 };
@@ -102,6 +112,8 @@ export const isProviderConfigured = (provider: AIProvider): boolean => {
     return !!(import.meta.env.VITE_GEMINI_API_KEY || localStorage.getItem(STORAGE_KEYS.GEMINI_API_KEY) || process.env.API_KEY);
   } else if (provider === 'claude') {
     return !!(import.meta.env.VITE_ANTHROPIC_API_KEY || localStorage.getItem(STORAGE_KEYS.CLAUDE_API_KEY));
+  } else if (provider === 'kimi') {
+    return !!(import.meta.env.VITE_KIMI_API_KEY || localStorage.getItem(STORAGE_KEYS.KIMI_API_KEY) || process.env.KIMI_API_KEY);
   }
   return false;
 };
