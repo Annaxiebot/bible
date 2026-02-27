@@ -10,17 +10,18 @@
 import { verseDataStorage } from './verseDataStorage';
 import { ChatMessage } from '../types';
 import { AIResearchEntry } from '../types/verseData';
+import { AUTO_SAVE } from '../constants/appConfig';
 
 /**
  * Configuration for auto-save behavior
  */
 const AUTO_SAVE_CONFIG = {
-  MAX_RESPONSE_SIZE: 50000, // 50KB limit
+  MAX_RESPONSE_SIZE: AUTO_SAVE.MAX_RESPONSE_SIZE,
   DEFAULT_ENABLED: true,
   STORAGE_KEY: 'auto_save_research',
   GENERAL_BOOK_ID: 'GENERAL',
   GENERAL_CHAPTER: 0,
-  DUPLICATE_CACHE_SIZE: 100, // Keep last 100 hashes to detect duplicates
+  DUPLICATE_CACHE_SIZE: AUTO_SAVE.DUPLICATE_CACHE_SIZE,
 } as const;
 
 /**
@@ -134,7 +135,7 @@ class AutoSaveResearchService {
    * Generate a simple hash for duplicate detection
    */
   private generateHash(query: string, response: string, bookId: string, chapter: number): string {
-    const combined = `${query}|${response.substring(0, 200)}|${bookId}|${chapter}`;
+    const combined = `${query}|${response.substring(0, AUTO_SAVE.HASH_PREVIEW_LENGTH)}|${bookId}|${chapter}`;
     // Simple hash function
     let hash = 0;
     for (let i = 0; i < combined.length; i++) {
@@ -231,7 +232,7 @@ class AutoSaveResearchService {
       };
 
     } catch (error) {
-      console.error('[AutoSaveResearchService] Failed to save research:', error);
+      // TODO: use error reporting service
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error occurred',
@@ -263,7 +264,7 @@ class AutoSaveResearchService {
 
       return autoSaved;
     } catch (error) {
-      console.error('[AutoSaveResearchService] Failed to get recent research:', error);
+      // silently handle
       return [];
     }
   }
@@ -296,7 +297,7 @@ class AutoSaveResearchService {
       // Clear duplicate cache
       this.duplicateCache.clear();
     } catch (error) {
-      console.error('[AutoSaveResearchService] Failed to clear auto-saved research:', error);
+      // silently handle
     }
   }
 
@@ -310,7 +311,8 @@ class AutoSaveResearchService {
   }> {
     try {
       const allData = await verseDataStorage.getAllData();
-      const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+      const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
+      const sevenDaysAgo = Date.now() - SEVEN_DAYS_MS;
 
       let totalAutoSaved = 0;
       let recentCount = 0;
@@ -336,7 +338,7 @@ class AutoSaveResearchService {
         recentCount,
       };
     } catch (error) {
-      console.error('[AutoSaveResearchService] Failed to get statistics:', error);
+      // silently handle
       return {
         totalAutoSaved: 0,
         byBook: {},

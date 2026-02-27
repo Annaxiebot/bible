@@ -95,7 +95,7 @@ const SaveResearchModal: React.FC<SaveResearchModalProps> = ({
       
       onClose();
     } catch (error) {
-      console.error('Failed to save research:', error);
+      // TODO: use error reporting service
       alert('Failed to save research. Please try again.');
     } finally {
       setIsSaving(false);

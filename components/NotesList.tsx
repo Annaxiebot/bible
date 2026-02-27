@@ -114,7 +114,7 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
       
       setNotes(noteItems);
     } catch (error) {
-      console.error('Failed to load notes:', error);
+      // silently handle
     } finally {
       setLoading(false);
     }

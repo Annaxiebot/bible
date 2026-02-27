@@ -20,7 +20,7 @@ export const ReadingHistory: React.FC<ReadingHistoryProps> = ({ onSelectChapter,
       const recentHistory = readingHistory.getRecentReading(30);
       setHistory(recentHistory);
     } catch (error) {
-      console.error('Failed to load reading history:', error);
+      // silently handle
     } finally {
       setLoading(false);
     }

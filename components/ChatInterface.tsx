@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import LazyMarkdown from './LazyMarkdown';
+import { IMAGE, TIMING, LAYOUT } from '../constants/appConfig';
 import { ChatMessage, AspectRatio, ImageSize } from '../types';
 import * as aiService from '../services/aiProvider';
 import * as geminiService from '../services/gemini';
@@ -11,6 +12,13 @@ import { verseDataStorage } from '../services/verseDataStorage';
 import { backgroundBibleDownload } from '../services/backgroundBibleDownload';
 import { autoSaveResearchService } from '../services/autoSaveResearchService';
 import { ToastContainer, useToast } from './Toast';
+
+interface GroundingChunk {
+  web?: {
+    title?: string;
+    uri?: string;
+  };
+}
 
 interface ChatInterfaceProps {
   incomingText?: { text: string; id: number; clearChat?: boolean } | null;
@@ -396,7 +404,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpe
                   // Don't recurse into elements that already have click handlers or are BibleLink/anchor elements
                   if (React.isValidElement(nodes)) {
                     // React.ReactElement.props is typed as {} — cast needed to inspect runtime shape
-                    const props = nodes.props as any;
+                    const props = nodes.props as React.HTMLAttributes<HTMLElement> & { children?: React.ReactNode };
                     if (props?.onClick || (nodes.type === 'a') || nodes.type === BibleLink) return nodes;
                     if (props?.children) {
                       return React.cloneElement(nodes, {}, processChildren(props.children));
@@ -504,7 +512,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
   const webcamStreamRef = useRef<MediaStream | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [showStudio, setShowStudio] = useState(false);
-  const [vSplitOffset, setVSplitOffset] = useState(100); // Default to 100% - show only conversation, hide English panel
+  const [vSplitOffset, setVSplitOffset] = useState<number>(LAYOUT.DEFAULT_SPLIT_OFFSET); // Default to 100% - show only conversation, hide English panel
   const [isResizing, setIsResizing] = useState(false);
   const [speakingMsgIndex, setSpeakingMsgIndex] = useState<{zh?: number | null, en?: number | null}>({});
   const [studioConfig, setStudioConfig] = useState<{ aspect: AspectRatio; size: ImageSize; type: 'image' | 'video' }>({
@@ -657,7 +665,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       if (enScrollRef.current) {
         enScrollRef.current.scrollTo({ top: enScrollRef.current.scrollHeight, behavior: 'smooth' });
       }
-    }, 100);
+    }, TIMING.SCROLL_RETRY_MS);
     return () => clearTimeout(scrollTimeout);
   }, [messages, isTyping]);
 
@@ -668,12 +676,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       img.onload = () => {
         try {
           // iOS Safari canvas limit: ~16MP. Scale aggressively for safety.
-          const MAX_DIM = 1200;
-          const MAX_BYTES = 3.5 * 1024 * 1024;
           let { width, height } = img;
 
-          if (width > MAX_DIM || height > MAX_DIM) {
-            const scale = MAX_DIM / Math.max(width, height);
+          if (width > IMAGE.MAX_DIMENSION || height > IMAGE.MAX_DIMENSION) {
+            const scale = IMAGE.MAX_DIMENSION / Math.max(width, height);
             width = Math.round(width * scale);
             height = Math.round(height * scale);
           }
@@ -685,9 +691,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
           if (!ctx) { reject(new Error('Canvas context failed')); return; }
           ctx.drawImage(img, 0, 0, width, height);
 
-          let quality = 0.8;
+          let quality = IMAGE.INITIAL_QUALITY;
           let result = canvas.toDataURL('image/jpeg', quality);
-          while (result.length * 0.75 > MAX_BYTES && quality > 0.2) {
+          while (result.length * 0.75 > IMAGE.MAX_BYTES && quality > IMAGE.MIN_QUALITY) {
             quality -= 0.1;
             result = canvas.toDataURL('image/jpeg', quality);
           }
@@ -716,7 +722,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       const compressed = await compressImage(objectUrl);
       setImageAttachment(compressed);
     } catch (err) {
-      console.error('Image processing failed:', err);
+      // silently handle — fallback below reads file directly
       // Fallback: read as data URL directly without compression
       const reader = new FileReader();
       reader.onload = (ev) => {
@@ -743,7 +749,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
         webcamVideoRef.current.srcObject = stream;
       }
     } catch (err) {
-      console.error('Camera access denied:', err);
+      // silently handle — camera denied
       setShowWebcam(false);
     }
   }, []);
@@ -755,7 +761,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     canvas.getContext('2d')!.drawImage(video, 0, 0);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    const dataUrl = canvas.toDataURL('image/jpeg', IMAGE.THUMBNAIL_QUALITY);
     const compressed = await compressImage(dataUrl);
     setImageAttachment(compressed);
     closeWebcam();
@@ -794,7 +800,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       if (enScrollRef.current) {
         enScrollRef.current.scrollTo({ top: enScrollRef.current.scrollHeight, behavior: 'smooth' });
       }
-    }, 50);
+    }, TIMING.SHORT_DELAY_MS);
 
     let assistantMessage: ChatMessage | null = null;
     try {
@@ -811,7 +817,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
 
       const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
       const references = Array.isArray(groundingChunks)
-        ? groundingChunks.map((chunk: any) => ({ title: chunk.web?.title || '参考资料', uri: chunk.web?.uri || '' })).filter((c: any) => c.uri)
+        ? (groundingChunks as GroundingChunk[]).map((chunk) => ({ title: chunk.web?.title || '参考资料', uri: chunk.web?.uri || '' })).filter((c) => c.uri)
         : undefined;
 
       assistantMessage = {
@@ -823,7 +829,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
 
       setMessages(prev => [...prev, assistantMessage!]);
     } catch (error: any) {
-      console.error('[AI Response Error]', error);
+      // TODO: use error reporting service
       const errorDetail = error?.message || error?.status || String(error);
       setMessages(prev => [...prev, { role: 'assistant', content: `连接失败：${errorDetail}\nConnection failed. Please check your API key and try again.`, timestamp: new Date() }]);
       return;
@@ -850,7 +856,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
           // Show success toast
           toast.showSuccess(
             `AI research saved (${result.savedCount} ${result.savedCount === 1 ? 'note' : 'notes'})`,
-            2000
+            TIMING.TOAST_SUCCESS_MS
           );
           
           // Notify parent component
@@ -862,8 +868,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
           toast.showError(`Failed to save research: ${result.error}`, 4000);
         }
       } catch (error) {
-        console.error('[Auto-save] Unexpected error:', error);
-        toast.showError('Failed to auto-save research', 3000);
+        // TODO: use error reporting service
+        toast.showError('Failed to auto-save research', TIMING.TOAST_ERROR_MS);
       }
     }
   };
@@ -883,7 +889,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
           timestamp: new Date() 
         }]);
       } else {
-        const url = await geminiService.generateVideo(input, studioConfig.aspect as any);
+        const url = await geminiService.generateVideo(input, studioConfig.aspect as '16:9' | '9:16');
         setMessages(prev => [...prev, { 
           role: 'assistant', 
           content: `生成的视频：${input}\n[SPLIT]\nGenerated Video: ${input}`, 
@@ -894,7 +900,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       }
       setInput('');
       setUserQuestion('');
-    } catch (err) { console.error(err); } finally { setIsTyping(false); }
+    } catch (err) { /* silently handle */ } finally { setIsTyping(false); }
   };
 
   const startResizing = useCallback((e: React.MouseEvent | React.TouchEvent) => {
@@ -991,12 +997,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
           ref={zhScrollRef} 
           onScroll={() => syncScroll('zh')}
           className="overflow-y-auto p-4 space-y-6 border-r border-slate-200 bg-white"
-          style={{ 
-            flexGrow: vSplitOffset >= 100 ? 1 : 0,
-            flexShrink: vSplitOffset >= 100 ? 1 : 0,
-            flexBasis: vSplitOffset >= 100 ? 'calc(100% - 20px)' : vSplitOffset <= 0 ? '0%' : `calc(${vSplitOffset}% - 10px)`,
+          style={{
+            flexGrow: vSplitOffset >= LAYOUT.DEFAULT_SPLIT_OFFSET ? 1 : 0,
+            flexShrink: vSplitOffset >= LAYOUT.DEFAULT_SPLIT_OFFSET ? 1 : 0,
+            flexBasis: vSplitOffset >= LAYOUT.DEFAULT_SPLIT_OFFSET ? 'calc(100% - 20px)' : vSplitOffset <= LAYOUT.ENGLISH_FULL_SPLIT_OFFSET ? '0%' : `calc(${vSplitOffset}% - 10px)`,
             minWidth: 0,
-            display: vSplitOffset <= 0 ? 'none' : 'block'
+            display: vSplitOffset <= LAYOUT.ENGLISH_FULL_SPLIT_OFFSET ? 'none' : 'block'
           }}
         >
           <div className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.2em] mb-4 py-2 flex items-center gap-2">
@@ -1065,10 +1071,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
                 e.preventDefault();
                 // If on right side (>50%), go to middle (50%)
                 // If at middle or left side (<=50%), maximize English (0%)
-                setVSplitOffset(vSplitOffset > 50 ? 50 : 0);
+                setVSplitOffset(vSplitOffset > LAYOUT.CENTRE_SPLIT_OFFSET ? LAYOUT.CENTRE_SPLIT_OFFSET : LAYOUT.ENGLISH_FULL_SPLIT_OFFSET);
               }}
               className="p-px hover:bg-slate-200 rounded transition-colors flex items-center justify-center group"
-              title={vSplitOffset > 50 ? "Center divider" : "Maximize English"}
+              title={vSplitOffset > LAYOUT.CENTRE_SPLIT_OFFSET ? "Center divider" : "Maximize English"}
               style={{ height: '14px', width: '14px' }}
             >
               <svg className="w-3 h-3 text-slate-500 group-hover:text-slate-700 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1095,10 +1101,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
                 e.preventDefault();
                 // If on left side (<50%), go to middle (50%)
                 // If at middle or right side (>=50%), maximize Chinese (100%)
-                setVSplitOffset(vSplitOffset < 50 ? 50 : 100);
+                setVSplitOffset(vSplitOffset < LAYOUT.CENTRE_SPLIT_OFFSET ? LAYOUT.CENTRE_SPLIT_OFFSET : LAYOUT.DEFAULT_SPLIT_OFFSET);
               }}
               className="p-px hover:bg-slate-200 rounded transition-colors flex items-center justify-center group"
-              title={vSplitOffset < 50 ? "Center divider" : "Maximize Chinese"}
+              title={vSplitOffset < LAYOUT.CENTRE_SPLIT_OFFSET ? "Center divider" : "Maximize Chinese"}
               style={{ height: '14px', width: '14px' }}
             >
               <svg className="w-3 h-3 text-slate-500 group-hover:text-slate-700 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1113,12 +1119,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
           ref={enScrollRef} 
           onScroll={() => syncScroll('en')}
           className="overflow-y-auto p-4 space-y-6 bg-slate-50/50"
-          style={{ 
-            flexGrow: vSplitOffset <= 0 ? 1 : 0,
-            flexShrink: vSplitOffset <= 0 ? 1 : 0,
-            flexBasis: vSplitOffset <= 0 ? 'calc(100% - 20px)' : vSplitOffset >= 100 ? '0%' : `calc(${100 - vSplitOffset}% - 10px)`,
+          style={{
+            flexGrow: vSplitOffset <= LAYOUT.ENGLISH_FULL_SPLIT_OFFSET ? 1 : 0,
+            flexShrink: vSplitOffset <= LAYOUT.ENGLISH_FULL_SPLIT_OFFSET ? 1 : 0,
+            flexBasis: vSplitOffset <= LAYOUT.ENGLISH_FULL_SPLIT_OFFSET ? 'calc(100% - 20px)' : vSplitOffset >= LAYOUT.DEFAULT_SPLIT_OFFSET ? '0%' : `calc(${100 - vSplitOffset}% - 10px)`,
             minWidth: 0,
-            display: vSplitOffset >= 100 ? 'none' : 'block'
+            display: vSplitOffset >= LAYOUT.DEFAULT_SPLIT_OFFSET ? 'none' : 'block'
           }}
         >
           <div className="text-[10px] font-black text-slate-400 uppercase tracking-[0.2em] mb-4 py-2 flex items-center gap-2">

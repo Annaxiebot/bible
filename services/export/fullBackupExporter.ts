@@ -68,7 +68,7 @@ export async function exportAndDownloadAll(
     return { success: true };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error('Export failed:', error);
+    // TODO: use error reporting service
     return { success: false, error: message };
   }
 }
