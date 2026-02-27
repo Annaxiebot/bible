@@ -2,9 +2,10 @@ import Anthropic from '@anthropic-ai/sdk';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 
 const getClient = () => {
-  const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY || localStorage.getItem(STORAGE_KEYS.CLAUDE_API_KEY);
+  // Claude API key must be user-provided (never from environment/secrets)
+  const apiKey = localStorage.getItem(STORAGE_KEYS.CLAUDE_API_KEY);
   if (!apiKey) {
-    throw new Error('Claude API key not found. Please set VITE_ANTHROPIC_API_KEY or configure in settings.');
+    throw new Error('Claude API key not found. Please configure your API key in settings.');
   }
   return new Anthropic({
     apiKey,
