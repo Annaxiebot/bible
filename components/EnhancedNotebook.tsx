@@ -362,7 +362,7 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
           className="note-editor"
           contentEditable
           onInput={handleContentChange}
-          placeholder="Write your notes here..."
+          data-placeholder="Write your notes here..."
           style={{
             minHeight: '200px',
             padding: '12px',
@@ -392,7 +392,7 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
           </button>
 
           <button
-            onClick={handleSaveNote}
+            onClick={() => handleSaveNote(false)}
             className="toolbar-btn"
             style={{ background: '#4CAF50', color: 'white' }}
           >
@@ -458,12 +458,13 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
                     // Custom rendering for better formatting
                     p: ({ children }) => <p style={{ marginBottom: '0.5em' }}>{children}</p>,
                     strong: ({ children }) => <strong style={{ fontWeight: 600 }}>{children}</strong>,
-                    code: ({ inline, className, children }) => {
+                    code: ({ className, children, ...props }) => {
                       // Check if this is a math expression
                       const match = /language-(\w+)/.exec(className || '');
                       const isMath = match && match[1] === 'math';
-                      
-                      if (isMath || inline === false) {
+                      const isInline = !props.node || props.node.position?.start.line === props.node.position?.end.line;
+
+                      if (isMath || !isInline) {
                         return (
                           <pre style={{ 
                             backgroundColor: '#f5f5f5', 
@@ -575,11 +576,12 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
                           components={{
                             p: ({ children }) => <p style={{ marginBottom: '0.5em' }}>{children}</p>,
                             strong: ({ children }) => <strong style={{ fontWeight: 600 }}>{children}</strong>,
-                            code: ({ inline, className, children }) => {
+                            code: ({ className, children, ...props }) => {
                               const match = /language-(\w+)/.exec(className || '');
                               const isMath = match && match[1] === 'math';
-                              
-                              if (isMath || inline === false) {
+                              const isInline = !props.node || props.node.position?.start.line === props.node.position?.end.line;
+
+                              if (isMath || !isInline) {
                                 return (
                                   <pre style={{ 
                                     backgroundColor: '#f5f5f5', 

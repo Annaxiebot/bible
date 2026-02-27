@@ -338,8 +338,8 @@ class VerseDataStorage {
           }
         }
       }
-      
-      await tx.complete;
+
+      await tx.done;
     } catch (error) {
       console.error('Failed to migrate IDs:', error);
     }
@@ -366,7 +366,7 @@ class VerseDataStorage {
         }
       }
       
-      await tx.oncomplete;
+      await tx.done;
     } catch (error) {
       console.error('Failed to clear all personal notes:', error);
       throw error;
@@ -394,7 +394,7 @@ class VerseDataStorage {
         }
       }
       
-      await tx.oncomplete;
+      await tx.done;
     } catch (error) {
       console.error('Failed to clear all AI research:', error);
       throw error;

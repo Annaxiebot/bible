@@ -8,18 +8,8 @@ export interface PrintableNote {
   content: NoteData;
 }
 
-export const formatNotesForPrint = (notes: Record<string, string>): PrintableNote[] => {
-  const printableNotes: PrintableNote[] = [];
-  
-  Object.entries(notes).forEach(([id, content]) => {
-    // Parse the ID (e.g., "GEN:1:5" or "GEN:1")
-    const parts = id.split(':');
-    const bookId = parts[0];
-    const chapter = parseInt(parts[1]);
-    const verse = parts[2] ? parseInt(parts[2]) : undefined;
-    
-    // Get book name from ID
-    const bookNames: Record<string, string> = {
+// Get book name from ID
+const bookNames: Record<string, string> = {
       'GEN': '创世记',
       'EXO': '出埃及记',
       'LEV': '利未记',
@@ -86,8 +76,18 @@ export const formatNotesForPrint = (notes: Record<string, string>): PrintableNot
       '3JO': '约翰三书',
       'JUD': '犹大书',
       'REV': '启示录'
-    };
-    
+};
+
+export const formatNotesForPrint = (notes: Record<string, string>): PrintableNote[] => {
+  const printableNotes: PrintableNote[] = [];
+
+  Object.entries(notes).forEach(([id, content]) => {
+    // Parse the ID (e.g., "GEN:1:5" or "GEN:1")
+    const parts = id.split(':');
+    const bookId = parts[0];
+    const chapter = parseInt(parts[1]);
+    const verse = parts[2] ? parseInt(parts[2]) : undefined;
+
     try {
       const noteData: NoteData = content ? JSON.parse(content) : { text: '', drawing: '' };
       

@@ -12,9 +12,8 @@ const httpsRedirect = (): Plugin => ({
       const host = req.headers.host || '';
       
       // In development, if accessing via HTTP (not HTTPS)
-      if (req.headers['upgrade-insecure-requests'] || 
-          (proto === 'http') || 
-          (!req.connection.encrypted && !host.includes('localhost'))) {
+      if (req.headers['upgrade-insecure-requests'] ||
+          (proto === 'http')) {
         // Skip redirect for localhost to avoid issues
         if (host.includes('localhost') || host.includes('127.0.0.1')) {
           return next();

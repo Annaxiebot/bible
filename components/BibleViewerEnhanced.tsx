@@ -24,8 +24,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({ onSelectionChange, onVersesSe
   });
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState(0);
-  const cacheService = useRef(new BibleCacheService()).current;
-  
+
   const [vSplitOffset, setVSplitOffset] = useState(50);
   const [isResizing, setIsResizing] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -57,12 +56,11 @@ const BibleViewer: React.FC<BibleViewerProps> = ({ onSelectionChange, onVersesSe
     setError(null);
     try {
       // Try to get from cache first
-      const cachedCuv = await cacheService.getChapter(selectedBook.id, selectedChapter, 'cuv');
-      const cachedWeb = await cacheService.getChapter(selectedBook.id, selectedChapter, 'web');
-      
-      if (cachedCuv && cachedWeb) {
-        setLeftVerses(cachedCuv.verses);
-        setRightVerses(cachedWeb.verses);
+      const cachedData = BibleCacheService.getCachedChapter(selectedBook.id, selectedChapter);
+
+      if (cachedData) {
+        setLeftVerses(cachedData.cuvVerses);
+        setRightVerses(cachedData.webVerses);
       } else {
         // Fetch from API if not cached
         const cuvRes = await fetch(`https://bible-api.com/${selectedBook.id}${selectedChapter}?translation=cuv`);
@@ -74,8 +72,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({ onSelectionChange, onVersesSe
           setLeftVerses(cuvData.verses);
           setRightVerses(engData.verses);
           // Cache the fetched data
-          await cacheService.cacheChapter(selectedBook.id, selectedChapter, 'cuv', cuvData);
-          await cacheService.cacheChapter(selectedBook.id, selectedChapter, 'web', engData);
+          BibleCacheService.cacheChapter(selectedBook.id, selectedChapter, cuvData.verses, engData.verses);
         } else {
           setError("无法加载经文内容。");
         }
@@ -98,8 +95,9 @@ const BibleViewer: React.FC<BibleViewerProps> = ({ onSelectionChange, onVersesSe
     setIsDownloading(true);
     setDownloadProgress(0);
     try {
-      await cacheService.downloadWholeBible((progress) => {
-        setDownloadProgress(progress);
+      await BibleCacheService.downloadWholeBible((progress) => {
+        const percentage = Math.round((progress.bookIndex / progress.totalBooks) * 100);
+        setDownloadProgress(percentage);
       });
       alert('圣经已成功下载供离线使用！');
     } catch (err) {

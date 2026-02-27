@@ -52,6 +52,7 @@ interface MessageBubbleProps {
   isSpeaking: boolean;
   onSpeak: (content: string) => void;
   onStop: () => void;
+  onSaveResearch?: (message: ChatMessage, side: 'zh' | 'en') => void;
 }
 
 const MessageBubble: React.FC<MessageBubbleProps> = ({ m, side, isSpeaking, onSpeak, onStop, onSaveResearch }) => {
@@ -171,11 +172,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     size: '1K',
     type: 'image'
   });
-  
+
   const containerRef = useRef<HTMLDivElement>(null);
   const zhScrollRef = useRef<HTMLDivElement>(null);
   const enScrollRef = useRef<HTMLDivElement>(null);
   const lastPayloadId = useRef<number>(-1);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Sync incoming verses while preserving the user's manual question
   useEffect(() => {
@@ -252,8 +254,22 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     return () => clearTimeout(scrollTimeout);
   }, [messages, isTyping]);
 
+  // Cleanup: abort any in-flight requests when component unmounts
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
   const handleSend = async () => {
     if (!input.trim() || isTyping) return;
+
+    // Cancel any previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
 
     const userMessage: ChatMessage = { role: 'user', content: input, timestamp: new Date() };
     setMessages(prev => [...prev, userMessage]);
@@ -261,7 +277,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     setInput('');
     setUserQuestion(''); // Reset manual part after sending
     setIsTyping(true);
-    
+
     // Immediate scroll to bottom after sending message
     setTimeout(() => {
       if (zhScrollRef.current) {
@@ -272,16 +288,19 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       }
     }, 50);
 
+    // Create new abort controller for this request
+    abortControllerRef.current = new AbortController();
+
     try {
       const history = messages.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content }));
-      const response = await aiService.chatWithAI(currentInput, history, { 
-        thinking: isThinking, 
+      const response = await aiService.chatWithAI(currentInput, history, {
+        thinking: isThinking,
         search: true,
-        fast: !isThinking 
+        fast: !isThinking
       });
-      
+
       const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
-      const references = Array.isArray(groundingChunks) 
+      const references = Array.isArray(groundingChunks)
         ? groundingChunks.map((chunk: any) => ({ title: chunk.web?.title || '参考资料', uri: chunk.web?.uri || '' })).filter((c: any) => c.uri)
         : undefined;
 
@@ -293,10 +312,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       };
 
       setMessages(prev => [...prev, assistantMessage]);
-    } catch (error) {
-      setMessages(prev => [...prev, { role: 'assistant', content: "连接失败，请重试。", timestamp: new Date() }]);
+    } catch (error: any) {
+      // Don't show error message if request was aborted intentionally
+      if (error?.name !== 'AbortError') {
+        setMessages(prev => [...prev, { role: 'assistant', content: "连接失败，请重试。", timestamp: new Date() }]);
+      }
     } finally {
       setIsTyping(false);
+      abortControllerRef.current = null;
     }
   };
 
