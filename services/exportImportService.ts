@@ -1,4 +1,5 @@
 import { verseDataStorage } from './verseDataStorage';
+import { STORAGE_KEYS } from '../constants/storageKeys';
 import { annotationStorage } from './annotationStorage';
 import { bookmarkStorage } from './bookmarkStorage';
 import { readingHistory } from './readingHistory';
@@ -29,10 +30,10 @@ class ExportImportService {
   }
 
   private getOrCreateDeviceId(): string {
-    let id = localStorage.getItem('bible_device_id');
+    let id = localStorage.getItem(STORAGE_KEYS.DEVICE_ID);
     if (!id) {
       id = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      localStorage.setItem('bible_device_id', id);
+      localStorage.setItem(STORAGE_KEYS.DEVICE_ID, id);
     }
     return id;
   }

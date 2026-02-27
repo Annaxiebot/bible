@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import * as aiProvider from '../services/aiProvider';
 import { autoSaveResearchService } from '../services/autoSaveResearchService';
+import { STORAGE_KEYS } from '../constants/storageKeys';
 
 interface AIProviderSettingsProps {
   isOpen: boolean;
@@ -16,8 +17,8 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
   const [autoSaveResearch, setAutoSaveResearch] = useState(() => autoSaveResearchService.isAutoSaveEnabled());
 
   useEffect(() => {
-    setGeminiApiKey(localStorage.getItem('gemini_api_key') || '');
-    setClaudeApiKey(localStorage.getItem('claude_api_key') || '');
+    setGeminiApiKey(localStorage.getItem(STORAGE_KEYS.GEMINI_API_KEY) || '');
+    setClaudeApiKey(localStorage.getItem(STORAGE_KEYS.CLAUDE_API_KEY) || '');
     setAutoSaveResearch(autoSaveResearchService.isAutoSaveEnabled());
   }, [isOpen]);
 
@@ -25,15 +26,15 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
     aiProvider.setProvider(currentProvider);
 
     if (geminiApiKey.trim()) {
-      localStorage.setItem('gemini_api_key', geminiApiKey.trim());
+      localStorage.setItem(STORAGE_KEYS.GEMINI_API_KEY, geminiApiKey.trim());
     } else {
-      localStorage.removeItem('gemini_api_key');
+      localStorage.removeItem(STORAGE_KEYS.GEMINI_API_KEY);
     }
 
     if (claudeApiKey.trim()) {
-      localStorage.setItem('claude_api_key', claudeApiKey.trim());
+      localStorage.setItem(STORAGE_KEYS.CLAUDE_API_KEY, claudeApiKey.trim());
     } else {
-      localStorage.removeItem('claude_api_key');
+      localStorage.removeItem(STORAGE_KEYS.CLAUDE_API_KEY);
     }
 
     autoSaveResearchService.setAutoSaveEnabled(autoSaveResearch);

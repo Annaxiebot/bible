@@ -1,63 +1,21 @@
 /**
  * annotationStorage.ts
- * 
+ *
  * IndexedDB storage service for Bible annotation data.
  * Stores per-chapter canvas drawing data (serialized paths) and expanded canvas height.
- * Uses the `idb` library for clean async IndexedDB access.
+ * Uses the unified idbService for all IndexedDB access.
  */
 
-import { openDB, DBSchema, IDBPDatabase } from 'idb';
+import { idbService } from './idbService';
 import { verseDataStorage } from './verseDataStorage';
 
-/** Serialized annotation data for a single chapter */
-export interface AnnotationRecord {
-  /** Composite key: "bookId:chapter" or "bookId:chapter:panelId" */
-  id: string;
-  bookId: string;
-  chapter: number;
-  /** JSON-serialized array of drawing paths */
-  canvasData: string;
-  /** Extra expanded height in pixels (0 = no expansion) */
-  canvasHeight: number;
-  /** CSS pixel width of the canvas when annotation was saved */
-  canvasWidth?: number;
-  /** Font size used when annotation was drawn */
-  fontSize?: number;
-  /** Vertical split offset (0-100) when annotation was drawn */
-  vSplitOffset?: number;
-  /** Timestamp of last modification */
-  lastModified: number;
-  /** Panel identifier (chinese or english) - optional for backwards compat */
-  panelId?: string;
-}
-
-interface AnnotationDB extends DBSchema {
-  annotations: {
-    key: string;
-    value: AnnotationRecord;
-    indexes: {
-      'by-book': string;
-      'by-modified': number;
-    };
-  };
-}
+// Re-export AnnotationRecord from idbService so consumers don't need to change imports
+export type { AnnotationRecord } from './idbService';
+import type { AnnotationRecord } from './idbService';
 
 class AnnotationStorageService {
-  private dbPromise: Promise<IDBPDatabase<AnnotationDB>>;
   /** Track which chapters already have their note ensured (avoids repeated DB queries during drawing) */
   private _ensuredNotes = new Set<string>();
-
-  constructor() {
-    this.dbPromise = openDB<AnnotationDB>('BibleAnnotationsDB', 1, {
-      upgrade(db) {
-        if (!db.objectStoreNames.contains('annotations')) {
-          const store = db.createObjectStore('annotations', { keyPath: 'id' });
-          store.createIndex('by-book', 'bookId');
-          store.createIndex('by-modified', 'lastModified');
-        }
-      },
-    });
-  }
 
   /**
    * Save annotation data for a specific book+chapter+panel.
@@ -74,9 +32,8 @@ class AnnotationStorageService {
     vSplitOffset?: number
   ): Promise<void> {
     try {
-      const db = await this.dbPromise;
       const id = panelId ? `${bookId}:${chapter}:${panelId}` : `${bookId}:${chapter}`;
-      await db.put('annotations', {
+      await idbService.put('annotations', {
         id,
         bookId,
         chapter,
@@ -112,14 +69,13 @@ class AnnotationStorageService {
     panelId?: 'chinese' | 'english'
   ): Promise<{ data: string; height: number; width: number; fontSize: number; vSplitOffset: number } | null> {
     try {
-      const db = await this.dbPromise;
       const id = panelId ? `${bookId}:${chapter}:${panelId}` : `${bookId}:${chapter}`;
-      let record = await db.get('annotations', id);
+      let record = await idbService.get('annotations', id);
 
       // Backwards compatibility: try without panelId if not found
       if (!record && panelId) {
         const oldId = `${bookId}:${chapter}`;
-        record = await db.get('annotations', oldId);
+        record = await idbService.get('annotations', oldId);
       }
 
       if (!record) return null;
@@ -141,9 +97,8 @@ class AnnotationStorageService {
    */
   async deleteAnnotation(bookId: string, chapter: number, panelId?: 'chinese' | 'english'): Promise<void> {
     try {
-      const db = await this.dbPromise;
       const id = panelId ? `${bookId}:${chapter}:${panelId}` : `${bookId}:${chapter}`;
-      await db.delete('annotations', id);
+      await idbService.delete('annotations', id);
     } catch (error) {
       // TODO: use error reporting service
       throw error;
@@ -177,8 +132,7 @@ class AnnotationStorageService {
    */
   async getAllAnnotations(): Promise<AnnotationRecord[]> {
     try {
-      const db = await this.dbPromise;
-      return await db.getAll('annotations');
+      return await idbService.getAll('annotations');
     } catch (error) {
       // silently handle
       return [];
@@ -186,14 +140,12 @@ class AnnotationStorageService {
   }
 
   async importAnnotation(record: AnnotationRecord): Promise<void> {
-    const db = await this.dbPromise;
-    await db.put('annotations', record);
+    await idbService.put('annotations', record);
   }
 
   async getAnnotationsForBook(bookId: string): Promise<AnnotationRecord[]> {
     try {
-      const db = await this.dbPromise;
-      return await db.getAllFromIndex('annotations', 'by-book', bookId);
+      return await idbService.getAllFromIndex('annotations', 'by-book', bookId);
     } catch (error) {
       // silently handle
       return [];

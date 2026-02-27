@@ -9,24 +9,9 @@ import { ChapterStorageData } from '../bibleStorage';
 import { AnnotationRecord } from '../annotationStorage';
 import { Bookmark } from '../bookmarkStorage';
 import { ReadingPlanState } from '../readingPlanStorage';
+import { ReadingPosition, ChapterHistory } from '../readingHistory';
 
-/** Mirrors ReadingPosition from readingHistory.ts */
-interface ReadingPosition {
-  bookId: string;
-  bookName: string;
-  chapter: number;
-  timestamp: number;
-}
-
-/** Mirrors ChapterHistory from readingHistory.ts */
-interface ChapterHistory {
-  bookId: string;
-  bookName: string;
-  chapter: number;
-  lastRead: number;
-  hasNotes?: boolean;
-  hasAIResearch?: boolean;
-}
+export type { ReadingPosition, ChapterHistory };
 
 // ============================================================================
 // Enhanced MediaAttachment (v4.0)

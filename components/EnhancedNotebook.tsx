@@ -10,6 +10,7 @@ import * as aiService from '../services/gemini';
 import { IMAGE, TIMING } from '../constants/appConfig';
 import 'katex/dist/katex.min.css';
 import { CHINESE_ABBREV_TO_BOOK_ID, BIBLE_BOOKS } from '../constants';
+import { stripHTML } from '../utils/textUtils';
 
 const _allBookNames = Object.keys(CHINESE_ABBREV_TO_BOOK_ID)
   .sort((a, b) => b.length - a.length)
@@ -350,7 +351,7 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
 
     // Get current text content from the editor directly
     const currentHTML = editorRef.current?.innerHTML || '';
-    const currentText = currentHTML.replace(/<[^>]*>/g, '').trim();
+    const currentText = stripHTML(currentHTML).trim();
 
     // Check if content already starts with a timestamp pattern [YYYY年MM月DD日 HH:MM]
     const hasTimestampAtStart = /^\[\d{4}年\d{1,2}月\d{1,2}日\s+\d{1,2}:\d{2}\]/.test(currentText);

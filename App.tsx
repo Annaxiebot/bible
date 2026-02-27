@@ -577,17 +577,13 @@ const App: React.FC = () => {
       )}
 
       {showPrintOptions && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-lg shadow-xl w-full max-w-md overflow-hidden">
-            <PrintOptionsDialog
-              onClose={() => setShowPrintOptions(false)}
-              onPrint={(options: PrintOptions) => {
-                setShowPrintOptions(false);
-                printStudyNotes(options);
-              }}
-            />
-          </div>
-        </div>
+        <PrintOptionsDialog
+          onClose={() => setShowPrintOptions(false)}
+          onPrint={(options: PrintOptions) => {
+            setShowPrintOptions(false);
+            printStudyNotes(options);
+          }}
+        />
       )}
 
       {split.isResizing && <style>{`* { user-select: none !important; cursor: inherit !important; }`}</style>}

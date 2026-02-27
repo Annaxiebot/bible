@@ -7,13 +7,14 @@
 
 import * as gemini from './gemini';
 import * as claude from './claude';
+import { STORAGE_KEYS } from '../constants/storageKeys';
 
 export type AIProvider = 'gemini' | 'claude';
 export type AIModel = 'claude-haiku-4-5' | 'claude-sonnet-4-5' | 'claude-opus-4-5' | 'gemini-3-flash-preview' | 'gemini-3-pro-preview' | 'gemini-flash-lite-latest';
 
 // Storage keys
-const PROVIDER_KEY = 'ai_provider';
-const MODEL_KEY = 'ai_model';
+const PROVIDER_KEY = STORAGE_KEYS.AI_PROVIDER;
+const MODEL_KEY = STORAGE_KEYS.AI_MODEL;
 
 /**
  * Get the current AI provider from settings
@@ -98,9 +99,9 @@ export const getAvailableProviders = (): { id: AIProvider; name: string; models:
  */
 export const isProviderConfigured = (provider: AIProvider): boolean => {
   if (provider === 'gemini') {
-    return !!(import.meta.env.VITE_GEMINI_API_KEY || localStorage.getItem('gemini_api_key') || process.env.API_KEY);
+    return !!(import.meta.env.VITE_GEMINI_API_KEY || localStorage.getItem(STORAGE_KEYS.GEMINI_API_KEY) || process.env.API_KEY);
   } else if (provider === 'claude') {
-    return !!(import.meta.env.VITE_ANTHROPIC_API_KEY || localStorage.getItem('claude_api_key'));
+    return !!(import.meta.env.VITE_ANTHROPIC_API_KEY || localStorage.getItem(STORAGE_KEYS.CLAUDE_API_KEY));
   }
   return false;
 };

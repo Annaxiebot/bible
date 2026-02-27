@@ -8,6 +8,7 @@ import { bibleStorage, BibleTranslation } from './bibleStorage';
 import { verseDataStorage } from './verseDataStorage';
 import { toSimplified } from './chineseConverter';
 import { BIBLE_BOOKS } from '../constants';
+import { stripHTML } from '../utils/textUtils';
 
 export const MAX_SEARCH_RESULTS = 50;
 export const SNIPPET_MAX_LENGTH = 100;
@@ -119,7 +120,7 @@ export async function searchNotesAndResearch(
 
     // Personal note text
     if (vd.personalNote) {
-      const plainNote = vd.personalNote.text.replace(/<[^>]*>/g, '');
+      const plainNote = stripHTML(vd.personalNote.text);
       if (toSimplified(plainNote.toLowerCase()).includes(querySimplified)) {
         if (!isDuplicate(existingResults, vd.bookId, vd.chapter, vd.verses[0])) {
           const snippet =
@@ -142,7 +143,7 @@ export async function searchNotesAndResearch(
     for (const research of vd.aiResearch) {
       if (existingResults.length + results.length >= MAX_SEARCH_RESULTS) break;
       const matchInQuery = toSimplified(research.query.toLowerCase()).includes(querySimplified);
-      const plainResponse = research.response.replace(/<[^>]*>/g, '');
+      const plainResponse = stripHTML(research.response);
       const matchInResponse = toSimplified(plainResponse.toLowerCase()).includes(querySimplified);
       if (matchInQuery || matchInResponse) {
         if (!isDuplicate(existingResults, vd.bookId, vd.chapter, vd.verses[0], '研究 Research')) {
