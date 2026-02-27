@@ -128,6 +128,9 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
   const previousSelectionIdRef = useRef<string | null>(null);
   const lastActivityTime = useRef<number>(Date.now());
   const hasInsertedTimestamp = useRef(false);
+  // True while the user is actively typing — prevents storageTick from resetting innerHTML
+  const isEditingRef = useRef(false);
+  const editingTimeoutRef = useRef<number | null>(null);
 
   // File / media input refs (from Notebook.tsx)
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -147,17 +150,21 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
     // Only reload data when switching to a different verse, not on every initialContent change
     if (previousSelectionIdRef.current !== selection.id) {
       previousSelectionIdRef.current = selection.id;
-      // Reset timestamp tracking when switching to new verse
+      // Reset tracking when switching to new verse
       lastActivityTime.current = Date.now();
       hasInsertedTimestamp.current = false;
+      isEditingRef.current = false;
+      if (editingTimeoutRef.current) clearTimeout(editingTimeoutRef.current);
       loadVerseData();
     }
   }, [selection?.id]);
 
-  // Reload data whenever any verseDataStorage write occurs
+  // Reload data whenever any verseDataStorage write occurs.
+  // Skip the editor innerHTML reset while the user is actively typing to avoid
+  // cursor jumps caused by the auto-save cycle.
   useEffect(() => {
     if (selection) loadVerseData();
-  }, [storageTick]);
+  }, [storageTick]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Populate editor when switching to the notes tab (editor may not have
   // existed in the DOM when loadVerseData originally ran)
@@ -198,7 +205,10 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
       if (data?.personalNote) {
         setPersonalNote(data.personalNote.text);
         setDrawingData(data.personalNote.drawing || '');
-        if (editorRef.current) {
+        // Only reset the editor DOM when the user is NOT actively typing.
+        // During typing the auto-save fires which triggers storageTick, and
+        // overwriting innerHTML here would jump the cursor to the start.
+        if (editorRef.current && !isEditingRef.current) {
           editorRef.current.innerHTML = data.personalNote.text;
         }
         // If note has content, don't insert timestamp
@@ -207,7 +217,7 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
         }
       } else if (initialContent) {
         setPersonalNote(initialContent);
-        if (editorRef.current) {
+        if (editorRef.current && !isEditingRef.current) {
           editorRef.current.innerHTML = initialContent;
         }
         // If has initial content, don't insert timestamp
@@ -218,7 +228,7 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
         // Clear the editor when switching to a verse without notes
         setPersonalNote('');
         setDrawingData('');
-        if (editorRef.current) {
+        if (editorRef.current && !isEditingRef.current) {
           editorRef.current.innerHTML = '';
         }
         // Allow timestamp insertion for empty notes
@@ -321,24 +331,40 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
       editorRef.current.appendChild(spaceNode);
     }
 
-    // Restore cursor position — do NOT call focus() here, editor already has focus
-    // and calling focus() after addRange() causes browsers to reset cursor position
-    if (windowSelection && savedRange && cursorContainer) {
+    // Defer cursor restoration to the next animation frame.
+    // iOS Safari resets the selection synchronously when a contenteditable="false"
+    // element is inserted, so we must restore AFTER the browser has settled.
+    const capturedContainer = cursorContainer;
+    const capturedOffset = cursorOffset;
+    requestAnimationFrame(() => {
+      const sel = window.getSelection();
+      if (!sel || !editorRef.current) return;
       try {
-        const newRange = document.createRange();
-        newRange.setStart(cursorContainer, cursorOffset);
-        newRange.setEnd(cursorContainer, cursorOffset);
-        windowSelection.removeAllRanges();
-        windowSelection.addRange(newRange);
-      } catch (e) {
-        // If restoring fails, place cursor after the space node
-        const newRange = document.createRange();
-        newRange.setStartAfter(spaceNode);
-        newRange.setEndAfter(spaceNode);
-        windowSelection.removeAllRanges();
-        windowSelection.addRange(newRange);
+        if (capturedContainer && capturedContainer.isConnected) {
+          const r = document.createRange();
+          r.setStart(capturedContainer, capturedOffset);
+          r.setEnd(capturedContainer, capturedOffset);
+          sel.removeAllRanges();
+          sel.addRange(r);
+        } else {
+          // Fallback: place cursor at end of editor content
+          const r = document.createRange();
+          r.selectNodeContents(editorRef.current);
+          r.collapse(false);
+          sel.removeAllRanges();
+          sel.addRange(r);
+        }
+      } catch (_e) {
+        // Last-resort fallback: end of editor
+        try {
+          const r = document.createRange();
+          r.selectNodeContents(editorRef.current);
+          r.collapse(false);
+          sel.removeAllRanges();
+          sel.addRange(r);
+        } catch (_) { /* ignore */ }
       }
-    }
+    });
 
     hasInsertedTimestamp.current = true;
   };
@@ -374,6 +400,13 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
 
     // Update last activity time
     lastActivityTime.current = now;
+
+    // Mark as editing so storageTick-triggered loadVerseData won't reset innerHTML
+    isEditingRef.current = true;
+    if (editingTimeoutRef.current) clearTimeout(editingTimeoutRef.current);
+    editingTimeoutRef.current = window.setTimeout(() => {
+      isEditingRef.current = false;
+    }, 10000); // 10s after last keystroke, allow a fresh reload if needed
 
     setIsSaved(false);
 
