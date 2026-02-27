@@ -736,7 +736,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
           <span className="text-xs font-semibold text-slate-700">
-            AI Provider: <span className="text-indigo-600">{currentProvider === 'claude' ? 'Claude' : 'Gemini'}</span>
+            AI Provider: <span className="text-indigo-600">
+              {currentProvider === 'claude' ? 'Claude' :
+               currentProvider === 'openai' ? 'ChatGPT' :
+               currentProvider === 'kimi' ? 'Kimi' : 'Gemini'}
+            </span>
           </span>
         </div>
         <button
