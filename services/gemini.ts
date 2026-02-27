@@ -1,5 +1,6 @@
 
 import { GoogleGenAI, Modality, Type, GenerateContentResponse, VideoGenerationReferenceImage, VideoGenerationReferenceType } from "@google/genai";
+import { AI, AUDIO, TIMING } from '../constants/appConfig';
 
 // Audio decoding utilities as per guidelines
 function decode(base64: string) {
@@ -25,7 +26,7 @@ async function decodeAudioData(
   for (let channel = 0; channel < numChannels; channel++) {
     const channelData = buffer.getChannelData(channel);
     for (let i = 0; i < frameCount; i++) {
-      channelData[i] = dataInt16[i * numChannels + channel] / 32768.0;
+      channelData[i] = dataInt16[i * numChannels + channel] / AUDIO.PCM_INT16_MAX;
     }
   }
   return buffer;
@@ -33,13 +34,19 @@ async function decodeAudioData(
 
 const getAI = () => new GoogleGenAI({ apiKey: process.env.API_KEY });
 
+interface GeminiConfig {
+  systemInstruction?: string;
+  tools?: Array<{ googleSearch: Record<string, never> }>;
+  thinkingConfig?: { thinkingBudget: number };
+}
+
 /**
  * Text Chat with Search Grounding & Thinking Mode
  */
 export const chatWithAI = async (
   prompt: string,
   history: { role: string; content: string }[],
-  options: { thinking?: boolean; fast?: boolean; search?: boolean } = {}
+  options: { thinking?: boolean; fast?: boolean; search?: boolean; image?: { data: string; mimeType: string } } = {}
 ) => {
   const ai = getAI();
   const model = options.thinking ? 'gemini-3-pro-preview' : (options.fast ? 'gemini-flash-lite-latest' : 'gemini-3-flash-preview');
@@ -48,9 +55,23 @@ export const chatWithAI = async (
     role: h.role === 'user' ? 'user' : 'model',
     parts: [{ text: h.content }]
   }));
-  contents.push({ role: 'user', parts: [{ text: prompt }] });
+  // Add current prompt (with optional image)
+  if (options.image) {
+    const base64Data = options.image.data.includes(',')
+      ? options.image.data.split(',')[1]
+      : options.image.data;
+    contents.push({
+      role: 'user',
+      parts: [
+        { inlineData: { data: base64Data, mimeType: options.image.mimeType } } as any,
+        { text: prompt || 'What do you see in this image?' }
+      ]
+    });
+  } else {
+    contents.push({ role: 'user', parts: [{ text: prompt }] });
+  }
 
-  const config: any = {
+  const config: GeminiConfig = {
     systemInstruction: `You are a world-class Bible Scholar and Researcher. 
     
     CORE DIRECTIVE: Be extremely concise. Provide a brief overview or summary of the answer only. 
@@ -76,25 +97,29 @@ export const chatWithAI = async (
   }
 
   if (options.thinking) {
-    config.thinkingConfig = { thinkingBudget: 32768 };
+    config.thinkingConfig = { thinkingBudget: AI.THINKING_BUDGET };
   }
 
   // Add retry logic with exponential backoff for rate limiting
+  const RATE_LIMIT_WAITS = [
+    AI.RATE_LIMIT_WAIT_ATTEMPT_0,
+    AI.RATE_LIMIT_WAIT_ATTEMPT_1,
+    AI.RATE_LIMIT_WAIT_ATTEMPT_2,
+  ];
   let lastError;
-  for (let attempt = 0; attempt < 3; attempt++) {
+  for (let attempt = 0; attempt < AI.MAX_RETRIES; attempt++) {
     try {
       return await ai.models.generateContent({
         model,
         contents: contents as any,
         config
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       lastError = error;
-      if (error?.status === 429 || error?.message?.includes('429')) {
+      const err = error as { status?: number; message?: string };
+      if (err?.status === 429 || err?.message?.includes('429')) {
         // Rate limited - wait with more aggressive exponential backoff
-        // Start with 2 seconds, then 5 seconds, then 10 seconds
-        const baseWaitTime = attempt === 0 ? 2000 : attempt === 1 ? 5000 : 10000;
-        console.log(`Rate limited (attempt ${attempt + 1}/3), waiting ${baseWaitTime}ms before retry...`);
+        const baseWaitTime = RATE_LIMIT_WAITS[attempt] ?? AI.RATE_LIMIT_WAIT_ATTEMPT_2;
         await new Promise(resolve => setTimeout(resolve, baseWaitTime));
       } else {
         // Non-rate limit error, throw immediately
@@ -108,7 +133,7 @@ export const chatWithAI = async (
 /**
  * Image Generation & Editing
  */
-export const generateImage = async (prompt: string, aspectRatio: any, imageSize: any) => {
+export const generateImage = async (prompt: string, aspectRatio: string, imageSize: string) => {
   const ai = getAI();
   const response = await ai.models.generateContent({
     model: 'gemini-3-pro-image-preview',
@@ -151,7 +176,12 @@ export const editImage = async (base64Image: string, prompt: string) => {
  */
 export const generateVideo = async (prompt: string, aspectRatio: '16:9' | '9:16', startImage?: string) => {
   const ai = getAI();
-  const payload: any = {
+  const payload: {
+    model: string;
+    prompt: string;
+    config: { numberOfVideos: number; resolution: string; aspectRatio: string };
+    image?: { imageBytes: string; mimeType: string };
+  } = {
     model: 'veo-3.1-fast-generate-preview',
     prompt,
     config: { numberOfVideos: 1, resolution: '720p', aspectRatio }
@@ -163,7 +193,7 @@ export const generateVideo = async (prompt: string, aspectRatio: '16:9' | '9:16'
 
   let operation = await ai.models.generateVideos(payload);
   while (!operation.done) {
-    await new Promise(r => setTimeout(r, 10000));
+    await new Promise(r => setTimeout(r, TIMING.VIDEO_POLL_MS));
     operation = await ai.operations.getVideosOperation({ operation: operation });
   }
 
@@ -209,9 +239,9 @@ export const speak = async (text: string, onEnd?: () => void) => {
   const base64Audio = response.candidates?.[0]?.content?.parts?.[0]?.inlineData?.data;
   if (!base64Audio) return;
 
-  const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+  const ctx = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: AUDIO.SAMPLE_RATE });
   const decodedBytes = decode(base64Audio);
-  const audioBuffer = await decodeAudioData(decodedBytes, ctx, 24000, 1);
+  const audioBuffer = await decodeAudioData(decodedBytes, ctx, AUDIO.SAMPLE_RATE, 1);
 
   activeContext = ctx;
   const source = ctx.createBufferSource();

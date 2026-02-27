@@ -1,11 +1,5 @@
-export interface MediaAttachment {
-  id: string;
-  type: 'image' | 'audio' | 'video';
-  data: string; // base64 encoded
-  thumbnail?: string;
-  caption?: string;
-  timestamp: number;
-}
+import type { MediaAttachment } from '../services/backup/types';
+export type { MediaAttachment };
 
 export interface PersonalNote {
   text: string;

@@ -4,6 +4,18 @@ import { bookmarkStorage, Bookmark } from '../services/bookmarkStorage';
 import { readingPlanStorage, ReadingPlanState, READING_PLANS, PlanType, ReadingPlanDay } from '../services/readingPlanStorage';
 import { useSeasonTheme } from '../hooks/useSeasonTheme';
 import { ALL_SEASONS, getThemeForSeason, getSeason } from '../services/seasonTheme';
+import { AuthPanel } from './AuthPanel';
+import { autoSaveResearchService } from '../services/autoSaveResearchService';
+import { STORAGE_KEYS } from '../constants/storageKeys';
+
+export interface BgDownloadProgress {
+  cached: number;
+  total: number;
+  currentBook: string;
+  currentChapter: number;
+  isRunning: boolean;
+  isComplete: boolean;
+}
 
 interface SidebarProps {
   isOpen: boolean;
@@ -13,6 +25,7 @@ interface SidebarProps {
   onRestore: () => void;
   onClear: () => void;
   onVoiceOpen: () => void;
+  onVibeOpen?: () => void;
   onViewNotes?: () => void;
   onSplitView?: () => void;
   onNotebookView?: () => void;
@@ -26,6 +39,10 @@ interface SidebarProps {
   downloadTimeRemaining?: string;
   dataUpdateTrigger?: number;
   onNavigate?: (bookId: string, chapter: number, verse?: number) => void;
+  onSearch?: () => void;
+  onPrint?: () => void;
+  onShowDataDetail?: (mode: 'notes' | 'research' | 'chapters') => void;
+  bgDownloadProgress?: BgDownloadProgress | null;
 }
 
 // Chevron component for collapsible sections
@@ -45,6 +62,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   onRestore, 
   onClear,
   onVoiceOpen,
+  onVibeOpen,
   onViewNotes,
   onSplitView,
   onNotebookView,
@@ -58,7 +76,11 @@ const Sidebar: React.FC<SidebarProps> = ({
   downloadTimeRemaining = '',
   showToggle = true,
   dataUpdateTrigger = 0,
-  onNavigate
+  onNavigate,
+  onSearch,
+  onPrint,
+  onShowDataDetail,
+  bgDownloadProgress
 }) => {
   const { stats, loading } = useDataStats(dataUpdateTrigger);
   const { theme, isAuto, setSeason } = useSeasonTheme();
@@ -71,6 +93,7 @@ const Sidebar: React.FC<SidebarProps> = ({
     dataStats: false,
     notesManagement: false,
     offlineDownload: false,
+    cloudSync: false,
     settings: false,
   });
 
@@ -83,6 +106,19 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [todaysReading, setTodaysReading] = useState<ReadingPlanDay[]>([]);
   const [planProgress, setPlanProgress] = useState(0);
   const [showPlanPicker, setShowPlanPicker] = useState(false);
+
+  const [autoSaveNotes, setAutoSaveNotes] = useState(() => autoSaveResearchService.isAutoSaveEnabled());
+
+  // English version state
+  const [englishVersion, setEnglishVersionState] = useState(() => {
+    return localStorage.getItem(STORAGE_KEYS.ENGLISH_VERSION) || 'web';
+  });
+
+  const handleEnglishVersionChange = (version: string) => {
+    setEnglishVersionState(version);
+    localStorage.setItem(STORAGE_KEYS.ENGLISH_VERSION, version);
+    window.dispatchEvent(new CustomEvent('bibleEnglishVersionChanged'));
+  };
 
   // Load bookmarks
   useEffect(() => {
@@ -98,7 +134,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       const bm = await bookmarkStorage.getAllBookmarks();
       setBookmarks(bm);
     } catch (e) {
-      console.error('Failed to load bookmarks:', e);
+      // silently handle
     } finally {
       setBookmarksLoading(false);
     }
@@ -114,7 +150,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         setPlanProgress(readingPlanStorage.getProgress(plan));
       }
     } catch (e) {
-      console.error('Failed to load reading plan:', e);
+      // silently handle
     }
   };
 
@@ -127,7 +163,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       setPlanProgress(0);
       setShowPlanPicker(false);
     } catch (e) {
-      console.error('Failed to start plan:', e);
+      // silently handle
     }
   };
 
@@ -137,7 +173,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       await readingPlanStorage.markDayComplete(activePlan.planType);
       await loadReadingPlan();
     } catch (e) {
-      console.error('Failed to mark day complete:', e);
+      // silently handle
     }
   };
 
@@ -150,7 +186,7 @@ const Sidebar: React.FC<SidebarProps> = ({
         setTodaysReading([]);
         setPlanProgress(0);
       } catch (e) {
-        console.error('Failed to stop plan:', e);
+        // silently handle
       }
     }
   };
@@ -160,7 +196,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       await bookmarkStorage.removeBookmark(id);
       setBookmarks(prev => prev.filter(b => b.id !== id));
     } catch (e) {
-      console.error('Failed to remove bookmark:', e);
+      // silently handle
     }
   };
 
@@ -222,6 +258,21 @@ const Sidebar: React.FC<SidebarProps> = ({
         {/* Menu Items */}
         <div className="flex-1 overflow-y-auto p-4">
           {/* === Actions Section (always expanded) === */}
+          {/* Bible Search */}
+          {onSearch && (
+            <button
+              onClick={onSearch}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-blue-50 transition-colors group mb-2"
+            >
+              <svg className="w-4 h-4 text-slate-400 group-hover:text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+              <span className="flex-1 text-left text-sm font-medium text-slate-700 group-hover:text-blue-600">
+                Search Bible
+              </span>
+            </button>
+          )}
+
           {/* Voice Session */}
           <button 
             onClick={onVoiceOpen}
@@ -273,6 +324,21 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </div>
               </button>
             </>
+          )}
+
+          {/* Vibe Studio */}
+          {onVibeOpen && (
+            <button
+              onClick={onVibeOpen}
+              className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-purple-50 transition-colors group mb-2"
+            >
+              <svg className="w-4 h-4 text-slate-400 group-hover:text-purple-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+              </svg>
+              <span className="flex-1 text-left text-sm font-medium text-slate-700 group-hover:text-purple-600">
+                Vibe Studio
+              </span>
+            </button>
           )}
 
           <div className="h-px bg-slate-200 my-3"></div>
@@ -468,21 +534,57 @@ const Sidebar: React.FC<SidebarProps> = ({
               {loading ? (
                 <div className="text-xs text-slate-400">加载中 Loading...</div>
               ) : (
-                <div className="space-y-1 text-xs">
-                  <div className="flex justify-between">
+                <div className="space-y-0.5 text-xs">
+                  <button
+                    onClick={() => onShowDataDetail?.('notes')}
+                    className="w-full flex justify-between px-2 py-1 rounded hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
                     <span className="text-slate-600">📝 个人笔记 Notes:</span>
-                    <span className="font-medium text-slate-700">{stats.personalNotes}</span>
-                  </div>
-                  <div className="flex justify-between">
+                    <span className="font-medium text-indigo-600">{stats.personalNotes}</span>
+                  </button>
+                  <button
+                    onClick={() => onShowDataDetail?.('research')}
+                    className="w-full flex justify-between px-2 py-1 rounded hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
                     <span className="text-slate-600">🔍 AI研究 Research:</span>
-                    <span className="font-medium text-slate-700">{stats.aiResearch}</span>
-                  </div>
-                  <div className="flex justify-between">
+                    <span className="font-medium text-indigo-600">{stats.aiResearch}</span>
+                  </button>
+                  <button
+                    onClick={() => onShowDataDetail?.('chapters')}
+                    className="w-full flex justify-between px-2 py-1 rounded hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
                     <span className="text-slate-600">📖 缓存章节 Chapters:</span>
-                    <span className="font-medium text-slate-700">{stats.cachedChapters}</span>
-                  </div>
+                    <span className="font-medium text-indigo-600">{stats.cachedChapters}</span>
+                  </button>
+                  {/* Background download progress */}
+                  {bgDownloadProgress && !bgDownloadProgress.isComplete && bgDownloadProgress.isRunning && (
+                    <div className="px-2 py-1.5">
+                      <div className="text-[10px] text-indigo-500 font-medium">
+                        缓存中 Caching...
+                      </div>
+                      {bgDownloadProgress.currentBook && (
+                        <div className="text-[10px] text-slate-500 mt-0.5">
+                          {bgDownloadProgress.currentBook} 第{bgDownloadProgress.currentChapter}章
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2 mt-1">
+                        <div className="flex-1 bg-slate-200 rounded-full h-1">
+                          <div
+                            className="bg-indigo-400 h-1 rounded-full transition-all"
+                            style={{ width: `${Math.round((bgDownloadProgress.cached / bgDownloadProgress.total) * 100)}%` }}
+                          />
+                        </div>
+                        <span className="text-[10px] text-slate-400 whitespace-nowrap">{bgDownloadProgress.cached}/{bgDownloadProgress.total}</span>
+                      </div>
+                    </div>
+                  )}
+                  {bgDownloadProgress && bgDownloadProgress.isComplete && (
+                    <div className="px-2 py-1 text-[10px] text-green-600 font-medium">
+                      缓存完成 All cached
+                    </div>
+                  )}
                   {stats.totalSize && (
-                    <div className="flex justify-between pt-1 border-t border-slate-200">
+                    <div className="flex justify-between px-2 py-1 pt-1 border-t border-slate-200">
                       <span className="text-slate-600">💾 存储空间 Storage:</span>
                       <span className="font-medium text-slate-700">
                         {(stats.totalSize / (1024 * 1024)).toFixed(1)} MB
@@ -527,7 +629,26 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </button>
               )}
 
-              <button 
+              {onPrint && (
+                <button
+                  onClick={onPrint}
+                  className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-slate-50 transition-colors group"
+                >
+                  <svg className="w-4 h-4 text-slate-400 group-hover:text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
+                  </svg>
+                  <div className="flex-1 text-left">
+                    <span className="text-sm font-medium text-slate-700 group-hover:text-indigo-600">
+                      打印笔记
+                    </span>
+                    <span className="block text-xs text-slate-500">
+                      Print all study notes
+                    </span>
+                  </div>
+                </button>
+              )}
+
+              <button
                 onClick={onBackup}
                 className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg hover:bg-slate-50 transition-colors group"
               >
@@ -536,10 +657,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </svg>
                 <div className="flex-1 text-left">
                   <span className="text-sm font-medium text-slate-700 group-hover:text-indigo-600">
-                    备份笔记
+                    备份数据
                   </span>
                   <span className="block text-xs text-slate-500">
-                    Export all notes
+                    Backup all data
                   </span>
                 </div>
               </button>
@@ -553,10 +674,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </svg>
                 <div className="flex-1 text-left">
                   <span className="text-sm font-medium text-slate-700 group-hover:text-indigo-600">
-                    恢复笔记
+                    恢复数据
                   </span>
                   <span className="block text-xs text-slate-500">
-                    Import from backup
+                    Restore from backup
                   </span>
                 </div>
               </button>
@@ -676,6 +797,23 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
 
+          {/* === Cloud Sync Section (collapsible) === */}
+          <button
+            onClick={() => toggleSection('cloudSync')}
+            className="w-full flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors"
+          >
+            <ChevronIcon isOpen={sectionsOpen.cloudSync} />
+            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex-1 text-left">
+              ☁️ 云端同步 Cloud Sync
+            </span>
+          </button>
+
+          {sectionsOpen.cloudSync && (
+            <div className="px-4 py-2">
+              <AuthPanel />
+            </div>
+          )}
+
           {/* === Settings Section (collapsible) === */}
           <button
             onClick={() => toggleSection('settings')}
@@ -743,13 +881,33 @@ const Sidebar: React.FC<SidebarProps> = ({
 
               <div className="h-px bg-slate-100"></div>
 
+              {/* English Bible Version Selector */}
+              <div>
+                <div className="text-xs font-medium text-slate-600 mb-2">📖 英文译本 English Version</div>
+                <select
+                  value={englishVersion}
+                  onChange={(e) => handleEnglishVersionChange(e.target.value)}
+                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white text-slate-700 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
+                >
+                  <option value="web">WEB (World English Bible)</option>
+                  <option value="kjv">KJV (King James Version)</option>
+                  <option value="asv">ASV (American Standard)</option>
+                </select>
+              </div>
+
+              <div className="h-px bg-slate-100"></div>
+
               <div>
                 <label className="flex items-center gap-3 cursor-pointer">
-                  <input 
-                    type="checkbox" 
+                  <input
+                    type="checkbox"
                     className="w-4 h-4 rounded focus:ring-2"
                     style={{ accentColor: theme.accent }}
-                    defaultChecked
+                    checked={autoSaveNotes}
+                    onChange={(e) => {
+                      autoSaveResearchService.setAutoSaveEnabled(e.target.checked);
+                      setAutoSaveNotes(e.target.checked);
+                    }}
                   />
                   <span className="text-sm text-slate-700">自动保存笔记 Auto-save notes</span>
                 </label>
@@ -761,7 +919,10 @@ const Sidebar: React.FC<SidebarProps> = ({
         {/* Footer */}
         <div className="p-4 border-t border-slate-200">
           <p className="text-xs text-slate-400 text-center">
-            {theme.emoji} Bible Workspace v1.1 · {theme.name}
+            {theme.emoji} Bible Workspace v2.3.1 · {theme.name}
+          </p>
+          <p className="text-[10px] text-slate-300 text-center mt-1">
+            Build: 2026-02-06-E
           </p>
         </div>
       </div>

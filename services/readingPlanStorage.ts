@@ -1,27 +1,13 @@
-import { openDB, DBSchema, IDBPDatabase } from 'idb';
+import { idbService } from './idbService';
 
-export type PlanType = 'bible-in-year' | 'nt-90-days' | 'psalms-proverbs';
+// Re-export shared types from idbService so consumers don't need to change imports
+export type { PlanType, ReadingPlanState } from './idbService';
+import type { PlanType, ReadingPlanState } from './idbService';
 
 export interface ReadingPlanDay {
   bookId: string;
   bookName: string;
   chapter: number;
-}
-
-export interface ReadingPlanState {
-  id: string; // plan type
-  planType: PlanType;
-  startDate: string; // ISO date string
-  completedDays: string[]; // ISO date strings of completed days
-  currentDay: number; // 0-indexed day number
-  active: boolean;
-}
-
-interface ReadingPlanDB extends DBSchema {
-  plans: {
-    key: string;
-    value: ReadingPlanState;
-  };
 }
 
 // Generate reading plan schedules
@@ -57,7 +43,7 @@ function generateBibleInYearPlan(): ReadingPlanDay[][] {
     { id: 'EZK', name: '以西结书 Ezekiel', chapters: 48 },
     { id: 'DAN', name: '但以理书 Daniel', chapters: 12 },
     { id: 'HOS', name: '何西阿书 Hosea', chapters: 14 },
-    { id: 'JOE', name: '约珥书 Joel', chapters: 3 },
+    { id: 'JOL', name: '约珥书 Joel', chapters: 3 },
     { id: 'AMO', name: '阿摩司书 Amos', chapters: 9 },
     { id: 'OBA', name: '俄巴底亚书 Obadiah', chapters: 1 },
     { id: 'JON', name: '约拿书 Jonah', chapters: 4 },
@@ -219,33 +205,18 @@ export const READING_PLANS: Record<PlanType, {
 };
 
 class ReadingPlanStorageService {
-  private dbPromise: Promise<IDBPDatabase<ReadingPlanDB>>;
-
-  constructor() {
-    this.dbPromise = openDB<ReadingPlanDB>('BibleReadingPlanDB', 1, {
-      upgrade(db) {
-        if (!db.objectStoreNames.contains('plans')) {
-          db.createObjectStore('plans', { keyPath: 'id' });
-        }
-      },
-    });
-  }
-
   async getActivePlan(): Promise<ReadingPlanState | null> {
-    const db = await this.dbPromise;
-    const all = await db.getAll('plans');
+    const all = await idbService.getAll('readingPlans');
     return all.find(p => p.active) || null;
   }
 
   async startPlan(planType: PlanType): Promise<ReadingPlanState> {
-    const db = await this.dbPromise;
-    
     // Deactivate all existing plans
-    const all = await db.getAll('plans');
+    const all = await idbService.getAll('readingPlans');
     for (const plan of all) {
       if (plan.active) {
         plan.active = false;
-        await db.put('plans', plan);
+        await idbService.put('readingPlans', plan);
       }
     }
 
@@ -258,35 +229,33 @@ class ReadingPlanStorageService {
       active: true,
     };
 
-    await db.put('plans', newPlan);
+    await idbService.put('readingPlans', newPlan);
     return newPlan;
   }
 
   async markDayComplete(planType: PlanType): Promise<void> {
-    const db = await this.dbPromise;
-    const plan = await db.get('plans', planType);
+    const plan = await idbService.get('readingPlans', planType);
     if (!plan) return;
 
     const today = new Date().toISOString().split('T')[0];
     if (!plan.completedDays.includes(today)) {
       plan.completedDays.push(today);
     }
-    
+
     // Advance current day
     const planDef = READING_PLANS[planType];
     if (plan.currentDay < planDef.totalDays - 1) {
       plan.currentDay++;
     }
 
-    await db.put('plans', plan);
+    await idbService.put('readingPlans', plan);
   }
 
   async stopPlan(planType: PlanType): Promise<void> {
-    const db = await this.dbPromise;
-    const plan = await db.get('plans', planType);
+    const plan = await idbService.get('readingPlans', planType);
     if (plan) {
       plan.active = false;
-      await db.put('plans', plan);
+      await idbService.put('readingPlans', plan);
     }
   }
 
@@ -300,6 +269,14 @@ class ReadingPlanStorageService {
   getProgress(plan: ReadingPlanState): number {
     const planDef = READING_PLANS[plan.planType];
     return Math.round((plan.completedDays.length / planDef.totalDays) * 100);
+  }
+
+  async getAllPlans(): Promise<ReadingPlanState[]> {
+    return idbService.getAll('readingPlans');
+  }
+
+  async importPlan(plan: ReadingPlanState): Promise<void> {
+    await idbService.put('readingPlans', plan);
   }
 }
 

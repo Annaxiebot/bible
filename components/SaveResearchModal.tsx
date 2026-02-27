@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BIBLE_BOOKS } from '../constants';
 import { verseDataStorage } from '../services/verseDataStorage';
+import { Dialog } from './Dialog';
 
 interface SaveResearchModalProps {
   isOpen: boolean;
@@ -39,7 +40,7 @@ const SaveResearchModal: React.FC<SaveResearchModalProps> = ({
   useEffect(() => {
     if (currentBookId) setSelectedBook(currentBookId);
     if (currentChapter) setSelectedChapter(currentChapter);
-    
+
     // Try to extract verse number from the query
     if (query) {
       // Look for patterns like "1:7", "Chapter 1:7", "Corinthians 1:7", or "第1章7节"
@@ -56,11 +57,9 @@ const SaveResearchModal: React.FC<SaveResearchModalProps> = ({
     }
   }, [currentBookId, currentChapter, query]);
 
-  if (!isOpen) return null;
-
   const handleSave = async () => {
     setIsSaving(true);
-    
+
     try {
       const tagArray = tags
         .split(',')
@@ -92,10 +91,10 @@ const SaveResearchModal: React.FC<SaveResearchModalProps> = ({
       if (onSuccess) {
         onSuccess();
       }
-      
+
       onClose();
     } catch (error) {
-      console.error('Failed to save research:', error);
+      // TODO: use error reporting service
       alert('Failed to save research. Please try again.');
     } finally {
       setIsSaving(false);
@@ -105,308 +104,125 @@ const SaveResearchModal: React.FC<SaveResearchModalProps> = ({
   const selectedBookData = BIBLE_BOOKS.find(b => b.id === selectedBook);
   const maxChapters = selectedBookData?.chapters || 1;
 
+  const decodedQuery = decodeHtmlEntities(query);
+  const decodedResponse = decodeHtmlEntities(response);
+  const previewResponse = decodedResponse.length > 200
+    ? decodedResponse.substring(0, 200) + '...'
+    : decodedResponse;
+
+  const actions = (
+    <>
+      <button
+        className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-100 transition-colors"
+        onClick={onClose}
+      >
+        Cancel
+      </button>
+      <button
+        className="px-4 py-2 text-sm bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        onClick={handleSave}
+        disabled={isSaving}
+      >
+        {isSaving ? 'Saving...' : 'Save Research'}
+      </button>
+    </>
+  );
+
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h2>Save AI Research to Verse</h2>
-          <button className="close-btn" onClick={onClose}>✕</button>
+    <Dialog
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Save AI Research to Verse"
+      maxWidth="max-w-lg"
+      zIndex="z-[10000]"
+      actions={actions}
+    >
+      <div className="space-y-4">
+        {/* Research Preview */}
+        <div className="bg-slate-50 rounded-lg p-3 space-y-2">
+          <div>
+            <p className="text-xs font-semibold text-slate-500 mb-1">Query:</p>
+            <p className="text-sm text-slate-700">{decodedQuery}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-slate-500 mb-1">Response:</p>
+            <p
+              className="text-sm text-slate-700 max-h-24 overflow-y-auto"
+              style={{ whiteSpace: 'pre-wrap', wordWrap: 'break-word', fontFamily: 'system-ui, -apple-system, sans-serif' }}
+            >
+              {previewResponse}
+            </p>
+          </div>
         </div>
 
-        <div className="modal-body">
-          <div className="research-preview">
-            <div className="preview-section">
-              <label>Query:</label>
-              <div className="preview-text">{decodeHtmlEntities(query)}</div>
-            </div>
-            
-            <div className="preview-section">
-              <label>Response:</label>
-              <div className="preview-text response" style={{ 
-                whiteSpace: 'pre-wrap',
-                wordWrap: 'break-word',
-                fontFamily: 'system-ui, -apple-system, sans-serif'
-              }}>
-                {(() => {
-                  const decodedResponse = decodeHtmlEntities(response);
-                  return decodedResponse.length > 200 
-                    ? decodedResponse.substring(0, 200) + '...' 
-                    : decodedResponse;
-                })()}
-              </div>
-            </div>
+        {/* Verse Selector */}
+        <div className="space-y-2">
+          <h3 className="text-sm font-semibold text-slate-700">Select Verse Location</h3>
+
+          <div className="flex items-center gap-2">
+            <label className="w-16 text-xs font-medium text-slate-600 shrink-0">Book:</label>
+            <select
+              value={selectedBook}
+              onChange={(e) => {
+                setSelectedBook(e.target.value);
+                setSelectedChapter(1);
+                setSelectedVerse(1);
+              }}
+              className="flex-1 px-2 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            >
+              {BIBLE_BOOKS.map(book => (
+                <option key={book.id} value={book.id}>
+                  {book.name}
+                </option>
+              ))}
+            </select>
           </div>
 
-          <div className="verse-selector">
-            <h3>Select Verse Location</h3>
-            
-            <div className="selector-row">
-              <label>Book:</label>
-              <select 
-                value={selectedBook} 
-                onChange={(e) => {
-                  setSelectedBook(e.target.value);
-                  setSelectedChapter(1);
-                  setSelectedVerse(1);
-                }}
-              >
-                {BIBLE_BOOKS.map(book => (
-                  <option key={book.id} value={book.id}>
-                    {book.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="selector-row">
-              <label>Chapter:</label>
-              <select 
-                value={selectedChapter} 
-                onChange={(e) => {
-                  setSelectedChapter(Number(e.target.value));
-                  setSelectedVerse(1);
-                }}
-              >
-                {Array.from({ length: maxChapters }, (_, i) => i + 1).map(num => (
-                  <option key={num} value={num}>
-                    Chapter {num}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="selector-row">
-              <label>Verse:</label>
-              <input
-                type="number"
-                min="1"
-                value={selectedVerse}
-                onChange={(e) => setSelectedVerse(Number(e.target.value))}
-              />
-            </div>
+          <div className="flex items-center gap-2">
+            <label className="w-16 text-xs font-medium text-slate-600 shrink-0">Chapter:</label>
+            <select
+              value={selectedChapter}
+              onChange={(e) => {
+                setSelectedChapter(Number(e.target.value));
+                setSelectedVerse(1);
+              }}
+              className="flex-1 px-2 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            >
+              {Array.from({ length: maxChapters }, (_, i) => i + 1).map(num => (
+                <option key={num} value={num}>
+                  Chapter {num}
+                </option>
+              ))}
+            </select>
           </div>
 
-          <div className="tags-section">
-            <label>Tags (optional, comma-separated):</label>
+          <div className="flex items-center gap-2">
+            <label className="w-16 text-xs font-medium text-slate-600 shrink-0">Verse:</label>
             <input
-              type="text"
-              placeholder="e.g., faith, prophecy, history"
-              value={tags}
-              onChange={(e) => setTags(e.target.value)}
+              type="number"
+              min="1"
+              value={selectedVerse}
+              onChange={(e) => setSelectedVerse(Number(e.target.value))}
+              className="flex-1 px-2 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300"
             />
           </div>
         </div>
 
-        <div className="modal-footer">
-          <button className="cancel-btn" onClick={onClose}>
-            Cancel
-          </button>
-          <button 
-            className="save-btn" 
-            onClick={handleSave}
-            disabled={isSaving}
-          >
-            {isSaving ? 'Saving...' : 'Save Research'}
-          </button>
+        {/* Tags */}
+        <div>
+          <label className="block text-xs font-medium text-slate-600 mb-1">
+            Tags (optional, comma-separated):
+          </label>
+          <input
+            type="text"
+            placeholder="e.g., faith, prophecy, history"
+            value={tags}
+            onChange={(e) => setTags(e.target.value)}
+            className="w-full px-2 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300"
+          />
         </div>
       </div>
-
-      <style>{`
-        .modal-overlay {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
-          bottom: 0;
-          background: rgba(0, 0, 0, 0.5);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 10000;
-        }
-
-        .modal-content {
-          background: white;
-          border-radius: 12px;
-          width: 90%;
-          max-width: 500px;
-          max-height: 80vh;
-          overflow: hidden;
-          display: flex;
-          flex-direction: column;
-          box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        }
-
-        .modal-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 20px;
-          border-bottom: 1px solid #e0e0e0;
-        }
-
-        .modal-header h2 {
-          margin: 0;
-          font-size: 18px;
-          font-weight: 600;
-        }
-
-        .close-btn {
-          background: none;
-          border: none;
-          font-size: 24px;
-          cursor: pointer;
-          color: #666;
-          padding: 0;
-          width: 32px;
-          height: 32px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-        }
-
-        .close-btn:hover {
-          background: #f0f0f0;
-          border-radius: 6px;
-        }
-
-        .modal-body {
-          padding: 20px;
-          overflow-y: auto;
-          flex: 1;
-        }
-
-        .research-preview {
-          background: #f8f8f8;
-          border-radius: 8px;
-          padding: 12px;
-          margin-bottom: 20px;
-        }
-
-        .preview-section {
-          margin-bottom: 12px;
-        }
-
-        .preview-section:last-child {
-          margin-bottom: 0;
-        }
-
-        .preview-section label {
-          display: block;
-          font-size: 12px;
-          font-weight: 600;
-          color: #666;
-          margin-bottom: 4px;
-        }
-
-        .preview-text {
-          font-size: 13px;
-          color: #333;
-          line-height: 1.5;
-        }
-
-        .preview-text.response {
-          max-height: 100px;
-          overflow-y: auto;
-        }
-
-        .verse-selector {
-          margin-bottom: 20px;
-        }
-
-        .verse-selector h3 {
-          font-size: 14px;
-          font-weight: 600;
-          margin: 0 0 12px 0;
-        }
-
-        .selector-row {
-          display: flex;
-          align-items: center;
-          margin-bottom: 12px;
-        }
-
-        .selector-row label {
-          width: 80px;
-          font-size: 13px;
-          font-weight: 500;
-        }
-
-        .selector-row select,
-        .selector-row input {
-          flex: 1;
-          padding: 8px;
-          border: 1px solid #ddd;
-          border-radius: 6px;
-          font-size: 13px;
-        }
-
-        .tags-section label {
-          display: block;
-          font-size: 13px;
-          font-weight: 500;
-          margin-bottom: 6px;
-        }
-
-        .tags-section input {
-          width: 100%;
-          padding: 8px;
-          border: 1px solid #ddd;
-          border-radius: 6px;
-          font-size: 13px;
-        }
-
-        .modal-footer {
-          display: flex;
-          justify-content: flex-end;
-          gap: 12px;
-          padding: 16px 20px;
-          border-top: 1px solid #e0e0e0;
-        }
-
-        .cancel-btn,
-        .save-btn {
-          padding: 8px 16px;
-          border-radius: 6px;
-          font-size: 14px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: background 0.2s;
-        }
-
-        .cancel-btn {
-          background: white;
-          border: 1px solid #ddd;
-          color: #666;
-        }
-
-        .cancel-btn:hover {
-          background: #f0f0f0;
-        }
-
-        .save-btn {
-          background: #4f46e5;
-          border: none;
-          color: white;
-        }
-
-        .save-btn:hover:not(:disabled) {
-          background: #4338ca;
-        }
-
-        .save-btn:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-
-        @media (max-width: 600px) {
-          .modal-content {
-            width: 95%;
-            max-height: 90vh;
-          }
-        }
-      `}</style>
-    </div>
+    </Dialog>
   );
 };
 

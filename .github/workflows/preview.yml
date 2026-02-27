@@ -1,0 +1,67 @@
+name: Deploy Branch Preview
+
+on:
+  push:
+    branches:
+      - 'feature/**'
+      - 'fix/**'
+      - 'chore/**'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute safe branch name
+        id: branch
+        run: |
+          # Replace / with - so feature/foo becomes feature-foo
+          SAFE="${GITHUB_REF_NAME//\//-}"
+          echo "name=$SAFE" >> $GITHUB_OUTPUT
+          echo "url=https://annaxiebot.github.io/bible/preview/$SAFE/" >> $GITHUB_OUTPUT
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Build with preview base path
+        run: npm run build
+        env:
+          VITE_BASE_PATH: /bible/preview/${{ steps.branch.outputs.name }}/
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+
+      - name: Deploy to gh-pages branch under preview/
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./dist
+          destination_dir: preview/${{ steps.branch.outputs.name }}
+
+      - name: Find open PR for this branch
+        id: find-pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          PR=$(gh pr list --head "$GITHUB_REF_NAME" --json number --jq '.[0].number // empty')
+          echo "number=$PR" >> $GITHUB_OUTPUT
+
+      - name: Post or update preview comment on PR
+        if: steps.find-pr.outputs.number != ''
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BODY="🔍 **Preview deployed:** ${{ steps.branch.outputs.url }}"
+          # Update existing comment if present, otherwise create a new one
+          gh pr comment ${{ steps.find-pr.outputs.number }} \
+            --body "$BODY" --edit-last 2>/dev/null || \
+          gh pr comment ${{ steps.find-pr.outputs.number }} --body "$BODY"

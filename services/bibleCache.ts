@@ -1,10 +1,16 @@
+import { buildChapterUrl } from './apiConfig';
 import { BIBLE_BOOKS } from '../constants';
+import { bibleStorage } from './bibleStorage';
+import { DOWNLOAD } from '../constants/appConfig';
+import { Verse } from '../types';
+import { STORAGE_KEYS } from '../constants/storageKeys';
+import { safeGetJSON, safeSetJSON } from '../utils/localStorageUtil';
 
 export interface CachedChapter {
   bookId: string;
   chapter: number;
-  cuvVerses: any[];
-  webVerses: any[];
+  cuvVerses: Verse[];
+  webVerses: Verse[];
   timestamp: number;
 }
 
@@ -15,27 +21,39 @@ export interface DownloadProgress {
   chapter: number;
 }
 
-const CACHE_KEY_PREFIX = 'bible_cache_';
-const CACHE_INDEX_KEY = 'bible_cache_index';
+const CACHE_KEY_PREFIX = STORAGE_KEYS.BIBLE_CACHE_PREFIX;
+const CACHE_INDEX_KEY = STORAGE_KEYS.BIBLE_CACHE_INDEX;
 
 export class BibleCacheService {
-  // Get cached chapter from localStorage
+  // Get cached chapter — checks localStorage first, then falls through to IndexedDB
   static getCachedChapter(bookId: string, chapter: number): CachedChapter | null {
     const key = `${CACHE_KEY_PREFIX}${bookId}_${chapter}`;
-    const cached = localStorage.getItem(key);
-    if (cached) {
-      try {
-        return JSON.parse(cached);
-      } catch (e) {
-        console.error('Failed to parse cached chapter', e);
-        return null;
+    return safeGetJSON<CachedChapter | null>(key, null);
+  }
+
+  // Async fallback: check IndexedDB if localStorage miss
+  static async getCachedChapterAsync(bookId: string, chapter: number): Promise<CachedChapter | null> {
+    // Try localStorage first (sync, fast)
+    const local = this.getCachedChapter(bookId, chapter);
+    if (local) return local;
+
+    // Fall through to IndexedDB
+    try {
+      const [cuvData, webData] = await Promise.all([
+        bibleStorage.getChapter(bookId, chapter, 'cuv'),
+        bibleStorage.getChapter(bookId, chapter, 'web'),
+      ]);
+      if (cuvData?.verses && webData?.verses) {
+        return { bookId, chapter, cuvVerses: cuvData.verses, webVerses: webData.verses, timestamp: Date.now() };
       }
+    } catch (e) {
+      // IndexedDB not available, return null
     }
     return null;
   }
 
-  // Save chapter to localStorage
-  static cacheChapter(bookId: string, chapter: number, cuvVerses: any[], webVerses: any[]) {
+  // Save chapter to both localStorage (hot cache) and IndexedDB (durable)
+  static cacheChapter(bookId: string, chapter: number, cuvVerses: Verse[], webVerses: Verse[]) {
     const key = `${CACHE_KEY_PREFIX}${bookId}_${chapter}`;
     const data: CachedChapter = {
       bookId,
@@ -44,73 +62,55 @@ export class BibleCacheService {
       webVerses,
       timestamp: Date.now()
     };
-    
-    try {
-      localStorage.setItem(key, JSON.stringify(data));
+
+    // Save to localStorage (best-effort, may be full)
+    const saved = safeSetJSON(key, data);
+    if (saved) {
       this.updateCacheIndex(bookId, chapter);
-    } catch (e) {
-      console.error('Failed to cache chapter', e);
-      // If localStorage is full, clear old cache
-      if (e instanceof DOMException && e.code === 22) {
-        this.clearOldCache();
-        try {
-          localStorage.setItem(key, JSON.stringify(data));
-          this.updateCacheIndex(bookId, chapter);
-        } catch (e2) {
-          console.error('Still failed after clearing cache', e2);
-        }
+    } else {
+      // Storage full — clear old entries and retry once
+      this.clearOldCache();
+      if (safeSetJSON(key, data)) {
+        this.updateCacheIndex(bookId, chapter);
       }
+      // If still failing, data is still in IndexedDB
     }
+
+    // Save to IndexedDB (durable, for search/offline)
+    bibleStorage.saveChapter(bookId, chapter, 'cuv', { verses: cuvVerses }).catch(() => {});
+    bibleStorage.saveChapter(bookId, chapter, 'web', { verses: webVerses }).catch(() => {});
   }
 
   // Update cache index
   private static updateCacheIndex(bookId: string, chapter: number) {
-    const indexStr = localStorage.getItem(CACHE_INDEX_KEY);
-    let index: Record<string, number[]> = {};
-    
-    if (indexStr) {
-      try {
-        index = JSON.parse(indexStr);
-      } catch (e) {
-        console.error('Failed to parse cache index', e);
-      }
-    }
-    
+    const index = safeGetJSON<Record<string, number[]>>(CACHE_INDEX_KEY, {});
+
     if (!index[bookId]) {
       index[bookId] = [];
     }
-    
+
     if (!index[bookId].includes(chapter)) {
       index[bookId].push(chapter);
       index[bookId].sort((a, b) => a - b);
     }
-    
-    localStorage.setItem(CACHE_INDEX_KEY, JSON.stringify(index));
+
+    safeSetJSON(CACHE_INDEX_KEY, index);
   }
 
   // Get cache statistics
   static getCacheStats(): { totalChapters: number; cachedChapters: number; books: Record<string, number[]> } {
-    const indexStr = localStorage.getItem(CACHE_INDEX_KEY);
-    let index: Record<string, number[]> = {};
-    
-    if (indexStr) {
-      try {
-        index = JSON.parse(indexStr);
-      } catch (e) {
-        console.error('Failed to parse cache index', e);
-      }
-    }
-    
+    const index = safeGetJSON<Record<string, number[]>>(CACHE_INDEX_KEY, {});
+
     let totalChapters = 0;
     let cachedChapters = 0;
-    
+
     BIBLE_BOOKS.forEach(book => {
       totalChapters += book.chapters;
       if (index[book.id]) {
         cachedChapters += index[book.id].length;
       }
     });
-    
+
     return { totalChapters, cachedChapters, books: index };
   }
 
@@ -118,28 +118,25 @@ export class BibleCacheService {
   static clearOldCache() {
     const allKeys = Object.keys(localStorage).filter(k => k.startsWith(CACHE_KEY_PREFIX));
     const chapters: Array<{ key: string; timestamp: number }> = [];
-    
+
     allKeys.forEach(key => {
-      const data = localStorage.getItem(key);
-      if (data) {
-        try {
-          const parsed = JSON.parse(data);
-          chapters.push({ key, timestamp: parsed.timestamp || 0 });
-        } catch (e) {
-          // Remove corrupted data
-          localStorage.removeItem(key);
-        }
+      const parsed = safeGetJSON<CachedChapter | null>(key, null);
+      if (parsed) {
+        chapters.push({ key, timestamp: parsed.timestamp || 0 });
+      } else {
+        // Remove corrupted data
+        localStorage.removeItem(key);
       }
     });
-    
-    // Sort by timestamp and keep newest 100
+
+    // Sort by timestamp and keep newest entries
     chapters.sort((a, b) => b.timestamp - a.timestamp);
-    const toRemove = chapters.slice(100);
-    
+    const toRemove = chapters.slice(DOWNLOAD.CACHE_KEEP_NEWEST);
+
     toRemove.forEach(item => {
       localStorage.removeItem(item.key);
     });
-    
+
     // Rebuild index
     this.rebuildCacheIndex();
   }
@@ -156,7 +153,7 @@ export class BibleCacheService {
   private static rebuildCacheIndex() {
     const index: Record<string, number[]> = {};
     const allKeys = Object.keys(localStorage).filter(k => k.startsWith(CACHE_KEY_PREFIX));
-    
+
     allKeys.forEach(key => {
       const match = key.match(new RegExp(`^${CACHE_KEY_PREFIX}(.+)_(\\d+)$`));
       if (match) {
@@ -168,17 +165,17 @@ export class BibleCacheService {
         index[bookId].push(chapter);
       }
     });
-    
+
     // Sort chapters
     Object.keys(index).forEach(bookId => {
       index[bookId].sort((a, b) => a - b);
     });
-    
-    localStorage.setItem(CACHE_INDEX_KEY, JSON.stringify(index));
+
+    safeSetJSON(CACHE_INDEX_KEY, index);
   }
 
   // Download single chapter
-  static async downloadChapter(bookId: string, chapter: number): Promise<{ cuvVerses: any[]; webVerses: any[] }> {
+  static async downloadChapter(bookId: string, chapter: number): Promise<{ cuvVerses: Verse[]; webVerses: Verse[] }> {
     // Check cache first
     const cached = this.getCachedChapter(bookId, chapter);
     if (cached) {
@@ -186,9 +183,10 @@ export class BibleCacheService {
     }
     
     // Fetch from API
+    const book = BIBLE_BOOKS.find(b => b.id === bookId);
     const [cuvRes, webRes] = await Promise.all([
-      fetch(`https://bible-api.com/${bookId}${chapter}?translation=cuv`),
-      fetch(`https://bible-api.com/${bookId}${chapter}?translation=web`)
+      fetch(buildChapterUrl(bookId, chapter, 'cuv', book?.totalVerses)),
+      fetch(buildChapterUrl(bookId, chapter, 'web', book?.totalVerses))
     ]);
     
     const [cuvData, webData] = await Promise.all([
@@ -227,7 +225,7 @@ export class BibleCacheService {
       await this.downloadChapter(bookId, chapter);
       
       // Add small delay to avoid overwhelming the API
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, DOWNLOAD.CACHE_DOWNLOAD_DELAY_MS));
     }
     
     if (onProgress) {
@@ -264,14 +262,18 @@ export class BibleCacheService {
         await this.downloadChapter(book.id, chapter);
         
         // Add small delay to avoid overwhelming the API
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise(resolve => setTimeout(resolve, DOWNLOAD.CACHE_DOWNLOAD_DELAY_MS));
       }
     }
   }
 
   // Export entire Bible to JSON file
   static async exportBibleToFile(): Promise<void> {
-    const bibleData: any = {
+    const bibleData: {
+      version: string;
+      timestamp: string;
+      books: Record<string, { name: string; chapters: Record<number, { cuv: Verse[]; web: Verse[] }> }>;
+    } = {
       version: '1.0',
       timestamp: new Date().toISOString(),
       books: {}

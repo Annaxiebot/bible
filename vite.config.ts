@@ -13,7 +13,8 @@ const httpsRedirect = (): Plugin => ({
       
       // In development, if accessing via HTTP (not HTTPS)
       if (req.headers['upgrade-insecure-requests'] ||
-          (proto === 'http')) {
+          (proto === 'http') ||
+          (!(req.connection as NodeJS.Socket & { encrypted?: boolean }).encrypted && !host.includes('localhost'))) {
         // Skip redirect for localhost to avoid issues
         if (host.includes('localhost') || host.includes('127.0.0.1')) {
           return next();
@@ -36,21 +37,44 @@ const httpsRedirect = (): Plugin => ({
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, ".", "");
     return {
-      base: "/bible/",
+      base: process.env.VITE_BASE_PATH || "/bible/",
       server: {
         port: 3000,
         host: "0.0.0.0",
         // https: true, // Disabled due to SSL certificate issues on some devices
+        proxy: {
+          '/bible-api': {
+            target: 'https://bible-api.com',
+            changeOrigin: true,
+            rewrite: (path) => path.replace(/^\/bible-api/, ''),
+          }
+        }
       },
       plugins: [react()],
       define: {
         "process.env.API_KEY": JSON.stringify(env.GEMINI_API_KEY),
-        "process.env.GEMINI_API_KEY": JSON.stringify(env.GEMINI_API_KEY)
+        "process.env.GEMINI_API_KEY": JSON.stringify(env.GEMINI_API_KEY),
+        "process.env.KIMI_API_KEY": JSON.stringify(env.KIMI_API_KEY)
       },
       resolve: {
         alias: {
           "@": path.resolve(__dirname, "."),
         }
+      },
+      build: {
+        rollupOptions: {
+          output: {
+            manualChunks(id) {
+              if (id.includes('node_modules/react') || id.includes('node_modules/react-dom') || id.includes('node_modules/scheduler')) {
+                return 'vendor-react';
+              }
+              if (id.includes('node_modules/@supabase')) return 'vendor-supabase';
+              if (id.includes('node_modules/@anthropic-ai')) return 'vendor-anthropic';
+              if (id.includes('node_modules/@google')) return 'vendor-google';
+            }
+          }
+        },
+        chunkSizeWarningLimit: 1000
       }
     };
 });
