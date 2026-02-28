@@ -8,6 +8,7 @@
  */
 
 import { verseDataStorage } from './verseDataStorage';
+import { createMediaAttachment } from '../utils/mediaUtils';
 import { ChatMessage } from '../types';
 import { AIResearchEntry } from '../types/verseData';
 import { AUTO_SAVE } from '../constants/appConfig';
@@ -36,7 +37,9 @@ export interface SaveAIResearchParams {
   chapter?: number;
   verses?: number[];
   tags?: string[];
-  aiProvider?: 'claude' | 'gemini';
+  aiProvider?: 'claude' | 'gemini' | 'kimi' | 'openai';
+  imageData?: string;
+  imageMimeType?: string;
 }
 
 /**
@@ -160,7 +163,7 @@ class AutoSaveResearchService {
         };
       }
 
-      const { message, query, bookId, chapter, verses, tags = [], aiProvider } = params;
+      const { message, query, bookId, chapter, verses, tags = [], aiProvider, imageData, imageMimeType } = params;
 
       // Validate content
       const trimmedContent = message.content.trim();
@@ -206,6 +209,10 @@ class AutoSaveResearchService {
         ? this.truncateContent(`${parsed.zh}\n\n---\n\n${parsed.en}`, AUTO_SAVE_CONFIG.MAX_RESPONSE_SIZE)
         : this.truncateContent((parsed as { single: string }).single, AUTO_SAVE_CONFIG.MAX_RESPONSE_SIZE);
 
+      const imageAttachment = imageData && imageMimeType
+        ? createMediaAttachment(imageData, imageMimeType)
+        : undefined;
+
       const id = await verseDataStorage.addAIResearch(
         targetBookId,
         targetChapter,
@@ -214,6 +221,7 @@ class AutoSaveResearchService {
           query,
           response: responseToSave,
           tags: baseTags,
+          image: imageAttachment,
         }
       );
 
