@@ -6,9 +6,11 @@ import { BIBLE_BOOKS } from '../constants';
 import { VerseData, AIResearchEntry } from '../types/verseData';
 import { exportImportService } from '../services/exportImportService';
 import { stripHTML } from '../utils/textUtils';
+import { GENERAL_NOTES_BOOK_ID } from '../services/autoSaveResearchService';
 
 interface NotesListProps {
   onSelectNote?: (bookId: string, chapter: number, verses?: number[]) => void;
+  onSelectGeneralNotes?: () => void;
   onClose?: () => void;
 }
 
@@ -28,7 +30,7 @@ interface NoteItem {
 
 type SortMode = 'bible-order' | 'latest-first';
 
-const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
+const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onSelectGeneralNotes, onClose }) => {
   const storageTick = useStorageUpdate();
   const [notes, setNotes] = useState<NoteItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -59,12 +61,15 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
       
       // Process verse data
       verseData.forEach((data: VerseData) => {
-        const book = BIBLE_BOOKS.find(b => b.id === data.bookId);
-        if (book && (data.personalNote || data.aiResearch.length > 0)) {
+        const isGeneral = data.bookId === GENERAL_NOTES_BOOK_ID;
+        const book = isGeneral ? null : BIBLE_BOOKS.find(b => b.id === data.bookId);
+        const hasContent = data.personalNote || data.aiResearch.length > 0;
+
+        if (hasContent && (book || isGeneral)) {
           noteItems.push({
             id: data.id,
             bookId: data.bookId,
-            bookName: book.name,
+            bookName: isGeneral ? 'General Notes' : book!.name,
             chapter: data.chapter,
             verses: data.verses,
             personalNote: data.personalNote?.text,
@@ -137,16 +142,21 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
       );
     }
     
-    // Apply sort
+    // Apply sort — General Notes always float to the top
     const sorted = [...filtered];
     if (sortMode === 'latest-first') {
-      sorted.sort((a, b) => (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt));
-    } else {
-      // Bible order: sort by book index, then chapter, then verse
       sorted.sort((a, b) => {
+        if (a.bookId === GENERAL_NOTES_BOOK_ID) return -1;
+        if (b.bookId === GENERAL_NOTES_BOOK_ID) return 1;
+        return (b.updatedAt || b.createdAt) - (a.updatedAt || a.createdAt);
+      });
+    } else {
+      // Bible order: sort by book index, then chapter, then verse; GENERAL floats to top
+      sorted.sort((a, b) => {
+        if (a.bookId === GENERAL_NOTES_BOOK_ID) return -1;
+        if (b.bookId === GENERAL_NOTES_BOOK_ID) return 1;
         const bookIndexA = BIBLE_BOOKS.findIndex(book => book.id === a.bookId);
         const bookIndexB = BIBLE_BOOKS.findIndex(book => book.id === b.bookId);
-        
         if (bookIndexA !== bookIndexB) return bookIndexA - bookIndexB;
         if (a.chapter !== b.chapter) return a.chapter - b.chapter;
         if (a.verses[0] !== b.verses[0]) return (a.verses[0] || 0) - (b.verses[0] || 0);
@@ -170,8 +180,9 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
   };
 
   const formatVerseReference = (note: NoteItem) => {
+    if (note.bookId === GENERAL_NOTES_BOOK_ID) return '📝 General Notes';
     let ref = `${note.bookName} ${note.chapter}`;
-    if (note.verses.length > 0) {
+    if (note.verses.length > 0 && note.verses[0] !== 0) {
       if (note.verses.length === 1) {
         ref += `:${note.verses[0]}`;
       } else {
@@ -464,7 +475,9 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
                   key={note.id}
                   className="p-4 hover:bg-slate-50 transition-colors cursor-pointer"
                   onClick={() => {
-                    if (onSelectNote) {
+                    if (note.bookId === GENERAL_NOTES_BOOK_ID) {
+                      onSelectGeneralNotes?.();
+                    } else if (onSelectNote) {
                       onSelectNote(note.bookId, note.chapter, note.verses);
                     }
                   }}

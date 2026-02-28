@@ -10,7 +10,7 @@ import { BIBLE_BOOKS, CHINESE_ABBREV_TO_BOOK_ID } from '../constants';
 import { BOOK_ID_TO_CHINESE_NAME } from '../services/bibleBookData';
 import { verseDataStorage } from '../services/verseDataStorage';
 import { backgroundBibleDownload } from '../services/backgroundBibleDownload';
-import { autoSaveResearchService } from '../services/autoSaveResearchService';
+import { autoSaveResearchService, GENERAL_NOTES_BOOK_ID } from '../services/autoSaveResearchService';
 import { ToastContainer, useToast } from './Toast';
 import { compressImage, compressImageFromUrl } from '../services/imageCompressionService';
 import {
@@ -759,6 +759,16 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
           Settings
         </button>
       </div>
+
+      {/* General Notes banner — shown when no verse is selected */}
+      {(!currentBookId || currentBookId === GENERAL_NOTES_BOOK_ID) && (
+        <div className="bg-amber-50 border-b border-amber-200 px-4 py-1.5 flex items-center gap-2 flex-shrink-0">
+          <span className="text-sm">📝</span>
+          <span className="text-xs text-amber-800 font-medium">
+            General Notes — research will be saved to General Notes (not tied to a verse)
+          </span>
+        </div>
+      )}
 
       <div className="flex-1 flex overflow-hidden relative min-h-0">
         {/* Chinese Side */}

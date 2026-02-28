@@ -3,6 +3,7 @@ import { BIBLE_BOOKS } from '../constants';
 import { verseDataStorage } from '../services/verseDataStorage';
 import { Dialog } from './Dialog';
 import { createMediaAttachment } from '../utils/mediaUtils';
+import { GENERAL_NOTES_BOOK_ID, GENERAL_NOTES_CHAPTER } from '../services/autoSaveResearchService';
 
 interface SaveResearchModalProps {
   isOpen: boolean;
@@ -29,7 +30,9 @@ const SaveResearchModal: React.FC<SaveResearchModalProps> = ({
   imageData,
   imageMimeType
 }) => {
-  const [selectedBook, setSelectedBook] = useState<string>(currentBookId || 'genesis');
+  const isNoVerseContext = !currentBookId || currentBookId === GENERAL_NOTES_BOOK_ID;
+  const [saveToGeneral, setSaveToGeneral] = useState(isNoVerseContext);
+  const [selectedBook, setSelectedBook] = useState<string>(isNoVerseContext ? 'genesis' : currentBookId);
   const [selectedChapter, setSelectedChapter] = useState<number>(currentChapter || 1);
   const [selectedVerse, setSelectedVerse] = useState<number>(1);
   const [tags, setTags] = useState<string>('');
@@ -43,7 +46,9 @@ const SaveResearchModal: React.FC<SaveResearchModalProps> = ({
   };
 
   useEffect(() => {
-    if (currentBookId) setSelectedBook(currentBookId);
+    const noVerse = !currentBookId || currentBookId === GENERAL_NOTES_BOOK_ID;
+    setSaveToGeneral(noVerse);
+    if (currentBookId && !noVerse) setSelectedBook(currentBookId);
     if (currentChapter) setSelectedChapter(currentChapter);
 
     // Try to extract verse number from the query
@@ -75,27 +80,28 @@ const SaveResearchModal: React.FC<SaveResearchModalProps> = ({
         ? createMediaAttachment(imageData, imageMimeType)
         : undefined;
 
+      const saveBookId = saveToGeneral ? GENERAL_NOTES_BOOK_ID : selectedBook;
+      const saveChapter = saveToGeneral ? GENERAL_NOTES_CHAPTER : selectedChapter;
+      const saveVerses = saveToGeneral ? [0] : [selectedVerse];
+
       await verseDataStorage.addAIResearch(
-        selectedBook,
-        selectedChapter,
-        [selectedVerse],
+        saveBookId,
+        saveChapter,
+        saveVerses,
         {
           query: decodeHtmlEntities(query),
           response: decodeHtmlEntities(response),
           selectedText: selectedText ? decodeHtmlEntities(selectedText) : undefined,
-          tags: tagArray,
+          tags: saveToGeneral ? [...tagArray, 'general-research'] : tagArray,
           image: imageAttachment
         }
       );
 
-      // Update reading history to indicate this chapter has AI research
-      const { readingHistory } = await import('../services/readingHistory');
-      await readingHistory.updateChapterStatus(
-        selectedBook,
-        selectedChapter,
-        undefined,
-        true
-      );
+      // Only update reading history for verse-specific saves
+      if (!saveToGeneral) {
+        const { readingHistory } = await import('../services/readingHistory');
+        await readingHistory.updateChapterStatus(selectedBook, selectedChapter, undefined, true);
+      }
 
       // Call success callback if provided
       if (onSuccess) {
@@ -142,7 +148,7 @@ const SaveResearchModal: React.FC<SaveResearchModalProps> = ({
     <Dialog
       isOpen={isOpen}
       onClose={onClose}
-      title="Save AI Research to Verse"
+      title="Save AI Research"
       maxWidth="max-w-lg"
       zIndex="z-[10000]"
       actions={actions}
@@ -175,57 +181,83 @@ const SaveResearchModal: React.FC<SaveResearchModalProps> = ({
           </div>
         </div>
 
-        {/* Verse Selector */}
+        {/* Save Destination */}
         <div className="space-y-2">
-          <h3 className="text-sm font-semibold text-slate-700">Select Verse Location</h3>
+          <h3 className="text-sm font-semibold text-slate-700">Save Location</h3>
 
-          <div className="flex items-center gap-2">
-            <label className="w-16 text-xs font-medium text-slate-600 shrink-0">Book:</label>
-            <select
-              value={selectedBook}
-              onChange={(e) => {
-                setSelectedBook(e.target.value);
-                setSelectedChapter(1);
-                setSelectedVerse(1);
-              }}
-              className="flex-1 px-2 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300"
+          {/* General Notes / Verse toggle */}
+          <div className="flex rounded-lg overflow-hidden border border-slate-200 text-xs font-medium">
+            <button
+              type="button"
+              onClick={() => setSaveToGeneral(true)}
+              className={`flex-1 py-2 transition-colors ${saveToGeneral ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
             >
-              {BIBLE_BOOKS.map(book => (
-                <option key={book.id} value={book.id}>
-                  {book.name}
-                </option>
-              ))}
-            </select>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <label className="w-16 text-xs font-medium text-slate-600 shrink-0">Chapter:</label>
-            <select
-              value={selectedChapter}
-              onChange={(e) => {
-                setSelectedChapter(Number(e.target.value));
-                setSelectedVerse(1);
-              }}
-              className="flex-1 px-2 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              📝 General Notes
+            </button>
+            <button
+              type="button"
+              onClick={() => setSaveToGeneral(false)}
+              className={`flex-1 py-2 transition-colors ${!saveToGeneral ? 'bg-indigo-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
             >
-              {Array.from({ length: maxChapters }, (_, i) => i + 1).map(num => (
-                <option key={num} value={num}>
-                  Chapter {num}
-                </option>
-              ))}
-            </select>
+              📖 Specific Verse
+            </button>
           </div>
 
-          <div className="flex items-center gap-2">
-            <label className="w-16 text-xs font-medium text-slate-600 shrink-0">Verse:</label>
-            <input
-              type="number"
-              min="1"
-              value={selectedVerse}
-              onChange={(e) => setSelectedVerse(Number(e.target.value))}
-              className="flex-1 px-2 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300"
-            />
-          </div>
+          {saveToGeneral ? (
+            <p className="text-xs text-slate-500 px-1">
+              Research will be saved to General Notes — not tied to any Bible verse.
+            </p>
+          ) : (
+            <>
+              <div className="flex items-center gap-2">
+                <label className="w-16 text-xs font-medium text-slate-600 shrink-0">Book:</label>
+                <select
+                  value={selectedBook}
+                  onChange={(e) => {
+                    setSelectedBook(e.target.value);
+                    setSelectedChapter(1);
+                    setSelectedVerse(1);
+                  }}
+                  className="flex-1 px-2 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                >
+                  {BIBLE_BOOKS.map(book => (
+                    <option key={book.id} value={book.id}>
+                      {book.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label className="w-16 text-xs font-medium text-slate-600 shrink-0">Chapter:</label>
+                <select
+                  value={selectedChapter}
+                  onChange={(e) => {
+                    setSelectedChapter(Number(e.target.value));
+                    setSelectedVerse(1);
+                  }}
+                  className="flex-1 px-2 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                >
+                  {Array.from({ length: maxChapters }, (_, i) => i + 1).map(num => (
+                    <option key={num} value={num}>
+                      Chapter {num}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label className="w-16 text-xs font-medium text-slate-600 shrink-0">Verse:</label>
+                <input
+                  type="number"
+                  min="1"
+                  value={selectedVerse}
+                  onChange={(e) => setSelectedVerse(Number(e.target.value))}
+                  className="flex-1 px-2 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                />
+              </div>
+            </>
+          )}
         </div>
 
         {/* Tags */}

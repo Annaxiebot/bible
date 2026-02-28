@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect, lazy, Suspense } from 'react';
 import { SelectionInfo } from './types';
+import { GENERAL_NOTES_BOOK_ID, GENERAL_NOTES_CHAPTER, GENERAL_NOTES_ID } from './services/autoSaveResearchService';
 import { exportImportService, BackupSummaryData } from './services/exportImportService';
 import { notesStorage } from './services/notesStorage';
 import { readingHistory } from './services/readingHistory';
@@ -125,6 +126,20 @@ const App: React.FC = () => {
 
   const handleSelectionChange = useCallback((selection: SelectionInfo | null) => {
     setCurrentSelection(selection);
+  }, []);
+
+  const handleSelectGeneralNotes = useCallback(() => {
+    // Set a synthetic selection pointing to the General Notes bucket
+    setCurrentSelection({
+      id: GENERAL_NOTES_ID,
+      bookId: GENERAL_NOTES_BOOK_ID,
+      chapter: GENERAL_NOTES_CHAPTER,
+      verseStart: 0,
+      verseEnd: 0,
+      text: '',
+    } as SelectionInfo);
+    setCurrentBibleContext({ bookId: GENERAL_NOTES_BOOK_ID, chapter: GENERAL_NOTES_CHAPTER });
+    setShowNotesList(false);
   }, []);
 
   const handleContextChange = useCallback((bookId: string, chapter: number) => {
@@ -556,6 +571,7 @@ const App: React.FC = () => {
                 setNavigateTo({ bookId, chapter, verses });
                 setTimeout(() => setNavigateTo(null), 5000);
               }}
+              onSelectGeneralNotes={handleSelectGeneralNotes}
             />
           </div>
         </div>

@@ -699,7 +699,7 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
         </div>
       )}
 
-      {selection?.selectedRawText && (
+      {selection?.selectedRawText && selection.bookId !== 'GENERAL' && (
         <div className="verse-quote-block">
           <div className="verse-quote-header">
             {selection.bookName} {selection.chapter}:{selection.verseNums.join('-')}
@@ -1082,7 +1082,11 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
   return (
     <div className="enhanced-notebook">
       <div className="notebook-header">
-        <h3>{selection.bookName} {selection.chapter}:{selection.verseNums.join('-')}</h3>
+        <h3>
+          {selection.bookId === 'GENERAL'
+            ? '📝 General Notes'
+            : `${selection.bookName} ${selection.chapter}:${selection.verseNums.join('-')}`}
+        </h3>
 
         <div className="tab-selector">
           <button

@@ -15,6 +15,11 @@ import { AUTO_SAVE } from '../constants/appConfig';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 import { safeGetJSON, safeSetJSON } from '../utils/localStorageUtil';
 
+/** Shared identifiers for the "General Notes" bucket (unversed research) */
+export const GENERAL_NOTES_BOOK_ID = 'GENERAL';
+export const GENERAL_NOTES_CHAPTER = 0;
+export const GENERAL_NOTES_ID = 'GENERAL:0:0';
+
 /**
  * Configuration for auto-save behavior
  */
@@ -22,8 +27,8 @@ const AUTO_SAVE_CONFIG = {
   MAX_RESPONSE_SIZE: AUTO_SAVE.MAX_RESPONSE_SIZE,
   DEFAULT_ENABLED: true,
   STORAGE_KEY: STORAGE_KEYS.AUTO_SAVE_RESEARCH,
-  GENERAL_BOOK_ID: 'GENERAL',
-  GENERAL_CHAPTER: 0,
+  GENERAL_BOOK_ID: GENERAL_NOTES_BOOK_ID,
+  GENERAL_CHAPTER: GENERAL_NOTES_CHAPTER,
   DUPLICATE_CACHE_SIZE: AUTO_SAVE.DUPLICATE_CACHE_SIZE,
 } as const;
 
