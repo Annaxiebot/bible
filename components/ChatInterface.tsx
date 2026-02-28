@@ -578,13 +578,18 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     // Auto-save research using new service
     if (assistantMessage && autoSaveResearchService.isAutoSaveEnabled()) {
       try {
+        // Add default question if image was uploaded without text
+        const finalQuery = currentInput.trim() || (currentImage ? 'Describe the attached picture' : '');
+        
         const result = await autoSaveResearchService.saveAIResearch({
           message: assistantMessage,
-          query: currentInput,
+          query: finalQuery,
           bookId: currentBookId,
           chapter: currentChapter,
           verses: currentVerses,
           aiProvider: currentProvider,
+          imageData: currentImage?.data,
+          imageMimeType: currentImage?.mimeType,
         });
 
         if (result.success) {
@@ -1045,6 +1050,20 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
         const userMessage = messageIndex > 0 ? messages[messageIndex - 1] : null;
         const query = userMessage?.role === 'user' ? userMessage.content : 'AI Research';
         
+        // Extract image from user message if present
+        const imageUrl = userMessage?.type === 'image' ? userMessage.mediaUrl : undefined;
+        let imageData: string | undefined;
+        let imageMimeType: string | undefined;
+        
+        if (imageUrl) {
+          // Extract base64 data and mime type from data URL
+          const match = imageUrl.match(/^data:([^;]+);base64,(.+)$/);
+          if (match) {
+            imageMimeType = match[1];
+            imageData = match[2];
+          }
+        }
+        
         return (
           <SaveResearchModal
             isOpen={showSaveModal}
@@ -1058,6 +1077,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
             selectedText=""
             currentBookId={currentBookId}
             currentChapter={currentChapter}
+            imageData={imageData}
+            imageMimeType={imageMimeType}
           />
         );
       })()}

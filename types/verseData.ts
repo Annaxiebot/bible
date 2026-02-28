@@ -17,6 +17,7 @@ export interface AIResearchEntry {
   timestamp: number;
   tags?: string[];
   highlighted?: string[]; // Array of highlighted text within the response
+  image?: MediaAttachment; // Attached image (for image-based research)
 }
 
 export interface VerseData {
