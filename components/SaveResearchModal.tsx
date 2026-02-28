@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BIBLE_BOOKS } from '../constants';
 import { verseDataStorage } from '../services/verseDataStorage';
 import { Dialog } from './Dialog';
+import { createMediaAttachment } from '../utils/mediaUtils';
 
 interface SaveResearchModalProps {
   isOpen: boolean;
@@ -70,26 +71,9 @@ const SaveResearchModal: React.FC<SaveResearchModalProps> = ({
         .map(t => t.trim())
         .filter(t => t.length > 0);
 
-      // Create MediaAttachment if image data is provided
-      let imageAttachment: import('../types/verseData').MediaAttachment | undefined;
-      if (imageData && imageMimeType) {
-        const imageId = `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        
-        // Extract base64 data (remove data URL prefix if present)
-        const base64Data = imageData.includes(',') ? imageData.split(',')[1] : imageData;
-        
-        // Calculate size
-        const sizeInBytes = Math.ceil((base64Data.length * 3) / 4);
-        
-        imageAttachment = {
-          id: imageId,
-          type: 'image',
-          data: base64Data,
-          mimeType: imageMimeType,
-          size: sizeInBytes,
-          timestamp: Date.now(),
-        };
-      }
+      const imageAttachment = imageData && imageMimeType
+        ? createMediaAttachment(imageData, imageMimeType)
+        : undefined;
 
       await verseDataStorage.addAIResearch(
         selectedBook,

@@ -2,6 +2,7 @@
  * Kimi Moonshot AI Integration
  * Using Moonshot AI's OpenAI-compatible API
  */
+import { withRetry } from '../utils/retryUtils';
 
 interface KimiMessage {
   role: 'system' | 'user' | 'assistant';
@@ -15,10 +16,7 @@ interface KimiChatResponse {
   model: string;
   choices: {
     index: number;
-    message: {
-      role: string;
-      content: string;
-    };
+    message: { role: string; content: string };
     finish_reason: string;
   }[];
   usage: {
@@ -29,44 +27,17 @@ interface KimiChatResponse {
 }
 
 const KIMI_API_BASE = 'https://api.moonshot.cn/v1';
-const KIMI_MODEL = 'moonshot-v1-128k'; // 128K context window
+const KIMI_MODEL = 'moonshot-v1-128k';
+const KIMI_TEMPERATURE = 0.3;
+const KIMI_MAX_TOKENS_THINKING = 4096;
+const KIMI_MAX_TOKENS_NORMAL = 2048;
 
-/**
- * Get Kimi API key from environment or localStorage
- */
-const getApiKey = (): string => {
-  const key = import.meta.env.VITE_KIMI_API_KEY 
-    || localStorage.getItem('kimi_api_key') 
-    || process.env.KIMI_API_KEY;
-  
-  if (!key) {
-    throw new Error('Kimi API key not configured');
-  }
-  return key;
-};
+const BIBLE_SCHOLAR_SYSTEM_PROMPT = `You are a world-class Bible Scholar and Researcher.
 
-/**
- * Text Chat with Kimi Moonshot AI
- */
-export const chatWithAI = async (
-  prompt: string,
-  history: { role: string; content: string }[],
-  options: { thinking?: boolean; fast?: boolean; search?: boolean; image?: { data: string; mimeType: string } } = {}
-) => {
-  const apiKey = getApiKey();
-
-  // Build messages array
-  const messages: KimiMessage[] = [];
-  
-  // System instruction
-  messages.push({
-    role: 'system',
-    content: `You are a world-class Bible Scholar and Researcher.
-
-CORE DIRECTIVE: Be extremely concise. Provide a brief overview or summary of the answer only. 
+CORE DIRECTIVE: Be extremely concise. Provide a brief overview or summary of the answer only.
 Avoid long paragraphs unless specifically asked for a deep dive.
 
-CRITICAL RULE: You must ALWAYS respond in two distinct sections: first Chinese, then English. 
+CRITICAL RULE: You must ALWAYS respond in two distinct sections: first Chinese, then English.
 You MUST separate these sections with the exact string "[SPLIT]" on its own line.
 
 RESPONSE STRUCTURE:
@@ -77,81 +48,86 @@ RESPONSE STRUCTURE:
 Please let me know if you would like more in-depth details or a specific deep dive.
 
 Maintain professional scholarship even in brevity.
-Use LaTeX notation for complex theological or linguistic terms if needed, e.g., $\\text{Elohim}$.`
-  });
+Use LaTeX notation for complex theological or linguistic terms if needed, e.g., $\\text{Elohim}$.`;
 
-  // Add conversation history
+const getApiKey = (): string => {
+  const key = import.meta.env.VITE_KIMI_API_KEY
+    || localStorage.getItem('kimi_api_key')
+    || process.env.KIMI_API_KEY;
+  if (!key) throw new Error('Kimi API key not configured');
+  return key;
+};
+
+function buildMessages(
+  prompt: string,
+  history: { role: string; content: string }[],
+  options: { search?: boolean; image?: { data: string; mimeType: string } }
+): KimiMessage[] {
+  const systemContent = options.search
+    ? `${BIBLE_SCHOLAR_SYSTEM_PROMPT}\n\nIf appropriate, provide references to external sources.`
+    : BIBLE_SCHOLAR_SYSTEM_PROMPT;
+
+  const messages: KimiMessage[] = [{ role: 'system', content: systemContent }];
+
   for (const msg of history) {
     messages.push({
       role: msg.role === 'user' ? 'user' : 'assistant',
-      content: msg.content
+      content: msg.content,
     });
   }
 
-  // Add current prompt
-  // Note: Kimi Moonshot doesn't support image inputs via API yet
-  if (options.image) {
-    console.warn('Kimi Moonshot API does not support image inputs yet');
-  }
-  messages.push({
-    role: 'user',
-    content: prompt
+  // Kimi does not support image inputs; image is intentionally ignored here
+  messages.push({ role: 'user', content: prompt });
+  return messages;
+}
+
+async function callKimiAPI(
+  apiKey: string,
+  messages: KimiMessage[],
+  maxTokens: number
+): Promise<KimiChatResponse> {
+  const response = await fetch(`${KIMI_API_BASE}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model: KIMI_MODEL,
+      messages,
+      temperature: KIMI_TEMPERATURE,
+      max_tokens: maxTokens,
+    }),
   });
 
-  // Note: Kimi doesn't have native search or thinking mode like Gemini
-  // But we can enhance the prompt if search is requested
-  if (options.search) {
-    messages[0].content += '\n\nIf appropriate, provide references to external sources.';
+  if (!response.ok) {
+    const errorText = await response.text();
+    const err = new Error(`Kimi API error: ${response.status} - ${errorText}`) as Error & { status: number };
+    err.status = response.status;
+    throw err;
   }
 
-  // Make API request with retry logic
-  let lastError;
-  for (let attempt = 0; attempt < 3; attempt++) {
-    try {
-      const response = await fetch(`${KIMI_API_BASE}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
-        },
-        body: JSON.stringify({
-          model: KIMI_MODEL,
-          messages,
-          temperature: 0.3,
-          max_tokens: options.thinking ? 4096 : 2048
-        })
-      });
+  return response.json() as Promise<KimiChatResponse>;
+}
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        if (response.status === 429) {
-          throw { status: 429, message: errorText };
-        }
-        throw new Error(`Kimi API error: ${response.status} - ${errorText}`);
-      }
+/**
+ * Text chat with Kimi Moonshot AI.
+ * Note: image inputs are not supported by the Kimi API and will be silently ignored.
+ */
+export const chatWithAI = async (
+  prompt: string,
+  history: { role: string; content: string }[],
+  options: { thinking?: boolean; fast?: boolean; search?: boolean; image?: { data: string; mimeType: string } } = {}
+) => {
+  const apiKey = getApiKey();
+  const messages = buildMessages(prompt, history, options);
+  const maxTokens = options.thinking ? KIMI_MAX_TOKENS_THINKING : KIMI_MAX_TOKENS_NORMAL;
 
-      const data: KimiChatResponse = await response.json();
-      
-      // Convert to format compatible with Gemini response
-      return {
-        text: data.choices[0]?.message?.content || '',
-        candidates: [{
-          content: {
-            parts: [{ text: data.choices[0]?.message?.content || '' }]
-          }
-        }]
-      };
-    } catch (error: any) {
-      lastError = error;
-      if (error?.status === 429 || error?.message?.includes('429')) {
-        // Rate limited - exponential backoff
-        const baseWaitTime = attempt === 0 ? 2000 : attempt === 1 ? 5000 : 10000;
-        await new Promise(resolve => setTimeout(resolve, baseWaitTime));
-      } else {
-        // Non-rate limit error, throw immediately
-        throw error;
-      }
-    }
-  }
-  throw lastError;
+  const data = await withRetry(() => callKimiAPI(apiKey, messages, maxTokens));
+  const text = data.choices[0]?.message?.content ?? '';
+
+  return {
+    text,
+    candidates: [{ content: { parts: [{ text }] } }],
+  };
 };
