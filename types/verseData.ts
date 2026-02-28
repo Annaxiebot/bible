@@ -17,6 +17,7 @@ export interface AIResearchEntry {
   timestamp: number;
   tags?: string[];
   highlighted?: string[]; // Array of highlighted text within the response
+  image?: MediaAttachment; // Attached image (for image-based research)
 }
 
 export interface VerseData {
@@ -24,7 +25,8 @@ export interface VerseData {
   bookId: string;
   chapter: number;
   verses: number[];
-  
+  verseText?: string; // Optional verse text for display
+
   personalNote?: PersonalNote;
   aiResearch: AIResearchEntry[];
 }

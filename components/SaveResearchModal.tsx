@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { BIBLE_BOOKS } from '../constants';
 import { verseDataStorage } from '../services/verseDataStorage';
 import { Dialog } from './Dialog';
+import { createMediaAttachment } from '../utils/mediaUtils';
 
 interface SaveResearchModalProps {
   isOpen: boolean;
@@ -12,6 +13,8 @@ interface SaveResearchModalProps {
   selectedText?: string;
   currentBookId?: string;
   currentChapter?: number;
+  imageData?: string; // base64 image data (optional)
+  imageMimeType?: string; // e.g., 'image/jpeg', 'image/png'
 }
 
 const SaveResearchModal: React.FC<SaveResearchModalProps> = ({
@@ -22,7 +25,9 @@ const SaveResearchModal: React.FC<SaveResearchModalProps> = ({
   response,
   selectedText,
   currentBookId,
-  currentChapter
+  currentChapter,
+  imageData,
+  imageMimeType
 }) => {
   const [selectedBook, setSelectedBook] = useState<string>(currentBookId || 'genesis');
   const [selectedChapter, setSelectedChapter] = useState<number>(currentChapter || 1);
@@ -66,6 +71,10 @@ const SaveResearchModal: React.FC<SaveResearchModalProps> = ({
         .map(t => t.trim())
         .filter(t => t.length > 0);
 
+      const imageAttachment = imageData && imageMimeType
+        ? createMediaAttachment(imageData, imageMimeType)
+        : undefined;
+
       await verseDataStorage.addAIResearch(
         selectedBook,
         selectedChapter,
@@ -74,7 +83,8 @@ const SaveResearchModal: React.FC<SaveResearchModalProps> = ({
           query: decodeHtmlEntities(query),
           response: decodeHtmlEntities(response),
           selectedText: selectedText ? decodeHtmlEntities(selectedText) : undefined,
-          tags: tagArray
+          tags: tagArray,
+          image: imageAttachment
         }
       );
 
@@ -144,6 +154,16 @@ const SaveResearchModal: React.FC<SaveResearchModalProps> = ({
             <p className="text-xs font-semibold text-slate-500 mb-1">Query:</p>
             <p className="text-sm text-slate-700">{decodedQuery}</p>
           </div>
+          {imageData && imageMimeType && (
+            <div>
+              <p className="text-xs font-semibold text-slate-500 mb-1">Image:</p>
+              <img
+                src={`data:${imageMimeType};base64,${imageData}`}
+                alt="Research preview"
+                className="max-w-full max-h-48 rounded border border-slate-200 object-contain"
+              />
+            </div>
+          )}
           <div>
             <p className="text-xs font-semibold text-slate-500 mb-1">Response:</p>
             <p
