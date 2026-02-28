@@ -47,8 +47,8 @@ describe('aiProvider', () => {
       expect(getCurrentProvider()).toBe('gemini');
     });
 
-    it('recognises all three valid providers', () => {
-      for (const p of ['gemini', 'claude', 'kimi'] as const) {
+    it('recognises all four valid providers', () => {
+      for (const p of ['gemini', 'claude', 'kimi', 'openai'] as const) {
         vi.stubGlobal('localStorage', makeStorage({ ai_provider: p }));
         expect(getCurrentProvider()).toBe(p);
       }
@@ -90,11 +90,12 @@ describe('aiProvider', () => {
 
   // getAvailableProviders
   describe('getAvailableProviders', () => {
-    it('includes gemini, claude, and kimi', () => {
+    it('includes gemini, claude, kimi, and openai', () => {
       const ids = getAvailableProviders().map(p => p.id);
       expect(ids).toContain('gemini');
       expect(ids).toContain('claude');
       expect(ids).toContain('kimi');
+      expect(ids).toContain('openai');
     });
 
     it('each provider has at least one model', () => {
@@ -131,6 +132,15 @@ describe('aiProvider', () => {
     it('returns true for kimi when localStorage key is set', () => {
       vi.stubGlobal('localStorage', makeStorage({ kimi_api_key: 'key123' }));
       expect(isProviderConfigured('kimi')).toBe(true);
+    });
+
+    it('returns false for openai when no key is present', () => {
+      expect(isProviderConfigured('openai')).toBe(false);
+    });
+
+    it('returns true for openai when localStorage key is set', () => {
+      vi.stubGlobal('localStorage', makeStorage({ openai_api_key: 'key123' }));
+      expect(isProviderConfigured('openai')).toBe(true);
     });
   });
 });

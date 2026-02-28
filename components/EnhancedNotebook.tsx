@@ -846,7 +846,7 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
       <div className="note-toolbar">
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
-            onClick={() => handleSaveNote()}
+            onClick={() => handleSaveNote(false)}
             className="toolbar-btn"
             style={{ background: '#4CAF50', color: 'white' }}
           >

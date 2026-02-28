@@ -312,11 +312,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     position: { x: number; y: number };
     selectedText: string;
   } | null>(null);
-  
+
   const containerRef = useRef<HTMLDivElement>(null);
   const zhScrollRef = useRef<HTMLDivElement>(null);
   const enScrollRef = useRef<HTMLDivElement>(null);
   const lastPayloadId = useRef<number>(-1);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // Memoize computed values to prevent unnecessary recalculations
   const hasMessages = useMemo(() => messages.length > 0, [messages]);
@@ -455,6 +456,15 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     return () => clearTimeout(scrollTimeout);
   }, [messages, isTyping]);
 
+  // Cleanup: abort any in-flight requests when component unmounts
+  useEffect(() => {
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []);
+
   const handleImageSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -516,6 +526,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
   const handleSend = async () => {
     if ((!input.trim() && !imageAttachment) || isTyping) return;
 
+    // Cancel any previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
     const userMessage: ChatMessage = {
       role: 'user',
       content: input || (imageAttachment ? '[Image attached]' : ''),
@@ -529,7 +544,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     setImageAttachment(null);
     setUserQuestion(''); // Reset manual part after sending
     setIsTyping(true);
-    
+
     // Immediate scroll to bottom after sending message
     setTimeout(() => {
       if (zhScrollRef.current) {
@@ -539,6 +554,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
         enScrollRef.current.scrollTo({ top: enScrollRef.current.scrollHeight, behavior: 'smooth' });
       }
     }, TIMING.SHORT_DELAY_MS);
+
+    // Create new abort controller for this request
+    abortControllerRef.current = new AbortController();
 
     let assistantMessage: ChatMessage | null = null;
     try {
@@ -553,7 +571,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
         ...(currentImage ? { image: currentImage } : {}),
       });
 
-      const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks;
+      const groundingChunks = (response.candidates?.[0] as any)?.groundingMetadata?.groundingChunks;
       const references = Array.isArray(groundingChunks)
         ? (groundingChunks as GroundingChunk[]).map((chunk) => ({ title: chunk.web?.title || '参考资料', uri: chunk.web?.uri || '' })).filter((c) => c.uri)
         : undefined;
@@ -567,12 +585,16 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
 
       setMessages(prev => [...prev, assistantMessage!]);
     } catch (error: any) {
-      // TODO: use error reporting service
-      const errorDetail = error?.message || error?.status || String(error);
-      setMessages(prev => [...prev, { role: 'assistant', content: `连接失败：${errorDetail}\nConnection failed. Please check your API key and try again.`, timestamp: new Date() }]);
-      return;
+      // Don't show error message if request was aborted intentionally
+      if (error?.name !== 'AbortError') {
+        // TODO: use error reporting service
+        const errorDetail = error?.message || error?.status || String(error);
+        setMessages(prev => [...prev, { role: 'assistant', content: `连接失败：${errorDetail}\nConnection failed. Please check your API key and try again.`, timestamp: new Date() }]);
+        return;
+      }
     } finally {
       setIsTyping(false);
+      abortControllerRef.current = null;
     }
 
     // Auto-save research using new service
@@ -719,7 +741,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
           <span className="text-xs font-semibold text-slate-700">
-            AI Provider: <span className="text-indigo-600">{currentProvider === 'claude' ? 'Claude' : 'Gemini'}</span>
+            AI Provider: <span className="text-indigo-600">
+              {currentProvider === 'claude' ? 'Claude' :
+               currentProvider === 'openai' ? 'ChatGPT' :
+               currentProvider === 'kimi' ? 'Kimi' : 'Gemini'}
+            </span>
           </span>
         </div>
         <button

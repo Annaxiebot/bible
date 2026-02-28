@@ -37,9 +37,9 @@ export interface SaveAIResearchParams {
   chapter?: number;
   verses?: number[];
   tags?: string[];
-  aiProvider?: 'claude' | 'gemini';
-  imageData?: string; // base64 image data (optional)
-  imageMimeType?: string; // e.g., 'image/jpeg', 'image/png'
+  aiProvider?: 'claude' | 'gemini' | 'kimi' | 'openai';
+  imageData?: string;
+  imageMimeType?: string;
 }
 
 /**
