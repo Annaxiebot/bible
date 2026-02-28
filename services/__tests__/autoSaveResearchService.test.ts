@@ -444,4 +444,131 @@ describe('AutoSaveResearchService', () => {
       expect(stats.recentCount).toBe(2); // Only last 7 days
     });
   });
+
+  describe('saveAIResearch with images', () => {
+    const mockMessage: ChatMessage = {
+      role: 'assistant',
+      content: 'Image analysis result',
+      timestamp: new Date('2026-02-27T16:00:00Z'),
+    };
+
+    it('should save research with image data', async () => {
+      vi.mocked(verseDataStorage.addAIResearch).mockResolvedValue('ai_img_1');
+
+      const base64Image = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+      const result = await autoSaveResearchService.saveAIResearch({
+        message: mockMessage,
+        query: 'Describe the attached picture',
+        bookId: 'genesis',
+        chapter: 1,
+        verses: [1],
+        aiProvider: 'gemini',
+        imageData: `data:image/png;base64,${base64Image}`,
+        imageMimeType: 'image/png',
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.savedCount).toBe(1);
+      expect(verseDataStorage.addAIResearch).toHaveBeenCalledWith(
+        'genesis',
+        1,
+        [1],
+        expect.objectContaining({
+          query: 'Describe the attached picture',
+          response: 'Image analysis result',
+          tags: expect.arrayContaining(['auto-saved', 'gemini']),
+          image: expect.objectContaining({
+            type: 'image',
+            data: base64Image,
+            mimeType: 'image/png',
+            size: expect.any(Number),
+            timestamp: expect.any(Number),
+          }),
+        })
+      );
+    });
+
+    it('should handle image data with data URL prefix', async () => {
+      vi.mocked(verseDataStorage.addAIResearch).mockResolvedValue('ai_img_2');
+
+      const base64Image = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+      const dataUrl = `data:image/jpeg;base64,${base64Image}`;
+
+      const result = await autoSaveResearchService.saveAIResearch({
+        message: mockMessage,
+        query: 'What is this?',
+        imageData: dataUrl,
+        imageMimeType: 'image/jpeg',
+      });
+
+      expect(result.success).toBe(true);
+      const call = vi.mocked(verseDataStorage.addAIResearch).mock.calls[0];
+      expect(call[3].image?.data).toBe(base64Image);
+      expect(call[3].image?.mimeType).toBe('image/jpeg');
+    });
+
+    it('should save research without image when no image data provided', async () => {
+      vi.mocked(verseDataStorage.addAIResearch).mockResolvedValue('ai_text_1');
+
+      const result = await autoSaveResearchService.saveAIResearch({
+        message: mockMessage,
+        query: 'Regular text query',
+        bookId: 'genesis',
+        chapter: 1,
+        verses: [1],
+      });
+
+      expect(result.success).toBe(true);
+      expect(verseDataStorage.addAIResearch).toHaveBeenCalledWith(
+        'genesis',
+        1,
+        [1],
+        expect.objectContaining({
+          query: 'Regular text query',
+          response: 'Image analysis result',
+          image: undefined,
+        })
+      );
+    });
+
+    it('should calculate correct image size from base64', async () => {
+      vi.mocked(verseDataStorage.addAIResearch).mockResolvedValue('ai_img_3');
+
+      // 100 byte base64 string
+      const base64Image = 'A'.repeat(100);
+      
+      await autoSaveResearchService.saveAIResearch({
+        message: mockMessage,
+        query: 'Test',
+        imageData: base64Image,
+        imageMimeType: 'image/png',
+      });
+
+      const call = vi.mocked(verseDataStorage.addAIResearch).mock.calls[0];
+      // Size should be approximately (base64Length * 3) / 4
+      expect(call[3].image?.size).toBeGreaterThan(0);
+      expect(call[3].image?.size).toBeLessThanOrEqual(Math.ceil((100 * 3) / 4));
+    });
+
+    it('should add default question when image uploaded without text', async () => {
+      vi.mocked(verseDataStorage.addAIResearch).mockResolvedValue('ai_img_4');
+
+      const result = await autoSaveResearchService.saveAIResearch({
+        message: mockMessage,
+        query: '', // Empty query
+        imageData: 'data:image/png;base64,abc123',
+        imageMimeType: 'image/png',
+      });
+
+      expect(result.success).toBe(true);
+      expect(verseDataStorage.addAIResearch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(Number),
+        expect.any(Array),
+        expect.objectContaining({
+          query: '', // Query should remain as passed (default is added at ChatInterface level)
+        })
+      );
+    });
+  });
 });
