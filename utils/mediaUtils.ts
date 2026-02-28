@@ -1,4 +1,4 @@
-import { MediaAttachment } from '../types';
+import { MediaAttachment } from '../services/backup/types';
 
 /**
  * Strips the `data:<mime>;base64,` prefix from a data URL, returning raw base64.

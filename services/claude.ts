@@ -41,11 +41,11 @@ function buildMessages(
   history: { role: string; content: string }[],
   image?: { data: string; mimeType: string }
 ): Array<{ role: 'user' | 'assistant'; content: ClaudeContent }> {
-  const messages = history
+  const messages: Array<{ role: 'user' | 'assistant'; content: ClaudeContent }> = history
     .filter(h => h.content?.trim())
     .map(h => ({
       role: (h.role === 'user' ? 'user' : 'assistant') as 'user' | 'assistant',
-      content: h.content,
+      content: h.content as ClaudeContent,
     }));
 
   if (image) {

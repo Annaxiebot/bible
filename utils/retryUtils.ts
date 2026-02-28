@@ -16,7 +16,7 @@ function isRateLimitError(error: unknown): boolean {
  */
 export async function withRetry<T>(
   fn: () => Promise<T>,
-  maxAttempts = RETRY_DELAYS_MS.length
+  maxAttempts: number = RETRY_DELAYS_MS.length
 ): Promise<T> {
   let lastError: unknown;
 
