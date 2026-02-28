@@ -904,6 +904,40 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
                 </div>
               </div>
 
+              {research.image && (
+                <div className="research-image">
+                  <img
+                    src={`data:${research.image.mimeType};base64,${research.image.data}`}
+                    alt={research.image.caption || 'Research image'}
+                    className="research-img"
+                    onClick={() => {
+                      // Open image in new window/tab for full view
+                      const imgWindow = window.open('');
+                      if (imgWindow) {
+                        imgWindow.document.write(`
+                          <html>
+                            <head>
+                              <title>${research.query}</title>
+                              <style>
+                                body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #000; }
+                                img { max-width: 100%; max-height: 100vh; object-fit: contain; }
+                              </style>
+                            </head>
+                            <body>
+                              <img src="data:${research.image.mimeType};base64,${research.image.data}" alt="${research.query}" />
+                            </body>
+                          </html>
+                        `);
+                      }
+                    }}
+                    title="Click to view full size"
+                  />
+                  {research.image.caption && (
+                    <div className="image-caption">{research.image.caption}</div>
+                  )}
+                </div>
+              )}
+
               <div className="research-response">
                 <LazyMarkdown components={mdComponents}>
                   {preprocessResearchText(research.response)}
@@ -986,6 +1020,36 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
                     />
                   ) : (
                     <div className="research-preview">
+                      {(item.content as AIResearchEntry).image && (
+                        <div className="research-image">
+                          <img
+                            src={`data:${(item.content as AIResearchEntry).image!.mimeType};base64,${(item.content as AIResearchEntry).image!.data}`}
+                            alt={(item.content as AIResearchEntry).image!.caption || 'Research image'}
+                            className="research-img"
+                            onClick={() => {
+                              const img = (item.content as AIResearchEntry).image!;
+                              const imgWindow = window.open('');
+                              if (imgWindow) {
+                                imgWindow.document.write(`
+                                  <html>
+                                    <head>
+                                      <title>${(item.content as AIResearchEntry).query}</title>
+                                      <style>
+                                        body { margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; background: #000; }
+                                        img { max-width: 100%; max-height: 100vh; object-fit: contain; }
+                                      </style>
+                                    </head>
+                                    <body>
+                                      <img src="data:${img.mimeType};base64,${img.data}" alt="${(item.content as AIResearchEntry).query}" />
+                                    </body>
+                                  </html>
+                                `);
+                              }
+                            }}
+                            title="Click to view full size"
+                          />
+                        </div>
+                      )}
                       <div className="research-q">Q: {(item.content as AIResearchEntry).query}</div>
                       <div className="research-a">
                         <LazyMarkdown components={mdComponents}>
@@ -1231,6 +1295,34 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
           line-height: 1.6;
           color: #555;
           font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', 'Noto Sans Hebrew', 'Noto Sans Arabic', system-ui, sans-serif;
+        }
+
+        .research-image {
+          margin-bottom: 12px;
+          border-radius: 8px;
+          overflow: hidden;
+          background: #fff;
+          border: 1px solid #e0e0e0;
+        }
+
+        .research-img {
+          width: 100%;
+          max-height: 400px;
+          object-fit: contain;
+          cursor: pointer;
+          transition: transform 0.2s;
+        }
+
+        .research-img:hover {
+          transform: scale(1.02);
+        }
+
+        .image-caption {
+          padding: 8px;
+          font-size: 12px;
+          color: #666;
+          background: #f8f8f8;
+          border-top: 1px solid #e0e0e0;
         }
 
         .research-response p {

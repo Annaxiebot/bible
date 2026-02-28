@@ -12,6 +12,8 @@ interface SaveResearchModalProps {
   selectedText?: string;
   currentBookId?: string;
   currentChapter?: number;
+  imageData?: string; // base64 image data (optional)
+  imageMimeType?: string; // e.g., 'image/jpeg', 'image/png'
 }
 
 const SaveResearchModal: React.FC<SaveResearchModalProps> = ({
@@ -22,7 +24,9 @@ const SaveResearchModal: React.FC<SaveResearchModalProps> = ({
   response,
   selectedText,
   currentBookId,
-  currentChapter
+  currentChapter,
+  imageData,
+  imageMimeType
 }) => {
   const [selectedBook, setSelectedBook] = useState<string>(currentBookId || 'genesis');
   const [selectedChapter, setSelectedChapter] = useState<number>(currentChapter || 1);
@@ -66,6 +70,27 @@ const SaveResearchModal: React.FC<SaveResearchModalProps> = ({
         .map(t => t.trim())
         .filter(t => t.length > 0);
 
+      // Create MediaAttachment if image data is provided
+      let imageAttachment: import('../types/verseData').MediaAttachment | undefined;
+      if (imageData && imageMimeType) {
+        const imageId = `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        
+        // Extract base64 data (remove data URL prefix if present)
+        const base64Data = imageData.includes(',') ? imageData.split(',')[1] : imageData;
+        
+        // Calculate size
+        const sizeInBytes = Math.ceil((base64Data.length * 3) / 4);
+        
+        imageAttachment = {
+          id: imageId,
+          type: 'image',
+          data: base64Data,
+          mimeType: imageMimeType,
+          size: sizeInBytes,
+          timestamp: Date.now(),
+        };
+      }
+
       await verseDataStorage.addAIResearch(
         selectedBook,
         selectedChapter,
@@ -74,7 +99,8 @@ const SaveResearchModal: React.FC<SaveResearchModalProps> = ({
           query: decodeHtmlEntities(query),
           response: decodeHtmlEntities(response),
           selectedText: selectedText ? decodeHtmlEntities(selectedText) : undefined,
-          tags: tagArray
+          tags: tagArray,
+          image: imageAttachment
         }
       );
 
@@ -144,6 +170,16 @@ const SaveResearchModal: React.FC<SaveResearchModalProps> = ({
             <p className="text-xs font-semibold text-slate-500 mb-1">Query:</p>
             <p className="text-sm text-slate-700">{decodedQuery}</p>
           </div>
+          {imageData && imageMimeType && (
+            <div>
+              <p className="text-xs font-semibold text-slate-500 mb-1">Image:</p>
+              <img
+                src={`data:${imageMimeType};base64,${imageData}`}
+                alt="Research preview"
+                className="max-w-full max-h-48 rounded border border-slate-200 object-contain"
+              />
+            </div>
+          )}
           <div>
             <p className="text-xs font-semibold text-slate-500 mb-1">Response:</p>
             <p
