@@ -35,9 +35,15 @@ export const setProvider = (provider: AIProvider): void => {
 /**
  * Get the current model
  */
+const VALID_MODELS: readonly string[] = [
+  'claude-haiku-4-5', 'claude-sonnet-4-5', 'claude-opus-4-5',
+  'gemini-3-flash-preview', 'gemini-3-pro-preview', 'gemini-flash-lite-latest',
+  'moonshot-v1-128k',
+];
+
 export const getCurrentModel = (): AIModel | null => {
   const stored = localStorage.getItem(MODEL_KEY);
-  return stored as AIModel | null;
+  return stored && VALID_MODELS.includes(stored) ? (stored as AIModel) : null;
 };
 
 /**
@@ -57,17 +63,12 @@ export const chatWithAI = async (
 ) => {
   const provider = getCurrentProvider();
   
-  try {
-    if (provider === 'claude') {
-      return await claude.chatWithAI(prompt, history, options);
-    } else if (provider === 'kimi') {
-      return await kimi.chatWithAI(prompt, history, options);
-    } else {
-      return await gemini.chatWithAI(prompt, history, options);
-    }
-  } catch (error: any) {
-    // TODO: use error reporting service
-    throw error;
+  if (provider === 'claude') {
+    return await claude.chatWithAI(prompt, history, options);
+  } else if (provider === 'kimi') {
+    return await kimi.chatWithAI(prompt, history, options);
+  } else {
+    return await gemini.chatWithAI(prompt, history, options);
   }
 };
 
