@@ -87,6 +87,7 @@ async function persistVerseData(item: VerseData) {
         selectedText: research.selectedText,
         tags: research.tags,
         highlighted: research.highlighted,
+        image: research.image,
       },
     );
   }
