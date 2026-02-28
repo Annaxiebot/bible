@@ -8,6 +8,7 @@
  */
 
 import { verseDataStorage } from './verseDataStorage';
+import { createMediaAttachment } from '../utils/mediaUtils';
 import { ChatMessage } from '../types';
 import { AIResearchEntry } from '../types/verseData';
 import { AUTO_SAVE } from '../constants/appConfig';
@@ -208,26 +209,9 @@ class AutoSaveResearchService {
         ? this.truncateContent(`${parsed.zh}\n\n---\n\n${parsed.en}`, AUTO_SAVE_CONFIG.MAX_RESPONSE_SIZE)
         : this.truncateContent((parsed as { single: string }).single, AUTO_SAVE_CONFIG.MAX_RESPONSE_SIZE);
 
-      // Create MediaAttachment if image data is provided
-      let imageAttachment: import('../types/verseData').MediaAttachment | undefined;
-      if (imageData && imageMimeType) {
-        const imageId = `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        
-        // Extract base64 data (remove data URL prefix if present)
-        const base64Data = imageData.includes(',') ? imageData.split(',')[1] : imageData;
-        
-        // Calculate size
-        const sizeInBytes = Math.ceil((base64Data.length * 3) / 4);
-        
-        imageAttachment = {
-          id: imageId,
-          type: 'image',
-          data: base64Data,
-          mimeType: imageMimeType,
-          size: sizeInBytes,
-          timestamp: Date.now(),
-        };
-      }
+      const imageAttachment = imageData && imageMimeType
+        ? createMediaAttachment(imageData, imageMimeType)
+        : undefined;
 
       const id = await verseDataStorage.addAIResearch(
         targetBookId,
