@@ -268,7 +268,7 @@ describe('AutoSaveResearchService', () => {
       expect(savedResponse).toContain('[Content truncated');
     });
 
-    it('should handle verses array being undefined', async () => {
+    it('should save to GENERAL when bookId is set but verses are undefined', async () => {
       const result = await autoSaveResearchService.saveAIResearch({
         message: mockMessage,
         query: mockQuery,
@@ -278,11 +278,35 @@ describe('AutoSaveResearchService', () => {
       });
 
       expect(result.success).toBe(true);
+      // No specific verses selected → saved as general research
       expect(verseDataStorage.addAIResearch).toHaveBeenCalledWith(
-        'numbers',
-        4,
-        [0], // Should default to [0]
-        expect.any(Object)
+        'GENERAL',
+        0,
+        [0],
+        expect.objectContaining({
+          tags: expect.arrayContaining(['auto-saved', 'general-research']),
+        })
+      );
+    });
+
+    it('should save to GENERAL when bookId is set but verses are empty', async () => {
+      const result = await autoSaveResearchService.saveAIResearch({
+        message: mockMessage,
+        query: mockQuery,
+        bookId: 'numbers',
+        chapter: 4,
+        verses: [],
+      });
+
+      expect(result.success).toBe(true);
+      // No specific verses selected → saved as general research
+      expect(verseDataStorage.addAIResearch).toHaveBeenCalledWith(
+        'GENERAL',
+        0,
+        [0],
+        expect.objectContaining({
+          tags: expect.arrayContaining(['auto-saved', 'general-research']),
+        })
       );
     });
 

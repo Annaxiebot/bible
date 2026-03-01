@@ -950,8 +950,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
               onChange={handleImageSelect}
               style={{ position: 'fixed', top: '-10000px', left: '-10000px' }}
             />
-            {/* Image attach: on touch devices, button triggers off-screen input. On desktop, show menu with webcam + file picker. */}
-            {'ontouchstart' in window || navigator.maxTouchPoints > 0 ? (
+            {/* Image attach: on mobile, button triggers off-screen input (OS handles camera). On desktop/laptop, show menu with webcam + file picker. */}
+            {/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 0 && /Macintosh/i.test(navigator.userAgent)) ? (
               <button
                 onClick={() => fileInputRef.current?.click()}
                 disabled={isTyping}
@@ -1038,7 +1038,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       
       {/* Webcam capture modal */}
       {showWebcam && (
-        <div className="fixed inset-0 bg-black/70 z-50 flex flex-col items-center justify-center">
+        <div className="fixed inset-0 bg-black/70 z-[80] flex flex-col items-center justify-center">
           <div className="bg-black rounded-2xl overflow-hidden shadow-2xl max-w-lg w-full mx-4">
             <video
               ref={webcamVideoRef}
