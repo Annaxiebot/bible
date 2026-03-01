@@ -3,21 +3,20 @@ import { verseDataStorage } from '../services/verseDataStorage';
 import { AIResearchEntry } from '../types/verseData';
 import { useStorageUpdate } from './useStorageUpdate';
 
-export interface GeneralResearchEntry extends AIResearchEntry {
-  // Inherits all fields from AIResearchEntry
-}
+export type GeneralResearchEntry = AIResearchEntry;
 
 export function useGeneralResearch() {
   const storageTick = useStorageUpdate();
   const [entries, setEntries] = useState<GeneralResearchEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [initialLoad, setInitialLoad] = useState(true);
 
   useEffect(() => {
     const fetchGeneralResearch = async () => {
       try {
-        setLoading(true);
+        if (initialLoad) setLoading(true);
         const allData = await verseDataStorage.getAllData();
-        
+
         // Filter for GENERAL bookId and extract AI research
         const generalEntries = allData
           .filter(v => v.bookId === 'GENERAL')
@@ -26,22 +25,22 @@ export function useGeneralResearch() {
 
         setEntries(generalEntries);
       } catch (error) {
-        // Silently handle error
         setEntries([]);
       } finally {
         setLoading(false);
+        setInitialLoad(false);
       }
     };
 
     fetchGeneralResearch();
   }, [storageTick]);
 
-  const deleteEntry = async (researchId: string) => {
+  const deleteEntry = async (researchId: string): Promise<boolean> => {
     try {
       await verseDataStorage.deleteAIResearch('GENERAL', 0, [0], researchId);
-      // Storage update event will trigger refetch
+      return true;
     } catch (error) {
-      // Silently handle error
+      return false;
     }
   };
 
