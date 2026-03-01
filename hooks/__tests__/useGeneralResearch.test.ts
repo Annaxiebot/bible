@@ -181,9 +181,10 @@ describe('useGeneralResearch', () => {
       expect(result.current.loading).toBe(false);
     });
 
-    await result.current.deleteEntry('ai_123');
+    const success = await result.current.deleteEntry('ai_123');
 
     expect(verseDataStorage.deleteAIResearch).toHaveBeenCalledWith('GENERAL', 0, [0], 'ai_123');
+    expect(success).toBe(true);
   });
 
   it('handles errors gracefully when fetching', async () => {
@@ -207,7 +208,7 @@ describe('useGeneralResearch', () => {
       expect(result.current.loading).toBe(false);
     });
 
-    // Should not throw
-    await expect(result.current.deleteEntry('ai_123')).resolves.not.toThrow();
+    const success = await result.current.deleteEntry('ai_123');
+    expect(success).toBe(false);
   });
 });
