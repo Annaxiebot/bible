@@ -25,6 +25,7 @@ const NotesList = lazy(() => import('./components/NotesList'));
 const BibleSearch = lazy(() => import('./components/BibleSearch'));
 const PrintOptionsDialog = lazy(() => import('./components/PrintOptionsDialog'));
 const DataDetailDialog = lazy(() => import('./components/DataDetailDialog'));
+const GeneralResearchDialog = lazy(() => import('./components/GeneralResearchDialog'));
 
 // Simplified split view hook
 function useSplitView(initialV = 100, initialH = 100) {
@@ -120,6 +121,7 @@ const App: React.FC = () => {
   const [downloadState, setDownloadState] = useState({ isDownloading: false, progress: 0, status: '', timeRemaining: '' });
   const [vibeStyles, setVibeStyles] = useState<VibeStyles>(getEmptyStyles());
   const [dataDetailMode, setDataDetailMode] = useState<'notes' | 'research' | 'chapters' | null>(null);
+  const [showGeneralResearch, setShowGeneralResearch] = useState(false);
   const { stats: dataStats } = useDataStats(dataUpdateTrigger);
   const [bgDownloadProgress, setBgDownloadProgress] = useState<BgDownloadProgress | null>(null);
 
@@ -439,6 +441,7 @@ const App: React.FC = () => {
         downloadStatus={downloadState.status}
         downloadTimeRemaining={downloadState.timeRemaining}
         onShowDataDetail={(mode) => { setDataDetailMode(mode); setIsSidebarOpen(false); }}
+        onShowGeneralResearch={() => { setShowGeneralResearch(true); setIsSidebarOpen(false); }}
         bgDownloadProgress={bgDownloadProgress}
       />
 
@@ -600,6 +603,10 @@ const App: React.FC = () => {
           }}
           onClose={() => setDataDetailMode(null)}
         />
+      )}
+
+      {showGeneralResearch && (
+        <GeneralResearchDialog onClose={() => setShowGeneralResearch(false)} />
       )}
 
       {backupDialog && (

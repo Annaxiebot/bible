@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useDataStats } from '../hooks/useDataStats';
+import { useGeneralResearch } from '../hooks/useGeneralResearch';
 import { bookmarkStorage, Bookmark } from '../services/bookmarkStorage';
 import { readingPlanStorage, ReadingPlanState, READING_PLANS, PlanType, ReadingPlanDay } from '../services/readingPlanStorage';
 import { useSeasonTheme } from '../hooks/useSeasonTheme';
@@ -42,6 +43,7 @@ interface SidebarProps {
   onSearch?: () => void;
   onPrint?: () => void;
   onShowDataDetail?: (mode: 'notes' | 'research' | 'chapters') => void;
+  onShowGeneralResearch?: () => void;
   bgDownloadProgress?: BgDownloadProgress | null;
 }
 
@@ -80,9 +82,11 @@ const Sidebar: React.FC<SidebarProps> = ({
   onSearch,
   onPrint,
   onShowDataDetail,
+  onShowGeneralResearch,
   bgDownloadProgress
 }) => {
   const { stats, loading } = useDataStats(dataUpdateTrigger);
+  const { entries: generalResearchEntries } = useGeneralResearch();
   const { theme, isAuto, setSeason } = useSeasonTheme();
   
   // Collapsible section state
@@ -548,6 +552,13 @@ const Sidebar: React.FC<SidebarProps> = ({
                   >
                     <span className="text-slate-600">🔍 AI研究 Research:</span>
                     <span className="font-medium text-indigo-600">{stats.aiResearch}</span>
+                  </button>
+                  <button
+                    onClick={() => onShowGeneralResearch?.()}
+                    className="w-full flex justify-between px-2 py-1 rounded hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
+                    <span className="text-slate-600">🌟 通用研究 General:</span>
+                    <span className="font-medium text-indigo-600">{generalResearchEntries.length}</span>
                   </button>
                   <button
                     onClick={() => onShowDataDetail?.('chapters')}
