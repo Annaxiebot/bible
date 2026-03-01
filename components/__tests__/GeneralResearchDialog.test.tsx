@@ -35,7 +35,9 @@ const mockEntries: GeneralResearchEntry[] = [
       id: 'img_1',
       type: 'image',
       data: 'data:image/png;base64,test',
-      timestamp: '2024-01-01T00:00:00Z',
+      mimeType: 'image/png',
+      size: 4,
+      timestamp: 1704067200000,
     },
   },
 ];
