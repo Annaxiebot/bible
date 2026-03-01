@@ -175,9 +175,12 @@ class AutoSaveResearchService {
       }
 
       // Determine book/chapter/verses for saving
-      const targetBookId = bookId || AUTO_SAVE_CONFIG.GENERAL_BOOK_ID;
-      const targetChapter = chapter ?? AUTO_SAVE_CONFIG.GENERAL_CHAPTER;
-      const targetVerses = verses && verses.length > 0 ? verses : [0];
+      // If no specific verses are selected, treat as general research
+      // (even if a Bible book is currently being viewed)
+      const hasVerseContext = bookId && verses && verses.length > 0;
+      const targetBookId = hasVerseContext ? bookId : AUTO_SAVE_CONFIG.GENERAL_BOOK_ID;
+      const targetChapter = hasVerseContext ? (chapter ?? 0) : AUTO_SAVE_CONFIG.GENERAL_CHAPTER;
+      const targetVerses = hasVerseContext ? verses : [0];
 
       // Parse content
       const parsed = this.parseMessageContent(trimmedContent);
@@ -196,7 +199,7 @@ class AutoSaveResearchService {
 
       // Build base tags
       const baseTags = [...tags, 'auto-saved'];
-      if (!bookId) {
+      if (!hasVerseContext) {
         baseTags.push('general-research');
       }
       if (aiProvider) {
