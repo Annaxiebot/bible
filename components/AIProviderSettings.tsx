@@ -10,26 +10,60 @@ interface AIProviderSettingsProps {
 
 const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose }) => {
   const [currentProvider, setCurrentProvider] = useState<aiProvider.AIProvider>(aiProvider.getCurrentProvider());
+  const [selectedModel, setSelectedModel] = useState<string>(aiProvider.getCurrentModel() || '');
   const [geminiApiKey, setGeminiApiKey] = useState('');
   const [claudeApiKey, setClaudeApiKey] = useState('');
   const [openaiApiKey, setOpenaiApiKey] = useState('');
   const [kimiApiKey, setKimiApiKey] = useState('');
+  const [openrouterApiKey, setOpenrouterApiKey] = useState('');
   const [showGeminiKey, setShowGeminiKey] = useState(false);
   const [showClaudeKey, setShowClaudeKey] = useState(false);
   const [showOpenaiKey, setShowOpenaiKey] = useState(false);
   const [showKimiKey, setShowKimiKey] = useState(false);
+  const [showOpenrouterKey, setShowOpenrouterKey] = useState(false);
   const [autoSaveResearch, setAutoSaveResearch] = useState(() => autoSaveResearchService.isAutoSaveEnabled());
+  const [testingKey, setTestingKey] = useState<string | null>(null);
+  const [testResults, setTestResults] = useState<Record<string, { success: boolean; error?: string; model?: string }>>({});
 
   useEffect(() => {
     setGeminiApiKey(localStorage.getItem(STORAGE_KEYS.GEMINI_API_KEY) || '');
     setClaudeApiKey(localStorage.getItem(STORAGE_KEYS.CLAUDE_API_KEY) || '');
     setOpenaiApiKey(localStorage.getItem(STORAGE_KEYS.OPENAI_API_KEY) || '');
     setKimiApiKey(localStorage.getItem(STORAGE_KEYS.KIMI_API_KEY) || '');
+    setOpenrouterApiKey(localStorage.getItem(STORAGE_KEYS.OPENROUTER_API_KEY) || '');
     setAutoSaveResearch(autoSaveResearchService.isAutoSaveEnabled());
+    setSelectedModel(aiProvider.getCurrentModel() || '');
   }, [isOpen]);
+
+  const handleTestKey = async (provider: aiProvider.AIProvider, apiKey: string) => {
+    if (!apiKey.trim()) {
+      setTestResults(prev => ({ ...prev, [provider]: { success: false, error: 'API key is empty' } }));
+      return;
+    }
+
+    setTestingKey(provider);
+    try {
+      const result = await aiProvider.testApiKey(provider, apiKey);
+      setTestResults(prev => ({ ...prev, [provider]: result }));
+    } catch (error) {
+      setTestResults(prev => ({ 
+        ...prev, 
+        [provider]: { 
+          success: false, 
+          error: error instanceof Error ? error.message : 'Unknown error' 
+        } 
+      }));
+    } finally {
+      setTestingKey(null);
+    }
+  };
 
   const handleSave = () => {
     aiProvider.setProvider(currentProvider);
+
+    if (selectedModel) {
+      aiProvider.setModel(selectedModel as aiProvider.AIModel);
+    }
 
     if (geminiApiKey.trim()) {
       localStorage.setItem(STORAGE_KEYS.GEMINI_API_KEY, geminiApiKey.trim());
@@ -55,24 +89,31 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
       localStorage.removeItem(STORAGE_KEYS.KIMI_API_KEY);
     }
 
+    if (openrouterApiKey.trim()) {
+      localStorage.setItem(STORAGE_KEYS.OPENROUTER_API_KEY, openrouterApiKey.trim());
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.OPENROUTER_API_KEY);
+    }
+
     autoSaveResearchService.setAutoSaveEnabled(autoSaveResearch);
 
     onClose();
   };
 
   const providers = aiProvider.getAvailableProviders();
+  const currentProviderInfo = providers.find(p => p.id === currentProvider);
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden">
         {/* Header */}
         <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-white">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-bold">AI Provider Settings</h2>
-              <p className="text-indigo-100 text-sm mt-1">Configure your AI research provider</p>
+              <p className="text-indigo-100 text-sm mt-1">Configure your AI research provider and model</p>
             </div>
             <button
               onClick={onClose}
@@ -121,7 +162,7 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
                         <div>
                           <div className="font-semibold text-slate-800">{provider.name}</div>
                           <div className="text-xs text-slate-500 mt-0.5">
-                            Models: {provider.models.map(m => m.replace(/-/g, ' ')).join(', ')}
+                            {provider.models.length} models available
                           </div>
                         </div>
                       </div>
@@ -139,10 +180,116 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
             </div>
           </div>
 
+          {/* Model Selection */}
+          {currentProviderInfo && currentProviderInfo.models.length > 0 && (
+            <div className="mb-6">
+              <label className="block text-sm font-semibold text-slate-700 mb-3">
+                Select Model for {currentProviderInfo.name}
+              </label>
+              <select
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value)}
+                className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm"
+              >
+                <option value="">Use provider default</option>
+                {currentProviderInfo.models.map((model) => {
+                  // Extract model ID from the display string (e.g., "google/gemini-flash-1.5 (Google - Free)")
+                  const modelId = model.split(' (')[0];
+                  return (
+                    <option key={modelId} value={modelId}>
+                      {model}
+                    </option>
+                  );
+                })}
+              </select>
+              <p className="text-xs text-slate-500 mt-2">
+                {currentProvider === 'openrouter' 
+                  ? 'Free models marked with (Free) require no credits. Premium models use your OpenRouter credits.'
+                  : 'Different models have different capabilities and speed. Choose based on your needs.'}
+              </p>
+            </div>
+          )}
+
           {/* API Keys Section */}
           <div className="space-y-4 border-t pt-6">
             <h3 className="text-sm font-semibold text-slate-700 mb-3">API Keys</h3>
             
+            {/* OpenRouter API Key */}
+            <div>
+              <label className="block text-sm font-medium text-slate-600 mb-2">
+                OpenRouter API Key
+              </label>
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type={showOpenrouterKey ? 'text' : 'password'}
+                      value={openrouterApiKey}
+                      onChange={(e) => setOpenrouterApiKey(e.target.value)}
+                      placeholder="Enter your OpenRouter API key"
+                      className="w-full px-4 py-2 pr-12 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowOpenrouterKey(!showOpenrouterKey)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                    >
+                      {showOpenrouterKey ? (
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                      )}
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => handleTestKey('openrouter', openrouterApiKey)}
+                    disabled={testingKey === 'openrouter' || !openrouterApiKey.trim()}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
+                  >
+                    {testingKey === 'openrouter' ? (
+                      <>
+                        <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Testing...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                        </svg>
+                        Test
+                      </>
+                    )}
+                  </button>
+                </div>
+                {testResults.openrouter && (
+                  <div className={`text-xs p-2 rounded ${
+                    testResults.openrouter.success 
+                      ? 'bg-green-50 text-green-700 border border-green-200' 
+                      : 'bg-red-50 text-red-700 border border-red-200'
+                  }`}>
+                    {testResults.openrouter.success 
+                      ? `✓ API key works! Test model: ${testResults.openrouter.model}`
+                      : `✗ Error: ${testResults.openrouter.error}`}
+                  </div>
+                )}
+              </div>
+              <p className="text-xs text-slate-500 mt-1">
+                Get your API key from{' '}
+                <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">
+                  OpenRouter (Free $5 credits + free models)
+                </a>
+              </p>
+            </div>
+
             {/* Gemini API Key */}
             <div>
               <label className="block text-sm font-medium text-slate-600 mb-2">
@@ -335,36 +482,16 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
                 <p className="font-semibold mb-2">About AI Providers</p>
                 <ul className="space-y-2 text-xs">
                   <li>
-                    <strong>Gemini</strong>: Google's AI with native search grounding support<br />
-                    <span className="text-blue-600">Get API key: </span>
-                    <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-900">
-                      Google AI Studio
-                    </a>
+                    <strong>OpenRouter</strong>: Unified gateway to 100+ models with free tiers<br />
+                    <span className="text-blue-600">Free models: </span>Gemini Flash 1.5, Llama 3.1, Mistral 7B, DeepSeek, etc.
                   </li>
                   <li>
-                    <strong>Claude</strong>: Anthropic's AI with extended thinking capabilities<br />
-                    <span className="text-blue-600">Get API key: </span>
-                    <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-900">
-                      Anthropic Console
-                    </a>
-                  </li>
-                  <li>
-                    <strong>ChatGPT</strong>: OpenAI's GPT-4o with vision and fast responses<br />
-                    <span className="text-blue-600">Get API key: </span>
-                    <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-900">
-                      OpenAI Platform
-                    </a>
-                  </li>
-                  <li>
-                    <strong>Kimi</strong>: Moonshot AI (月之暗面) with 128K context window<br />
-                    <span className="text-blue-600">Get API key: </span>
-                    <a href="https://platform.moonshot.cn/" target="_blank" rel="noopener noreferrer" className="underline hover:text-blue-900">
-                      Moonshot Platform
-                    </a>
+                    <strong>Direct providers</strong> (Gemini, Claude, OpenAI, Kimi) connect directly to their APIs<br />
+                    <span className="text-blue-600">Use when: </span>You want provider-specific features or already have API keys
                   </li>
                   <li className="pt-1 border-t border-blue-200 mt-2">
                     • All providers maintain the same bilingual format (Chinese + English)<br />
-                    • You can switch providers at any time in settings<br />
+                    • You can switch providers and models at any time<br />
                     • API keys are stored locally in your browser
                   </li>
                 </ul>
