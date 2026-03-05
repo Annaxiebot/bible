@@ -28,6 +28,14 @@ function makeStorage(initial: Record<string, string> = {}) {
 describe('aiProvider', () => {
   beforeEach(() => {
     vi.stubGlobal('localStorage', makeStorage());
+    // Clear environment variables to ensure clean test environment
+    vi.stubEnv('VITE_GEMINI_API_KEY', '');
+    vi.stubEnv('VITE_CLAUDE_API_KEY', '');
+    vi.stubEnv('VITE_OPENAI_API_KEY', '');
+    vi.stubEnv('VITE_KIMI_API_KEY', '');
+    vi.stubEnv('API_KEY', '');
+    vi.stubEnv('OPENAI_API_KEY', '');
+    vi.stubEnv('KIMI_API_KEY', '');
     vi.stubGlobal('import', { meta: { env: {} } });
   });
 
