@@ -22,6 +22,7 @@ export const STORAGE_KEYS = {
   CLAUDE_API_KEY: 'claude_api_key',
   OPENAI_API_KEY: 'openai_api_key',
   KIMI_API_KEY: 'kimi_api_key',
+  OPENROUTER_API_KEY: 'openrouter_api_key',
   AI_PROVIDER: 'ai_provider',
   AI_MODEL: 'ai_model',
 
