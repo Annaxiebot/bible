@@ -370,24 +370,24 @@ describe('openrouter', () => {
     it('returns best and working list when first model succeeds', async () => {
       // fetchAvailableModels call
       mockFetch.mockResolvedValueOnce({ ok: true, json: async () => mockModelsResponse });
-      // testApiKey for llama
+      // testApiKey for gemma (first in priority)
       mockFetch.mockResolvedValueOnce(makeTestResponse(true));
 
       const result = await autoDetectBestFreeModel('sk-test');
-      expect(result.best?.modelId).toBe('meta-llama/llama-3.3-70b-instruct:free');
+      expect(result.best?.modelId).toBe('google/gemma-3-27b-it:free');
       expect(result.working.length).toBeGreaterThan(0);
     });
 
     it('skips failed models and returns next working one', async () => {
       mockFetch.mockResolvedValueOnce({ ok: true, json: async () => mockModelsResponse });
-      // llama fails
+      // gemma fails (first priority)
       mockFetch.mockResolvedValueOnce(makeTestResponse(false));
-      // mistral succeeds
+      // llama succeeds (second priority)
       mockFetch.mockResolvedValueOnce(makeTestResponse(true));
 
       const result = await autoDetectBestFreeModel('sk-test');
-      expect(result.best?.modelId).toBe('mistralai/mistral-small-3.1-24b-instruct:free');
-      expect(result.working.some(m => m.modelId === 'meta-llama/llama-3.3-70b-instruct:free')).toBe(false);
+      expect(result.best?.modelId).toBe('meta-llama/llama-3.3-70b-instruct:free');
+      expect(result.working.some(m => m.modelId === 'google/gemma-3-27b-it:free')).toBe(false);
     });
 
     it('returns { working: [], best: null } when all models fail', async () => {
@@ -417,9 +417,9 @@ describe('openrouter', () => {
       const progress: import('../openrouter').AutoDetectProgress[] = [];
       await autoDetectBestFreeModel('sk-test', p => progress.push({ ...p }));
 
-      const llamaEvents = progress.filter(p => p.modelId === 'meta-llama/llama-3.3-70b-instruct:free');
-      expect(llamaEvents[0]?.status).toBe('testing');
-      expect(llamaEvents[1]?.status).toBe('success');
+      const gemmaEvents = progress.filter(p => p.modelId === 'google/gemma-3-27b-it:free');
+      expect(gemmaEvents[0]?.status).toBe('testing');
+      expect(gemmaEvents[1]?.status).toBe('success');
     });
 
     it('calls onProgress with testing then failed for unavailable model', async () => {
@@ -429,9 +429,9 @@ describe('openrouter', () => {
       const progress: import('../openrouter').AutoDetectProgress[] = [];
       await autoDetectBestFreeModel('sk-test', p => progress.push({ ...p }));
 
-      const llamaEvents = progress.filter(p => p.modelId === 'meta-llama/llama-3.3-70b-instruct:free');
-      expect(llamaEvents[0]?.status).toBe('testing');
-      expect(llamaEvents[1]?.status).toBe('failed');
+      const gemmaEvents = progress.filter(p => p.modelId === 'google/gemma-3-27b-it:free');
+      expect(gemmaEvents[0]?.status).toBe('testing');
+      expect(gemmaEvents[1]?.status).toBe('failed');
     });
 
     it('falls back to FREE_MODELS when fetchAvailableModels throws', async () => {
