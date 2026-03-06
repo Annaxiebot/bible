@@ -38,6 +38,7 @@ export interface SaveAIResearchParams {
   verses?: number[];
   tags?: string[];
   aiProvider?: 'claude' | 'gemini' | 'kimi' | 'openai' | 'openrouter';
+  aiModel?: string;
   imageData?: string;
   imageMimeType?: string;
 }
@@ -163,7 +164,7 @@ class AutoSaveResearchService {
         };
       }
 
-      const { message, query, bookId, chapter, verses, tags = [], aiProvider, imageData, imageMimeType } = params;
+      const { message, query, bookId, chapter, verses, tags = [], aiProvider, aiModel, imageData, imageMimeType } = params;
 
       // Validate content
       const trimmedContent = message.content.trim();
@@ -203,7 +204,7 @@ class AutoSaveResearchService {
         baseTags.push('general-research');
       }
       if (aiProvider) {
-        baseTags.push(aiProvider);
+        baseTags.push(aiProvider === 'openrouter' && aiModel ? `openrouter:${aiModel}` : aiProvider);
       }
 
       // Build the response to save: bilingual responses are joined into one entry
