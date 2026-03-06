@@ -21,13 +21,13 @@ export interface OpenRouterModelInfo {
 /** In-memory model cache — avoids redundant fetches within a session */
 let modelCache: { models: OpenRouterModelInfo[]; fetchedAt: number } | null = null;
 
-/** Priority order for auto-detection — highest quality / most reliable free models first */
-const FREE_MODEL_PRIORITY = [
-  'google/gemma-3-27b-it:free',
-  'meta-llama/llama-3.3-70b-instruct:free',
-  'mistralai/mistral-small-3.1-24b-instruct:free',
-  'meta-llama/llama-3.2-3b-instruct:free',
-];
+/**
+ * Provider organization priority for auto-detection.
+ * The provider prefix is the part before the '/' in the model ID
+ * (e.g. 'google' for 'google/gemma-3-27b-it:free').
+ * Models from higher-priority providers are tested first regardless of model name.
+ */
+const PROVIDER_PRIORITY = ['google', 'openai', 'meta-llama', 'meta'];
 
 export type AutoDetectProgress = {
   modelId: string;
@@ -121,11 +121,15 @@ export const autoDetectBestFreeModel = async (
     freeModels = FREE_MODELS.map(m => ({ ...m, isFree: true }));
   }
 
-  // Priority models first, then remainder sorted alphabetically
-  const prioritized: OpenRouterModelInfo[] = [
-    ...FREE_MODEL_PRIORITY.map(id => freeModels.find(m => m.id === id)).filter((m): m is OpenRouterModelInfo => !!m),
-    ...freeModels.filter(m => !FREE_MODEL_PRIORITY.includes(m.id)),
-  ];
+  // Sort by provider organization priority, then alphabetically within each tier
+  const providerIndex = (m: OpenRouterModelInfo) => {
+    const idx = PROVIDER_PRIORITY.indexOf(m.provider);
+    return idx === -1 ? PROVIDER_PRIORITY.length : idx;
+  };
+  const prioritized = [...freeModels].sort((a, b) => {
+    const diff = providerIndex(a) - providerIndex(b);
+    return diff !== 0 ? diff : a.name.localeCompare(b.name);
+  });
 
   const working: Array<{ modelId: string; modelName: string }> = [];
 

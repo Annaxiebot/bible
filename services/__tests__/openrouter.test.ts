@@ -370,7 +370,7 @@ describe('openrouter', () => {
     it('returns best and working list when first model succeeds', async () => {
       // fetchAvailableModels call
       mockFetch.mockResolvedValueOnce({ ok: true, json: async () => mockModelsResponse });
-      // testApiKey for gemma (first in priority)
+      // google model is tested first (highest provider priority)
       mockFetch.mockResolvedValueOnce(makeTestResponse(true));
 
       const result = await autoDetectBestFreeModel('sk-test');
@@ -380,9 +380,8 @@ describe('openrouter', () => {
 
     it('skips failed models and returns next working one', async () => {
       mockFetch.mockResolvedValueOnce({ ok: true, json: async () => mockModelsResponse });
-      // gemma fails (first priority)
+      // google fails, meta-llama succeeds
       mockFetch.mockResolvedValueOnce(makeTestResponse(false));
-      // llama succeeds (second priority)
       mockFetch.mockResolvedValueOnce(makeTestResponse(true));
 
       const result = await autoDetectBestFreeModel('sk-test');
@@ -417,9 +416,10 @@ describe('openrouter', () => {
       const progress: import('../openrouter').AutoDetectProgress[] = [];
       await autoDetectBestFreeModel('sk-test', p => progress.push({ ...p }));
 
-      const gemmaEvents = progress.filter(p => p.modelId === 'google/gemma-3-27b-it:free');
-      expect(gemmaEvents[0]?.status).toBe('testing');
-      expect(gemmaEvents[1]?.status).toBe('success');
+      // google/gemma tested first due to provider priority
+      const googleEvents = progress.filter(p => p.modelId === 'google/gemma-3-27b-it:free');
+      expect(googleEvents[0]?.status).toBe('testing');
+      expect(googleEvents[1]?.status).toBe('success');
     });
 
     it('calls onProgress with testing then failed for unavailable model', async () => {
@@ -429,9 +429,9 @@ describe('openrouter', () => {
       const progress: import('../openrouter').AutoDetectProgress[] = [];
       await autoDetectBestFreeModel('sk-test', p => progress.push({ ...p }));
 
-      const gemmaEvents = progress.filter(p => p.modelId === 'google/gemma-3-27b-it:free');
-      expect(gemmaEvents[0]?.status).toBe('testing');
-      expect(gemmaEvents[1]?.status).toBe('failed');
+      const googleEvents = progress.filter(p => p.modelId === 'google/gemma-3-27b-it:free');
+      expect(googleEvents[0]?.status).toBe('testing');
+      expect(googleEvents[1]?.status).toBe('failed');
     });
 
     it('falls back to FREE_MODELS when fetchAvailableModels throws', async () => {
@@ -445,22 +445,23 @@ describe('openrouter', () => {
       expect(result.working.length).toBeGreaterThan(0);
     });
 
-    it('respects priority order — priority models appear before non-priority', async () => {
+    it('respects provider priority — google before meta-llama before unknown providers', async () => {
       const responseWithExtra = {
         data: [
           { id: 'some/other-free-model:free', name: 'Other Free', pricing: { prompt: '0', completion: '0' } },
           { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B', pricing: { prompt: '0', completion: '0' } },
+          { id: 'google/gemma-3-27b-it:free', name: 'Gemma 3 27B', pricing: { prompt: '0', completion: '0' } },
         ],
       };
       mockFetch.mockResolvedValueOnce({ ok: true, json: async () => responseWithExtra });
-      // All succeed
       mockFetch.mockResolvedValue(makeTestResponse(true));
 
       const result = await autoDetectBestFreeModel('sk-test');
-      // Llama (priority) should come before other-free-model (non-priority)
-      const llamaIdx = result.working.findIndex(m => m.modelId === 'meta-llama/llama-3.3-70b-instruct:free');
+      const googleIdx = result.working.findIndex(m => m.modelId === 'google/gemma-3-27b-it:free');
+      const metaIdx = result.working.findIndex(m => m.modelId === 'meta-llama/llama-3.3-70b-instruct:free');
       const otherIdx = result.working.findIndex(m => m.modelId === 'some/other-free-model:free');
-      expect(llamaIdx).toBeLessThan(otherIdx);
+      expect(googleIdx).toBeLessThan(metaIdx);
+      expect(metaIdx).toBeLessThan(otherIdx);
     });
   });
 });
