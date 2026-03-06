@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import * as aiProvider from '../services/aiProvider';
+import { DEFAULT_FREE_MODEL, FREE_MODELS } from '../services/openrouter';
 import { autoSaveResearchService } from '../services/autoSaveResearchService';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 
@@ -43,7 +44,8 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
 
     setTestingKey(provider);
     try {
-      const result = await aiProvider.testApiKey(provider, apiKey);
+      const modelToTest = provider === 'openrouter' ? (selectedModel || undefined) : undefined;
+      const result = await aiProvider.testApiKey(provider, apiKey, modelToTest);
       setTestResults(prev => ({ ...prev, [provider]: result }));
     } catch (error) {
       setTestResults(prev => ({ 
@@ -191,7 +193,11 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
                 onChange={(e) => setSelectedModel(e.target.value)}
                 className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm"
               >
-                <option value="">Use provider default</option>
+                <option value="">
+                  {currentProvider === 'openrouter'
+                    ? `Default: ${FREE_MODELS.find(m => m.id === DEFAULT_FREE_MODEL)?.name ?? DEFAULT_FREE_MODEL}`
+                    : 'Use provider default'}
+                </option>
                 {currentProviderInfo.models.map((model) => {
                   // Extract model ID from the display string (e.g., "google/gemini-flash-1.5 (Google - Free)")
                   const modelId = model.split(' (')[0];
@@ -276,8 +282,8 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
                       ? 'bg-green-50 text-green-700 border border-green-200' 
                       : 'bg-red-50 text-red-700 border border-red-200'
                   }`}>
-                    {testResults.openrouter.success 
-                      ? `✓ API key works! Test model: ${testResults.openrouter.model}`
+                    {testResults.openrouter.success
+                      ? `✓ API key works! Tested with: ${testResults.openrouter.model}`
                       : `✗ Error: ${testResults.openrouter.error}`}
                   </div>
                 )}
@@ -483,7 +489,7 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
                 <ul className="space-y-2 text-xs">
                   <li>
                     <strong>OpenRouter</strong>: Unified gateway to 100+ models with free tiers<br />
-                    <span className="text-blue-600">Free models: </span>Gemini Flash 1.5, Llama 3.1, Mistral 7B, DeepSeek, etc.
+                    <span className="text-blue-600">Free models: </span>Llama 3.3 70B, Mistral Small 3.1, Gemma 3 27B, DeepSeek, etc.
                   </li>
                   <li>
                     <strong>Direct providers</strong> (Gemini, Claude, OpenAI, Kimi) connect directly to their APIs<br />

@@ -745,7 +745,9 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
             AI Provider: <span className="text-indigo-600">
               {currentProvider === 'claude' ? 'Claude' :
                currentProvider === 'openai' ? 'ChatGPT' :
-               currentProvider === 'kimi' ? 'Kimi' : 'Gemini'}
+               currentProvider === 'kimi' ? 'Kimi' :
+               currentProvider === 'openrouter' ? `OpenRouter · ${aiService.getCurrentModel() ?? 'Llama 3.3 70B'}` :
+               'Gemini'}
             </span>
           </span>
         </div>
