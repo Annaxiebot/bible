@@ -46,7 +46,9 @@ const VALID_MODELS: readonly string[] = [
 
 export const getCurrentModel = (): AIModel | null => {
   const stored = localStorage.getItem(MODEL_KEY);
-  return stored && VALID_MODELS.includes(stored) ? (stored as AIModel) : null;
+  if (!stored) return null;
+  // Accept known direct-provider models OR OpenRouter-format IDs (contain '/')
+  return (VALID_MODELS.includes(stored) || stored.includes('/')) ? (stored as AIModel) : null;
 };
 
 /**
@@ -154,9 +156,9 @@ export const isProviderConfigured = (provider: AIProvider): boolean => {
 /**
  * Test API key for a provider
  */
-export const testApiKey = async (provider: AIProvider, apiKey: string): Promise<{ success: boolean; error?: string; model?: string }> => {
+export const testApiKey = async (provider: AIProvider, apiKey: string, model?: string): Promise<{ success: boolean; error?: string; model?: string }> => {
   if (provider === 'openrouter') {
-    return await openrouter.testApiKey(apiKey);
+    return await openrouter.testApiKey(apiKey, model);
   }
   // Other providers don't have test functions yet
   return { success: true };
