@@ -6,6 +6,7 @@
  */
 
 import { STORAGE_KEYS } from '../constants/storageKeys';
+import { withRetry } from '../utils/retryUtils';
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const OPENROUTER_MODELS_URL = 'https://openrouter.ai/api/v1/models';
@@ -247,29 +248,31 @@ export const chatWithAI = async (
   ];
 
   try {
-    const response = await fetch(OPENROUTER_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`,
-        'HTTP-Referer': window.location.origin,
-        'X-Title': 'Scripture Scholar',
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        max_tokens: options.fast ? 1000 : 4000,
-        temperature: 0.7,
-      }),
+    return await withRetry(async () => {
+      const response = await fetch(OPENROUTER_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+          'HTTP-Referer': window.location.origin,
+          'X-Title': 'Scripture Scholar',
+        },
+        body: JSON.stringify({
+          model,
+          messages,
+          max_tokens: options.fast ? 1000 : 4000,
+          temperature: 0.7,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error?.message || `OpenRouter API error: ${response.status}`);
+      }
+
+      return data.choices?.[0]?.message?.content || 'No response from AI';
     });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error?.message || `OpenRouter API error: ${response.status}`);
-    }
-
-    return data.choices?.[0]?.message?.content || 'No response from AI';
   } catch (error) {
     if (error instanceof Error) {
       throw new Error(`OpenRouter API error: ${error.message}`);

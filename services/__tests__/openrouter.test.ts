@@ -7,6 +7,11 @@ import {
 } from '../openrouter';
 import { STORAGE_KEYS } from '../../constants/storageKeys';
 
+// withRetry is a passthrough in these tests — retry behaviour is tested in retryUtils.test.ts
+vi.mock('../../utils/retryUtils', () => ({
+  withRetry: (fn: () => Promise<unknown>) => fn(),
+}));
+
 // Mock fetch globally
 const mockFetch = vi.fn();
 vi.stubGlobal('fetch', mockFetch);

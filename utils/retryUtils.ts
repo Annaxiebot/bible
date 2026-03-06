@@ -6,7 +6,10 @@ const HTTP_STATUS_RATE_LIMIT = 429;
 function isRateLimitError(error: unknown): boolean {
   const err = error as { status?: number; message?: string };
   return err?.status === HTTP_STATUS_RATE_LIMIT
-    || (typeof err?.message === 'string' && err.message.includes('429'));
+    || (typeof err?.message === 'string' && (
+      err.message.includes('429') ||
+      err.message.toLowerCase().includes('rate limit')
+    ));
 }
 
 /**
