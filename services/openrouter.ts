@@ -1,13 +1,67 @@
 /**
  * OpenRouter API Service
- * 
+ *
  * Unified gateway to access multiple AI models through OpenRouter.
- * Supports free models (Gemini Flash, Llama 3.1, Mistral) and premium models.
+ * Supports free models and premium models, with dynamic model list fetching.
  */
 
 import { STORAGE_KEYS } from '../constants/storageKeys';
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+const OPENROUTER_MODELS_URL = 'https://openrouter.ai/api/v1/models';
+const MODEL_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+export interface OpenRouterModelInfo {
+  id: string;
+  name: string;
+  provider: string;
+  isFree: boolean;
+}
+
+/** In-memory model cache — avoids redundant fetches within a session */
+let modelCache: { models: OpenRouterModelInfo[]; fetchedAt: number } | null = null;
+
+/**
+ * Fetch the live model list from OpenRouter.
+ * Results are cached for 5 minutes. Falls back to the caller handling errors.
+ * Free models (`:free` suffix or zero pricing) are sorted first.
+ */
+export const fetchAvailableModels = async (): Promise<OpenRouterModelInfo[]> => {
+  if (modelCache && Date.now() - modelCache.fetchedAt < MODEL_CACHE_TTL_MS) {
+    return modelCache.models;
+  }
+
+  const response = await fetch(OPENROUTER_MODELS_URL);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch OpenRouter models: ${response.statusText}`);
+  }
+
+  const data = await response.json() as {
+    data: Array<{ id: string; name: string; pricing?: { prompt: string; completion: string } }>;
+  };
+
+  const models: OpenRouterModelInfo[] = data.data.map(m => {
+    const isFree = m.id.endsWith(':free') ||
+      (m.pricing?.prompt === '0' && m.pricing?.completion === '0');
+    return {
+      id: m.id,
+      name: m.name || m.id,
+      provider: m.id.split('/')[0] ?? '',
+      isFree,
+    };
+  }).sort((a, b) => {
+    if (a.isFree !== b.isFree) return a.isFree ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+
+  modelCache = { models, fetchedAt: Date.now() };
+  return models;
+};
+
+/** Clear the model cache (e.g. for testing or forced refresh) */
+export const clearModelCache = (): void => {
+  modelCache = null;
+};
 
 /**
  * Default model used when no model is explicitly selected
