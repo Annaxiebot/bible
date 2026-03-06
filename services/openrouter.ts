@@ -23,9 +23,9 @@ let modelCache: { models: OpenRouterModelInfo[]; fetchedAt: number } | null = nu
 
 /** Priority order for auto-detection — highest quality / most reliable free models first */
 const FREE_MODEL_PRIORITY = [
+  'google/gemma-3-27b-it:free',
   'meta-llama/llama-3.3-70b-instruct:free',
   'mistralai/mistral-small-3.1-24b-instruct:free',
-  'google/gemma-3-27b-it:free',
   'meta-llama/llama-3.2-3b-instruct:free',
 ];
 
@@ -80,7 +80,7 @@ export const clearModelCache = (): void => {
 /**
  * Default model used when no model is explicitly selected
  */
-export const DEFAULT_FREE_MODEL = 'meta-llama/llama-3.3-70b-instruct:free';
+export const DEFAULT_FREE_MODEL = 'google/gemma-3-27b-it:free';
 
 /**
  * OpenRouter free models (verified available as of 2026-03)
@@ -132,7 +132,7 @@ export const autoDetectBestFreeModel = async (
   for (const model of prioritized) {
     onProgress?.({ modelId: model.id, modelName: model.name, status: 'testing' });
     const timeoutPromise = new Promise<{ success: false; error: string }>(res =>
-      setTimeout(() => res({ success: false, error: 'timeout' }), 10000)
+      setTimeout(() => res({ success: false, error: 'timeout' }), 3000)
     );
     const result = await Promise.race([testApiKey(apiKey, model.id), timeoutPromise]);
     if (result.success) {
