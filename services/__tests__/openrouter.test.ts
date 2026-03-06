@@ -3,6 +3,7 @@ import {
   FREE_MODELS, PREMIUM_MODELS, DEFAULT_FREE_MODEL,
   testApiKey, chatWithAI,
   fetchAvailableModels, clearModelCache,
+  autoDetectBestFreeModel,
 } from '../openrouter';
 import { STORAGE_KEYS } from '../../constants/storageKeys';
 
@@ -343,6 +344,123 @@ describe('openrouter', () => {
       mockFetch.mockRejectedValueOnce(new Error('fetch failed'));
 
       await expect(chatWithAI('Hello', [])).rejects.toThrow('OpenRouter API error: fetch failed');
+    });
+  });
+
+  describe('autoDetectBestFreeModel', () => {
+    beforeEach(() => {
+      clearModelCache();
+    });
+
+    const mockModelsResponse = {
+      data: [
+        { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B', pricing: { prompt: '0', completion: '0' } },
+        { id: 'mistralai/mistral-small-3.1-24b-instruct:free', name: 'Mistral Small 3.1', pricing: { prompt: '0', completion: '0' } },
+        { id: 'google/gemma-3-27b-it:free', name: 'Gemma 3 27B', pricing: { prompt: '0', completion: '0' } },
+      ],
+    };
+
+    function makeTestResponse(success: boolean) {
+      if (success) {
+        return { ok: true, json: async () => ({ model: 'test', choices: [{ message: { content: 'ok' } }] }) };
+      }
+      return { ok: false, status: 503, statusText: 'Service Unavailable', json: async () => ({ error: { message: 'unavailable' } }) };
+    }
+
+    it('returns best and working list when first model succeeds', async () => {
+      // fetchAvailableModels call
+      mockFetch.mockResolvedValueOnce({ ok: true, json: async () => mockModelsResponse });
+      // testApiKey for llama
+      mockFetch.mockResolvedValueOnce(makeTestResponse(true));
+
+      const result = await autoDetectBestFreeModel('sk-test');
+      expect(result.best?.modelId).toBe('meta-llama/llama-3.3-70b-instruct:free');
+      expect(result.working.length).toBeGreaterThan(0);
+    });
+
+    it('skips failed models and returns next working one', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true, json: async () => mockModelsResponse });
+      // llama fails
+      mockFetch.mockResolvedValueOnce(makeTestResponse(false));
+      // mistral succeeds
+      mockFetch.mockResolvedValueOnce(makeTestResponse(true));
+
+      const result = await autoDetectBestFreeModel('sk-test');
+      expect(result.best?.modelId).toBe('mistralai/mistral-small-3.1-24b-instruct:free');
+      expect(result.working.some(m => m.modelId === 'meta-llama/llama-3.3-70b-instruct:free')).toBe(false);
+    });
+
+    it('returns { working: [], best: null } when all models fail', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true, json: async () => mockModelsResponse });
+      // all fail
+      mockFetch.mockResolvedValue(makeTestResponse(false));
+
+      const result = await autoDetectBestFreeModel('sk-test');
+      expect(result.best).toBeNull();
+      expect(result.working).toHaveLength(0);
+    });
+
+    it('collects all working models in working array', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true, json: async () => mockModelsResponse });
+      // all three succeed
+      mockFetch.mockResolvedValue(makeTestResponse(true));
+
+      const result = await autoDetectBestFreeModel('sk-test');
+      expect(result.working.length).toBe(3);
+    });
+
+    it('calls onProgress with testing then success for working model', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true, json: async () => mockModelsResponse });
+      mockFetch.mockResolvedValueOnce(makeTestResponse(true));
+      mockFetch.mockResolvedValue(makeTestResponse(false));
+
+      const progress: import('../openrouter').AutoDetectProgress[] = [];
+      await autoDetectBestFreeModel('sk-test', p => progress.push({ ...p }));
+
+      const llamaEvents = progress.filter(p => p.modelId === 'meta-llama/llama-3.3-70b-instruct:free');
+      expect(llamaEvents[0]?.status).toBe('testing');
+      expect(llamaEvents[1]?.status).toBe('success');
+    });
+
+    it('calls onProgress with testing then failed for unavailable model', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true, json: async () => mockModelsResponse });
+      mockFetch.mockResolvedValue(makeTestResponse(false));
+
+      const progress: import('../openrouter').AutoDetectProgress[] = [];
+      await autoDetectBestFreeModel('sk-test', p => progress.push({ ...p }));
+
+      const llamaEvents = progress.filter(p => p.modelId === 'meta-llama/llama-3.3-70b-instruct:free');
+      expect(llamaEvents[0]?.status).toBe('testing');
+      expect(llamaEvents[1]?.status).toBe('failed');
+    });
+
+    it('falls back to FREE_MODELS when fetchAvailableModels throws', async () => {
+      // fetchAvailableModels fails
+      mockFetch.mockRejectedValueOnce(new Error('network error'));
+      // testApiKey calls for FREE_MODELS fallback models
+      mockFetch.mockResolvedValue(makeTestResponse(true));
+
+      const result = await autoDetectBestFreeModel('sk-test');
+      // Should still work using FREE_MODELS as fallback
+      expect(result.working.length).toBeGreaterThan(0);
+    });
+
+    it('respects priority order — priority models appear before non-priority', async () => {
+      const responseWithExtra = {
+        data: [
+          { id: 'some/other-free-model:free', name: 'Other Free', pricing: { prompt: '0', completion: '0' } },
+          { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B', pricing: { prompt: '0', completion: '0' } },
+        ],
+      };
+      mockFetch.mockResolvedValueOnce({ ok: true, json: async () => responseWithExtra });
+      // All succeed
+      mockFetch.mockResolvedValue(makeTestResponse(true));
+
+      const result = await autoDetectBestFreeModel('sk-test');
+      // Llama (priority) should come before other-free-model (non-priority)
+      const llamaIdx = result.working.findIndex(m => m.modelId === 'meta-llama/llama-3.3-70b-instruct:free');
+      const otherIdx = result.working.findIndex(m => m.modelId === 'some/other-free-model:free');
+      expect(llamaIdx).toBeLessThan(otherIdx);
     });
   });
 });

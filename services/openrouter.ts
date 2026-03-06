@@ -21,6 +21,20 @@ export interface OpenRouterModelInfo {
 /** In-memory model cache — avoids redundant fetches within a session */
 let modelCache: { models: OpenRouterModelInfo[]; fetchedAt: number } | null = null;
 
+/** Priority order for auto-detection — highest quality / most reliable free models first */
+const FREE_MODEL_PRIORITY = [
+  'meta-llama/llama-3.3-70b-instruct:free',
+  'mistralai/mistral-small-3.1-24b-instruct:free',
+  'google/gemma-3-27b-it:free',
+  'meta-llama/llama-3.2-3b-instruct:free',
+];
+
+export type AutoDetectProgress = {
+  modelId: string;
+  modelName: string;
+  status: 'testing' | 'success' | 'failed';
+};
+
 /**
  * Fetch the live model list from OpenRouter.
  * Results are cached for 5 minutes. Falls back to the caller handling errors.
@@ -89,6 +103,48 @@ export const PREMIUM_MODELS = [
   { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI' },
   { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'Google' },
 ];
+
+/**
+ * Test all free models in priority order and return those that respond successfully.
+ * The dropdown can then be filtered to only show working models.
+ * Returns { working: [...], best: firstWorking | null }.
+ */
+export const autoDetectBestFreeModel = async (
+  apiKey: string,
+  onProgress?: (progress: AutoDetectProgress) => void
+): Promise<{ working: Array<{ modelId: string; modelName: string }>; best: { modelId: string; modelName: string } | null }> => {
+  let freeModels: OpenRouterModelInfo[] = [];
+  try {
+    const all = await fetchAvailableModels();
+    freeModels = all.filter(m => m.isFree);
+  } catch {
+    freeModels = FREE_MODELS.map(m => ({ ...m, isFree: true }));
+  }
+
+  // Priority models first, then remainder sorted alphabetically
+  const prioritized: OpenRouterModelInfo[] = [
+    ...FREE_MODEL_PRIORITY.map(id => freeModels.find(m => m.id === id)).filter((m): m is OpenRouterModelInfo => !!m),
+    ...freeModels.filter(m => !FREE_MODEL_PRIORITY.includes(m.id)),
+  ];
+
+  const working: Array<{ modelId: string; modelName: string }> = [];
+
+  for (const model of prioritized) {
+    onProgress?.({ modelId: model.id, modelName: model.name, status: 'testing' });
+    const timeoutPromise = new Promise<{ success: false; error: string }>(res =>
+      setTimeout(() => res({ success: false, error: 'timeout' }), 10000)
+    );
+    const result = await Promise.race([testApiKey(apiKey, model.id), timeoutPromise]);
+    if (result.success) {
+      onProgress?.({ modelId: model.id, modelName: model.name, status: 'success' });
+      working.push({ modelId: model.id, modelName: model.name });
+    } else {
+      onProgress?.({ modelId: model.id, modelName: model.name, status: 'failed' });
+    }
+  }
+
+  return { working, best: working[0] ?? null };
+};
 
 /**
  * Get OpenRouter API key

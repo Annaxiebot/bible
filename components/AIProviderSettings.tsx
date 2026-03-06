@@ -6,7 +6,9 @@ import {
   PREMIUM_MODELS,
   fetchAvailableModels,
   clearModelCache,
+  autoDetectBestFreeModel,
   OpenRouterModelInfo,
+  AutoDetectProgress,
 } from '../services/openrouter';
 import { autoSaveResearchService } from '../services/autoSaveResearchService';
 import { STORAGE_KEYS } from '../constants/storageKeys';
@@ -35,6 +37,9 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
   const [dynamicFreeModels, setDynamicFreeModels] = useState<OpenRouterModelInfo[] | null>(null);
   const [modelsLoading, setModelsLoading] = useState(false);
   const [modelsError, setModelsError] = useState<string | null>(null);
+  const [verifiedModels, setVerifiedModels] = useState<Array<{ modelId: string; modelName: string }> | null>(null);
+  const [autoDetecting, setAutoDetecting] = useState(false);
+  const [detectProgress, setDetectProgress] = useState<AutoDetectProgress[]>([]);
 
   useEffect(() => {
     setGeminiApiKey(localStorage.getItem(STORAGE_KEYS.GEMINI_API_KEY) || '');
@@ -73,18 +78,53 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
       return;
     }
 
+    if (provider === 'openrouter') {
+      // For OpenRouter: test all free models, filter to working ones, auto-select best
+      setAutoDetecting(true);
+      setDetectProgress([]);
+      setVerifiedModels(null);
+      setTestResults(prev => ({ ...prev, openrouter: undefined as unknown as { success: boolean } }));
+      try {
+        const { working, best } = await autoDetectBestFreeModel(apiKey, (progress) => {
+          setDetectProgress(prev => {
+            const existing = prev.findIndex(p => p.modelId === progress.modelId);
+            if (existing >= 0) {
+              const next = [...prev];
+              next[existing] = progress;
+              return next;
+            }
+            return [...prev, progress];
+          });
+        });
+        setVerifiedModels(working);
+        if (best) {
+          setSelectedModel(best.modelId);
+          setTestResults(prev => ({ ...prev, openrouter: { success: true, model: best.modelId } }));
+        } else {
+          setTestResults(prev => ({ ...prev, openrouter: { success: false, error: 'No working free models found' } }));
+        }
+      } catch (error) {
+        setTestResults(prev => ({
+          ...prev,
+          openrouter: { success: false, error: error instanceof Error ? error.message : 'Unknown error' },
+        }));
+      } finally {
+        setAutoDetecting(false);
+      }
+      return;
+    }
+
     setTestingKey(provider);
     try {
-      const modelToTest = provider === 'openrouter' ? (selectedModel || undefined) : undefined;
-      const result = await aiProvider.testApiKey(provider, apiKey, modelToTest);
+      const result = await aiProvider.testApiKey(provider, apiKey);
       setTestResults(prev => ({ ...prev, [provider]: result }));
     } catch (error) {
-      setTestResults(prev => ({ 
-        ...prev, 
-        [provider]: { 
-          success: false, 
-          error: error instanceof Error ? error.message : 'Unknown error' 
-        } 
+      setTestResults(prev => ({
+        ...prev,
+        [provider]: {
+          success: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        }
       }));
     } finally {
       setTestingKey(null);
@@ -259,10 +299,15 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
 
                 {currentProvider === 'openrouter' ? (
                   <>
-                    <optgroup label="— Free Models —">
-                      {(dynamicFreeModels ?? FREE_MODELS).map(m => (
-                        <option key={m.id} value={m.id}>{m.name} ({m.provider})</option>
-                      ))}
+                    <optgroup label={verifiedModels ? `— Verified Working Free Models (${verifiedModels.length}) —` : '— Free Models —'}>
+                      {verifiedModels
+                        ? verifiedModels.map(m => (
+                            <option key={m.modelId} value={m.modelId}>{m.modelName}</option>
+                          ))
+                        : (dynamicFreeModels ?? FREE_MODELS).map(m => (
+                            <option key={m.id} value={m.id}>{m.name} ({m.provider})</option>
+                          ))
+                      }
                     </optgroup>
                     <optgroup label="— Premium (requires credits) —">
                       {PREMIUM_MODELS.map(m => (
@@ -280,9 +325,9 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
 
               <p className="text-xs text-slate-500 mt-2">
                 {currentProvider === 'openrouter'
-                  ? dynamicFreeModels
-                    ? `${dynamicFreeModels.length} free models loaded from OpenRouter. Premium models use your credits.`
-                    : 'Free models require no credits. Premium models use your OpenRouter credits.'
+                  ? verifiedModels
+                    ? `Showing ${verifiedModels.length} verified working free model${verifiedModels.length !== 1 ? 's' : ''}. Click "Test & Auto-Select" to refresh.`
+                    : 'Click "Test & Auto-Select" below to find and filter to working free models.'
                   : 'Different models have different capabilities and speed. Choose based on your needs.'}
               </p>
             </div>
@@ -327,10 +372,10 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
                   <button
                     type="button"
                     onClick={() => handleTestKey('openrouter', openrouterApiKey)}
-                    disabled={testingKey === 'openrouter' || !openrouterApiKey.trim()}
+                    disabled={autoDetecting || !openrouterApiKey.trim()}
                     className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
                   >
-                    {testingKey === 'openrouter' ? (
+                    {autoDetecting ? (
                       <>
                         <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -343,15 +388,46 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                         </svg>
-                        Test
+                        Test &amp; Auto-Select
                       </>
                     )}
                   </button>
                 </div>
-                {testResults.openrouter && (
+
+                {/* Auto-detect progress */}
+                {detectProgress.length > 0 && (
+                  <div className="text-xs border border-slate-200 rounded p-2 space-y-1 bg-slate-50">
+                    {autoDetecting && <p className="text-slate-500 font-medium">Testing free models in priority order…</p>}
+                    {detectProgress.map(p => (
+                      <div key={p.modelId} className="flex items-center gap-2">
+                        {p.status === 'testing' && (
+                          <svg className="animate-spin h-3 w-3 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                          </svg>
+                        )}
+                        {p.status === 'success' && <span className="text-green-600 flex-shrink-0">✓</span>}
+                        {p.status === 'failed' && <span className="text-red-500 flex-shrink-0">✗</span>}
+                        <span className={p.status === 'failed' ? 'text-slate-400' : 'text-slate-700'}>{p.modelName}</span>
+                        {p.status === 'testing' && <span className="text-slate-400">testing…</span>}
+                        {p.status === 'failed' && <span className="text-slate-400">unavailable</span>}
+                        {p.status === 'success' && <span className="text-green-600">works!</span>}
+                      </div>
+                    ))}
+                    {!autoDetecting && verifiedModels !== null && (
+                      <p className="pt-1 border-t border-slate-200 text-slate-600 font-medium">
+                        {verifiedModels.length > 0
+                          ? `Auto-selected: ${verifiedModels[0]?.modelName ?? ''} (${verifiedModels.length} working model${verifiedModels.length !== 1 ? 's' : ''} found)`
+                          : 'No working free models found. Check your API key or try again later.'}
+                      </p>
+                    )}
+                  </div>
+                )}
+
+                {testResults.openrouter && detectProgress.length === 0 && (
                   <div className={`text-xs p-2 rounded ${
-                    testResults.openrouter.success 
-                      ? 'bg-green-50 text-green-700 border border-green-200' 
+                    testResults.openrouter.success
+                      ? 'bg-green-50 text-green-700 border border-green-200'
                       : 'bg-red-50 text-red-700 border border-red-200'
                   }`}>
                     {testResults.openrouter.success
