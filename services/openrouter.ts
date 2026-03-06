@@ -10,15 +10,14 @@ import { STORAGE_KEYS } from '../constants/storageKeys';
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 /**
- * OpenRouter free models
+ * OpenRouter free models (verified available as of 2026-03)
  */
 export const FREE_MODELS = [
-  { id: 'google/gemini-flash-1.5', name: 'Gemini Flash 1.5 (Free)', provider: 'Google' },
-  { id: 'meta-llama/llama-3.1-8b-instruct:free', name: 'Llama 3.1 8B (Free)', provider: 'Meta' },
-  { id: 'meta-llama/llama-3.1-70b-instruct:free', name: 'Llama 3.1 70B (Free)', provider: 'Meta' },
-  { id: 'mistralai/mistral-7b-instruct:free', name: 'Mistral 7B (Free)', provider: 'Mistral' },
+  { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)', provider: 'Meta' },
+  { id: 'meta-llama/llama-3.2-3b-instruct:free', name: 'Llama 3.2 3B (Free)', provider: 'Meta' },
+  { id: 'mistralai/mistral-small-3.1-24b-instruct:free', name: 'Mistral Small 3.1 24B (Free)', provider: 'Mistral' },
+  { id: 'google/gemma-3-27b-it:free', name: 'Gemma 3 27B (Free)', provider: 'Google' },
   { id: 'deepseek/deepseek-chat', name: 'DeepSeek Chat', provider: 'DeepSeek' },
-  { id: 'qwen/qwen-2-7b-instruct:free', name: 'Qwen 2 7B (Free)', provider: 'Alibaba' },
 ];
 
 /**
@@ -29,7 +28,7 @@ export const PREMIUM_MODELS = [
   { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku', provider: 'Anthropic' },
   { id: 'openai/gpt-4o', name: 'GPT-4o', provider: 'OpenAI' },
   { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI' },
-  { id: 'google/gemini-pro-1.5', name: 'Gemini Pro 1.5', provider: 'Google' },
+  { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'Google' },
 ];
 
 /**
@@ -55,7 +54,7 @@ export const testApiKey = async (apiKey: string): Promise<{ success: boolean; er
         'X-Title': 'Scripture Scholar Test',
       },
       body: JSON.stringify({
-        model: 'google/gemini-flash-1.5', // Use free model for testing
+        model: 'meta-llama/llama-3.3-70b-instruct:free', // Use free model for testing
         messages: [
           { role: 'user', content: 'Say "API key works!" in 3 words or less.' }
         ],
@@ -74,7 +73,7 @@ export const testApiKey = async (apiKey: string): Promise<{ success: boolean; er
 
     return {
       success: true,
-      model: data.model || 'google/gemini-flash-1.5',
+      model: data.model || 'meta-llama/llama-3.3-70b-instruct:free',
     };
   } catch (error) {
     return {
@@ -104,8 +103,8 @@ export const chatWithAI = async (
     throw new Error('OpenRouter API key not configured. Please add your API key in settings.');
   }
 
-  // Default to free Gemini Flash model
-  const model = options.model || 'google/gemini-flash-1.5';
+  // Default to free Llama 3.3 70B model
+  const model = options.model || 'meta-llama/llama-3.3-70b-instruct:free';
 
   // Build messages array
   const messages = [
