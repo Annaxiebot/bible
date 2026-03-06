@@ -571,14 +571,15 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
         ...(currentImage ? { image: currentImage } : {}),
       });
 
-      const groundingChunks = (response.candidates?.[0] as any)?.groundingMetadata?.groundingChunks;
+      const responseText = typeof response === 'string' ? response : (response.text || "我无法生成回应。");
+      const groundingChunks = typeof response !== 'string' ? (response.candidates?.[0] as any)?.groundingMetadata?.groundingChunks : undefined;
       const references = Array.isArray(groundingChunks)
         ? (groundingChunks as GroundingChunk[]).map((chunk) => ({ title: chunk.web?.title || '参考资料', uri: chunk.web?.uri || '' })).filter((c) => c.uri)
         : undefined;
 
       assistantMessage = {
         role: 'assistant',
-        content: response.text || "我无法生成回应。",
+        content: responseText,
         timestamp: new Date(),
         references: references
       };
