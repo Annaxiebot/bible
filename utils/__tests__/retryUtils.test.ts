@@ -33,6 +33,17 @@ describe('withRetry', () => {
     expect(result).toBe('ok');
   });
 
+  it('retries on message containing "rate limit" (OpenRouter text)', async () => {
+    const err = new Error('Rate limit exceeded: free-models-per-min');
+    const fn = vi.fn()
+      .mockRejectedValueOnce(err)
+      .mockResolvedValueOnce('ok');
+
+    const result = await withRetry(fn);
+    expect(result).toBe('ok');
+    expect(fn).toHaveBeenCalledTimes(2);
+  });
+
   it('throws immediately for non-rate-limit errors', async () => {
     const fn = vi.fn().mockRejectedValue(new Error('Network failure'));
     await expect(withRetry(fn)).rejects.toThrow('Network failure');
