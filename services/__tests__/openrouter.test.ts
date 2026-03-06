@@ -1,5 +1,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { FREE_MODELS, PREMIUM_MODELS, testApiKey, chatWithAI } from '../openrouter';
+import {
+  FREE_MODELS, PREMIUM_MODELS, DEFAULT_FREE_MODEL,
+  testApiKey, chatWithAI,
+  fetchAvailableModels, clearModelCache,
+} from '../openrouter';
 import { STORAGE_KEYS } from '../../constants/storageKeys';
 
 // Mock fetch globally
@@ -42,6 +46,126 @@ describe('openrouter', () => {
         expect(model).toHaveProperty('name');
         expect(model).toHaveProperty('provider');
       });
+    });
+
+    it('DEFAULT_FREE_MODEL is included in FREE_MODELS', () => {
+      expect(FREE_MODELS.some(m => m.id === DEFAULT_FREE_MODEL)).toBe(true);
+    });
+  });
+
+  describe('fetchAvailableModels', () => {
+    beforeEach(() => {
+      clearModelCache();
+    });
+
+    const mockModelsResponse = {
+      data: [
+        { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (free)', pricing: { prompt: '0', completion: '0' } },
+        { id: 'google/gemma-3-27b-it:free', name: 'Gemma 3 27B (free)', pricing: { prompt: '0', completion: '0' } },
+        { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', pricing: { prompt: '0.000003', completion: '0.000015' } },
+        { id: 'openai/gpt-4o', name: 'GPT-4o', pricing: { prompt: '0.000005', completion: '0.000015' } },
+      ],
+    };
+
+    it('fetches and parses models from OpenRouter API', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockModelsResponse,
+      });
+
+      const models = await fetchAvailableModels();
+      expect(models.length).toBe(4);
+      expect(mockFetch).toHaveBeenCalledWith('https://openrouter.ai/api/v1/models');
+    });
+
+    it('marks :free suffix models as free', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true, json: async () => mockModelsResponse });
+
+      const models = await fetchAvailableModels();
+      const llama = models.find(m => m.id === 'meta-llama/llama-3.3-70b-instruct:free');
+      expect(llama?.isFree).toBe(true);
+    });
+
+    it('marks zero-pricing models as free', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true, json: async () => mockModelsResponse });
+
+      const models = await fetchAvailableModels();
+      const gemma = models.find(m => m.id === 'google/gemma-3-27b-it:free');
+      expect(gemma?.isFree).toBe(true);
+    });
+
+    it('marks paid models as not free', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true, json: async () => mockModelsResponse });
+
+      const models = await fetchAvailableModels();
+      const claude = models.find(m => m.id === 'anthropic/claude-3.5-sonnet');
+      expect(claude?.isFree).toBe(false);
+    });
+
+    it('sorts free models before premium models', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true, json: async () => mockModelsResponse });
+
+      const models = await fetchAvailableModels();
+      const firstPaidIndex = models.findIndex(m => !m.isFree);
+      const lastFreeIndex = models.reduce((acc, m, i) => m.isFree ? i : acc, -1);
+      // All free models appear before all paid models
+      expect(lastFreeIndex).toBeLessThan(firstPaidIndex);
+    });
+
+    it('returns cached results on second call without fetching again', async () => {
+      mockFetch.mockResolvedValue({ ok: true, json: async () => mockModelsResponse });
+
+      await fetchAvailableModels();
+      await fetchAvailableModels();
+      expect(mockFetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('re-fetches after clearModelCache()', async () => {
+      mockFetch.mockResolvedValue({ ok: true, json: async () => mockModelsResponse });
+
+      await fetchAvailableModels();
+      clearModelCache();
+      await fetchAvailableModels();
+      expect(mockFetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('throws on non-OK response', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: false, statusText: 'Service Unavailable' });
+
+      await expect(fetchAvailableModels()).rejects.toThrow('Failed to fetch OpenRouter models');
+    });
+
+    it('extracts provider from model ID', async () => {
+      mockFetch.mockResolvedValueOnce({ ok: true, json: async () => mockModelsResponse });
+
+      const models = await fetchAvailableModels();
+      const llama = models.find(m => m.id === 'meta-llama/llama-3.3-70b-instruct:free');
+      expect(llama?.provider).toBe('meta-llama');
+    });
+  });
+
+  describe('testApiKey with model param', () => {
+    it('uses specified model when provided', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ model: 'google/gemma-3-27b-it:free', choices: [{ message: { content: 'ok' } }] }),
+      });
+
+      const result = await testApiKey('sk-test', 'google/gemma-3-27b-it:free');
+      expect(result.success).toBe(true);
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body.model).toBe('google/gemma-3-27b-it:free');
+    });
+
+    it('uses DEFAULT_FREE_MODEL when no model specified', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ model: DEFAULT_FREE_MODEL, choices: [] }),
+      });
+
+      await testApiKey('sk-test');
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body.model).toBe(DEFAULT_FREE_MODEL);
     });
   });
 

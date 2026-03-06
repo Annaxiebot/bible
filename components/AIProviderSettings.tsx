@@ -1,6 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import * as aiProvider from '../services/aiProvider';
-import { DEFAULT_FREE_MODEL, FREE_MODELS } from '../services/openrouter';
+import {
+  DEFAULT_FREE_MODEL,
+  FREE_MODELS,
+  PREMIUM_MODELS,
+  fetchAvailableModels,
+  clearModelCache,
+  OpenRouterModelInfo,
+} from '../services/openrouter';
 import { autoSaveResearchService } from '../services/autoSaveResearchService';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 
@@ -25,6 +32,9 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
   const [autoSaveResearch, setAutoSaveResearch] = useState(() => autoSaveResearchService.isAutoSaveEnabled());
   const [testingKey, setTestingKey] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; error?: string; model?: string }>>({});
+  const [dynamicFreeModels, setDynamicFreeModels] = useState<OpenRouterModelInfo[] | null>(null);
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [modelsError, setModelsError] = useState<string | null>(null);
 
   useEffect(() => {
     setGeminiApiKey(localStorage.getItem(STORAGE_KEYS.GEMINI_API_KEY) || '');
@@ -35,6 +45,27 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
     setAutoSaveResearch(autoSaveResearchService.isAutoSaveEnabled());
     setSelectedModel(aiProvider.getCurrentModel() || '');
   }, [isOpen]);
+
+  // Fetch live OpenRouter free models when OpenRouter is selected
+  useEffect(() => {
+    if (currentProvider !== 'openrouter' || !isOpen) return;
+    loadOpenRouterModels();
+  }, [currentProvider, isOpen]);
+
+  const loadOpenRouterModels = async (forceRefresh = false) => {
+    if (forceRefresh) clearModelCache();
+    setModelsLoading(true);
+    setModelsError(null);
+    try {
+      const all = await fetchAvailableModels();
+      setDynamicFreeModels(all.filter(m => m.isFree));
+    } catch (err) {
+      setModelsError(err instanceof Error ? err.message : 'Failed to load models');
+      setDynamicFreeModels(null);
+    } finally {
+      setModelsLoading(false);
+    }
+  };
 
   const handleTestKey = async (provider: aiProvider.AIProvider, apiKey: string) => {
     if (!apiKey.trim()) {
@@ -185,9 +216,36 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
           {/* Model Selection */}
           {currentProviderInfo && currentProviderInfo.models.length > 0 && (
             <div className="mb-6">
-              <label className="block text-sm font-semibold text-slate-700 mb-3">
-                Select Model for {currentProviderInfo.name}
-              </label>
+              <div className="flex items-center justify-between mb-3">
+                <label className="text-sm font-semibold text-slate-700">
+                  Select Model for {currentProviderInfo.name}
+                </label>
+                {currentProvider === 'openrouter' && (
+                  <button
+                    type="button"
+                    onClick={() => loadOpenRouterModels(true)}
+                    disabled={modelsLoading}
+                    className="text-xs text-indigo-600 hover:underline disabled:opacity-50 flex items-center gap-1"
+                  >
+                    {modelsLoading ? (
+                      <>
+                        <svg className="animate-spin h-3 w-3" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                        </svg>
+                        Loading…
+                      </>
+                    ) : '↺ Refresh'}
+                  </button>
+                )}
+              </div>
+
+              {currentProvider === 'openrouter' && modelsError && (
+                <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2 mb-2">
+                  Could not load live model list: {modelsError}. Showing cached list.
+                </div>
+              )}
+
               <select
                 value={selectedModel}
                 onChange={(e) => setSelectedModel(e.target.value)}
@@ -198,19 +256,33 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
                     ? `Default: ${FREE_MODELS.find(m => m.id === DEFAULT_FREE_MODEL)?.name ?? DEFAULT_FREE_MODEL}`
                     : 'Use provider default'}
                 </option>
-                {currentProviderInfo.models.map((model) => {
-                  // Extract model ID from the display string (e.g., "google/gemini-flash-1.5 (Google - Free)")
-                  const modelId = model.split(' (')[0];
-                  return (
-                    <option key={modelId} value={modelId}>
-                      {model}
-                    </option>
-                  );
-                })}
+
+                {currentProvider === 'openrouter' ? (
+                  <>
+                    <optgroup label="— Free Models —">
+                      {(dynamicFreeModels ?? FREE_MODELS).map(m => (
+                        <option key={m.id} value={m.id}>{m.name} ({m.provider})</option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="— Premium (requires credits) —">
+                      {PREMIUM_MODELS.map(m => (
+                        <option key={m.id} value={m.id}>{m.name} ({m.provider})</option>
+                      ))}
+                    </optgroup>
+                  </>
+                ) : (
+                  currentProviderInfo.models.map((model) => {
+                    const modelId = model.split(' (')[0];
+                    return <option key={modelId} value={modelId}>{model}</option>;
+                  })
+                )}
               </select>
+
               <p className="text-xs text-slate-500 mt-2">
-                {currentProvider === 'openrouter' 
-                  ? 'Free models marked with (Free) require no credits. Premium models use your OpenRouter credits.'
+                {currentProvider === 'openrouter'
+                  ? dynamicFreeModels
+                    ? `${dynamicFreeModels.length} free models loaded from OpenRouter. Premium models use your credits.`
+                    : 'Free models require no credits. Premium models use your OpenRouter credits.'
                   : 'Different models have different capabilities and speed. Choose based on your needs.'}
               </p>
             </div>
