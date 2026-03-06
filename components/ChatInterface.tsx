@@ -611,6 +611,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
           chapter: currentChapter,
           verses: currentVerses,
           aiProvider: currentProvider,
+          aiModel: aiService.getCurrentModel() ?? undefined,
           imageData: currentImage?.data,
           imageMimeType: currentImage?.mimeType,
         });
