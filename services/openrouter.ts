@@ -10,6 +10,11 @@ import { STORAGE_KEYS } from '../constants/storageKeys';
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 /**
+ * Default model used when no model is explicitly selected
+ */
+export const DEFAULT_FREE_MODEL = 'meta-llama/llama-3.3-70b-instruct:free';
+
+/**
  * OpenRouter free models (verified available as of 2026-03)
  */
 export const FREE_MODELS = [
@@ -43,7 +48,8 @@ const getApiKey = (): string | null => {
 /**
  * Test OpenRouter API key
  */
-export const testApiKey = async (apiKey: string): Promise<{ success: boolean; error?: string; model?: string }> => {
+export const testApiKey = async (apiKey: string, model?: string): Promise<{ success: boolean; error?: string; model?: string }> => {
+  const testModel = model || DEFAULT_FREE_MODEL;
   try {
     const response = await fetch(OPENROUTER_API_URL, {
       method: 'POST',
@@ -54,7 +60,7 @@ export const testApiKey = async (apiKey: string): Promise<{ success: boolean; er
         'X-Title': 'Scripture Scholar Test',
       },
       body: JSON.stringify({
-        model: 'meta-llama/llama-3.3-70b-instruct:free', // Use free model for testing
+        model: testModel,
         messages: [
           { role: 'user', content: 'Say "API key works!" in 3 words or less.' }
         ],
@@ -73,7 +79,7 @@ export const testApiKey = async (apiKey: string): Promise<{ success: boolean; er
 
     return {
       success: true,
-      model: data.model || 'meta-llama/llama-3.3-70b-instruct:free',
+      model: data.model || testModel,
     };
   } catch (error) {
     return {
@@ -104,7 +110,7 @@ export const chatWithAI = async (
   }
 
   // Default to free Llama 3.3 70B model
-  const model = options.model || 'meta-llama/llama-3.3-70b-instruct:free';
+  const model = options.model || DEFAULT_FREE_MODEL;
 
   // Build messages array
   const messages = [
