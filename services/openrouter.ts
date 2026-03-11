@@ -84,6 +84,12 @@ export const clearModelCache = (): void => {
 export const DEFAULT_FREE_MODEL = 'google/gemma-3-27b-it:free';
 
 /**
+ * Special "free router" model that automatically picks the best available free model.
+ * OpenRouter's routing system handles model availability dynamically.
+ */
+export const FREE_ROUTER_MODEL = 'free';
+
+/**
  * OpenRouter free models (verified available as of 2026-03)
  */
 export const FREE_MODELS = [
@@ -216,6 +222,7 @@ export const chatWithAI = async (
     fast?: boolean;
     search?: boolean;
     image?: { data: string; mimeType: string };
+    useFreeRouter?: boolean; // When true, uses automatic free model selection
   } = {}
 ): Promise<string> => {
   const apiKey = getApiKey();
@@ -224,8 +231,12 @@ export const chatWithAI = async (
     throw new Error('OpenRouter API key not configured. Please add your API key in settings.');
   }
 
-  // Default to free Llama 3.3 70B model
-  const model = options.model || DEFAULT_FREE_MODEL;
+  // Use free router by default if no specific model is selected
+  // The free router automatically picks the best available free model
+  // This eliminates the need to manually test which free models work
+  const model = options.useFreeRouter === false && options.model 
+    ? options.model 
+    : (options.model || FREE_ROUTER_MODEL);
 
   // Build messages array
   const messages = [
