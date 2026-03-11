@@ -59,29 +59,88 @@ export const setModel = (model: AIModel): void => {
 };
 
 /**
- * Text Chat with AI - Routes to appropriate provider
+ * Call a single provider and normalize the result
+ */
+const callProvider = async (
+  provider: AIProvider,
+  prompt: string,
+  history: { role: string; content: string }[],
+  options: { thinking?: boolean; fast?: boolean; search?: boolean; image?: { data: string; mimeType: string }; model?: string }
+): Promise<{ text: string; model?: string; provider: string }> => {
+  const providerNames: Record<AIProvider, string> = {
+    openrouter: 'OpenRouter',
+    gemini: 'Gemini',
+    claude: 'Claude',
+    openai: 'OpenAI',
+    kimi: 'Kimi',
+  };
+
+  if (provider === 'openrouter') {
+    const useFreeRouter = localStorage.getItem('useFreeRouter') !== 'false';
+    const result = await openrouter.chatWithAI(prompt, history, { ...options, model: options.model || undefined, useFreeRouter });
+    return { text: result.text, model: result.model, provider: providerNames.openrouter };
+  } else if (provider === 'claude') {
+    const result = await claude.chatWithAI(prompt, history, options);
+    const text = typeof result === 'string' ? result : (result as any).text || result;
+    return { text: String(text), model: options.model || 'claude', provider: providerNames.claude };
+  } else if (provider === 'kimi') {
+    const result = await kimi.chatWithAI(prompt, history, options);
+    const text = typeof result === 'string' ? result : (result as any).text || result;
+    return { text: String(text), model: options.model || 'kimi', provider: providerNames.kimi };
+  } else if (provider === 'openai') {
+    const result = await openai.chatWithAI(prompt, history, options);
+    const text = typeof result === 'string' ? result : (result as any).text || result;
+    return { text: String(text), model: options.model || 'openai', provider: providerNames.openai };
+  } else {
+    const result = await gemini.chatWithAI(prompt, history, options);
+    // Gemini may return candidates for grounding - pass through
+    if (typeof result === 'object' && result !== null && 'candidates' in result) {
+      return { text: (result as any).text || String(result), model: options.model || 'gemini', provider: providerNames.gemini, ...(result as any) };
+    }
+    const text = typeof result === 'string' ? result : (result as any).text || result;
+    return { text: String(text), model: options.model || 'gemini', provider: providerNames.gemini };
+  }
+};
+
+/**
+ * Get fallback providers (configured providers other than the primary)
+ */
+const getFallbackProviders = (primary: AIProvider): AIProvider[] => {
+  const all: AIProvider[] = ['openrouter', 'gemini', 'claude', 'openai', 'kimi'];
+  return all.filter(p => p !== primary && isProviderConfigured(p));
+};
+
+/**
+ * Text Chat with AI - Routes to appropriate provider with automatic fallback
  */
 export const chatWithAI = async (
   prompt: string,
   history: { role: string; content: string }[],
   options: { thinking?: boolean; fast?: boolean; search?: boolean; image?: { data: string; mimeType: string } } = {}
-): Promise<string | { text: string; model?: string }> => {
+): Promise<string | { text: string; model?: string; provider?: string }> => {
   const provider = getCurrentProvider();
   const model = getCurrentModel();
-  
-  if (provider === 'openrouter') {
-    const useFreeRouter = localStorage.getItem('useFreeRouter') !== 'false'; // Default to true
-    const result = await openrouter.chatWithAI(prompt, history, { ...options, model: model || undefined, useFreeRouter });
-    // Return object with model info so UI can display which model was used
-    return { text: result.text, model: result.model };
-  } else if (provider === 'claude') {
-    return await claude.chatWithAI(prompt, history, options);
-  } else if (provider === 'kimi') {
-    return await kimi.chatWithAI(prompt, history, options);
-  } else if (provider === 'openai') {
-    return await openai.chatWithAI(prompt, history, options);
-  } else {
-    return await gemini.chatWithAI(prompt, history, options);
+
+  try {
+    return await callProvider(provider, prompt, history, { ...options, model: model || undefined });
+  } catch (primaryError: any) {
+    // Don't fallback on abort
+    if (primaryError?.name === 'AbortError') throw primaryError;
+
+    // Try fallback providers
+    const fallbacks = getFallbackProviders(provider);
+    for (const fallback of fallbacks) {
+      try {
+        console.warn(`[AI] Primary provider ${provider} failed, trying fallback: ${fallback}`);
+        const result = await callProvider(fallback, prompt, history, options);
+        return { ...result, model: `${result.model} (fallback)` };
+      } catch {
+        continue;
+      }
+    }
+
+    // All providers failed - throw original error
+    throw primaryError;
   }
 };
 
