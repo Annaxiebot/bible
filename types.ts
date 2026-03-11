@@ -25,6 +25,7 @@ export interface ChatMessage {
   mediaUrl?: string;
   isThinking?: boolean;
   thinkingContent?: string;
+  model?: string; // AI model used for this message
   references?: Array<{
     title: string;
     uri: string;

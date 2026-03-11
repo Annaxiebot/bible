@@ -212,6 +212,7 @@ export const testApiKey = async (apiKey: string, model?: string): Promise<{ succ
 
 /**
  * Chat with AI via OpenRouter
+ * Returns an object with text and model info
  */
 export const chatWithAI = async (
   prompt: string,
@@ -224,7 +225,7 @@ export const chatWithAI = async (
     image?: { data: string; mimeType: string };
     useFreeRouter?: boolean; // When true, uses automatic free model selection
   } = {}
-): Promise<string> => {
+): Promise<{ text: string; model: string }> => {
   const apiKey = getApiKey();
   
   if (!apiKey) {
@@ -282,7 +283,13 @@ export const chatWithAI = async (
         throw new Error(data.error?.message || `OpenRouter API error: ${response.status}`);
       }
 
-      return data.choices?.[0]?.message?.content || 'No response from AI';
+      // Get the actual model used (important for free router - it picks dynamically)
+      const actualModel = data.model || model;
+      
+      return {
+        text: data.choices?.[0]?.message?.content || 'No response from AI',
+        model: actualModel,
+      };
     });
   } catch (error) {
     if (error instanceof Error) {
@@ -290,4 +297,14 @@ export const chatWithAI = async (
     }
     throw new Error('Unknown error calling OpenRouter API');
   }
+};
+
+/** Legacy string-only return for backward compatibility */
+export const chatWithAI__legacy = async (
+  prompt: string,
+  history: { role: string; content: string }[],
+  options: Parameters<typeof chatWithAI>[2] = {}
+): Promise<string> => {
+  const result = await chatWithAI(prompt, history, options);
+  return result.text;
 };
