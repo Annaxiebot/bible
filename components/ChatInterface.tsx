@@ -273,6 +273,11 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpe
             </div>
           </div>
         )}
+        {m.role === 'assistant' && m.model && (
+          <div className="mt-2 pt-1.5 border-t border-slate-100 text-[10px] text-slate-400 text-right">
+            {m.model}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -308,6 +313,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
   });
   const [showProviderSettings, setShowProviderSettings] = useState(false);
   const [currentProvider, setCurrentProvider] = useState(aiService.getCurrentProvider());
+  const [activeProviderLabel, setActiveProviderLabel] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     position: { x: number; y: number };
     selectedText: string;
@@ -575,6 +581,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       const responseObj = typeof response === 'string' ? null : response;
       const responseText = typeof response === 'string' ? response : (response.text || "我无法生成回应。");
       const modelUsed = responseObj?.model;
+      const providerUsed = responseObj && 'provider' in responseObj ? (responseObj as any).provider : null;
+
+      // Update header if provider changed (e.g. fallback)
+      if (providerUsed) {
+        setActiveProviderLabel(modelUsed ? `${providerUsed} · ${modelUsed}` : providerUsed);
+      } else if (modelUsed) {
+        setActiveProviderLabel(null); // Clear - using primary provider
+      }
       // Check for Gemini-style grounding (has candidates), not OpenRouter object response
       const isGeminiResponse = responseObj && 'candidates' in responseObj;
       const groundingChunks = isGeminiResponse ? ((responseObj as any).candidates?.[0] as any)?.groundingMetadata?.groundingChunks : undefined;
@@ -755,11 +769,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
           <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
           <span className="text-xs font-semibold text-slate-700">
             AI Provider: <span className="text-indigo-600">
-              {currentProvider === 'claude' ? 'Claude' :
-               currentProvider === 'openai' ? 'ChatGPT' :
-               currentProvider === 'kimi' ? 'Kimi' :
-               currentProvider === 'openrouter' ? `OpenRouter · ${aiService.getCurrentModel() ?? 'Llama 3.3 70B'}` :
-               'Gemini'}
+              {activeProviderLabel
+                ? activeProviderLabel
+                : currentProvider === 'claude' ? 'Claude' :
+                  currentProvider === 'openai' ? 'ChatGPT' :
+                  currentProvider === 'kimi' ? 'Kimi' :
+                  currentProvider === 'openrouter' ? `OpenRouter · ${aiService.getCurrentModel() ?? 'Llama 3.3 70B'}` :
+                  'Gemini'}
             </span>
           </span>
         </div>
@@ -1129,6 +1145,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
         onClose={() => {
           setShowProviderSettings(false);
           setCurrentProvider(aiService.getCurrentProvider());
+          setActiveProviderLabel(null);
         }}
       />
 
