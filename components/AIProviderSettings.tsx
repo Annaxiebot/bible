@@ -22,6 +22,7 @@ interface AIProviderSettingsProps {
 const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose }) => {
   const [currentProvider, setCurrentProvider] = useState<aiProvider.AIProvider>(aiProvider.getCurrentProvider());
   const [selectedModel, setSelectedModel] = useState<string>(aiProvider.getCurrentModel() || '');
+  const [lastUsedModel, setLastUsedModel] = useState<string | null>(() => localStorage.getItem('lastUsedModel'));
   const [useFreeRouter, setUseFreeRouter] = useState<boolean>(() => {
     const stored = localStorage.getItem('useFreeRouter');
     return stored !== null ? stored === 'true' : true; // Default to true for free router
@@ -55,6 +56,7 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
     setAutoSaveResearch(autoSaveResearchService.isAutoSaveEnabled());
     setSelectedModel(aiProvider.getCurrentModel() || '');
     setUseFreeRouter(localStorage.getItem('useFreeRouter') !== null ? localStorage.getItem('useFreeRouter') === 'true' : true);
+    setLastUsedModel(localStorage.getItem('lastUsedModel'));
   }, [isOpen]);
 
   // Fetch live OpenRouter free models when OpenRouter is selected
@@ -196,6 +198,12 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
             <div>
               <h2 className="text-2xl font-bold">AI Provider Settings</h2>
               <p className="text-indigo-100 text-sm mt-1">Configure your AI research provider and model</p>
+              {lastUsedModel && (
+                <p className="text-indigo-200 text-xs mt-2 flex items-center gap-1">
+                  <span className="opacity-70">Last used:</span>
+                  <span className="font-mono bg-white/10 px-2 py-0.5 rounded">{lastUsedModel}</span>
+                </p>
+              )}
             </div>
             <button
               onClick={onClose}

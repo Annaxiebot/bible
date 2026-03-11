@@ -212,12 +212,6 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpe
               {content}
             </LazyMarkdown>
           </div>
-          {/* Model info for AI messages */}
-          {m.role === 'assistant' && m.model && (
-            <div className="text-xs text-slate-400 mb-1 font-mono">
-              🤖 {m.model}
-            </div>
-          )}
           {m.role === 'assistant' && (
             <div className="flex gap-2 mt-1">
               <button 
@@ -597,6 +591,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       };
 
       setMessages(prev => [...prev, assistantMessage!]);
+
+      // Save last used model to localStorage for display in settings
+      if (modelUsed) {
+        localStorage.setItem('lastUsedModel', modelUsed);
+      }
     } catch (error: any) {
       // Don't show error message if request was aborted intentionally
       if (error?.name !== 'AbortError') {
