@@ -4,6 +4,7 @@ import {
   DEFAULT_FREE_MODEL,
   FREE_MODELS,
   PREMIUM_MODELS,
+  FREE_ROUTER_MODEL,
   fetchAvailableModels,
   clearModelCache,
   autoDetectBestFreeModel,
@@ -21,6 +22,10 @@ interface AIProviderSettingsProps {
 const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose }) => {
   const [currentProvider, setCurrentProvider] = useState<aiProvider.AIProvider>(aiProvider.getCurrentProvider());
   const [selectedModel, setSelectedModel] = useState<string>(aiProvider.getCurrentModel() || '');
+  const [useFreeRouter, setUseFreeRouter] = useState<boolean>(() => {
+    const stored = localStorage.getItem('useFreeRouter');
+    return stored !== null ? stored === 'true' : true; // Default to true for free router
+  });
   const [geminiApiKey, setGeminiApiKey] = useState('');
   const [claudeApiKey, setClaudeApiKey] = useState('');
   const [openaiApiKey, setOpenaiApiKey] = useState('');
@@ -49,6 +54,7 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
     setOpenrouterApiKey(localStorage.getItem(STORAGE_KEYS.OPENROUTER_API_KEY) || '');
     setAutoSaveResearch(autoSaveResearchService.isAutoSaveEnabled());
     setSelectedModel(aiProvider.getCurrentModel() || '');
+    setUseFreeRouter(localStorage.getItem('useFreeRouter') !== null ? localStorage.getItem('useFreeRouter') === 'true' : true);
   }, [isOpen]);
 
   // Fetch live OpenRouter free models when OpenRouter is selected
@@ -137,6 +143,9 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
     if (selectedModel) {
       aiProvider.setModel(selectedModel as aiProvider.AIModel);
     }
+
+    // Save free router preference
+    localStorage.setItem('useFreeRouter', useFreeRouter.toString());
 
     if (geminiApiKey.trim()) {
       localStorage.setItem(STORAGE_KEYS.GEMINI_API_KEY, geminiApiKey.trim());
@@ -330,6 +339,48 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
                     : 'Click "Test & Auto-Select" below to find and filter to working free models.'
                   : 'Different models have different capabilities and speed. Choose based on your needs.'}
               </p>
+
+              {/* Free Router Toggle - OpenRouter only */}
+              {currentProvider === 'openrouter' && (
+                <div className="mt-4 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                        <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <div className="font-semibold text-slate-800 text-sm">✨ Use Free Router</div>
+                        <div className="text-xs text-slate-500">
+                          Auto-selects the best available free model (no manual testing needed)
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setUseFreeRouter(v => !v)}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+                        useFreeRouter ? 'bg-blue-600' : 'bg-slate-200'
+                      }`}
+                      role="switch"
+                      aria-checked={useFreeRouter}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ${
+                          useFreeRouter ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  {useFreeRouter && (
+                    <p className="text-xs text-blue-700 mt-2">
+                      🎯 OpenRouter will automatically pick the best free model for your request. 
+                      No more guessing which model works!
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
           )}
 

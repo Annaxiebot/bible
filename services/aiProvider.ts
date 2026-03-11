@@ -70,7 +70,8 @@ export const chatWithAI = async (
   const model = getCurrentModel();
   
   if (provider === 'openrouter') {
-    return await openrouter.chatWithAI(prompt, history, { ...options, model: model || undefined });
+    const useFreeRouter = localStorage.getItem('useFreeRouter') !== 'false'; // Default to true
+    return await openrouter.chatWithAI(prompt, history, { ...options, model: model || undefined, useFreeRouter });
   } else if (provider === 'claude') {
     return await claude.chatWithAI(prompt, history, options);
   } else if (provider === 'kimi') {
