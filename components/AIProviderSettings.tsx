@@ -218,64 +218,155 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
 
         {/* Content */}
         <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 180px)' }}>
-          {/* Provider Selection */}
+          {/* Provider Selection - Dropdown */}
           <div className="mb-6">
-            <label className="block text-sm font-semibold text-slate-700 mb-3">
+            <label className="block text-sm font-semibold text-slate-700 mb-2">
               Select AI Provider
             </label>
-            <div className="space-y-3">
+            <select
+              value={currentProvider}
+              onChange={(e) => setCurrentProvider(e.target.value as aiProvider.AIProvider)}
+              className="w-full px-4 py-3 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm font-medium"
+            >
               {providers.map((provider) => {
                 const isConfigured = aiProvider.isProviderConfigured(provider.id);
-                const isSelected = currentProvider === provider.id;
-                
                 return (
-                  <div
-                    key={provider.id}
-                    onClick={() => setCurrentProvider(provider.id)}
-                    className={`p-4 border-2 rounded-xl cursor-pointer transition-all ${
-                      isSelected
-                        ? 'border-indigo-500 bg-indigo-50'
-                        : 'border-slate-200 bg-white hover:border-indigo-300'
-                    }`}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                          isSelected ? 'border-indigo-500 bg-indigo-500' : 'border-slate-300'
-                        }`}>
-                          {isSelected && (
-                            <svg className="w-3 h-3 text-white" fill="currentColor" viewBox="0 0 12 12">
-                              <path d="M10 3L4.5 8.5L2 6" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
-                            </svg>
-                          )}
-                        </div>
-                        <div>
-                          <div className="font-semibold text-slate-800">{provider.name}</div>
-                          <div className="text-xs text-slate-500 mt-0.5">
-                            {provider.models.length} models available
-                          </div>
-                        </div>
-                      </div>
-                      <div className={`text-xs px-2 py-1 rounded-full ${
-                        isConfigured
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-amber-100 text-amber-700'
-                      }`}>
-                        {isConfigured ? '✓ Configured' : 'Not configured'}
-                      </div>
-                    </div>
-                  </div>
+                  <option key={provider.id} value={provider.id}>
+                    {provider.name} ({provider.models.length} models){isConfigured ? ' - Configured' : ''}
+                  </option>
                 );
               })}
-            </div>
+            </select>
+          </div>
+
+          {/* API Key for selected provider */}
+          <div className="mb-6">
+            {(() => {
+              const keyConfigs: Record<string, {
+                label: string;
+                value: string;
+                setter: (v: string) => void;
+                show: boolean;
+                showSetter: (v: boolean) => void;
+                placeholder: string;
+                helpUrl: string;
+                helpText: string;
+              }> = {
+                openrouter: { label: 'OpenRouter API Key', value: openrouterApiKey, setter: setOpenrouterApiKey, show: showOpenrouterKey, showSetter: setShowOpenrouterKey, placeholder: 'Enter your OpenRouter API key', helpUrl: 'https://openrouter.ai/keys', helpText: 'OpenRouter (Free $5 credits + free models)' },
+                gemini: { label: 'Google Gemini API Key', value: geminiApiKey, setter: setGeminiApiKey, show: showGeminiKey, showSetter: setShowGeminiKey, placeholder: 'Enter your Gemini API key', helpUrl: 'https://aistudio.google.com/app/apikey', helpText: 'Google AI Studio' },
+                claude: { label: 'Anthropic Claude API Key', value: claudeApiKey, setter: setClaudeApiKey, show: showClaudeKey, showSetter: setShowClaudeKey, placeholder: 'Enter your Claude API key', helpUrl: 'https://console.anthropic.com/', helpText: 'Anthropic Console' },
+                openai: { label: 'OpenAI ChatGPT API Key', value: openaiApiKey, setter: setOpenaiApiKey, show: showOpenaiKey, showSetter: setShowOpenaiKey, placeholder: 'Enter your OpenAI API key', helpUrl: 'https://platform.openai.com/api-keys', helpText: 'OpenAI Platform' },
+                kimi: { label: 'Kimi Moonshot API Key', value: kimiApiKey, setter: setKimiApiKey, show: showKimiKey, showSetter: setShowKimiKey, placeholder: 'Enter your Kimi API key (optional)', helpUrl: 'https://platform.moonshot.cn/', helpText: 'Moonshot Platform' },
+              };
+              const cfg = keyConfigs[currentProvider];
+              if (!cfg) return null;
+              const isTesting = currentProvider === 'openrouter' ? autoDetecting : testingKey === currentProvider;
+              return (
+                <div>
+                  <label className="block text-sm font-medium text-slate-600 mb-2">{cfg.label}</label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type={cfg.show ? 'text' : 'password'}
+                        value={cfg.value}
+                        onChange={(e) => cfg.setter(e.target.value)}
+                        placeholder={cfg.placeholder}
+                        className="w-full px-4 py-2 pr-12 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => cfg.showSetter(!cfg.show)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      >
+                        {cfg.show ? (
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                          </svg>
+                        ) : (
+                          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                        )}
+                      </button>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleTestKey(currentProvider, cfg.value)}
+                      disabled={isTesting || !cfg.value.trim()}
+                      className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
+                    >
+                      {isTesting ? (
+                        <>
+                          <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"/>
+                          </svg>
+                          Testing...
+                        </>
+                      ) : (
+                        'Test'
+                      )}
+                    </button>
+                  </div>
+                  {/* Test result */}
+                  {testResults[currentProvider] && (
+                    <div className={`text-xs p-2 rounded mt-2 ${
+                      testResults[currentProvider].success
+                        ? 'bg-green-50 text-green-700 border border-green-200'
+                        : 'bg-red-50 text-red-700 border border-red-200'
+                    }`}>
+                      {testResults[currentProvider].success
+                        ? `✓ API key works!${testResults[currentProvider].model ? ` Tested with: ${testResults[currentProvider].model}` : ''}`
+                        : `✗ Error: ${testResults[currentProvider].error}`}
+                    </div>
+                  )}
+                  {/* Auto-detect progress (OpenRouter only) */}
+                  {currentProvider === 'openrouter' && detectProgress.length > 0 && (
+                    <div className="text-xs border border-slate-200 rounded p-2 space-y-1 bg-slate-50 mt-2">
+                      {autoDetecting && <p className="text-slate-500 font-medium">Testing free models in priority order...</p>}
+                      {detectProgress.map(p => (
+                        <div key={p.modelId} className="flex items-center gap-2">
+                          {p.status === 'testing' && (
+                            <svg className="animate-spin h-3 w-3 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
+                            </svg>
+                          )}
+                          {p.status === 'success' && <span className="text-green-600 flex-shrink-0">✓</span>}
+                          {p.status === 'failed' && <span className="text-red-500 flex-shrink-0">✗</span>}
+                          <span className={p.status === 'failed' ? 'text-slate-400' : 'text-slate-700'}>{p.modelName}</span>
+                          {p.status === 'testing' && <span className="text-slate-400">testing...</span>}
+                          {p.status === 'failed' && <span className="text-slate-400">unavailable</span>}
+                          {p.status === 'success' && <span className="text-green-600">works!</span>}
+                        </div>
+                      ))}
+                      {!autoDetecting && verifiedModels !== null && (
+                        <p className="pt-1 border-t border-slate-200 text-slate-600 font-medium">
+                          {verifiedModels.length > 0
+                            ? `Auto-selected: ${verifiedModels[0]?.modelName ?? ''} (${verifiedModels.length} working model${verifiedModels.length !== 1 ? 's' : ''} found)`
+                            : 'No working free models found. Check your API key or try again later.'}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                  <p className="text-xs text-slate-500 mt-1">
+                    Get your API key from{' '}
+                    <a href={cfg.helpUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">
+                      {cfg.helpText}
+                    </a>
+                  </p>
+                </div>
+              );
+            })()}
           </div>
 
           {/* Model Selection */}
           {currentProviderInfo && currentProviderInfo.models.length > 0 && (
             <div className="mb-6">
-              <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center justify-between mb-2">
                 <label className="text-sm font-semibold text-slate-700">
-                  Select Model for {currentProviderInfo.name}
+                  Select Model
                 </label>
                 {currentProvider === 'openrouter' && (
                   <button
@@ -290,9 +381,9 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
                           <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                           <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                         </svg>
-                        Loading…
+                        Loading...
                       </>
-                    ) : '↺ Refresh'}
+                    ) : 'Refresh'}
                   </button>
                 )}
               </div>
@@ -316,7 +407,7 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
 
                 {currentProvider === 'openrouter' ? (
                   <>
-                    <optgroup label={verifiedModels ? `— Verified Working Free Models (${verifiedModels.length}) —` : '— Free Models —'}>
+                    <optgroup label={verifiedModels ? `Verified Working Free Models (${verifiedModels.length})` : 'Free Models'}>
                       {verifiedModels
                         ? verifiedModels.map(m => (
                             <option key={m.modelId} value={m.modelId}>{m.modelName}</option>
@@ -326,7 +417,7 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
                           ))
                       }
                     </optgroup>
-                    <optgroup label="— Premium (requires credits) —">
+                    <optgroup label="Premium (requires credits)">
                       {PREMIUM_MODELS.map(m => (
                         <option key={m.id} value={m.id}>{m.name} ({m.provider})</option>
                       ))}
@@ -340,29 +431,14 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
                 )}
               </select>
 
-              <p className="text-xs text-slate-500 mt-2">
-                {currentProvider === 'openrouter'
-                  ? verifiedModels
-                    ? `Showing ${verifiedModels.length} verified working free model${verifiedModels.length !== 1 ? 's' : ''}. Click "Test & Auto-Select" to refresh.`
-                    : 'Click "Test & Auto-Select" below to find and filter to working free models.'
-                  : 'Different models have different capabilities and speed. Choose based on your needs.'}
-              </p>
-
               {/* Free Router Toggle - OpenRouter only */}
               {currentProvider === 'openrouter' && (
-                <div className="mt-4 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl">
+                <div className="mt-3 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                        <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-                        </svg>
-                      </div>
-                      <div>
-                        <div className="font-semibold text-slate-800 text-sm">✨ Use Free Router</div>
-                        <div className="text-xs text-slate-500">
-                          Auto-selects the best available free model (no manual testing needed)
-                        </div>
+                    <div>
+                      <div className="font-semibold text-slate-800 text-sm">Use Free Router</div>
+                      <div className="text-xs text-slate-500">
+                        Auto-selects the best available free model
                       </div>
                     </div>
                     <button
@@ -381,281 +457,10 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
                       />
                     </button>
                   </div>
-                  {useFreeRouter && (
-                    <p className="text-xs text-blue-700 mt-2">
-                      🎯 OpenRouter will automatically pick the best free model for your request. 
-                      No more guessing which model works!
-                    </p>
-                  )}
                 </div>
               )}
             </div>
           )}
-
-          {/* API Keys Section */}
-          <div className="space-y-4 border-t pt-6">
-            <h3 className="text-sm font-semibold text-slate-700 mb-3">API Keys</h3>
-            
-            {/* OpenRouter API Key */}
-            <div>
-              <label className="block text-sm font-medium text-slate-600 mb-2">
-                OpenRouter API Key
-              </label>
-              <div className="space-y-2">
-                <div className="flex gap-2">
-                  <div className="relative flex-1">
-                    <input
-                      type={showOpenrouterKey ? 'text' : 'password'}
-                      value={openrouterApiKey}
-                      onChange={(e) => setOpenrouterApiKey(e.target.value)}
-                      placeholder="Enter your OpenRouter API key"
-                      className="w-full px-4 py-2 pr-12 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowOpenrouterKey(!showOpenrouterKey)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                    >
-                      {showOpenrouterKey ? (
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                        </svg>
-                      ) : (
-                        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                        </svg>
-                      )}
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => handleTestKey('openrouter', openrouterApiKey)}
-                    disabled={autoDetecting || !openrouterApiKey.trim()}
-                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
-                  >
-                    {autoDetecting ? (
-                      <>
-                        <svg className="animate-spin h-4 w-4" fill="none" viewBox="0 0 24 24">
-                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        Testing...
-                      </>
-                    ) : (
-                      <>
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                        </svg>
-                        Test &amp; Auto-Select
-                      </>
-                    )}
-                  </button>
-                </div>
-
-                {/* Auto-detect progress */}
-                {detectProgress.length > 0 && (
-                  <div className="text-xs border border-slate-200 rounded p-2 space-y-1 bg-slate-50">
-                    {autoDetecting && <p className="text-slate-500 font-medium">Testing free models in priority order…</p>}
-                    {detectProgress.map(p => (
-                      <div key={p.modelId} className="flex items-center gap-2">
-                        {p.status === 'testing' && (
-                          <svg className="animate-spin h-3 w-3 text-blue-500 flex-shrink-0" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                          </svg>
-                        )}
-                        {p.status === 'success' && <span className="text-green-600 flex-shrink-0">✓</span>}
-                        {p.status === 'failed' && <span className="text-red-500 flex-shrink-0">✗</span>}
-                        <span className={p.status === 'failed' ? 'text-slate-400' : 'text-slate-700'}>{p.modelName}</span>
-                        {p.status === 'testing' && <span className="text-slate-400">testing…</span>}
-                        {p.status === 'failed' && <span className="text-slate-400">unavailable</span>}
-                        {p.status === 'success' && <span className="text-green-600">works!</span>}
-                      </div>
-                    ))}
-                    {!autoDetecting && verifiedModels !== null && (
-                      <p className="pt-1 border-t border-slate-200 text-slate-600 font-medium">
-                        {verifiedModels.length > 0
-                          ? `Auto-selected: ${verifiedModels[0]?.modelName ?? ''} (${verifiedModels.length} working model${verifiedModels.length !== 1 ? 's' : ''} found)`
-                          : 'No working free models found. Check your API key or try again later.'}
-                      </p>
-                    )}
-                  </div>
-                )}
-
-                {testResults.openrouter && detectProgress.length === 0 && (
-                  <div className={`text-xs p-2 rounded ${
-                    testResults.openrouter.success
-                      ? 'bg-green-50 text-green-700 border border-green-200'
-                      : 'bg-red-50 text-red-700 border border-red-200'
-                  }`}>
-                    {testResults.openrouter.success
-                      ? `✓ API key works! Tested with: ${testResults.openrouter.model}`
-                      : `✗ Error: ${testResults.openrouter.error}`}
-                  </div>
-                )}
-              </div>
-              <p className="text-xs text-slate-500 mt-1">
-                Get your API key from{' '}
-                <a href="https://openrouter.ai/keys" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">
-                  OpenRouter (Free $5 credits + free models)
-                </a>
-              </p>
-            </div>
-
-            {/* Gemini API Key */}
-            <div>
-              <label className="block text-sm font-medium text-slate-600 mb-2">
-                Google Gemini API Key
-              </label>
-              <div className="relative">
-                <input
-                  type={showGeminiKey ? 'text' : 'password'}
-                  value={geminiApiKey}
-                  onChange={(e) => setGeminiApiKey(e.target.value)}
-                  placeholder="Enter your Gemini API key"
-                  className="w-full px-4 py-2 pr-12 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowGeminiKey(!showGeminiKey)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  {showGeminiKey ? (
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                    </svg>
-                  ) : (
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                  )}
-                </button>
-              </div>
-              <p className="text-xs text-slate-500 mt-1">
-                Get your API key from{' '}
-                <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">
-                  Google AI Studio
-                </a>
-              </p>
-            </div>
-
-            {/* Claude API Key */}
-            <div>
-              <label className="block text-sm font-medium text-slate-600 mb-2">
-                Anthropic Claude API Key
-              </label>
-              <div className="relative">
-                <input
-                  type={showClaudeKey ? 'text' : 'password'}
-                  value={claudeApiKey}
-                  onChange={(e) => setClaudeApiKey(e.target.value)}
-                  placeholder="Enter your Claude API key"
-                  className="w-full px-4 py-2 pr-12 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowClaudeKey(!showClaudeKey)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  {showClaudeKey ? (
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                    </svg>
-                  ) : (
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                  )}
-                </button>
-              </div>
-              <p className="text-xs text-slate-500 mt-1">
-                Get your API key from{' '}
-                <a href="https://console.anthropic.com/" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">
-                  Anthropic Console
-                </a>
-              </p>
-            </div>
-
-            {/* OpenAI API Key */}
-            <div>
-              <label className="block text-sm font-medium text-slate-600 mb-2">
-                OpenAI ChatGPT API Key
-              </label>
-              <div className="relative">
-                <input
-                  type={showOpenaiKey ? 'text' : 'password'}
-                  value={openaiApiKey}
-                  onChange={(e) => setOpenaiApiKey(e.target.value)}
-                  placeholder="Enter your OpenAI API key"
-                  className="w-full px-4 py-2 pr-12 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowOpenaiKey(!showOpenaiKey)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  {showOpenaiKey ? (
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                    </svg>
-                  ) : (
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                  )}
-                </button>
-              </div>
-              <p className="text-xs text-slate-500 mt-1">
-                Get your API key from{' '}
-                <a href="https://platform.openai.com/api-keys" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">
-                  OpenAI Platform
-                </a>
-              </p>
-            </div>
-
-            {/* Kimi API Key */}
-            <div>
-              <label className="block text-sm font-medium text-slate-600 mb-2">
-                Kimi Moonshot API Key (月之暗面)
-              </label>
-              <div className="relative">
-                <input
-                  type={showKimiKey ? 'text' : 'password'}
-                  value={kimiApiKey}
-                  onChange={(e) => setKimiApiKey(e.target.value)}
-                  placeholder="Enter your Kimi API key (optional)"
-                  className="w-full px-4 py-2 pr-12 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowKimiKey(!showKimiKey)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                >
-                  {showKimiKey ? (
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                    </svg>
-                  ) : (
-                    <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                    </svg>
-                  )}
-                </button>
-              </div>
-              <p className="text-xs text-slate-500 mt-1">
-                Get your API key from{' '}
-                <a href="https://platform.moonshot.cn/" target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">
-                  Moonshot Platform
-                </a>
-                {' '}(Optional - default key provided)
-              </p>
-            </div>
-          </div>
 
           {/* Research Behavior */}
           <div className="mt-6 border-t pt-6">
