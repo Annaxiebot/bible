@@ -212,6 +212,12 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpe
               {content}
             </LazyMarkdown>
           </div>
+          {/* Model info for AI messages */}
+          {m.role === 'assistant' && m.model && (
+            <div className="text-xs text-slate-400 mb-1 font-mono">
+              🤖 {m.model}
+            </div>
+          )}
           {m.role === 'assistant' && (
             <div className="flex gap-2 mt-1">
               <button 
@@ -571,8 +577,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
         ...(currentImage ? { image: currentImage } : {}),
       });
 
+      // Extract response text and model info
+      const responseObj = typeof response === 'string' ? null : response;
       const responseText = typeof response === 'string' ? response : (response.text || "我无法生成回应。");
-      const groundingChunks = typeof response !== 'string' ? (response.candidates?.[0] as any)?.groundingMetadata?.groundingChunks : undefined;
+      const modelUsed = responseObj?.model;
+      // Check for Gemini-style grounding (has candidates), not OpenRouter object response
+      const isGeminiResponse = responseObj && 'candidates' in responseObj;
+      const groundingChunks = isGeminiResponse ? ((responseObj as any).candidates?.[0] as any)?.groundingMetadata?.groundingChunks : undefined;
       const references = Array.isArray(groundingChunks)
         ? (groundingChunks as GroundingChunk[]).map((chunk) => ({ title: chunk.web?.title || '参考资料', uri: chunk.web?.uri || '' })).filter((c) => c.uri)
         : undefined;
@@ -580,6 +591,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       assistantMessage = {
         role: 'assistant',
         content: responseText,
+        model: modelUsed,
         timestamp: new Date(),
         references: references
       };
