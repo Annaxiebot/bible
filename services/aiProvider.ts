@@ -65,13 +65,15 @@ export const chatWithAI = async (
   prompt: string,
   history: { role: string; content: string }[],
   options: { thinking?: boolean; fast?: boolean; search?: boolean; image?: { data: string; mimeType: string } } = {}
-) => {
+): Promise<string | { text: string; model?: string }> => {
   const provider = getCurrentProvider();
   const model = getCurrentModel();
   
   if (provider === 'openrouter') {
     const useFreeRouter = localStorage.getItem('useFreeRouter') !== 'false'; // Default to true
-    return await openrouter.chatWithAI(prompt, history, { ...options, model: model || undefined, useFreeRouter });
+    const result = await openrouter.chatWithAI(prompt, history, { ...options, model: model || undefined, useFreeRouter });
+    // Return object with model info so UI can display which model was used
+    return { text: result.text, model: result.model };
   } else if (provider === 'claude') {
     return await claude.chatWithAI(prompt, history, options);
   } else if (provider === 'kimi') {

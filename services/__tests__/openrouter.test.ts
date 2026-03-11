@@ -244,7 +244,7 @@ describe('openrouter', () => {
       });
 
       const result = await chatWithAI('Hello', []);
-      expect(result).toBe('AI response');
+      expect(result).toEqual({ text: 'AI response', model: 'free' });
       expect(mockFetch).toHaveBeenCalledWith(
         'https://openrouter.ai/api/v1/chat/completions',
         expect.objectContaining({
@@ -340,7 +340,7 @@ describe('openrouter', () => {
       });
 
       const result = await chatWithAI('Hello', []);
-      expect(result).toBe('No response from AI');
+      expect(result).toEqual({ text: 'No response from AI', model: 'free' });
     });
 
     it('throws on network failure', async () => {
