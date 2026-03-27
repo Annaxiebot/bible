@@ -151,6 +151,14 @@ const InlineBibleAnnotation = forwardRef<InlineBibleAnnotationHandle, InlineBibl
     }
     prevKeyRef.current = annotationKey;
 
+    // Clear immediately so old chapter's annotation doesn't flash while loading
+    setSavedPaths('');
+    setExtraHeight(0);
+    latestDataRef.current = '';
+    if (canvasRef.current) {
+      canvasRef.current.clear();
+    }
+
     loadAnnotation();
   }, [bookId, chapter, panelId]);
 
