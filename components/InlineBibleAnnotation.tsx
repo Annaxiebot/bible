@@ -336,7 +336,7 @@ const InlineBibleAnnotation = forwardRef<InlineBibleAnnotationHandle, InlineBibl
         {/* Faint annotation overlay */}
         {savedPaths && savedPaths !== '[]' && savedPaths !== '' && (
           <div
-            className="absolute inset-0 pointer-events-none"
+            className="absolute inset-0 pointer-events-none z-20"
             style={{
               height: `${totalHeight}px`,
               overflow: 'hidden',
