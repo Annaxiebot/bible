@@ -43,6 +43,8 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
     const MAX_HISTORY = 20;
     const setupRetryCountRef = useRef(0);
     const hasContentRef = useRef(false);
+    const initialDataRef = useRef(initialData);
+    initialDataRef.current = initialData;
 
     // Apply current tool settings to context
     const applyToolSettings = useCallback(() => {
@@ -150,6 +152,22 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
       setTimeout(() => {
         saveDrawingHistory();
       }, 0);
+
+      // After resize, reload initialData if it exists (fixes flash-then-disappear on navigation)
+      const data = initialDataRef.current;
+      if (data && data.startsWith('data:image')) {
+        const img = new Image();
+        img.onload = () => {
+          if (ctxRef.current && canvasRef.current) {
+            const r = canvasRef.current.getBoundingClientRect();
+            if (r.width > 0 && r.height > 0) {
+              ctxRef.current.drawImage(img, 0, 0, r.width, r.height);
+              hasContentRef.current = true;
+            }
+          }
+        };
+        img.src = data;
+      }
     }, [canvasHeight]);
 
     // EXACT same drawing history function as math app
