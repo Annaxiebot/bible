@@ -19,7 +19,7 @@ export interface SimpleDrawingCanvasHandle {
   clear: () => void;
   getData: () => string;
   undo: () => void;
-  setTool: (tool: 'pen' | 'eraser') => void;
+  setTool: (tool: 'pen' | 'marker' | 'highlighter' | 'eraser') => void;
   setColor: (color: string) => void;
   setSize: (size: number) => void;
 }
@@ -37,9 +37,44 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
     const isDrawingRef = useRef(false);
     const currentPenColorRef = useRef('#000000');
     const currentPenSizeRef = useRef(4);
+    const currentToolRef = useRef<'pen' | 'marker' | 'highlighter' | 'eraser'>('pen');
     const isEraserModeRef = useRef(false);
     const drawingHistoryRef = useRef<ImageData[]>([]);
     const MAX_HISTORY = 20;
+
+    // Apply current tool settings to context
+    const applyToolSettings = useCallback(() => {
+      const ctx = ctxRef.current;
+      if (!ctx) return;
+      
+      const tool = currentToolRef.current;
+      
+      if (tool === 'eraser') {
+        ctx.globalCompositeOperation = 'destination-out';
+        ctx.globalAlpha = 1.0;
+        ctx.lineWidth = currentPenSizeRef.current * 3;
+      } else if (tool === 'highlighter') {
+        ctx.globalCompositeOperation = 'multiply';
+        ctx.globalAlpha = 0.25;
+        ctx.strokeStyle = currentPenColorRef.current;
+        ctx.lineWidth = currentPenSizeRef.current * 5;
+      } else if (tool === 'marker') {
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 0.7;
+        ctx.strokeStyle = currentPenColorRef.current;
+        ctx.lineWidth = currentPenSizeRef.current * 2.5;
+      } else {
+        // 'pen' (default)
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.globalAlpha = 1.0;
+        ctx.strokeStyle = currentPenColorRef.current;
+        ctx.lineWidth = currentPenSizeRef.current;
+      }
+      
+      // Always set these for all tools
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+    }, []);
 
     // Setup canvases with exact same initialization as math app
     const setupCanvases = useCallback(() => {
@@ -130,9 +165,13 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
       const y = (touch.clientY - rect.top) * (canvas.height / rect.height);
       
       isDrawingRef.current = true;
+      
+      // Apply current tool settings before drawing
+      applyToolSettings();
+      
       ctx.beginPath();
       ctx.moveTo(x, y);
-    }, [isWritingMode]);
+    }, [isWritingMode, applyToolSettings]);
 
     // EXACT same touch move handler as math app
     const handleTouchMove = useCallback((e: TouchEvent) => {
@@ -190,13 +229,17 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
       if (!canvas || !ctx) return;
 
       isDrawingRef.current = true;
+      
+      // Apply current tool settings before drawing
+      applyToolSettings();
+      
       const rect = canvas.getBoundingClientRect();
       // CRITICAL: Scale coordinates like math app does
       const x = (e.clientX - rect.left) * (canvas.width / rect.width);
       const y = (e.clientY - rect.top) * (canvas.height / rect.height);
       ctx.beginPath();
       ctx.moveTo(x, y);
-    }, [isWritingMode]);
+    }, [isWritingMode, applyToolSettings]);
 
     const draw = useCallback((e: MouseEvent) => {
       if (!isDrawingRef.current || !isWritingMode) return;
@@ -328,20 +371,10 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
         }
       },
       
-      setTool: (tool: 'pen' | 'eraser') => {
-        const ctx = ctxRef.current;
-        if (!ctx) return;
-        
+      setTool: (tool: 'pen' | 'marker' | 'highlighter' | 'eraser') => {
+        currentToolRef.current = tool;
         isEraserModeRef.current = tool === 'eraser';
-        
-        if (tool === 'eraser') {
-          ctx.globalCompositeOperation = 'destination-out';
-          ctx.lineWidth = currentPenSizeRef.current * 3;
-        } else {
-          ctx.globalCompositeOperation = 'source-over';
-          ctx.strokeStyle = currentPenColorRef.current;
-          ctx.lineWidth = currentPenSizeRef.current;
-        }
+        applyToolSettings();
       },
       
       setColor: (color: string) => {
