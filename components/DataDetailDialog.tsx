@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { NoteDetail, ResearchDetail, ChapterDetail } from '../hooks/useDataStats';
+import { NoteDetail, ResearchDetail, ChapterDetail, AnnotationDetail } from '../hooks/useDataStats';
 
-type Mode = 'notes' | 'research' | 'chapters';
+type Mode = 'notes' | 'research' | 'annotations' | 'chapters';
 
 interface DataDetailDialogProps {
   mode: Mode;
   noteDetails: NoteDetail[];
   researchDetails: ResearchDetail[];
+  annotationDetails: AnnotationDetail[];
   chapterDetails: ChapterDetail[];
   onNavigate?: (bookId: string, chapter: number, verses?: number[]) => void;
   onClose: () => void;
@@ -15,11 +16,12 @@ interface DataDetailDialogProps {
 const TITLES: Record<Mode, string> = {
   notes: '📝 个人笔记 Personal Notes',
   research: '🔍 AI研究 AI Research',
+  annotations: '✏️ 手写标注 Annotations',
   chapters: '📖 缓存章节 Cached Chapters',
 };
 
 const DataDetailDialog: React.FC<DataDetailDialogProps> = ({
-  mode, noteDetails, researchDetails, chapterDetails, onNavigate, onClose
+  mode, noteDetails, researchDetails, annotationDetails, chapterDetails, onNavigate, onClose
 }) => {
   const [expandedBook, setExpandedBook] = useState<string | null>(null);
 
@@ -125,6 +127,44 @@ const DataDetailDialog: React.FC<DataDetailDialogProps> = ({
                     <div className="text-xs text-slate-500 mt-0.5 truncate">Q: {r.query}</div>
                   </button>
                 ))}
+              </div>
+            )
+          )}
+
+          {mode === 'annotations' && (
+            annotationDetails.length === 0 ? (
+              <p className="text-sm text-slate-400 text-center py-8">暂无标注 No annotations yet</p>
+            ) : (
+              <div className="space-y-1">
+                {annotationDetails.map((a, i) => {
+                  const date = a.lastModified ? new Date(a.lastModified) : null;
+                  const now = new Date();
+                  const diffDays = date ? Math.round((now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24)) : -1;
+                  const dateStr = diffDays === 0 ? '今天 Today'
+                    : diffDays === 1 ? '昨天 Yesterday'
+                    : diffDays > 0 && diffDays < 7 ? `${diffDays}天前 ${diffDays}d ago`
+                    : date ? date.toLocaleDateString() : '';
+
+                  return (
+                    <button
+                      key={`${a.bookId}:${a.chapter}:${a.panelId}:${i}`}
+                      onClick={() => { onNavigate?.(a.bookId, a.chapter); onClose(); }}
+                      className="w-full text-left px-3 py-2 rounded-lg hover:bg-indigo-50 transition-colors group"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="text-xs font-semibold text-indigo-600 group-hover:text-indigo-800">
+                          {a.bookName} {a.chapter}
+                        </div>
+                        {dateStr && (
+                          <span className="text-[10px] text-slate-400">{dateStr}</span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-slate-400 mt-0.5">
+                        {a.panelId === 'english' ? 'English panel' : '中文面板'}
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             )
           )}
