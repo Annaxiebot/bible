@@ -42,6 +42,7 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
     const drawingHistoryRef = useRef<ImageData[]>([]);
     const MAX_HISTORY = 20;
     const setupRetryCountRef = useRef(0);
+    const hasContentRef = useRef(false);
 
     // Apply current tool settings to context
     const applyToolSettings = useCallback(() => {
@@ -108,6 +109,14 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
 
       // Reset retry counter on successful setup
       setupRetryCountRef.current = 0;
+
+      // CRITICAL: Check if we already have the right dimensions to avoid unnecessary clearing
+      const needsResize = canvas.width !== width * dpr || canvas.height !== height * dpr;
+      
+      if (!needsResize && hasContentRef.current) {
+        // Canvas already properly sized and has content - skip setup to preserve content
+        return;
+      }
 
       // Set actual canvas dimensions
       canvas.width = width * dpr;
@@ -230,6 +239,7 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
       
       ctx.lineTo(x, y);
       ctx.stroke();
+      hasContentRef.current = true; // Mark that we have drawn content
     }, [isWritingMode]);
 
     // EXACT same touch end handler as math app
@@ -287,6 +297,7 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
       const y = e.clientY - rect.top;
       ctx.lineTo(x, y);
       ctx.stroke();
+      hasContentRef.current = true; // Mark that we have drawn content
     }, [isWritingMode]);
 
     const stopDrawing = useCallback(() => {
@@ -367,6 +378,7 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
         const rect = canvas.getBoundingClientRect();
         if (rect.width > 0 && rect.height > 0) {
           ctx.drawImage(img, 0, 0, rect.width, rect.height);
+          hasContentRef.current = true; // Mark that we have content loaded
         }
       };
       img.src = initialData;
@@ -387,6 +399,7 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
         
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         drawingHistoryRef.current = [];
+        hasContentRef.current = false; // Mark that canvas is now empty
         saveDrawingHistory();
         onChange('');
       },
