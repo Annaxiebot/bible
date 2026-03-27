@@ -3,7 +3,7 @@ import { SelectionInfo, MediaAttachment } from '../types';
 import { VerseData, PersonalNote, AIResearchEntry } from '../types/verseData';
 import { verseDataStorage } from '../services/verseDataStorage';
 import { useStorageUpdate } from '../hooks/useStorageUpdate';
-import DrawingCanvas, { DrawingCanvasHandle } from './DrawingCanvas';
+import SimpleDrawingCanvas, { SimpleDrawingCanvasHandle } from './SimpleDrawingCanvas';
 import LazyMarkdown from './LazyMarkdown';
 import { downloadNote, readNoteFile } from '../services/fileSystem';
 import * as aiService from '../services/gemini';
@@ -123,7 +123,7 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
   const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
   const editorRef = useRef<HTMLDivElement>(null);
-  const canvasRef = useRef<DrawingCanvasHandle>(null);
+  const canvasRef = useRef<SimpleDrawingCanvasHandle>(null);
   const autoSaveTimer = useRef<number | null>(null);
   const previousSelectionIdRef = useRef<string | null>(null);
   const lastActivityTime = useRef<number>(Date.now());
@@ -762,7 +762,7 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
 
       {mode === 'draw' && (
         <div style={{ position: 'relative', minHeight: '300px', background: '#f8f8f8', borderRadius: '8px', overflow: 'hidden' }}>
-          <DrawingCanvas
+          <SimpleDrawingCanvas
             ref={canvasRef}
             onChange={(data) => {
               setDrawingData(data);
@@ -818,7 +818,7 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
             style={{ minHeight: '300px', padding: '12px', outline: 'none', fontSize: '14px', lineHeight: '1.6', pointerEvents: isWritingMode ? 'none' : 'auto' }}
           />
           <div style={{ position: 'absolute', inset: 0, zIndex: 10, pointerEvents: isWritingMode ? 'auto' : 'none' }}>
-            <DrawingCanvas
+            <SimpleDrawingCanvas
               ref={canvasRef}
               onChange={(data) => {
                 setDrawingData(data);
