@@ -4,8 +4,7 @@ import { verseDataStorage } from './verseDataStorage';
 import { annotationStorage } from './annotationStorage';
 import { bibleStorage } from './bibleStorage';
 import { PRINT, TIMING, DRAWING } from '../constants/appConfig';
-import { renderPathsToDataURL } from './canvasRenderer';
-import type { SerializedPath } from '../components/DrawingCanvas';
+import { resizeBase64Image, isNonEmptyDrawing, migratePathDataToBase64 } from './simpleCanvasRenderer';
 import type { VerseData, AIResearchEntry } from '../types/verseData';
 
 export interface PrintableNote {
@@ -533,13 +532,14 @@ export async function gatherPrintData(options?: PrintOptions): Promise<Printable
       aiResearch: hasAI ? aiEntries.map(r => ({ query: r.query, response: r.response, timestamp: r.timestamp })) : undefined,
     };
 
-    // Render notebook drawing if present
+    // Include notebook drawing if present
     if (includeDrawings && vd.personalNote?.drawing) {
       try {
-        const paths: SerializedPath[] = JSON.parse(vd.personalNote.drawing);
-        if (paths.length > 0) {
-          const dataURL = renderPathsToDataURL(paths, PRINT.DRAWING_RENDER_WIDTH, PRINT.DRAWING_RENDER_HEIGHT, { background: 'white' });
-          section.drawings = [dataURL];
+        // Migrate old path data or use base64 data directly
+        const base64Data = migratePathDataToBase64(vd.personalNote.drawing);
+        if (isNonEmptyDrawing(base64Data)) {
+          const resizedImage = await resizeBase64Image(base64Data, PRINT.DRAWING_RENDER_WIDTH, PRINT.DRAWING_RENDER_HEIGHT);
+          section.drawings = [resizedImage];
         }
       } catch { /* invalid drawing data */ }
     }
@@ -574,16 +574,13 @@ export async function gatherPrintData(options?: PrintOptions): Promise<Printable
           );
 
           try {
-            const paths: SerializedPath[] = JSON.parse(ann.canvasData);
-            if (paths.length === 0) continue;
+            // Migrate old path data or use base64 data directly
+            const base64Data = migratePathDataToBase64(ann.canvasData);
+            if (!isNonEmptyDrawing(base64Data)) continue;
 
             const w = ann.canvasWidth || 800;
             const extraH = ann.canvasHeight || 0;  // stored canvasHeight = extra expanded area
             const fs = ann.fontSize || 18;
-
-            // We defer rendering the annotation image to HTML generation
-            // because we need the text to determine total height.
-            // Instead, store the raw paths for client-side canvas rendering in print page.
 
             // Fetch the chapter text for the Bible page
             let chapterVerses: Array<{ verse: number; text: string }> = [];
@@ -594,10 +591,9 @@ export async function gatherPrintData(options?: PrintOptions): Promise<Printable
               }
             } catch { /* text unavailable */ }
 
-            // Render annotation at a large fixed height to cover all text + extra
-            // The overlay image will be stretched to match the text container
+            // Resize annotation image for printing
             const renderH = DRAWING.PRINT_RENDER_HEIGHT; // tall enough to cover any chapter
-            const annotationImage = renderPathsToDataURL(paths, w, renderH, { scale: 2 });
+            const annotationImage = await resizeBase64Image(base64Data, w, renderH);
 
             // Find existing section or create new one
             let existing = sections.find(s => s.bookId === book.id && s.chapter === ch && !s.verses?.length);

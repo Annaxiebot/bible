@@ -13,7 +13,7 @@
  */
 
 import React, { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
-import DrawingCanvas, { DrawingCanvasHandle, SerializedPath } from './DrawingCanvas';
+import SimpleDrawingCanvas, { SimpleDrawingCanvasHandle } from './SimpleDrawingCanvas';
 import { annotationStorage } from '../services/annotationStorage';
 
 export interface AnnotationToolState {
@@ -79,7 +79,7 @@ const InlineBibleAnnotation = forwardRef<InlineBibleAnnotationHandle, InlineBibl
   panelId = 'chinese',
   onAlignmentMismatch,
 }, ref) => {
-  const canvasRef = useRef<DrawingCanvasHandle>(null);
+  const canvasRef = useRef<SimpleDrawingCanvasHandle>(null);
 
   // ── State ──────────────────────────────────────────────────────────────
   const [extraHeight, setExtraHeight] = useState(0);       // Extra expanded space
@@ -118,15 +118,8 @@ const InlineBibleAnnotation = forwardRef<InlineBibleAnnotationHandle, InlineBibl
       if (result) {
         setSavedPaths(result.data);
         setExtraHeight(result.height);
-        // If canvas is mounted and active, load the paths
-        if (canvasRef.current && result.data) {
-          try {
-            const paths = JSON.parse(result.data) as SerializedPath[];
-            canvasRef.current.loadPaths(paths);
-          } catch {
-            // Invalid data, ignore
-          }
-        }
+        // Note: The new SimpleDrawingCanvas loads data automatically via initialData prop
+        // No need to explicitly load paths
         // Store layout params for real-time mismatch detection
         if (result.data && result.data !== '[]' && result.data !== '' && result.fontSize > 0 && result.vSplitOffset >= 0) {
           storedLayoutRef.current = { fontSize: result.fontSize, vSplitOffset: result.vSplitOffset };
@@ -172,20 +165,8 @@ const InlineBibleAnnotation = forwardRef<InlineBibleAnnotationHandle, InlineBibl
     }
   }, [fontSize, vSplitOffset, onAlignmentMismatch]);
 
-  // When activating annotation mode, load paths into the canvas
-  useEffect(() => {
-    if (isActive && canvasRef.current && savedPaths) {
-      try {
-        const paths = JSON.parse(savedPaths) as SerializedPath[];
-        // Small delay to let canvas mount and size properly
-        requestAnimationFrame(() => {
-          canvasRef.current?.loadPaths(paths);
-        });
-      } catch {
-        // Invalid data
-      }
-    }
-  }, [isActive]);
+  // Note: The new SimpleDrawingCanvas loads data automatically via initialData prop
+  // No need for explicit path loading on activation
 
   // ── Document-level prevention of iOS context menu when annotation mode is active ──
   useEffect(() => {
@@ -362,7 +343,7 @@ const InlineBibleAnnotation = forwardRef<InlineBibleAnnotationHandle, InlineBibl
               opacity: 0.35, // Faint overlay so users can see their notes
             }}
           >
-            <DrawingCanvas
+            <SimpleDrawingCanvas
               ref={canvasRef}
               initialData={savedPaths}
               onChange={() => {}} // Read-only
@@ -408,7 +389,7 @@ const InlineBibleAnnotation = forwardRef<InlineBibleAnnotationHandle, InlineBibl
           pointerEvents: 'none',
         }}
       >
-        <DrawingCanvas
+        <SimpleDrawingCanvas
           ref={canvasRef}
           initialData={savedPaths}
           onChange={handleCanvasChange}
