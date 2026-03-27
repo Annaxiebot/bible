@@ -157,6 +157,8 @@ export const DRAWING = {
   TILT_DIVISOR: 180,
   /** Canvas render height (px) used when producing annotation print images */
   PRINT_RENDER_HEIGHT: 4000,
+  /** Palm rejection: Maximum touch radius threshold (Apple Pencil ~<5, finger ~10-20, palm ~30+) */
+  PALM_REJECTION_RADIUS: 25,
 } as const;
 
 // ── Auto-save research ──────────────────────────────────────────────────────

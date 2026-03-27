@@ -42,6 +42,9 @@ interface ExtendedTouchProps {
 }
 type ExtendedTouch = Touch & ExtendedTouchProps;
 
+// Note: Touch.radiusX and Touch.radiusY are part of the standard Touch interface
+// and are used for palm rejection (Apple Pencil ~<5, finger ~10-20, palm ~30+)
+
 interface Point {
   x: number;
   y: number;
@@ -383,19 +386,32 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
     const handleTouchStart = useCallback((e: TouchEvent) => {
       if (!isWritingMode) return;
       
-      // Only handle single touch for drawing (allow two-finger scroll)
-      if (e.touches.length > 2) return;
-      
-      // For two-finger gestures, don't interfere (allow scrolling)
-      if (e.touches.length === 2) {
-        usingTouchRef.current = false;
+      // PALM REJECTION: Immediately reject multi-touch (palm/hand rejection)
+      if (e.touches.length > 1) {
+        // If currently drawing, stop the stroke
+        if (isDrawingRef.current) {
+          isDrawingRef.current = false;
+          cancelAnimationFrame(rafIdRef.current);
+          currentPointsRef.current = [];
+        }
         return;
       }
       
       const touch = e.touches[0];
       
-      // Check if this is Apple Pencil (has force or touchType)
+      // PALM REJECTION: Reject large touch areas (palm/side of hand)
+      // Apple Pencil typically has radiusX/radiusY < 5
+      // Finger touches are 10-20
+      // Palm can be 30+
       const extTouch = touch as ExtendedTouch;
+      if (touch.radiusX && touch.radiusX > DRAWING.PALM_REJECTION_RADIUS) {
+        return; // Large touch = palm or side of hand
+      }
+      if (touch.radiusY && touch.radiusY > DRAWING.PALM_REJECTION_RADIUS) {
+        return; // Large touch in Y dimension too
+      }
+      
+      // Check if this is Apple Pencil (has force or touchType)
       const isPen = extTouch.touchType === 'stylus' || (extTouch.force ?? 0) > 0;
       
       // Mark that we're using touch (to skip pointer events)
@@ -409,20 +425,29 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
     }, [isWritingMode, getPointFromTouch, startDrawing]);
 
     const handleTouchMove = useCallback((e: TouchEvent) => {
+      if (!isDrawingRef.current) return;
       if (!isWritingMode) return;
       
-      // Allow two-finger scroll - don't block it
-      if (e.touches.length === 2) {
-        if (isDrawingRef.current) {
-          // End current stroke if switching to scroll
-          endDrawing();
-        }
-        usingTouchRef.current = false;
+      // PALM REJECTION: Immediately reject multi-touch (mid-stroke palm detection)
+      if (e.touches.length > 1) {
+        // Stop drawing if palm detected mid-stroke
+        isDrawingRef.current = false;
+        cancelAnimationFrame(rafIdRef.current);
+        currentPointsRef.current = [];
         return;
       }
       
-      // Only draw with single touch
-      if (!isDrawingRef.current || e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      
+      // PALM REJECTION: Continue checking for large touch radius during stroke
+      if ((touch.radiusX && touch.radiusX > DRAWING.PALM_REJECTION_RADIUS) || 
+          (touch.radiusY && touch.radiusY > DRAWING.PALM_REJECTION_RADIUS)) {
+        // Stop drawing if large touch detected mid-stroke
+        isDrawingRef.current = false;
+        cancelAnimationFrame(rafIdRef.current);
+        currentPointsRef.current = [];
+        return;
+      }
       
       e.preventDefault();
       e.stopPropagation();
@@ -441,7 +466,7 @@ const DrawingCanvas = forwardRef<DrawingCanvasHandle, DrawingCanvasProps>(
       }
       
       continueDrawing(points);
-    }, [isWritingMode, getPointFromTouch, continueDrawing, endDrawing]);
+    }, [isWritingMode, getPointFromTouch, continueDrawing]);
 
     const handleTouchEnd = useCallback((e: TouchEvent) => {
       if (!isWritingMode) return;
