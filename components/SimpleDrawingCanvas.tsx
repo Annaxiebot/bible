@@ -120,7 +120,7 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
       setTimeout(() => {
         saveDrawingHistory();
       }, 0);
-    }, [canvasHeight, saveDrawingHistory]);
+    }, [canvasHeight]);
 
     // EXACT same drawing history function as math app
     const saveDrawingHistory = useCallback(() => {
@@ -183,7 +183,7 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
       
       ctx.beginPath();
       ctx.moveTo(x, y);
-    }, [isWritingMode, applyToolSettings]);
+    }, [isWritingMode]);
 
     // EXACT same touch move handler as math app
     const handleTouchMove = useCallback((e: TouchEvent) => {
@@ -230,7 +230,7 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
       }
       
       isDrawingRef.current = false;
-    }, [isWritingMode, saveDrawingHistory, onChange]);
+    }, [isWritingMode, onChange]);
 
     // Mouse events for desktop - same pattern as math app
     const startDrawing = useCallback((e: MouseEvent) => {
@@ -251,7 +251,7 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
       const y = (e.clientY - rect.top) * (canvas.height / rect.height);
       ctx.beginPath();
       ctx.moveTo(x, y);
-    }, [isWritingMode, applyToolSettings]);
+    }, [isWritingMode]);
 
     const draw = useCallback((e: MouseEvent) => {
       if (!isDrawingRef.current || !isWritingMode) return;
@@ -281,7 +281,7 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
       }
       
       isDrawingRef.current = false;
-    }, [saveDrawingHistory, onChange]);
+    }, [onChange]);
 
     // Setup event listeners
     useEffect(() => {
@@ -425,7 +425,7 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
           ctx.lineWidth = size;
         }
       }
-    }), [onChange, saveDrawingHistory]);
+    }), [onChange]);
 
     return (
       <div className="relative w-full" style={{ height: canvasHeight ? `${canvasHeight}px` : '100%' }}>
