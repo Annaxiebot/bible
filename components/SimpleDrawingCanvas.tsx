@@ -116,9 +116,11 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
       bgCtx.fillStyle = 'white';
       bgCtx.fillRect(0, 0, width, height);
 
-      // Save initial empty state
-      saveDrawingHistory();
-    }, [canvasHeight]);
+      // Save initial empty state - delay slightly to ensure canvas is ready
+      setTimeout(() => {
+        saveDrawingHistory();
+      }, 0);
+    }, [canvasHeight, saveDrawingHistory]);
 
     // EXACT same drawing history function as math app
     const saveDrawingHistory = useCallback(() => {
@@ -126,11 +128,21 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
       const canvas = canvasRef.current;
       if (!ctx || !canvas) return;
 
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      drawingHistoryRef.current.push(imageData);
-      
-      if (drawingHistoryRef.current.length > MAX_HISTORY) {
-        drawingHistoryRef.current.shift();
+      // CRITICAL: Check canvas has valid dimensions before getImageData
+      if (canvas.width <= 0 || canvas.height <= 0) {
+        console.warn('Canvas has invalid dimensions, skipping history save:', { width: canvas.width, height: canvas.height });
+        return;
+      }
+
+      try {
+        const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        drawingHistoryRef.current.push(imageData);
+        
+        if (drawingHistoryRef.current.length > MAX_HISTORY) {
+          drawingHistoryRef.current.shift();
+        }
+      } catch (error) {
+        console.warn('Failed to save drawing history:', error);
       }
     }, []);
 
@@ -324,9 +336,17 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
 
       const img = new Image();
       img.onload = () => {
+        // Check canvas has valid dimensions
+        if (canvas.width <= 0 || canvas.height <= 0) {
+          console.warn('Canvas has invalid dimensions, skipping image load');
+          return;
+        }
+        
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         const rect = canvas.getBoundingClientRect();
-        ctx.drawImage(img, 0, 0, rect.width, rect.height);
+        if (rect.width > 0 && rect.height > 0) {
+          ctx.drawImage(img, 0, 0, rect.width, rect.height);
+        }
       };
       img.src = initialData;
     }, [initialData]);
@@ -337,6 +357,12 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
         const ctx = ctxRef.current;
         const canvas = canvasRef.current;
         if (!ctx || !canvas) return;
+        
+        // Check canvas has valid dimensions
+        if (canvas.width <= 0 || canvas.height <= 0) {
+          console.warn('Canvas has invalid dimensions, skipping clear operation');
+          return;
+        }
         
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         drawingHistoryRef.current = [];
