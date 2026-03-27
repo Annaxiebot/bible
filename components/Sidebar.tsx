@@ -42,7 +42,7 @@ interface SidebarProps {
   onNavigate?: (bookId: string, chapter: number, verse?: number) => void;
   onSearch?: () => void;
   onPrint?: () => void;
-  onShowDataDetail?: (mode: 'notes' | 'research' | 'chapters') => void;
+  onShowDataDetail?: (mode: 'notes' | 'research' | 'annotations' | 'chapters') => void;
   onShowGeneralResearch?: () => void;
   bgDownloadProgress?: BgDownloadProgress | null;
 }
@@ -559,6 +559,13 @@ const Sidebar: React.FC<SidebarProps> = ({
                   >
                     <span className="text-slate-600">🌟 通用研究 General:</span>
                     <span className="font-medium text-indigo-600">{generalResearchEntries.length}</span>
+                  </button>
+                  <button
+                    onClick={() => onShowDataDetail?.('annotations')}
+                    className="w-full flex justify-between px-2 py-1 rounded hover:bg-slate-100 transition-colors cursor-pointer"
+                  >
+                    <span className="text-slate-600">✏️ 手写标注 Annotations:</span>
+                    <span className="font-medium text-indigo-600">{stats.annotations}</span>
                   </button>
                   <button
                     onClick={() => onShowDataDetail?.('chapters')}

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { verseDataStorage } from '../services/verseDataStorage';
 import { bibleStorage } from '../services/bibleStorage';
+import { annotationStorage } from '../services/annotationStorage';
 import { BIBLE_BOOKS } from '../constants';
 import { useStorageUpdate } from './useStorageUpdate';
 import { stripHTML } from '../utils/textUtils';
@@ -30,13 +31,23 @@ export interface ChapterDetail {
   chapters: number[]; // list of cached chapter numbers
 }
 
+export interface AnnotationDetail {
+  bookId: string;
+  bookName: string;
+  chapter: number;
+  panelId: string;
+  lastModified: number;
+}
+
 export interface DataStats {
   personalNotes: number;
   aiResearch: number;
+  annotations: number;
   cachedChapters: number;
   totalSize?: number;
   noteDetails: NoteDetail[];
   researchDetails: ResearchDetail[];
+  annotationDetails: AnnotationDetail[];
   chapterDetails: ChapterDetail[];
 }
 
@@ -45,9 +56,11 @@ export function useDataStats(updateTrigger?: number) {
   const [stats, setStats] = useState<DataStats>({
     personalNotes: 0,
     aiResearch: 0,
+    annotations: 0,
     cachedChapters: 0,
     noteDetails: [],
     researchDetails: [],
+    annotationDetails: [],
     chapterDetails: [],
   });
   const [loading, setLoading] = useState(true);
@@ -87,6 +100,29 @@ export function useDataStats(updateTrigger?: number) {
         noteDetails.sort((a, b) => b.updatedAt - a.updatedAt);
         researchDetails.sort((a, b) => b.timestamp - a.timestamp);
 
+        // Get annotation details
+        const annotationDetails: AnnotationDetail[] = [];
+        let annotationCount = 0;
+        try {
+          const allAnnotations = await annotationStorage.getAllAnnotations();
+          for (const ann of allAnnotations) {
+            if (!ann.canvasData || ann.canvasData === '[]' || ann.canvasData === '') continue;
+            const book = BIBLE_BOOKS.find(b => b.id === ann.bookId);
+            if (!book) continue;
+            annotationCount++;
+            annotationDetails.push({
+              bookId: ann.bookId,
+              bookName: book.name,
+              chapter: ann.chapter,
+              panelId: ann.panelId || 'chinese',
+              lastModified: ann.lastModified || 0,
+            });
+          }
+          annotationDetails.sort((a, b) => b.lastModified - a.lastModified);
+        } catch (e) {
+          // silently handle
+        }
+
         // Get cached chapters
         let cachedChapters = 0;
         const chapterDetails: ChapterDetail[] = [];
@@ -125,7 +161,7 @@ export function useDataStats(updateTrigger?: number) {
           // silently handle
         }
 
-        setStats({ personalNotes, aiResearch, cachedChapters, totalSize, noteDetails, researchDetails, chapterDetails });
+        setStats({ personalNotes, aiResearch, annotations: annotationCount, cachedChapters, totalSize, noteDetails, researchDetails, annotationDetails, chapterDetails });
       } catch (error) {
         // TODO: use error reporting service
       } finally {

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { verseDataStorage } from '../services/verseDataStorage';
 import { notesStorage } from '../services/notesStorage';
+import { annotationStorage } from '../services/annotationStorage';
 import { useStorageUpdate } from '../hooks/useStorageUpdate';
 import { BIBLE_BOOKS } from '../constants';
 import { VerseData, AIResearchEntry } from '../types/verseData';
@@ -21,6 +22,7 @@ interface NoteItem {
   personalNote?: string;
   aiResearch: AIResearchEntry[];
   aiResearchCount: number;
+  hasAnnotation?: boolean;
   createdAt: number;
   updatedAt: number;
   verseText?: string;
@@ -87,14 +89,14 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
           const chapter = parseInt(parts[1]);
           const verses = parts[2] ? [parseInt(parts[2])] : [];
           const book = BIBLE_BOOKS.find(b => b.id === bookId);
-          
+
           if (book && content) {
             // Check if this note already exists in verse data
-            const exists = noteItems.some(n => 
-              n.bookId === bookId && n.chapter === chapter && 
+            const exists = noteItems.some(n =>
+              n.bookId === bookId && n.chapter === chapter &&
               JSON.stringify(n.verses) === JSON.stringify(verses)
             );
-            
+
             if (!exists) {
               noteItems.push({
                 id: noteId,
@@ -112,7 +114,44 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
           }
         }
       });
-      
+
+      // Process annotations - add as entries or mark existing chapter entries
+      try {
+        const allAnnotations = await annotationStorage.getAllAnnotations();
+        for (const ann of allAnnotations) {
+          if (!ann.canvasData || ann.canvasData === '[]' || ann.canvasData === '') continue;
+          const book = BIBLE_BOOKS.find(b => b.id === ann.bookId);
+          if (!book) continue;
+
+          // Check if a chapter-level note already exists
+          const existing = noteItems.find(n =>
+            n.bookId === ann.bookId && n.chapter === ann.chapter && n.verses.length === 0
+          );
+          if (existing) {
+            existing.hasAnnotation = true;
+            // Update timestamp if annotation is newer
+            if (ann.lastModified && ann.lastModified > existing.updatedAt) {
+              existing.updatedAt = ann.lastModified;
+            }
+          } else {
+            noteItems.push({
+              id: `annotation:${ann.bookId}:${ann.chapter}:${ann.panelId || 'chinese'}`,
+              bookId: ann.bookId,
+              bookName: book.name,
+              chapter: ann.chapter,
+              verses: [],
+              aiResearch: [],
+              aiResearchCount: 0,
+              hasAnnotation: true,
+              createdAt: ann.lastModified || 0,
+              updatedAt: ann.lastModified || 0,
+            });
+          }
+        }
+      } catch (e) {
+        // silently handle
+      }
+
       setNotes(noteItems);
     } catch (error) {
       // silently handle
@@ -132,6 +171,7 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
         note.personalNote?.toLowerCase().includes(term) ||
         note.verseText?.toLowerCase().includes(term) ||
         note.aiResearch.some(r => r.query.toLowerCase().includes(term) || r.response.toLowerCase().includes(term)) ||
+        (note.hasAnnotation && ('annotation'.includes(term) || '标注'.includes(term))) ||
         `${note.chapter}`.includes(term) ||
         note.verses.some(v => `${v}`.includes(term))
       );
@@ -457,7 +497,7 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
           <div className="divide-y">
             {filteredAndSortedNotes.map((note) => {
               const isExpanded = expandedNotes.has(note.id);
-              const hasContent = note.personalNote || note.aiResearchCount > 0;
+              const hasContent = note.personalNote || note.aiResearchCount > 0 || note.hasAnnotation;
               
               return (
                 <div
@@ -480,6 +520,12 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
                           <span className="flex items-center gap-1 text-xs text-slate-500">
                             <span>📝</span>
                             <span>笔记 Note</span>
+                          </span>
+                        )}
+                        {note.hasAnnotation && (
+                          <span className="flex items-center gap-1 text-xs text-slate-500">
+                            <span>✏️</span>
+                            <span>标注 Annotation</span>
                           </span>
                         )}
                         {note.aiResearchCount > 0 && (

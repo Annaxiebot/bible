@@ -152,12 +152,12 @@ const InlineBibleAnnotation = forwardRef<InlineBibleAnnotationHandle, InlineBibl
     prevKeyRef.current = annotationKey;
 
     // Clear immediately so old chapter's annotation doesn't flash while loading
+    // IMPORTANT: Cancel any pending debounced save first — otherwise clear() triggers
+    // handleCanvasChange('') which debounce-saves empty data over the NEW chapter's annotation
+    clearTimeout(saveTimerRef.current);
     setSavedPaths('');
     setExtraHeight(0);
     latestDataRef.current = '';
-    if (canvasRef.current) {
-      canvasRef.current.clear();
-    }
 
     loadAnnotation();
   }, [bookId, chapter, panelId]);
