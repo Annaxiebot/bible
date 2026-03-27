@@ -41,6 +41,8 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
     const isEraserModeRef = useRef(false);
     const drawingHistoryRef = useRef<ImageData[]>([]);
     const MAX_HISTORY = 20;
+    const setupRetryCountRef = useRef(0);
+    const MAX_SETUP_RETRIES = 10;
 
     // Apply current tool settings to context
     const applyToolSettings = useCallback(() => {
@@ -87,6 +89,21 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
       const rect = canvas.getBoundingClientRect();
       const width = rect.width;
       const height = canvasHeight || rect.height;
+
+      // CRITICAL: Don't setup canvas with invalid dimensions
+      if (width <= 0 || height <= 0) {
+        if (setupRetryCountRef.current < MAX_SETUP_RETRIES) {
+          setupRetryCountRef.current++;
+          console.warn(`Canvas element not properly sized yet, retrying in 100ms (attempt ${setupRetryCountRef.current}):`, { width, height });
+          setTimeout(() => setupCanvases(), 100);
+        } else {
+          console.error('Canvas setup failed after max retries - element may not be visible');
+        }
+        return;
+      }
+
+      // Reset retry counter on successful setup
+      setupRetryCountRef.current = 0;
 
       // Set actual canvas dimensions
       canvas.width = width * dpr;
