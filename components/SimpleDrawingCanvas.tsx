@@ -172,9 +172,9 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
       if (!canvas || !ctx) return;
 
       const rect = canvas.getBoundingClientRect();
-      // CRITICAL: Scale coordinates exactly like math app
-      const x = (touch.clientX - rect.left) * (canvas.width / rect.width);
-      const y = (touch.clientY - rect.top) * (canvas.height / rect.height);
+      // CRITICAL: Use display coordinates since canvas is already DPR-scaled
+      const x = touch.clientX - rect.left;
+      const y = touch.clientY - rect.top;
       
       isDrawingRef.current = true;
       
@@ -203,9 +203,9 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
       if (!canvas || !ctx) return;
 
       const rect = canvas.getBoundingClientRect();
-      // CRITICAL: Scale coordinates exactly like math app
-      const x = (touch.clientX - rect.left) * (canvas.width / rect.width);
-      const y = (touch.clientY - rect.top) * (canvas.height / rect.height);
+      // CRITICAL: Use display coordinates since canvas is already DPR-scaled
+      const x = touch.clientX - rect.left;
+      const y = touch.clientY - rect.top;
       
       ctx.lineTo(x, y);
       ctx.stroke();
@@ -246,9 +246,9 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
       applyToolSettings();
       
       const rect = canvas.getBoundingClientRect();
-      // CRITICAL: Scale coordinates like math app does
-      const x = (e.clientX - rect.left) * (canvas.width / rect.width);
-      const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+      // CRITICAL: Use display coordinates since canvas is already DPR-scaled
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
       ctx.beginPath();
       ctx.moveTo(x, y);
     }, [isWritingMode]);
@@ -261,9 +261,9 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
       if (!canvas || !ctx) return;
 
       const rect = canvas.getBoundingClientRect();
-      // CRITICAL: Scale coordinates like math app does  
-      const x = (e.clientX - rect.left) * (canvas.width / rect.width);
-      const y = (e.clientY - rect.top) * (canvas.height / rect.height);
+      // CRITICAL: Use display coordinates since canvas is already DPR-scaled
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
       ctx.lineTo(x, y);
       ctx.stroke();
     }, [isWritingMode]);
