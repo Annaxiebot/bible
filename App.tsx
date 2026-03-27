@@ -4,6 +4,7 @@ import { exportImportService, BackupSummaryData } from './services/exportImportS
 import { notesStorage } from './services/notesStorage';
 import { readingHistory } from './services/readingHistory';
 import { verseDataStorage } from './services/verseDataStorage';
+import { annotationStorage } from './services/annotationStorage';
 import { BIBLE_BOOKS } from './constants';
 import { Toast } from './components/Toast';
 import { printStudyNotes, PrintOptions } from './services/printService';
@@ -26,6 +27,7 @@ const BibleSearch = lazy(() => import('./components/BibleSearch'));
 const PrintOptionsDialog = lazy(() => import('./components/PrintOptionsDialog'));
 const DataDetailDialog = lazy(() => import('./components/DataDetailDialog'));
 const GeneralResearchDialog = lazy(() => import('./components/GeneralResearchDialog'));
+const ClearDataDialog = lazy(() => import('./components/ClearDataDialog'));
 
 // Simplified split view hook
 function useSplitView(initialV = 100, initialH = 100) {
@@ -120,7 +122,7 @@ const App: React.FC = () => {
   const [downloadFns, setDownloadFns] = useState<{ bible: (() => void) | null; chapter: (() => void) | null; book: (() => void) | null }>({ bible: null, chapter: null, book: null });
   const [downloadState, setDownloadState] = useState({ isDownloading: false, progress: 0, status: '', timeRemaining: '' });
   const [vibeStyles, setVibeStyles] = useState<VibeStyles>(getEmptyStyles());
-  const [dataDetailMode, setDataDetailMode] = useState<'notes' | 'research' | 'chapters' | null>(null);
+  const [dataDetailMode, setDataDetailMode] = useState<'notes' | 'research' | 'annotations' | 'chapters' | null>(null);
   const [showGeneralResearch, setShowGeneralResearch] = useState(false);
   const { stats: dataStats } = useDataStats(dataUpdateTrigger);
   const [bgDownloadProgress, setBgDownloadProgress] = useState<BgDownloadProgress | null>(null);
@@ -282,33 +284,35 @@ const App: React.FC = () => {
     }
   };
 
-  const handleClearAll = async () => {
+  const [showClearDialog, setShowClearDialog] = useState(false);
+
+  const handleClearAll = () => {
+    setShowClearDialog(true);
+    setIsSidebarOpen(false);
+  };
+
+  const executeClear = async (types: { notes: boolean; research: boolean; annotations: boolean }) => {
     try {
-      const allVerseData = await verseDataStorage.getAllData();
-      const noteCount = allVerseData.filter(v => v.personalNote).length;
-      const researchCount = allVerseData.reduce((acc, v) => acc + v.aiResearch.length, 0);
-      const oldNotesCount = Object.keys(notes).length;
-      const totalCount = noteCount + researchCount + oldNotesCount;
-      
-      if (totalCount === 0) {
-        setToast({ message: "当前没有数据可以清除。 No data to clear.", type: 'info' });
-        return;
+      setShowClearDialog(false);
+      setToast({ message: "正在清除数据... Clearing data...", type: 'info' });
+      const ops: Promise<void>[] = [];
+      if (types.notes) {
+        ops.push(notesStorage.clearAllNotes());
+        ops.push(verseDataStorage.clearAllPersonalNotes());
       }
-      
-      if (confirm(`确定要清除所有数据吗？This cannot be undone!`)) {
-        setToast({ message: "正在清除数据... Clearing data...", type: 'info' });
-        await Promise.all([
-          notesStorage.clearAllNotes(),
-          verseDataStorage.clearAllPersonalNotes(),
-          verseDataStorage.clearAllAIResearch()
-        ]);
-        setNotes({});
-        setDataUpdateTrigger(prev => prev + 1);
-        setTimeout(() => {
-          setToast({ message: '成功清除！Successfully cleared!', type: 'success' });
-          setTimeout(() => setToast(null), 3000);
-        }, 100);
+      if (types.research) {
+        ops.push(verseDataStorage.clearAllAIResearch());
       }
+      if (types.annotations) {
+        ops.push(annotationStorage.clearAllAnnotations());
+      }
+      await Promise.all(ops);
+      if (types.notes) setNotes({});
+      setDataUpdateTrigger(prev => prev + 1);
+      setTimeout(() => {
+        setToast({ message: '成功清除！Successfully cleared!', type: 'success' });
+        setTimeout(() => setToast(null), 3000);
+      }, 100);
     } catch (error) {
       setToast({ message: "清除数据时出错 Failed to clear data.", type: 'error' });
     }
@@ -596,6 +600,7 @@ const App: React.FC = () => {
           mode={dataDetailMode}
           noteDetails={dataStats.noteDetails}
           researchDetails={dataStats.researchDetails}
+          annotationDetails={dataStats.annotationDetails}
           chapterDetails={dataStats.chapterDetails}
           onNavigate={(bookId, chapter, verses) => {
             setNavigateTo({ bookId, chapter, verses });
@@ -616,6 +621,16 @@ const App: React.FC = () => {
           onConfirm={backupDialog.mode === 'export' ? confirmBackup : confirmRestore}
           onCancel={() => setBackupDialog(null)}
           loading={backupLoading}
+        />
+      )}
+
+      {showClearDialog && (
+        <ClearDataDialog
+          noteCount={dataStats.personalNotes}
+          researchCount={dataStats.aiResearch}
+          annotationCount={dataStats.annotations}
+          onConfirm={executeClear}
+          onClose={() => setShowClearDialog(false)}
         />
       )}
 

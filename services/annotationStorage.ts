@@ -46,6 +46,9 @@ class AnnotationStorageService {
         panelId,
       });
 
+      // Notify listeners (e.g. Data Summary stats) that annotations changed
+      window.dispatchEvent(new Event('annotation-updated'));
+
       // Auto-create a chapter-level note so annotations appear in notes list/print
       // Only check once per book+chapter to avoid repeated DB queries during drawing
       const noteKey = `${bookId}:${chapter}`;
@@ -99,8 +102,8 @@ class AnnotationStorageService {
     try {
       const id = panelId ? `${bookId}:${chapter}:${panelId}` : `${bookId}:${chapter}`;
       await idbService.delete('annotations', id);
+      window.dispatchEvent(new Event('annotation-updated'));
     } catch (error) {
-      // TODO: use error reporting service
       throw error;
     }
   }
@@ -141,6 +144,16 @@ class AnnotationStorageService {
 
   async importAnnotation(record: AnnotationRecord): Promise<void> {
     await idbService.put('annotations', record);
+  }
+
+  async clearAllAnnotations(): Promise<void> {
+    try {
+      await idbService.clear('annotations');
+      this._ensuredNotes.clear();
+      window.dispatchEvent(new Event('annotation-updated'));
+    } catch (error) {
+      throw error;
+    }
   }
 
   async getAnnotationsForBook(bookId: string): Promise<AnnotationRecord[]> {
