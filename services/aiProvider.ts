@@ -91,6 +91,7 @@ const callViaEdgeFunction = async (
       options: {
         ...options,
         useFreeRouter: localStorage.getItem('useFreeRouter') !== 'false',
+        autoRace: localStorage.getItem('autoRaceAI') === 'true',
       },
     }),
   });
