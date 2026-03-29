@@ -499,6 +499,7 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
 
                 {currentProvider === 'openrouter' ? (
                   <>
+                    <option value="openrouter/auto">Auto (let OpenRouter pick the best model)</option>
                     <optgroup label={verifiedModels ? `Verified Working Free Models (${verifiedModels.length})` : 'Free Models'}>
                       {verifiedModels
                         ? verifiedModels.map(m => (
