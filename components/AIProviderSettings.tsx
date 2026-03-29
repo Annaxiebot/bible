@@ -616,8 +616,11 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
                   </li>
                   <li className="pt-1 border-t border-blue-200 mt-2">
                     • All providers maintain the same bilingual format (Chinese + English)<br />
-                    • You can switch providers and models at any time<br />
-                    • API keys are synced securely when signed in
+                    • You can switch providers and models at any time
+                  </li>
+                  <li className="pt-1 border-t border-blue-200 mt-2">
+                    <strong>Not signed in:</strong> Settings saved to this browser only<br />
+                    <strong>Signed in:</strong> Settings synced to cloud — sign in on another device and AI works automatically
                   </li>
                 </ul>
               </div>
