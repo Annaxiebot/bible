@@ -296,6 +296,7 @@ const SYNCED_SETTINGS_KEYS = [
   STORAGE_KEYS.VIEW_LAYOUT,
   'useFreeRouter',
   'useServerAI',
+  'autoRaceAI',
 ];
 
 async function syncSettings(): Promise<void> {

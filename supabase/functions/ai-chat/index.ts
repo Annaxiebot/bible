@@ -2,10 +2,10 @@
  * ai-chat Edge Function
  *
  * Proxies AI chat requests to the user's configured provider.
- * Reads API keys from user_settings table — no secrets exposed to the client.
+ * Supports single-provider mode and race mode (fastest of N providers).
  *
  * POST /ai-chat
- * Body: { prompt, history, options: { model?, thinking?, fast?, search?, image? } }
+ * Body: { prompt, history, options: { model?, autoRace?, ... } }
  * Auth: Bearer token (Supabase JWT)
  */
 
@@ -17,7 +17,7 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-// Provider API endpoints (OpenAI-compatible use /chat/completions)
+// Provider API endpoints
 const PROVIDER_ENDPOINTS: Record<string, string> = {
   openrouter: "https://openrouter.ai/api/v1/chat/completions",
   claude: "https://api.anthropic.com/v1/messages",
@@ -35,98 +35,313 @@ const PROVIDER_ENDPOINTS: Record<string, string> = {
   moonshot: "https://api.moonshot.ai/v1/chat/completions",
 };
 
-// Providers that use Anthropic Messages API format (not OpenAI-compatible)
 const ANTHROPIC_PROTOCOL_PROVIDERS = new Set(["claude", "zai"]);
 
-// Provider API key storage key names (must match constants/storageKeys.ts)
 const PROVIDER_KEY_NAMES: Record<string, string> = {
-  openrouter: "openrouter_api_key",
-  claude: "claude_api_key",
-  gemini: "gemini_api_key",
-  openai: "openai_api_key",
-  kimi: "kimi_api_key",
-  nvidia: "nvidia_api_key",
-  deepseek: "deepseek_api_key",
-  groq: "groq_api_key",
-  dashscope: "dashscope_api_key",
-  minimax: "minimax_api_key",
-  zhipu: "zhipu_api_key",
-  zai: "zai_api_key",
-  r9s: "r9s_api_key",
-  moonshot: "moonshot_api_key",
+  openrouter: "openrouter_api_key", claude: "claude_api_key",
+  gemini: "gemini_api_key", openai: "openai_api_key",
+  kimi: "kimi_api_key", nvidia: "nvidia_api_key",
+  deepseek: "deepseek_api_key", groq: "groq_api_key",
+  dashscope: "dashscope_api_key", minimax: "minimax_api_key",
+  zhipu: "zhipu_api_key", zai: "zai_api_key",
+  r9s: "r9s_api_key", moonshot: "moonshot_api_key",
 };
 
-// Default models per provider
 const DEFAULT_MODELS: Record<string, string> = {
-  openrouter: "openrouter/auto",
-  claude: "claude-sonnet-4-6",
-  gemini: "gemini-3-flash-preview",
-  openai: "gpt-4o-mini",
-  kimi: "moonshot-v1-128k",
-  nvidia: "meta/llama-3.1-8b-instruct",
-  deepseek: "deepseek-chat",
-  groq: "llama-3.3-70b-versatile",
-  dashscope: "qwen3.5-flash",
-  minimax: "MiniMax-M2.5",
-  zhipu: "glm-4-plus",
-  zai: "glm-5",
-  r9s: "claude-sonnet-4-6",
-  moonshot: "kimi-k2.5",
+  openrouter: "openrouter/auto", claude: "claude-sonnet-4-6",
+  gemini: "gemini-3-flash-preview", openai: "gpt-4o-mini",
+  kimi: "moonshot-v1-128k", nvidia: "meta/llama-3.1-8b-instruct",
+  deepseek: "deepseek-chat", groq: "llama-3.3-70b-versatile",
+  dashscope: "qwen3.5-flash", minimax: "MiniMax-M2.5",
+  zhipu: "glm-4-plus", zai: "glm-5",
+  r9s: "claude-sonnet-4-6", moonshot: "kimi-k2.5",
 };
 
-interface ChatRequest {
-  prompt: string;
-  history: { role: string; content: string }[];
-  options?: {
-    model?: string;
-    thinking?: boolean;
-    fast?: boolean;
-    search?: boolean;
-    image?: { data: string; mimeType: string };
-    useFreeRouter?: boolean;
-  };
+const PROVIDER_NAMES: Record<string, string> = {
+  openrouter: "OpenRouter", claude: "Claude", gemini: "Gemini",
+  openai: "OpenAI", kimi: "Kimi", nvidia: "NVIDIA",
+  deepseek: "DeepSeek", groq: "Groq", dashscope: "DashScope/Qwen",
+  minimax: "MiniMax", zhipu: "Zhipu/GLM", zai: "Z.AI",
+  r9s: "R9S.AI", moonshot: "Moonshot/Kimi",
+};
+
+// ── Single provider call ──────────────────────────────────────────
+
+interface CallResult {
+  text: string;
+  model: string;
+  provider: string;
+  responseMs: number;
 }
 
+async function callSingleProvider(
+  providerName: string,
+  apiKey: string,
+  model: string,
+  messages: { role: string; content: any }[],
+  prompt: string,
+): Promise<CallResult> {
+  const startTime = Date.now();
+
+  if (providerName === "gemini") {
+    const geminiModel = model || "gemini-3-flash-preview";
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: messages.map((m) => ({
+          role: m.role === "assistant" ? "model" : "user",
+          parts: [{ text: typeof m.content === "string" ? m.content : prompt }],
+        })),
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error?.message || "Gemini API error");
+    const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    return { text, model: geminiModel, provider: "Gemini", responseMs: Date.now() - startTime };
+
+  } else if (ANTHROPIC_PROTOCOL_PROVIDERS.has(providerName)) {
+    const endpoint = PROVIDER_ENDPOINTS[providerName];
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({ model, max_tokens: 4096, messages }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error?.message || `${providerName} API error`);
+    const text = data.content?.[0]?.text || "";
+    return { text, model, provider: PROVIDER_NAMES[providerName] || providerName, responseMs: Date.now() - startTime };
+
+  } else {
+    const endpoint = PROVIDER_ENDPOINTS[providerName] || PROVIDER_ENDPOINTS.openrouter;
+    let finalModel = model;
+    if (providerName === "openrouter") {
+      if (!model || model === "openrouter/auto:free") finalModel = "openrouter/auto";
+    }
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+        ...(providerName === "openrouter" ? { "HTTP-Referer": "https://bible.annaxie.com" } : {}),
+      },
+      body: JSON.stringify({ model: finalModel, messages, max_tokens: 4096, temperature: 0.7 }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error?.message || `${providerName} API error`);
+    const text = data.choices?.[0]?.message?.content || "";
+    const usedModel = data.model || finalModel;
+    return { text, model: usedModel, provider: PROVIDER_NAMES[providerName] || providerName, responseMs: Date.now() - startTime };
+  }
+}
+
+// ── Quality check ─────────────────────────────────────────────────
+
+function isQualityResponse(text: string, prompt: string): boolean {
+  if (!text || text.length < 50) return false;
+  // Check it's not just an error message
+  if (text.startsWith("Error:") || text.startsWith("I'm sorry, I")) return false;
+  // Check for language match: if prompt has Chinese, response should too
+  const hasChinese = /[\u4e00-\u9fff]/.test(prompt);
+  if (hasChinese && !/[\u4e00-\u9fff]/.test(text)) return false;
+  // Check response doesn't end mid-sentence (truncated)
+  if (text.length > 200 && !text.trim().match(/[.!?。！？\n]$/)) return false;
+  return true;
+}
+
+// ── Race mode ─────────────────────────────────────────────────────
+
+async function raceProviders(
+  providers: { name: string; apiKey: string; model: string }[],
+  messages: { role: string; content: any }[],
+  prompt: string,
+  supabase: any,
+  userId: string,
+): Promise<CallResult> {
+  // Race up to 5 providers, return first quality response
+  const maxRace = Math.min(providers.length, 5);
+  const racers = providers.slice(0, maxRace);
+
+  // Create abort controllers so we can cancel losers
+  const controllers = racers.map(() => new AbortController());
+
+  const racePromises = racers.map(async (p, i) => {
+    try {
+      const result = await callSingleProvider(p.name, p.apiKey, p.model, messages, prompt);
+
+      // Save timing to provider_health (fire and forget)
+      supabase.from("provider_health").upsert({
+        user_id: userId,
+        provider: p.name,
+        model: p.model,
+        status: "ok",
+        response_ms: result.responseMs,
+        response_length: result.text.length,
+        tested_at: new Date().toISOString(),
+        error_message: null,
+      }, { onConflict: "user_id,provider,model" }).then(() => {}).catch(() => {});
+
+      // Quality check
+      if (!isQualityResponse(result.text, prompt)) {
+        throw new Error(`Low quality response from ${p.name}`);
+      }
+
+      return { ...result, index: i };
+    } catch (error) {
+      // Save error to provider_health
+      supabase.from("provider_health").upsert({
+        user_id: userId,
+        provider: p.name,
+        model: p.model,
+        status: "error",
+        response_ms: 0,
+        response_length: 0,
+        tested_at: new Date().toISOString(),
+        error_message: error instanceof Error ? error.message : "Unknown error",
+      }, { onConflict: "user_id,provider,model" }).then(() => {}).catch(() => {});
+
+      throw error;
+    }
+  });
+
+  // Return the first successful quality response
+  // If all fail, throw the last error
+  let lastError: Error | null = null;
+
+  const result = await new Promise<CallResult>((resolve, reject) => {
+    let resolved = false;
+    let failCount = 0;
+
+    racePromises.forEach((p) => {
+      p.then((result) => {
+        if (!resolved) {
+          resolved = true;
+          resolve(result);
+        }
+      }).catch((err) => {
+        failCount++;
+        lastError = err;
+        if (failCount === racers.length) {
+          reject(lastError || new Error("All providers failed"));
+        }
+      });
+    });
+  });
+
+  return result;
+}
+
+// ── Main handler ──────────────────────────────────────────────────
+
 Deno.serve(async (req: Request) => {
-  // Handle CORS preflight
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
-    // Verify auth
     const authHeader = req.headers.get("Authorization");
     if (!authHeader) {
       return new Response(JSON.stringify({ error: "No authorization header" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Create Supabase client with user's JWT
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey, {
       global: { headers: { Authorization: authHeader } },
     });
 
-    // Get user
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Get user settings (contains API keys)
     const { data: settingsRow } = await supabase
-      .from("user_settings")
-      .select("settings")
-      .eq("user_id", user.id)
-      .single();
+      .from("user_settings").select("settings").eq("user_id", user.id).single();
 
     const settings = (settingsRow?.settings || {}) as Record<string, string>;
+
+    const body = await req.json() as { prompt: string; history: { role: string; content: string }[]; options?: any };
+    const { prompt, history = [], options = {} } = body;
+
+    const messages = [
+      ...history.map((h: any) => ({ role: h.role, content: h.content })),
+      { role: "user", content: prompt },
+    ];
+
+    // Add image if provided
+    if (options.image && messages.length > 0) {
+      const lastMsg = messages[messages.length - 1];
+      lastMsg.content = [
+        { type: "text", text: prompt },
+        { type: "image_url", image_url: { url: `data:${options.image.mimeType};base64,${options.image.data}` } },
+      ];
+    }
+
+    // ── Race mode: autoRace=true and 3+ configured providers ──
+    if (options.autoRace) {
+      // Gather all configured providers with API keys
+      const configured: { name: string; apiKey: string; model: string }[] = [];
+      for (const [prov, keyName] of Object.entries(PROVIDER_KEY_NAMES)) {
+        const key = settings[keyName];
+        if (key) {
+          configured.push({
+            name: prov,
+            apiKey: key,
+            model: DEFAULT_MODELS[prov] || "",
+          });
+        }
+      }
+
+      if (configured.length >= 3) {
+        // Sort by historical speed (fastest first) from provider_health
+        const { data: healthData } = await supabase
+          .from("provider_health")
+          .select("provider, response_ms, status")
+          .eq("user_id", user.id)
+          .eq("status", "ok")
+          .order("response_ms", { ascending: true });
+
+        if (healthData && healthData.length > 0) {
+          const speedMap = new Map(healthData.map((h: any) => [h.provider, h.response_ms]));
+          configured.sort((a, b) => {
+            const aMs = speedMap.get(a.name) ?? 99999;
+            const bMs = speedMap.get(b.name) ?? 99999;
+            return aMs - bMs;
+          });
+        }
+
+        try {
+          const result = await raceProviders(configured, messages, prompt, supabase, user.id);
+          return new Response(JSON.stringify({
+            text: result.text,
+            model: result.model,
+            provider: result.provider,
+            responseMs: result.responseMs,
+            raceMode: true,
+          }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        } catch (error) {
+          return new Response(JSON.stringify({
+            error: `All providers failed. ${error instanceof Error ? error.message : ""}`,
+          }), {
+            status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+      // Fall through to single provider if < 3 configured
+    }
+
+    // ── Single provider mode ──
     const provider = settings["ai_provider"] || "openrouter";
     const apiKeyName = PROVIDER_KEY_NAMES[provider];
     const apiKey = apiKeyName ? settings[apiKeyName] : null;
@@ -138,128 +353,36 @@ Deno.serve(async (req: Request) => {
       );
     }
 
-    // Parse request
-    const body: ChatRequest = await req.json();
-    const { prompt, history = [], options = {} } = body;
     const model = options.model || settings["ai_model"] || DEFAULT_MODELS[provider] || "";
 
-    // Build messages array
-    const messages = [
-      ...history.map((h) => ({ role: h.role, content: h.content })),
-      { role: "user", content: prompt },
-    ];
+    try {
+      const result = await callSingleProvider(provider, apiKey, model, messages, prompt);
 
-    // Add image if provided
-    if (options.image && messages.length > 0) {
-      const lastMsg = messages[messages.length - 1];
-      lastMsg.content = [
-        { type: "text", text: prompt },
-        { type: "image_url", image_url: { url: `data:${options.image.mimeType};base64,${options.image.data}` } },
-      ] as any;
-    }
+      // Save timing (fire and forget)
+      supabase.from("provider_health").upsert({
+        user_id: user.id,
+        provider,
+        model: result.model,
+        status: "ok",
+        response_ms: result.responseMs,
+        response_length: result.text.length,
+        tested_at: new Date().toISOString(),
+        error_message: null,
+      }, { onConflict: "user_id,provider,model" }).then(() => {}).catch(() => {});
 
-    // Route to provider
-    let response: Response;
-    const providerNames: Record<string, string> = {
-      openrouter: "OpenRouter", claude: "Claude", gemini: "Gemini",
-      openai: "OpenAI", kimi: "Kimi", nvidia: "NVIDIA",
-      deepseek: "DeepSeek", groq: "Groq", dashscope: "DashScope/Qwen",
-      minimax: "MiniMax", zhipu: "Zhipu/GLM", zai: "Z.AI",
-      r9s: "R9S.AI", moonshot: "Moonshot/Kimi",
-    };
-
-    if (provider === "gemini") {
-      // Gemini uses its own API format
-      const geminiModel = model || "gemini-3-flash-preview";
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`;
-
-      response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          contents: messages.map((m) => ({
-            role: m.role === "assistant" ? "model" : "user",
-            parts: [{ text: typeof m.content === "string" ? m.content : prompt }],
-          })),
-        }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        return new Response(JSON.stringify({ error: data.error?.message || "Gemini API error" }), {
-          status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      return new Response(JSON.stringify({ text, model: geminiModel, provider: "Gemini" }), {
+      return new Response(JSON.stringify({
+        text: result.text,
+        model: result.model,
+        provider: result.provider,
+        responseMs: result.responseMs,
+      }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
-
-    } else if (ANTHROPIC_PROTOCOL_PROVIDERS.has(provider)) {
-      // Claude, Z.AI — use Anthropic Messages API format
-      const endpoint = PROVIDER_ENDPOINTS[provider];
-
-      response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({ model, max_tokens: 4096, messages }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        return new Response(JSON.stringify({ error: data.error?.message || `${provider} API error` }), {
-          status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      const text = data.content?.[0]?.text || "";
-      return new Response(JSON.stringify({ text, model, provider: providerNames[provider] || provider }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-
-    } else {
-      // All others: OpenAI-compatible format (OpenRouter, OpenAI, Kimi, NVIDIA, DeepSeek, Groq, etc.)
-      const endpoint = PROVIDER_ENDPOINTS[provider] || PROVIDER_ENDPOINTS.openrouter;
-      // Handle openrouter/auto:free (free models only) vs openrouter/auto (any model)
-      let finalModel = model;
-      if (provider === "openrouter") {
-        if (!model || model === "openrouter/auto:free") {
-          finalModel = "openrouter/auto";
-          // Note: :free suffix is our UI convention, OpenRouter uses route params for free filtering
-        } else if (model === "openrouter/auto") {
-          finalModel = "openrouter/auto";
-        }
-      }
-
-      response = await fetch(endpoint, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-          ...(provider === "openrouter" ? { "HTTP-Referer": "https://bible.annaxie.com" } : {}),
-        },
-        body: JSON.stringify({ model: finalModel, messages, max_tokens: 4096, temperature: 0.7 }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        return new Response(
-          JSON.stringify({ error: data.error?.message || `${provider} API error` }),
-          { status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-
-      const text = data.choices?.[0]?.message?.content || "";
-      const usedModel = data.model || finalModel;
-
-      return new Response(JSON.stringify({ text, model: usedModel, provider: providerNames[provider] || provider }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    } catch (error) {
+      return new Response(
+        JSON.stringify({ error: error instanceof Error ? error.message : `${provider} API error` }),
+        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
   } catch (error) {
