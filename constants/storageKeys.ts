@@ -41,6 +41,8 @@ export const STORAGE_KEYS = {
 
   // Vibe / season
   VIBE_STYLES: 'bible_vibe_styles',
+  VIBE_CUSTOMIZATIONS: 'bible_vibe_customizations',
+  VIBE_CHAT_HISTORY: 'bible_vibe_chat_history',
   SEASON_OVERRIDE: 'bible-app-season-override',
 
   // Legacy migration
