@@ -162,13 +162,56 @@ const callProvider = async (
     const result = await openai.chatWithAI(prompt, history, options);
     const text = typeof result === 'string' ? result : (result as any).text || result;
     return { text: String(text), model: options.model || 'openai', provider: providerNames.openai };
-  } else {
+  } else if (provider === 'gemini') {
     const result = await gemini.chatWithAI(prompt, history, options);
     if (typeof result === 'object' && result !== null && 'candidates' in result) {
       return { text: (result as any).text || String(result), model: options.model || 'gemini', provider: providerNames.gemini, ...(result as any) };
     }
     const text = typeof result === 'string' ? result : (result as any).text || result;
     return { text: String(text), model: options.model || 'gemini', provider: providerNames.gemini };
+  } else {
+    // Generic OpenAI-compatible handler for: nvidia, deepseek, groq, dashscope, minimax, zhipu, r9s, moonshot
+    const OPENAI_COMPATIBLE_ENDPOINTS: Record<string, string> = {
+      nvidia: 'https://integrate.api.nvidia.com/v1/chat/completions',
+      deepseek: 'https://api.deepseek.com/v1/chat/completions',
+      groq: 'https://api.groq.com/openai/v1/chat/completions',
+      dashscope: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+      minimax: 'https://api.minimax.io/v1/chat/completions',
+      zhipu: 'https://open.bigmodel.cn/api/paas/v4/chat/completions',
+      r9s: 'https://api.r9s.ai/v1/chat/completions',
+      moonshot: 'https://api.moonshot.ai/v1/chat/completions',
+      zai: 'https://api.z.ai/api/anthropic/v1/messages',
+    };
+    const endpoint = OPENAI_COMPATIBLE_ENDPOINTS[provider];
+    if (!endpoint) throw new Error(`Unknown provider: ${provider}`);
+
+    const apiKeyStorageKey = PROVIDER_KEY_MAP[provider];
+    const apiKey = apiKeyStorageKey ? localStorage.getItem(apiKeyStorageKey) : null;
+    if (!apiKey) throw new Error(`No API key configured for ${providerNames[provider] || provider}. Add it in Settings.`);
+
+    const model = options.model || '';
+    const messages = [
+      ...history.map(h => ({ role: h.role, content: h.content })),
+      { role: 'user', content: prompt },
+    ];
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({ model, messages, max_tokens: 4096, temperature: 0.7 }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error?.message || `${providerNames[provider] || provider} API error: ${response.status}`);
+    }
+
+    const text = data.choices?.[0]?.message?.content || '';
+    const usedModel = data.model || model;
+    return { text, model: usedModel, provider: providerNames[provider] || provider };
   }
 };
 
