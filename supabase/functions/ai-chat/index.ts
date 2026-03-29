@@ -174,51 +174,51 @@ function isQualityResponse(text: string, prompt: string): boolean {
 
 // ── Race mode ─────────────────────────────────────────────────────
 
+interface RaceResult {
+  winner: CallResult;
+  raceDetails: { provider: string; model: string; responseMs: number | null; status: string }[];
+}
+
 async function raceProviders(
   providers: { name: string; apiKey: string; model: string }[],
   messages: { role: string; content: any }[],
   prompt: string,
   supabase: any,
   userId: string,
-): Promise<CallResult> {
-  // Race up to 5 providers, return first quality response
+): Promise<RaceResult> {
   const maxRace = Math.min(providers.length, 5);
   const racers = providers.slice(0, maxRace);
 
-  // Create abort controllers so we can cancel losers
-  const controllers = racers.map(() => new AbortController());
+  // Track all results for reporting
+  const raceDetails: { provider: string; model: string; responseMs: number | null; status: string }[] =
+    racers.map(r => ({ provider: PROVIDER_NAMES[r.name] || r.name, model: r.model, responseMs: null, status: "racing" }));
 
   const racePromises = racers.map(async (p, i) => {
     try {
       const result = await callSingleProvider(p.name, p.apiKey, p.model, messages, prompt);
+      raceDetails[i].responseMs = result.responseMs;
 
       // Save timing to provider_health (fire and forget)
       supabase.from("provider_health").upsert({
-        user_id: userId,
-        provider: p.name,
-        model: p.model,
-        status: "ok",
-        response_ms: result.responseMs,
+        user_id: userId, provider: p.name, model: p.model,
+        status: "ok", response_ms: result.responseMs,
         response_length: result.text.length,
-        tested_at: new Date().toISOString(),
-        error_message: null,
+        tested_at: new Date().toISOString(), error_message: null,
       }, { onConflict: "user_id,provider,model" }).then(() => {}).catch(() => {});
 
-      // Quality check
       if (!isQualityResponse(result.text, prompt)) {
+        raceDetails[i].status = "low_quality";
         throw new Error(`Low quality response from ${p.name}`);
       }
 
+      raceDetails[i].status = "ok";
       return { ...result, index: i };
     } catch (error) {
-      // Save error to provider_health
+      if (raceDetails[i].status === "racing") raceDetails[i].status = "error";
+
       supabase.from("provider_health").upsert({
-        user_id: userId,
-        provider: p.name,
-        model: p.model,
-        status: "error",
-        response_ms: 0,
-        response_length: 0,
+        user_id: userId, provider: p.name, model: p.model,
+        status: "error", response_ms: 0, response_length: 0,
         tested_at: new Date().toISOString(),
         error_message: error instanceof Error ? error.message : "Unknown error",
       }, { onConflict: "user_id,provider,model" }).then(() => {}).catch(() => {});
@@ -227,11 +227,9 @@ async function raceProviders(
     }
   });
 
-  // Return the first successful quality response
-  // If all fail, throw the last error
   let lastError: Error | null = null;
 
-  const result = await new Promise<CallResult>((resolve, reject) => {
+  const winner = await new Promise<CallResult>((resolve, reject) => {
     let resolved = false;
     let failCount = 0;
 
@@ -251,7 +249,10 @@ async function raceProviders(
     });
   });
 
-  return result;
+  // Wait a short moment for other racers to finish so we can report their times
+  await new Promise(r => setTimeout(r, 500));
+
+  return { winner, raceDetails };
 }
 
 // ── Main handler ──────────────────────────────────────────────────
@@ -373,15 +374,19 @@ Deno.serve(async (req: Request) => {
 
         if (diversified.length >= 3) {
           try {
-            const racePool = diversified.map(d => `${PROVIDER_NAMES[d.name] || d.name}/${d.model}`);
-            const result = await raceProviders(diversified, messages, prompt, supabase, user.id);
+            const { winner, raceDetails } = await raceProviders(diversified, messages, prompt, supabase, user.id);
             return new Response(JSON.stringify({
-              text: result.text,
-              model: result.model,
-              provider: result.provider,
-              responseMs: result.responseMs,
+              text: winner.text,
+              model: winner.model,
+              provider: winner.provider,
+              responseMs: winner.responseMs,
               raceMode: true,
-              racePool,
+              racePool: raceDetails.map(d => ({
+                provider: d.provider,
+                model: d.model,
+                responseMs: d.responseMs,
+                status: d.status,
+              })),
             }), {
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             });
