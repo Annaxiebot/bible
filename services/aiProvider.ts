@@ -101,7 +101,7 @@ const callViaEdgeFunction = async (
     throw new Error(data.error || `Edge function error: ${response.status}`);
   }
 
-  return { text: data.text, model: data.model, provider: data.provider };
+  return { text: data.text, model: data.model, provider: data.provider, ...(data.racePool ? { racePool: data.racePool } : {}) };
 };
 
 /**
