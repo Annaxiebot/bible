@@ -38,6 +38,8 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
   const [showKimiKey, setShowKimiKey] = useState(false);
   const [showOpenrouterKey, setShowOpenrouterKey] = useState(false);
   const [autoSaveResearch, setAutoSaveResearch] = useState(() => autoSaveResearchService.isAutoSaveEnabled());
+  const [useServerAI, setUseServerAI] = useState(() => localStorage.getItem('useServerAI') !== 'false');
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [testingKey, setTestingKey] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; error?: string; model?: string }>>({});
   const [dynamicFreeModels, setDynamicFreeModels] = useState<OpenRouterModelInfo[] | null>(null);
@@ -48,6 +50,12 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
   const [detectProgress, setDetectProgress] = useState<AutoDetectProgress[]>([]);
 
   useEffect(() => {
+    import('../services/supabase').then(({ authManager, isSupabaseConfigured }) => {
+      setIsLoggedIn(isSupabaseConfigured() && authManager.getState().isAuthenticated);
+    }).catch(() => {});
+  }, [isOpen]);
+
+  useEffect(() => {
     setGeminiApiKey(localStorage.getItem(STORAGE_KEYS.GEMINI_API_KEY) || '');
     setClaudeApiKey(localStorage.getItem(STORAGE_KEYS.CLAUDE_API_KEY) || '');
     setOpenaiApiKey(localStorage.getItem(STORAGE_KEYS.OPENAI_API_KEY) || '');
@@ -56,6 +64,7 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
     setAutoSaveResearch(autoSaveResearchService.isAutoSaveEnabled());
     setSelectedModel(aiProvider.getCurrentModel() || '');
     setUseFreeRouter(localStorage.getItem('useFreeRouter') !== null ? localStorage.getItem('useFreeRouter') === 'true' : true);
+    setUseServerAI(localStorage.getItem('useServerAI') !== 'false');
     setLastUsedModel(localStorage.getItem('lastUsedModel'));
   }, [isOpen]);
 
@@ -146,8 +155,9 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
       aiProvider.setModel(selectedModel as aiProvider.AIModel);
     }
 
-    // Save free router preference
+    // Save preferences
     localStorage.setItem('useFreeRouter', useFreeRouter.toString());
+    localStorage.setItem('useServerAI', useServerAI.toString());
 
     if (geminiApiKey.trim()) {
       localStorage.setItem(STORAGE_KEYS.GEMINI_API_KEY, geminiApiKey.trim());
@@ -481,6 +491,46 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
                       />
                     </button>
                   </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Server-side AI toggle - only show when logged in */}
+          {isLoggedIn && (
+            <div className="mt-6 border-t pt-6">
+              <h3 className="text-sm font-semibold text-slate-700 mb-3">AI Routing</h3>
+              <div className="flex items-center justify-between p-4 border border-slate-200 rounded-xl">
+                <div>
+                  <div className="font-medium text-slate-800 text-sm">Use server-side AI</div>
+                  <div className="text-xs text-slate-500 mt-0.5">
+                    Route AI calls through cloud proxy. Avoids CORS issues (e.g. Claude) and keeps API keys server-side.
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setUseServerAI(v => !v)}
+                  className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+                    useServerAI ? 'bg-indigo-600' : 'bg-slate-200'
+                  }`}
+                  role="switch"
+                  aria-checked={useServerAI}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ${
+                      useServerAI ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
+              </div>
+              {useServerAI && (
+                <div className="mt-2 text-xs text-indigo-600 px-1">
+                  AI calls will go through your Supabase cloud proxy. API keys are read from your synced settings.
+                </div>
+              )}
+              {!useServerAI && (
+                <div className="mt-2 text-xs text-slate-500 px-1">
+                  AI calls will go directly from this browser. API keys must be configured locally.
                 </div>
               )}
             </div>

@@ -286,6 +286,7 @@ const SYNCED_SETTINGS_KEYS = [
   STORAGE_KEYS.FONT_SIZE,
   STORAGE_KEYS.VIEW_LAYOUT,
   'useFreeRouter',
+  'useServerAI',
 ];
 
 async function syncSettings(): Promise<void> {
