@@ -206,6 +206,8 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpe
                   h4: ({ children }) => <h4>{processChildren(children)}</h4>,
                   strong: ({ children }) => <strong>{processChildren(children)}</strong>,
                   em: ({ children }) => <em>{processChildren(children)}</em>,
+                  td: ({ children }) => <td>{processChildren(children)}</td>,
+                  th: ({ children }) => <th>{processChildren(children)}</th>,
                 };
               })()}
             >

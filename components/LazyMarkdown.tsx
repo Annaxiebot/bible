@@ -12,17 +12,19 @@ const MarkdownRenderer = lazy(() =>
   Promise.all([
     import('react-markdown'),
     import('remark-math'),
+    import('remark-gfm'),
     import('rehype-katex')
-  ]).then(([ReactMarkdownModule, remarkMathModule, rehypeKatexModule]) => {
+  ]).then(([ReactMarkdownModule, remarkMathModule, remarkGfmModule, rehypeKatexModule]) => {
     const ReactMarkdown = ReactMarkdownModule.default;
     const remarkMath = remarkMathModule.default;
+    const remarkGfm = remarkGfmModule.default;
     const rehypeKatex = rehypeKatexModule.default;
 
     // Create a component that wraps ReactMarkdown with the plugins
     const Component: ComponentType<LazyMarkdownProps> = ({ katexOptions, ...props }) => {
       return (
         <ReactMarkdown
-          remarkPlugins={[remarkMath]}
+          remarkPlugins={[remarkGfm, remarkMath]}
           rehypePlugins={katexOptions ? [[rehypeKatex, katexOptions]] : [rehypeKatex]}
           {...props}
         />
