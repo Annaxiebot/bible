@@ -27,6 +27,7 @@ export interface ChatMessage {
   thinkingContent?: string;
   model?: string; // AI model used for this message
   responseTime?: number; // Round-trip time in milliseconds
+  racePool?: string[]; // Models that were raced (race mode only)
   references?: Array<{
     title: string;
     uri: string;
