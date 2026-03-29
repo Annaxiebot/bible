@@ -249,9 +249,6 @@ async function raceProviders(
     });
   });
 
-  // Wait a short moment for other racers to finish so we can report their times
-  await new Promise(r => setTimeout(r, 500));
-
   return { winner, raceDetails };
 }
 
