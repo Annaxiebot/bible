@@ -69,6 +69,7 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
   const [autoRace, setAutoRace] = useState(() => localStorage.getItem('autoRaceAI') === 'true');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [configuredCount, setConfiguredCount] = useState(0);
+  const [workingModelCount, setWorkingModelCount] = useState(0);
   const [testingKey, setTestingKey] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; error?: string; model?: string }>>({});
   const [dynamicFreeModels, setDynamicFreeModels] = useState<OpenRouterModelInfo[] | null>(null);
@@ -79,8 +80,21 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
   const [detectProgress, setDetectProgress] = useState<AutoDetectProgress[]>([]);
 
   useEffect(() => {
-    import('../services/supabase').then(({ authManager, isSupabaseConfigured }) => {
-      setIsLoggedIn(isSupabaseConfigured() && authManager.getState().isAuthenticated);
+    import('../services/supabase').then(async ({ supabase, authManager, isSupabaseConfigured }) => {
+      const loggedIn = isSupabaseConfigured() && authManager.getState().isAuthenticated;
+      setIsLoggedIn(loggedIn);
+      // Fetch working model count from provider_health
+      if (loggedIn && supabase) {
+        const userId = authManager.getUserId();
+        if (userId) {
+          const { data } = await supabase
+            .from('provider_health')
+            .select('provider, model')
+            .eq('user_id', userId)
+            .eq('status', 'ok');
+          setWorkingModelCount(data?.length || 0);
+        }
+      }
     }).catch(() => {});
   }, [isOpen]);
 
@@ -172,6 +186,8 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
     let data;
     try { data = JSON.parse(text); } catch { throw new Error(`Server returned invalid response (${response.status})`); }
     if (!response.ok) throw new Error(data.error || `Server error: ${response.status}`);
+    // Update working count immediately after successful test
+    setWorkingModelCount(prev => prev + 1);
     return { success: true, model: data.model };
   };
 
@@ -579,36 +595,48 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
                 </div>
               )}
 
-              {/* Auto Race toggle — only when server-side is on and 3+ providers configured */}
-              {useServerAI && configuredCount >= 3 && (
-                <div className="flex items-center justify-between p-4 border border-slate-200 rounded-xl mt-3">
-                  <div>
-                    <div className="font-medium text-slate-800 text-sm">Auto-select fastest provider</div>
-                    <div className="text-xs text-slate-500 mt-0.5">
-                      Race {Math.min(configuredCount, 5)} providers concurrently, return the fastest quality response.
+              {/* Auto Race toggle — only when server-side is on */}
+              {useServerAI && (
+                <>
+                  <div className={`flex items-center justify-between p-4 border rounded-xl mt-3 ${
+                    workingModelCount >= 3 ? 'border-slate-200' : 'border-slate-100 opacity-60'
+                  }`}>
+                    <div>
+                      <div className="font-medium text-slate-800 text-sm">Auto-select fastest model</div>
+                      <div className="text-xs text-slate-500 mt-0.5">
+                        {workingModelCount >= 3
+                          ? `Race up to ${Math.min(workingModelCount, 5)} models concurrently, return the fastest quality response.`
+                          : 'Requires 3+ tested working models. Use the Test button on each provider to verify.'}
+                      </div>
                     </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setAutoRace(v => !v)}
-                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
-                      autoRace ? 'bg-green-600' : 'bg-slate-200'
-                    }`}
-                    role="switch"
-                    aria-checked={autoRace}
-                  >
-                    <span
-                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ${
-                        autoRace ? 'translate-x-5' : 'translate-x-0'
+                    <button
+                      type="button"
+                      onClick={() => workingModelCount >= 3 && setAutoRace(v => !v)}
+                      disabled={workingModelCount < 3}
+                      className={`relative inline-flex h-6 w-11 flex-shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+                        workingModelCount < 3 ? 'cursor-not-allowed bg-slate-200' : autoRace ? 'cursor-pointer bg-green-600' : 'cursor-pointer bg-slate-200'
                       }`}
-                    />
-                  </button>
-                </div>
-              )}
-              {useServerAI && configuredCount < 3 && configuredCount > 0 && (
-                <div className="mt-2 text-xs text-slate-400 px-1">
-                  Configure {3 - configuredCount} more provider{3 - configuredCount > 1 ? 's' : ''} to enable auto-fastest mode.
-                </div>
+                      role="switch"
+                      aria-checked={autoRace && workingModelCount >= 3}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ${
+                          autoRace && workingModelCount >= 3 ? 'translate-x-5' : 'translate-x-0'
+                        }`}
+                      />
+                    </button>
+                  </div>
+                  {workingModelCount > 0 && workingModelCount < 3 && (
+                    <div className="mt-2 text-xs text-slate-400 px-1">
+                      {workingModelCount} working model{workingModelCount !== 1 ? 's' : ''} tested. Need {3 - workingModelCount} more to enable race mode.
+                    </div>
+                  )}
+                  {workingModelCount === 0 && configuredCount > 0 && (
+                    <div className="mt-2 text-xs text-slate-400 px-1">
+                      No models tested yet. Use the Test button on each provider to verify they work.
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
