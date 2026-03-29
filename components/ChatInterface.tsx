@@ -273,9 +273,12 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpe
             </div>
           </div>
         )}
-        {m.role === 'assistant' && m.model && (
-          <div className="mt-2 pt-1.5 border-t border-slate-100 text-[10px] text-slate-400 text-right">
-            {m.model}
+        {m.role === 'assistant' && (m.model || m.responseTime) && (
+          <div className="mt-2 pt-1.5 border-t border-slate-100 text-[10px] text-slate-400 text-right flex items-center justify-end gap-2">
+            {m.responseTime && (
+              <span>{m.responseTime < 1000 ? `${m.responseTime}ms` : `${(m.responseTime / 1000).toFixed(1)}s`}</span>
+            )}
+            {m.model && <span>{m.model}</span>}
           </div>
         )}
       </div>
@@ -570,6 +573,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       backgroundBibleDownload.notifyApiActivity();
 
       const history = messages.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content }));
+      const requestStartTime = Date.now();
       const response = await aiService.chatWithAI(currentInput, history, {
         thinking: isThinking,
         search: true,
@@ -601,6 +605,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
         content: responseText,
         model: modelUsed,
         timestamp: new Date(),
+        responseTime: Date.now() - requestStartTime,
         references: references
       };
 
