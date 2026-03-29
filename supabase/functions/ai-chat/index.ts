@@ -75,6 +75,24 @@ const ALL_MODELS: Record<string, string[]> = {
   moonshot: ["kimi-k2.5", "kimi-k2-thinking-turbo"],
 };
 
+// Models that support vision/image input
+const VISION_MODELS = new Set([
+  // OpenRouter auto handles vision routing
+  "openrouter/auto",
+  // Claude - all support vision
+  "claude-haiku-4-5", "claude-sonnet-4-6", "claude-opus-4-6",
+  // Gemini - all support vision
+  "gemini-3-flash-preview", "gemini-3-pro-preview", "gemini-flash-lite-latest",
+  // OpenAI - gpt-4o supports vision
+  "gpt-4o", "gpt-4o-mini",
+  // Qwen - vision models
+  "qwen3.5-max", "qwen3.5-plus",
+  // GLM - vision models
+  "glm-5", "glm-4-plus",
+  // NVIDIA - nemotron ultra supports vision
+  "nvidia/llama-3.1-nemotron-ultra-253b-v1",
+]);
+
 const PROVIDER_NAMES: Record<string, string> = {
   openrouter: "OpenRouter", claude: "Claude", gemini: "Gemini",
   openai: "OpenAI", kimi: "Kimi", nvidia: "NVIDIA",
@@ -303,6 +321,8 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── Race mode: autoRace=true and 3+ configured models across providers ──
+    const hasImage = !!options.image;
+
     if (options.autoRace) {
       // Gather all models from all configured providers
       const candidates: { name: string; apiKey: string; model: string }[] = [];
@@ -311,6 +331,8 @@ Deno.serve(async (req: Request) => {
         if (!key) continue;
         const models = ALL_MODELS[prov] || [DEFAULT_MODELS[prov]].filter(Boolean);
         for (const m of models) {
+          // Skip non-vision models when request includes an image
+          if (hasImage && !VISION_MODELS.has(m)) continue;
           candidates.push({ name: prov, apiKey: key, model: m });
         }
       }
