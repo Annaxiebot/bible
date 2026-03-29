@@ -57,6 +57,24 @@ const DEFAULT_MODELS: Record<string, string> = {
   r9s: "claude-sonnet-4-6", moonshot: "kimi-k2.5",
 };
 
+// All available models per provider (for race mode)
+const ALL_MODELS: Record<string, string[]> = {
+  openrouter: ["openrouter/auto"],
+  claude: ["claude-haiku-4-5", "claude-sonnet-4-6", "claude-opus-4-6"],
+  gemini: ["gemini-3-flash-preview", "gemini-3-pro-preview", "gemini-flash-lite-latest"],
+  openai: ["gpt-4o", "gpt-4o-mini"],
+  kimi: ["moonshot-v1-128k"],
+  nvidia: ["nvidia/llama-3.1-nemotron-ultra-253b-v1", "nvidia/llama-3.3-nemotron-super-49b-v1", "meta/llama-3.1-8b-instruct"],
+  deepseek: ["deepseek-chat", "deepseek-reasoner"],
+  groq: ["llama-3.3-70b-versatile", "llama-3.1-8b-instant"],
+  dashscope: ["qwen3.5-max", "qwen3.5-plus", "qwen3.5-flash"],
+  minimax: ["MiniMax-M2.5", "MiniMax-M2.5-highspeed"],
+  zhipu: ["glm-5", "glm-4-plus", "glm-4-air"],
+  zai: ["glm-5", "glm-4.7"],
+  r9s: ["claude-sonnet-4-6", "claude-haiku-4-5"],
+  moonshot: ["kimi-k2.5", "kimi-k2-thinking-turbo"],
+};
+
 const PROVIDER_NAMES: Record<string, string> = {
   openrouter: "OpenRouter", claude: "Claude", gemini: "Gemini",
   openai: "OpenAI", kimi: "Kimi", nvidia: "NVIDIA",
@@ -286,59 +304,71 @@ Deno.serve(async (req: Request) => {
       ];
     }
 
-    // ── Race mode: autoRace=true and 3+ configured providers ──
+    // ── Race mode: autoRace=true and 3+ configured models across providers ──
     if (options.autoRace) {
-      // Gather all configured providers with API keys
-      const configured: { name: string; apiKey: string; model: string }[] = [];
+      // Gather all models from all configured providers
+      const candidates: { name: string; apiKey: string; model: string }[] = [];
       for (const [prov, keyName] of Object.entries(PROVIDER_KEY_NAMES)) {
         const key = settings[keyName];
-        if (key) {
-          configured.push({
-            name: prov,
-            apiKey: key,
-            model: DEFAULT_MODELS[prov] || "",
-          });
+        if (!key) continue;
+        const models = ALL_MODELS[prov] || [DEFAULT_MODELS[prov]].filter(Boolean);
+        for (const m of models) {
+          candidates.push({ name: prov, apiKey: key, model: m });
         }
       }
 
-      if (configured.length >= 3) {
-        // Sort by historical speed (fastest first) from provider_health
+      if (candidates.length >= 3) {
+        // Get health data to exclude known-bad models and sort by speed
         const { data: healthData } = await supabase
           .from("provider_health")
-          .select("provider, response_ms, status")
-          .eq("user_id", user.id)
-          .eq("status", "ok")
-          .order("response_ms", { ascending: true });
+          .select("provider, model, response_ms, status")
+          .eq("user_id", user.id);
 
-        if (healthData && healthData.length > 0) {
-          const speedMap = new Map(healthData.map((h: any) => [h.provider, h.response_ms]));
-          configured.sort((a, b) => {
-            const aMs = speedMap.get(a.name) ?? 99999;
-            const bMs = speedMap.get(b.name) ?? 99999;
+        // Build speed map and error set keyed by "provider:model"
+        const speedMap = new Map<string, number>();
+        const errorSet = new Set<string>();
+        if (healthData) {
+          for (const h of healthData as any[]) {
+            const key = `${h.provider}:${h.model}`;
+            if (h.status === "ok") {
+              speedMap.set(key, h.response_ms);
+            } else {
+              errorSet.add(key);
+            }
+          }
+        }
+
+        // Filter out known-bad models, sort by speed (fastest first, untested last)
+        const eligible = candidates
+          .filter(c => !errorSet.has(`${c.name}:${c.model}`))
+          .sort((a, b) => {
+            const aMs = speedMap.get(`${a.name}:${a.model}`) ?? 99999;
+            const bMs = speedMap.get(`${b.name}:${b.model}`) ?? 99999;
             return aMs - bMs;
           });
-        }
 
-        try {
-          const result = await raceProviders(configured, messages, prompt, supabase, user.id);
-          return new Response(JSON.stringify({
-            text: result.text,
-            model: result.model,
-            provider: result.provider,
-            responseMs: result.responseMs,
-            raceMode: true,
-          }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        } catch (error) {
-          return new Response(JSON.stringify({
-            error: `All providers failed. ${error instanceof Error ? error.message : ""}`,
-          }), {
-            status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
+        if (eligible.length >= 3) {
+          try {
+            const result = await raceProviders(eligible, messages, prompt, supabase, user.id);
+            return new Response(JSON.stringify({
+              text: result.text,
+              model: result.model,
+              provider: result.provider,
+              responseMs: result.responseMs,
+              raceMode: true,
+            }), {
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          } catch (error) {
+            return new Response(JSON.stringify({
+              error: `All models failed. ${error instanceof Error ? error.message : ""}`,
+            }), {
+              status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+            });
+          }
         }
       }
-      // Fall through to single provider if < 3 configured
+      // Fall through to single provider if < 3 eligible models
     }
 
     // ── Single provider mode ──
