@@ -225,7 +225,8 @@ Deno.serve(async (req: Request) => {
     } else {
       // All others: OpenAI-compatible format (OpenRouter, OpenAI, Kimi, NVIDIA, DeepSeek, Groq, etc.)
       const endpoint = PROVIDER_ENDPOINTS[provider] || PROVIDER_ENDPOINTS.openrouter;
-      const useFreeRouter = provider === "openrouter" && (options.useFreeRouter !== false);
+      // Use the user's selected model if set, otherwise fall back to openrouter/auto for free routing
+      const useFreeRouter = provider === "openrouter" && !model && (options.useFreeRouter !== false);
       const finalModel = useFreeRouter ? "openrouter/auto" : model;
 
       response = await fetch(endpoint, {
