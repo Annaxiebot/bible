@@ -13,6 +13,7 @@ import { VibeStyles, isVibeAvailable, loadVibeStyles, getEmptyStyles } from './s
 import { useDataStats } from './hooks/useDataStats';
 import './services/syncService'; // Initialize sync service
 import { backgroundBibleDownload, BgDownloadProgress } from './services/backgroundBibleDownload';
+import LayoutToolbar, { LayoutMode, getLayoutMode, layoutModeToSplits, getSavedLayout } from './components/LayoutToolbar';
 
 // Lazy load heavy components for code splitting
 const BibleViewer = lazy(() => import('./components/BibleViewer'));
@@ -92,9 +93,24 @@ function useSplitView(initialV = 100, initialH = 100) {
 const App: React.FC = () => {
   const themeCtx = useSeasonThemeInit();
   const theme = themeCtx.theme;
-  const split = useSplitView(100, 100);
-  
+
   const isIPhone = /iPhone|iPod/.test(navigator.userAgent);
+  const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const isMobile = isIPhone || isIOS;
+
+  // Device-aware default layout: restore saved preference, or default to full Bible on mobile
+  const [initialLayout] = useState<LayoutMode>(() => getSavedLayout(isMobile));
+  const initialSplits = layoutModeToSplits(initialLayout);
+  const split = useSplitView(initialSplits.vertical, initialSplits.horizontal);
+
+  const currentLayoutMode = getLayoutMode(split.vertical, split.horizontal);
+
+  const handleLayoutModeChange = useCallback((mode: LayoutMode) => {
+    const { vertical, horizontal } = layoutModeToSplits(mode);
+    split.setVertical(vertical);
+    split.setHorizontal(horizontal);
+  }, [split]);
   const [initialBookId, setInitialBookId] = useState<string | undefined>();
   const [initialChapter, setInitialChapter] = useState<number | undefined>();
   const [showResumeNotification, setShowResumeNotification] = useState(false);
@@ -461,7 +477,7 @@ const App: React.FC = () => {
         bgDownloadProgress={bgDownloadProgress}
       />
 
-      <main ref={split.containerRef} className="flex-1 flex flex-col relative overflow-hidden">
+      <main ref={split.containerRef} className="flex-1 flex flex-col relative overflow-hidden" style={{ paddingBottom: isIPhone ? '56px' : '44px' }}>
         <div className="overflow-hidden" style={{ flexBasis: split.vertical >= 100 ? 'calc(100% - 24px)' : split.vertical <= 0 ? '0%' : `${split.vertical}%`, flexGrow: 0, flexShrink: 0, minHeight: 0 }}>
           {historyLoaded && (
             <BibleViewer 
@@ -647,6 +663,12 @@ const App: React.FC = () => {
       )}
 
       {toast && <Toast message={{ id: 'app-toast', type: toast.type, message: toast.message }} onDismiss={() => setToast(null)} />}
+
+      <LayoutToolbar
+        currentMode={currentLayoutMode}
+        onLayoutChange={handleLayoutModeChange}
+        isIPhone={isIPhone}
+      />
     </div>
     </Suspense>
     </SeasonThemeProvider>
