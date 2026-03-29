@@ -15,7 +15,7 @@
  */
 
 import { openDB, IDBPDatabase, DBSchema, StoreNames, IndexNames, IndexKey, StoreValue } from 'idb';
-import { BibleResponse } from '../types';
+import { BibleResponse, JournalEntry } from '../types';
 import { VerseData } from '../types/verseData';
 
 // ---------------------------------------------------------------------------
@@ -135,6 +135,14 @@ export interface BibleAppSchema extends DBSchema {
     key: string;
     value: ReadingPlanState;
   };
+  journal: {
+    key: string;
+    value: JournalEntry;
+    indexes: {
+      'by-created': number;
+      'by-updated': number;
+    };
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -142,7 +150,7 @@ export interface BibleAppSchema extends DBSchema {
 // ---------------------------------------------------------------------------
 
 const DB_NAME = 'BibleApp';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 class IDBService {
   private dbPromise: Promise<IDBPDatabase<BibleAppSchema>>;
@@ -190,6 +198,13 @@ class IDBService {
         // readingPlans
         if (!db.objectStoreNames.contains('readingPlans')) {
           db.createObjectStore('readingPlans', { keyPath: 'id' });
+        }
+
+        // journal (added in v2)
+        if (!db.objectStoreNames.contains('journal')) {
+          const journalStore = db.createObjectStore('journal', { keyPath: 'id' });
+          journalStore.createIndex('by-created', 'createdAt');
+          journalStore.createIndex('by-updated', 'updatedAt');
         }
       },
     });

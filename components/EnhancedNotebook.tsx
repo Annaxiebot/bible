@@ -11,6 +11,7 @@ import { IMAGE, TIMING } from '../constants/appConfig';
 import 'katex/dist/katex.min.css';
 import { CHINESE_ABBREV_TO_BOOK_ID, BIBLE_BOOKS } from '../constants';
 import { stripHTML } from '../utils/textUtils';
+import JournalView from './JournalView';
 
 const _allBookNames = Object.keys(CHINESE_ABBREV_TO_BOOK_ID)
   .sort((a, b) => b.length - a.length)
@@ -86,7 +87,7 @@ interface EnhancedNotebookProps {
   onNavigate?: (bookId: string, chapter: number, verses?: number[]) => void;
 }
 
-type TabType = 'research' | 'notes' | 'all';
+type TabType = 'research' | 'notes' | 'all' | 'journal';
 type DrawingTool = 'pen' | 'marker' | 'highlighter' | 'eraser';
 type NoteMode = 'text' | 'draw' | 'overlay';
 
@@ -1073,8 +1074,27 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
 
   if (!selection) {
     return (
-      <div className="notebook-empty">
-        <p>Select a verse to add notes</p>
+      <div className="enhanced-notebook">
+        <div className="notebook-header">
+          <h3>Notebook</h3>
+          <div className="tab-selector">
+            <button className="tab active">
+              📓 Journal
+            </button>
+          </div>
+        </div>
+        <div className="notebook-content" style={{ padding: 0 }}>
+          <JournalView />
+        </div>
+        <style>{`
+          .enhanced-notebook { height: 100%; display: flex; flex-direction: column; background: white; }
+          .notebook-header { padding: 12px; border-bottom: 1px solid #e0e0e0; background: #f8f8f8; }
+          .notebook-header h3 { margin: 0 0 8px 0; font-size: 14px; color: #333; }
+          .tab-selector { display: flex; gap: 8px; }
+          .tab { padding: 6px 12px; background: white; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; cursor: pointer; }
+          .tab.active { background: #4f46e5; color: white; border-color: #4f46e5; }
+          .notebook-content { flex: 1; overflow-y: auto; }
+        `}</style>
       </div>
     );
   }
@@ -1103,6 +1123,12 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
           >
             📚 All
           </button>
+          <button
+            className={`tab ${activeTab === 'journal' ? 'active' : ''}`}
+            onClick={() => { setActiveTab('journal'); }}
+          >
+            📓 Journal
+          </button>
         </div>
       </div>
 
@@ -1110,6 +1136,7 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
         {activeTab === 'notes' && renderNotesTab()}
         {activeTab === 'research' && renderResearchTab()}
         {activeTab === 'all' && renderAllTab()}
+        {activeTab === 'journal' && <JournalView />}
       </div>
 
       <style>{`

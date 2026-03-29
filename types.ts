@@ -56,7 +56,9 @@ export interface SelectionInfo {
 export interface MediaAttachment {
   id: string;
   type: 'image' | 'video' | 'audio' | 'file';
-  data: string; // base64 or blob URL
+  data: string; // base64, blob URL, or cloud storage URL
+  cloudUrl?: string; // Supabase Storage URL (when uploaded to cloud)
+  cloudPath?: string; // Supabase Storage path (for deletion)
   filename?: string;
   mimeType?: string;
   timestamp: string;
@@ -64,10 +66,21 @@ export interface MediaAttachment {
 }
 
 export interface NoteData {
-  text: string; 
+  text: string;
   drawing: string;
   media?: MediaAttachment[]; // Array of attached media files
   version?: number;
   timestamp?: string;
   lastModified?: string;
+}
+
+export interface JournalEntry {
+  id: string;
+  title: string;
+  content: string; // HTML rich text content
+  drawing: string; // base64 drawing data
+  tags?: string[];
+  bibleReference?: string; // optional link to a verse e.g. "GEN:1:1"
+  createdAt: number;
+  updatedAt: number;
 }
