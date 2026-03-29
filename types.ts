@@ -26,6 +26,7 @@ export interface ChatMessage {
   isThinking?: boolean;
   thinkingContent?: string;
   model?: string; // AI model used for this message
+  responseTime?: number; // Round-trip time in milliseconds
   references?: Array<{
     title: string;
     uri: string;
