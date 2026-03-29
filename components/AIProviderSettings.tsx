@@ -14,6 +14,41 @@ import {
 import { autoSaveResearchService } from '../services/autoSaveResearchService';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 
+// Provider → localStorage key mapping + UI metadata
+const ALL_KEY_CONFIGS: Record<string, string> = {
+  openrouter: STORAGE_KEYS.OPENROUTER_API_KEY,
+  gemini: STORAGE_KEYS.GEMINI_API_KEY,
+  claude: STORAGE_KEYS.CLAUDE_API_KEY,
+  openai: STORAGE_KEYS.OPENAI_API_KEY,
+  kimi: STORAGE_KEYS.KIMI_API_KEY,
+  nvidia: STORAGE_KEYS.NVIDIA_API_KEY,
+  deepseek: STORAGE_KEYS.DEEPSEEK_API_KEY,
+  groq: STORAGE_KEYS.GROQ_API_KEY,
+  dashscope: STORAGE_KEYS.DASHSCOPE_API_KEY,
+  minimax: STORAGE_KEYS.MINIMAX_API_KEY,
+  zhipu: STORAGE_KEYS.ZHIPU_API_KEY,
+  zai: STORAGE_KEYS.ZAI_API_KEY,
+  r9s: STORAGE_KEYS.R9S_API_KEY,
+  moonshot: STORAGE_KEYS.MOONSHOT_API_KEY,
+};
+
+const KEY_UI: Record<string, { label: string; placeholder: string; helpUrl: string; helpText: string }> = {
+  openrouter: { label: 'OpenRouter API Key', placeholder: 'Enter your OpenRouter API key', helpUrl: 'https://openrouter.ai/keys', helpText: 'OpenRouter (Free $5 credits + free models)' },
+  gemini: { label: 'Google Gemini API Key', placeholder: 'Enter your Gemini API key', helpUrl: 'https://aistudio.google.com/app/apikey', helpText: 'Google AI Studio' },
+  claude: { label: 'Anthropic Claude API Key', placeholder: 'Enter your Claude API key', helpUrl: 'https://console.anthropic.com/', helpText: 'Anthropic Console' },
+  openai: { label: 'OpenAI ChatGPT API Key', placeholder: 'Enter your OpenAI API key', helpUrl: 'https://platform.openai.com/api-keys', helpText: 'OpenAI Platform' },
+  kimi: { label: 'Kimi Moonshot API Key', placeholder: 'Enter your Kimi API key', helpUrl: 'https://platform.moonshot.cn/', helpText: 'Moonshot Platform' },
+  nvidia: { label: 'NVIDIA API Key', placeholder: 'Enter your NVIDIA NIM API key', helpUrl: 'https://build.nvidia.com/', helpText: 'NVIDIA Build' },
+  deepseek: { label: 'DeepSeek API Key', placeholder: 'Enter your DeepSeek API key', helpUrl: 'https://platform.deepseek.com/', helpText: 'DeepSeek Platform' },
+  groq: { label: 'Groq API Key', placeholder: 'Enter your Groq API key', helpUrl: 'https://console.groq.com/keys', helpText: 'Groq Console' },
+  dashscope: { label: 'DashScope / Qwen API Key', placeholder: 'Enter your DashScope API key', helpUrl: 'https://dashscope.console.aliyun.com/', helpText: 'Alibaba DashScope' },
+  minimax: { label: 'MiniMax API Key', placeholder: 'Enter your MiniMax API key', helpUrl: 'https://platform.minimaxi.com/', helpText: 'MiniMax Platform' },
+  zhipu: { label: 'Zhipu GLM API Key', placeholder: 'Enter your Zhipu API key', helpUrl: 'https://open.bigmodel.cn/', helpText: 'Zhipu Open Platform' },
+  zai: { label: 'Z.AI API Key', placeholder: 'Enter your Z.AI API key', helpUrl: 'https://z.ai/', helpText: 'Z.AI' },
+  r9s: { label: 'R9S.AI API Key', placeholder: 'Enter your R9S API key', helpUrl: 'https://r9s.ai/', helpText: 'R9S.AI' },
+  moonshot: { label: 'Moonshot v2 API Key', placeholder: 'Enter your Moonshot API key', helpUrl: 'https://platform.moonshot.ai/', helpText: 'Moonshot AI Platform' },
+};
+
 interface AIProviderSettingsProps {
   isOpen: boolean;
   onClose: () => void;
@@ -27,16 +62,8 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
     const stored = localStorage.getItem('useFreeRouter');
     return stored !== null ? stored === 'true' : true; // Default to true for free router
   });
-  const [geminiApiKey, setGeminiApiKey] = useState('');
-  const [claudeApiKey, setClaudeApiKey] = useState('');
-  const [openaiApiKey, setOpenaiApiKey] = useState('');
-  const [kimiApiKey, setKimiApiKey] = useState('');
-  const [openrouterApiKey, setOpenrouterApiKey] = useState('');
-  const [showGeminiKey, setShowGeminiKey] = useState(false);
-  const [showClaudeKey, setShowClaudeKey] = useState(false);
-  const [showOpenaiKey, setShowOpenaiKey] = useState(false);
-  const [showKimiKey, setShowKimiKey] = useState(false);
-  const [showOpenrouterKey, setShowOpenrouterKey] = useState(false);
+  const [apiKeys, setApiKeys] = useState<Record<string, string>>({});
+  const [showKey, setShowKey] = useState<Record<string, boolean>>({});
   const [autoSaveResearch, setAutoSaveResearch] = useState(() => autoSaveResearchService.isAutoSaveEnabled());
   const [useServerAI, setUseServerAI] = useState(() => localStorage.getItem('useServerAI') !== 'false');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -56,11 +83,12 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
   }, [isOpen]);
 
   useEffect(() => {
-    setGeminiApiKey(localStorage.getItem(STORAGE_KEYS.GEMINI_API_KEY) || '');
-    setClaudeApiKey(localStorage.getItem(STORAGE_KEYS.CLAUDE_API_KEY) || '');
-    setOpenaiApiKey(localStorage.getItem(STORAGE_KEYS.OPENAI_API_KEY) || '');
-    setKimiApiKey(localStorage.getItem(STORAGE_KEYS.KIMI_API_KEY) || '');
-    setOpenrouterApiKey(localStorage.getItem(STORAGE_KEYS.OPENROUTER_API_KEY) || '');
+    // Load all API keys from localStorage
+    const keys: Record<string, string> = {};
+    for (const [, storageKey] of Object.entries(ALL_KEY_CONFIGS)) {
+      keys[storageKey] = localStorage.getItem(storageKey) || '';
+    }
+    setApiKeys(keys);
     setAutoSaveResearch(autoSaveResearchService.isAutoSaveEnabled());
     setSelectedModel(aiProvider.getCurrentModel() || '');
     setUseFreeRouter(localStorage.getItem('useFreeRouter') !== null ? localStorage.getItem('useFreeRouter') === 'true' : true);
@@ -159,34 +187,14 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
     localStorage.setItem('useFreeRouter', useFreeRouter.toString());
     localStorage.setItem('useServerAI', useServerAI.toString());
 
-    if (geminiApiKey.trim()) {
-      localStorage.setItem(STORAGE_KEYS.GEMINI_API_KEY, geminiApiKey.trim());
-    } else {
-      localStorage.removeItem(STORAGE_KEYS.GEMINI_API_KEY);
-    }
-
-    if (claudeApiKey.trim()) {
-      localStorage.setItem(STORAGE_KEYS.CLAUDE_API_KEY, claudeApiKey.trim());
-    } else {
-      localStorage.removeItem(STORAGE_KEYS.CLAUDE_API_KEY);
-    }
-
-    if (openaiApiKey.trim()) {
-      localStorage.setItem(STORAGE_KEYS.OPENAI_API_KEY, openaiApiKey.trim());
-    } else {
-      localStorage.removeItem(STORAGE_KEYS.OPENAI_API_KEY);
-    }
-
-    if (kimiApiKey.trim()) {
-      localStorage.setItem(STORAGE_KEYS.KIMI_API_KEY, kimiApiKey.trim());
-    } else {
-      localStorage.removeItem(STORAGE_KEYS.KIMI_API_KEY);
-    }
-
-    if (openrouterApiKey.trim()) {
-      localStorage.setItem(STORAGE_KEYS.OPENROUTER_API_KEY, openrouterApiKey.trim());
-    } else {
-      localStorage.removeItem(STORAGE_KEYS.OPENROUTER_API_KEY);
+    // Save all API keys to localStorage
+    for (const [, storageKey] of Object.entries(ALL_KEY_CONFIGS)) {
+      const val = apiKeys[storageKey]?.trim();
+      if (val) {
+        localStorage.setItem(storageKey, val);
+      } else {
+        localStorage.removeItem(storageKey);
+      }
     }
 
     autoSaveResearchService.setAutoSaveEnabled(autoSaveResearch);
@@ -197,13 +205,12 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
         const userId = authManager.getUserId();
         if (userId) {
           const settings: Record<string, string> = {};
-          for (const key of [
+          const syncKeys = [
             STORAGE_KEYS.AI_PROVIDER, STORAGE_KEYS.AI_MODEL,
-            STORAGE_KEYS.GEMINI_API_KEY, STORAGE_KEYS.CLAUDE_API_KEY,
-            STORAGE_KEYS.OPENAI_API_KEY, STORAGE_KEYS.KIMI_API_KEY,
-            STORAGE_KEYS.OPENROUTER_API_KEY, STORAGE_KEYS.AUTO_SAVE_RESEARCH,
-            'useFreeRouter',
-          ]) {
+            STORAGE_KEYS.AUTO_SAVE_RESEARCH, 'useFreeRouter', 'useServerAI',
+            ...Object.values(ALL_KEY_CONFIGS),
+          ];
+          for (const key of syncKeys) {
             const val = localStorage.getItem(key);
             if (val) settings[key] = val;
           }
@@ -276,43 +283,30 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
           {/* API Key for selected provider */}
           <div className="mb-6">
             {(() => {
-              const keyConfigs: Record<string, {
-                label: string;
-                value: string;
-                setter: (v: string) => void;
-                show: boolean;
-                showSetter: (v: boolean) => void;
-                placeholder: string;
-                helpUrl: string;
-                helpText: string;
-              }> = {
-                openrouter: { label: 'OpenRouter API Key', value: openrouterApiKey, setter: setOpenrouterApiKey, show: showOpenrouterKey, showSetter: setShowOpenrouterKey, placeholder: 'Enter your OpenRouter API key', helpUrl: 'https://openrouter.ai/keys', helpText: 'OpenRouter (Free $5 credits + free models)' },
-                gemini: { label: 'Google Gemini API Key', value: geminiApiKey, setter: setGeminiApiKey, show: showGeminiKey, showSetter: setShowGeminiKey, placeholder: 'Enter your Gemini API key', helpUrl: 'https://aistudio.google.com/app/apikey', helpText: 'Google AI Studio' },
-                claude: { label: 'Anthropic Claude API Key', value: claudeApiKey, setter: setClaudeApiKey, show: showClaudeKey, showSetter: setShowClaudeKey, placeholder: 'Enter your Claude API key', helpUrl: 'https://console.anthropic.com/', helpText: 'Anthropic Console' },
-                openai: { label: 'OpenAI ChatGPT API Key', value: openaiApiKey, setter: setOpenaiApiKey, show: showOpenaiKey, showSetter: setShowOpenaiKey, placeholder: 'Enter your OpenAI API key', helpUrl: 'https://platform.openai.com/api-keys', helpText: 'OpenAI Platform' },
-                kimi: { label: 'Kimi Moonshot API Key', value: kimiApiKey, setter: setKimiApiKey, show: showKimiKey, showSetter: setShowKimiKey, placeholder: 'Enter your Kimi API key (optional)', helpUrl: 'https://platform.moonshot.cn/', helpText: 'Moonshot Platform' },
-              };
-              const cfg = keyConfigs[currentProvider];
-              if (!cfg) return null;
+              const storageKey = ALL_KEY_CONFIGS[currentProvider];
+              const ui = KEY_UI[currentProvider];
+              if (!storageKey || !ui) return null;
+              const value = apiKeys[storageKey] || '';
+              const isShown = showKey[currentProvider] || false;
               const isTesting = currentProvider === 'openrouter' ? autoDetecting : testingKey === currentProvider;
               return (
                 <div>
-                  <label className="block text-sm font-medium text-slate-600 mb-2">{cfg.label}</label>
+                  <label className="block text-sm font-medium text-slate-600 mb-2">{ui.label}</label>
                   <div className="flex gap-2">
                     <div className="relative flex-1">
                       <input
-                        type={cfg.show ? 'text' : 'password'}
-                        value={cfg.value}
-                        onChange={(e) => cfg.setter(e.target.value)}
-                        placeholder={cfg.placeholder}
+                        type={isShown ? 'text' : 'password'}
+                        value={value}
+                        onChange={(e) => setApiKeys(prev => ({ ...prev, [storageKey]: e.target.value }))}
+                        placeholder={ui.placeholder}
                         className="w-full px-4 py-2 pr-12 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
                       />
                       <button
                         type="button"
-                        onClick={() => cfg.showSetter(!cfg.show)}
+                        onClick={() => setShowKey(prev => ({ ...prev, [currentProvider]: !isShown }))}
                         className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                       >
-                        {cfg.show ? (
+                        {isShown ? (
                           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
                           </svg>
@@ -326,8 +320,8 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
                     </div>
                     <button
                       type="button"
-                      onClick={() => handleTestKey(currentProvider, cfg.value)}
-                      disabled={isTesting || !cfg.value.trim()}
+                      onClick={() => handleTestKey(currentProvider, value)}
+                      disabled={isTesting || !value.trim()}
                       className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
                     >
                       {isTesting ? (
@@ -386,8 +380,8 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
                   )}
                   <p className="text-xs text-slate-500 mt-1">
                     Get your API key from{' '}
-                    <a href={cfg.helpUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">
-                      {cfg.helpText}
+                    <a href={ui.helpUrl} target="_blank" rel="noopener noreferrer" className="text-indigo-600 hover:underline">
+                      {ui.helpText}
                     </a>
                   </p>
                 </div>
