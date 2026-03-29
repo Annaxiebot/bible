@@ -332,20 +332,31 @@ Deno.serve(async (req: Request) => {
       global: { headers: { Authorization: authHeader } },
     });
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    // Parse body and authenticate in parallel to reduce latency
+    const [authResult, body] = await Promise.all([
+      supabase.auth.getUser(),
+      req.json() as Promise<{ prompt: string; history: { role: string; content: string }[]; options?: any }>,
+    ]);
+
+    const { data: { user }, error: authError } = authResult;
     if (authError || !user) {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const { data: settingsRow } = await supabase
-      .from("user_settings").select("settings").eq("user_id", user.id).single();
+    const { prompt, history = [], options = {} } = body;
+
+    // Fetch settings (needed always) and health data (needed for race) in parallel
+    const wantsRace = options.autoRace === true || options.autoRace === "true";
+    const [{ data: settingsRow }, healthResult] = await Promise.all([
+      supabase.from("user_settings").select("settings").eq("user_id", user.id).single(),
+      wantsRace
+        ? supabase.from("provider_health").select("provider, model, response_ms, status, tested_at").eq("user_id", user.id)
+        : Promise.resolve({ data: null }),
+    ]);
 
     const settings = (settingsRow?.settings || {}) as Record<string, string>;
-
-    const body = await req.json() as { prompt: string; history: { role: string; content: string }[]; options?: any };
-    const { prompt, history = [], options = {} } = body;
 
     const messages = [
       ...history.map((h: any) => ({ role: h.role, content: h.content })),
@@ -356,7 +367,7 @@ Deno.serve(async (req: Request) => {
 
     // ── Race mode: autoRace=true and 3+ configured models across providers ──
     const hasImage = !!options.image;
-    if (options.autoRace === true || options.autoRace === "true") {
+    if (wantsRace) {
       // Gather all models from all configured providers
       const candidates: { name: string; apiKey: string; model: string }[] = [];
       for (const [prov, keyName] of Object.entries(PROVIDER_KEY_NAMES)) {
@@ -371,11 +382,8 @@ Deno.serve(async (req: Request) => {
       }
 
       if (candidates.length >= 3) {
-        // Get health data to exclude known-bad models and sort by speed
-        const { data: healthData } = await supabase
-          .from("provider_health")
-          .select("provider, model, response_ms, status, tested_at")
-          .eq("user_id", user.id);
+        // Use pre-fetched health data (queried in parallel with settings above)
+        const healthData = healthResult?.data;
 
         // Build speed map and error set keyed by "provider:model"
         // Only exclude models that failed in the last 10 minutes (not permanently)
