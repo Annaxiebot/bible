@@ -66,7 +66,9 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
   const [showKey, setShowKey] = useState<Record<string, boolean>>({});
   const [autoSaveResearch, setAutoSaveResearch] = useState(() => autoSaveResearchService.isAutoSaveEnabled());
   const [useServerAI, setUseServerAI] = useState(() => localStorage.getItem('useServerAI') !== 'false');
+  const [autoRace, setAutoRace] = useState(() => localStorage.getItem('autoRaceAI') === 'true');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [configuredCount, setConfiguredCount] = useState(0);
   const [testingKey, setTestingKey] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; error?: string; model?: string }>>({});
   const [dynamicFreeModels, setDynamicFreeModels] = useState<OpenRouterModelInfo[] | null>(null);
@@ -93,7 +95,14 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
     setSelectedModel(aiProvider.getCurrentModel() || '');
     setUseFreeRouter(localStorage.getItem('useFreeRouter') !== null ? localStorage.getItem('useFreeRouter') === 'true' : true);
     setUseServerAI(localStorage.getItem('useServerAI') !== 'false');
+    setAutoRace(localStorage.getItem('autoRaceAI') === 'true');
     setLastUsedModel(localStorage.getItem('lastUsedModel'));
+    // Count configured providers
+    let count = 0;
+    for (const storageKey of Object.values(ALL_KEY_CONFIGS)) {
+      if (localStorage.getItem(storageKey)) count++;
+    }
+    setConfiguredCount(count);
   }, [isOpen]);
 
   // Fetch live OpenRouter free models when OpenRouter is selected
@@ -252,6 +261,7 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
     // Save preferences
     localStorage.setItem('useFreeRouter', useFreeRouter.toString());
     localStorage.setItem('useServerAI', useServerAI.toString());
+    localStorage.setItem('autoRaceAI', autoRace.toString());
 
     // Save all API keys to localStorage
     for (const [, storageKey] of Object.entries(ALL_KEY_CONFIGS)) {
@@ -566,6 +576,38 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
               {!useServerAI && (
                 <div className="mt-2 text-xs text-slate-500 px-1">
                   AI calls will go directly from this browser. API keys must be configured locally.
+                </div>
+              )}
+
+              {/* Auto Race toggle — only when server-side is on and 3+ providers configured */}
+              {useServerAI && configuredCount >= 3 && (
+                <div className="flex items-center justify-between p-4 border border-slate-200 rounded-xl mt-3">
+                  <div>
+                    <div className="font-medium text-slate-800 text-sm">Auto-select fastest provider</div>
+                    <div className="text-xs text-slate-500 mt-0.5">
+                      Race {Math.min(configuredCount, 5)} providers concurrently, return the fastest quality response.
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAutoRace(v => !v)}
+                    className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
+                      autoRace ? 'bg-green-600' : 'bg-slate-200'
+                    }`}
+                    role="switch"
+                    aria-checked={autoRace}
+                  >
+                    <span
+                      className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ${
+                        autoRace ? 'translate-x-5' : 'translate-x-0'
+                      }`}
+                    />
+                  </button>
+                </div>
+              )}
+              {useServerAI && configuredCount < 3 && configuredCount > 0 && (
+                <div className="mt-2 text-xs text-slate-400 px-1">
+                  Configure {3 - configuredCount} more provider{3 - configuredCount > 1 ? 's' : ''} to enable auto-fastest mode.
                 </div>
               )}
             </div>
