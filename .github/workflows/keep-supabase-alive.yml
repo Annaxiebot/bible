@@ -15,9 +15,9 @@ jobs:
           response=$(curl -s -o /dev/null -w "%{http_code}" \
             "${{ secrets.SUPABASE_URL }}/rest/v1/notes?select=count&limit=1" \
             -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}")
+            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" || echo "000")
           echo "Supabase response: $response"
-          if [ "$response" -ge 200 ] && [ "$response" -lt 400 ]; then
+          if [ "$response" = "200" ] || [ "$response" = "204" ]; then
             echo "Supabase is alive!"
           else
             echo "Warning: Supabase returned $response"
