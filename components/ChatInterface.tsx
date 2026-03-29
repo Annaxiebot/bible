@@ -576,17 +576,33 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       abortControllerRef.current.abort();
     }
 
+    // If cloud storage is available, upload image and use the URL instead of base64
+    let mediaUrl = imageAttachment?.data;
+    if (imageAttachment && supabaseMediaService.isAvailable()) {
+      try {
+        const cloudResult = await supabaseMediaService.upload(
+          imageAttachment.data,
+          imageAttachment.mimeType,
+          { folder: 'chat' }
+        );
+        mediaUrl = cloudResult.url;
+      } catch {
+        // Fallback: keep using base64 data URL
+      }
+    }
+
     const userMessage: ChatMessage = {
       role: 'user',
       content: input || (imageAttachment ? '[Image attached]' : ''),
       timestamp: new Date(),
-      ...(imageAttachment ? { type: 'image' as const, mediaUrl: imageAttachment.data } : {}),
+      ...(imageAttachment ? { type: 'image' as const, mediaUrl } : {}),
     };
     setMessages(prev => [...prev, userMessage]);
     const currentInput = input;
     const currentImage = imageAttachment;
     setInput('');
     setImageAttachment(null);
+    setIsCameraCapture(false);
     setUserQuestion(''); // Reset manual part after sending
     setIsTyping(true);
 
@@ -1067,14 +1083,35 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
           <div className="relative">
             {/* Image preview */}
             {imageAttachment && (
-              <div className="mb-2 relative inline-block">
-                <img src={imageAttachment.data} alt="Attachment" className="h-20 rounded-lg border border-slate-200 object-cover" />
-                <button
-                  onClick={() => setImageAttachment(null)}
-                  className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs shadow-md hover:bg-red-600"
-                >
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
+              <div className="mb-2 flex items-end gap-2">
+                <div className="relative inline-block">
+                  <img src={imageAttachment.data} alt="Attachment" className="h-20 rounded-lg border border-slate-200 object-cover" />
+                  <button
+                    onClick={() => { setImageAttachment(null); setIsCameraCapture(false); }}
+                    className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs shadow-md hover:bg-red-600"
+                  >
+                    <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+                {isCameraCapture && (
+                  <button
+                    onClick={async () => {
+                      const result = await savePhotoToDevice(imageAttachment.data);
+                      if (result.success) {
+                        toast.success('Photo saved');
+                      } else if (result.error !== 'Share cancelled') {
+                        toast.error('Could not save photo');
+                      }
+                    }}
+                    className="px-2 py-1 text-xs bg-indigo-50 text-indigo-600 rounded-lg border border-indigo-200 hover:bg-indigo-100 transition-colors flex items-center gap-1 whitespace-nowrap"
+                    title="Save to Photos"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                    </svg>
+                    Save
+                  </button>
+                )}
               </div>
             )}
             <textarea
