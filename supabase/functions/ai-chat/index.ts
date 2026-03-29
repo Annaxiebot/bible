@@ -186,11 +186,14 @@ async function callSingleProvider(
     }
     const openaiMessages = image ? messages.map((m, i) => {
       if (i === messages.length - 1) {
+        // Ensure we have a proper data URL — strip prefix if already present to avoid doubling
+        const rawBase64 = image.data.includes(",") ? image.data.split(",")[1] : image.data;
+        const mimeType = image.mimeType || (image.data.match(/^data:([^;]+);/)?.[1] ?? "image/jpeg");
         return {
           role: m.role,
           content: [
             { type: "text", text: typeof m.content === "string" ? m.content : prompt },
-            { type: "image_url", image_url: { url: `data:${image.mimeType};base64,${image.data}` } },
+            { type: "image_url", image_url: { url: `data:${mimeType};base64,${rawBase64}` } },
           ],
         };
       }
@@ -353,7 +356,6 @@ Deno.serve(async (req: Request) => {
 
     // ── Race mode: autoRace=true and 3+ configured models across providers ──
     const hasImage = !!options.image;
-
     if (options.autoRace === true || options.autoRace === "true") {
       // Gather all models from all configured providers
       const candidates: { name: string; apiKey: string; model: string }[] = [];
@@ -372,19 +374,24 @@ Deno.serve(async (req: Request) => {
         // Get health data to exclude known-bad models and sort by speed
         const { data: healthData } = await supabase
           .from("provider_health")
-          .select("provider, model, response_ms, status")
+          .select("provider, model, response_ms, status, tested_at")
           .eq("user_id", user.id);
 
         // Build speed map and error set keyed by "provider:model"
+        // Only exclude models that failed in the last 10 minutes (not permanently)
         const speedMap = new Map<string, number>();
         const errorSet = new Set<string>();
+        const tenMinAgo = Date.now() - 10 * 60 * 1000;
         if (healthData) {
           for (const h of healthData as any[]) {
             const key = `${h.provider}:${h.model}`;
             if (h.status === "ok") {
               speedMap.set(key, h.response_ms);
             } else {
-              errorSet.add(key);
+              const testedAt = h.tested_at ? new Date(h.tested_at).getTime() : 0;
+              if (testedAt > tenMinAgo) {
+                errorSet.add(key);
+              }
             }
           }
         }
@@ -509,7 +516,6 @@ Deno.serve(async (req: Request) => {
         model: result.model,
         provider: result.provider,
         responseMs: result.responseMs,
-        debug: { mode: "single", autoRace: options.autoRace, autoRaceType: typeof options.autoRace },
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
