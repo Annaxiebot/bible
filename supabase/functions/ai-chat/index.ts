@@ -126,7 +126,9 @@ async function callSingleProvider(
     // Gemini image format: inlineData in parts
     const parts: any[] = [{ text: typeof messages[messages.length - 1]?.content === "string" ? messages[messages.length - 1].content : prompt }];
     if (image) {
-      parts.push({ inlineData: { mimeType: image.mimeType, data: image.data } });
+      const rawBase64 = image.data.includes(",") ? image.data.split(",")[1] : image.data;
+      const mimeType = image.mimeType || (image.data.match(/^data:([^;]+);/)?.[1] ?? "image/jpeg");
+      parts.push({ inlineData: { mimeType, data: rawBase64 } });
     }
     const response = await fetch(url, {
       method: "POST",
@@ -144,13 +146,16 @@ async function callSingleProvider(
     return { text, model: geminiModel, provider: "Gemini", responseMs: Date.now() - startTime };
 
   } else if (ANTHROPIC_PROTOCOL_PROVIDERS.has(providerName)) {
-    // Claude/Anthropic image format: type "image" with source
+    // Claude/Anthropic image format: type "image" with source (raw base64, no data URL prefix)
     const anthropicMessages = messages.map((m, i) => {
       if (i === messages.length - 1 && image) {
+        // Strip data URL prefix if present: "data:image/jpeg;base64,..." → raw base64
+        const rawBase64 = image.data.includes(",") ? image.data.split(",")[1] : image.data;
+        const mimeType = image.mimeType || (image.data.match(/^data:([^;]+);/)?.[1] ?? "image/jpeg");
         return {
           role: m.role,
           content: [
-            { type: "image", source: { type: "base64", media_type: image.mimeType, data: image.data } },
+            { type: "image", source: { type: "base64", media_type: mimeType, data: rawBase64 } },
             { type: "text", text: typeof m.content === "string" ? m.content : prompt },
           ],
         };
