@@ -147,8 +147,10 @@ const callProvider = async (
   };
 
   if (provider === 'openrouter') {
-    const useFreeRouter = localStorage.getItem('useFreeRouter') !== 'false';
-    const result = await openrouter.chatWithAI(prompt, history, { ...options, model: options.model || undefined, useFreeRouter });
+    const selectedModel = options.model || '';
+    const useFreeRouter = selectedModel === 'openrouter/auto:free' || (!selectedModel);
+    const model = selectedModel.replace(':free', '') || undefined;
+    const result = await openrouter.chatWithAI(prompt, history, { ...options, model, useFreeRouter });
     return { text: result.text, model: result.model, provider: providerNames.openrouter };
   } else if (provider === 'claude') {
     const result = await claude.chatWithAI(prompt, history, options);

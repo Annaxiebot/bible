@@ -499,7 +499,10 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
 
                 {currentProvider === 'openrouter' ? (
                   <>
-                    <option value="openrouter/auto">Auto (let OpenRouter pick the best model)</option>
+                    <optgroup label="Auto">
+                      <option value="openrouter/auto:free">Auto (free models only)</option>
+                      <option value="openrouter/auto">Auto (any model, may use credits)</option>
+                    </optgroup>
                     <optgroup label={verifiedModels ? `Verified Working Free Models (${verifiedModels.length})` : 'Free Models'}>
                       {verifiedModels
                         ? verifiedModels.map(m => (
@@ -523,35 +526,6 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
                   })
                 )}
               </select>
-
-              {/* Free Router Toggle - OpenRouter only */}
-              {currentProvider === 'openrouter' && (
-                <div className="mt-3 p-3 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-semibold text-slate-800 text-sm">Use Free Router</div>
-                      <div className="text-xs text-slate-500">
-                        Auto-selects the best available free model
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setUseFreeRouter(v => !v)}
-                      className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 focus:outline-none ${
-                        useFreeRouter ? 'bg-blue-600' : 'bg-slate-200'
-                      }`}
-                      role="switch"
-                      aria-checked={useFreeRouter}
-                    >
-                      <span
-                        className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ${
-                          useFreeRouter ? 'translate-x-5' : 'translate-x-0'
-                        }`}
-                      />
-                    </button>
-                  </div>
-                </div>
-              )}
             </div>
           )}
 
@@ -643,7 +617,7 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
                   <li className="pt-1 border-t border-blue-200 mt-2">
                     • All providers maintain the same bilingual format (Chinese + English)<br />
                     • You can switch providers and models at any time<br />
-                    • API keys are stored locally in your browser
+                    • API keys are synced securely when signed in
                   </li>
                 </ul>
               </div>
