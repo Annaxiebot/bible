@@ -16,10 +16,6 @@ import {
   authManager,
   syncManager,
   canSync,
-  DbNote,
-  DbAnnotation,
-  DbReadingHistory,
-  DbLastRead
 } from './supabase';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 import { notesStorage } from './notesStorage';
@@ -95,18 +91,15 @@ async function syncNotes(): Promise<void> {
     await notesStorage.saveNote(remoteNote.reference, remoteNote.content);
   }
 
-  // Upload local notes that don't exist remotely or are newer
-  for (const [reference, content] of Object.entries(localNotes)) {
-    const existingRemote = remoteNotes?.find(n => n.reference === reference);
-    
-    if (!existingRemote) {
-      // New local note - upload it
+  // Upload local notes that don't exist remotely — batch upsert
+  const notesToUpload = Object.entries(localNotes)
+    .filter(([reference]) => !remoteNotes?.find(n => n.reference === reference))
+    .map(([reference, content]) => {
       const parts = reference.split(' ');
       const bookId = parts[0];
       const chapterVerse = parts.slice(1).join(' ');
       const [chapter, verse] = chapterVerse.split(':').map(n => parseInt(n, 10));
-
-      await supabase.from('notes').upsert({
+      return {
         user_id: userId,
         reference,
         book_id: bookId,
@@ -114,8 +107,11 @@ async function syncNotes(): Promise<void> {
         verse: verse || null,
         content,
         updated_at: new Date().toISOString()
-      });
-    }
+      };
+    });
+
+  if (notesToUpload.length > 0) {
+    await supabase.from('notes').upsert(notesToUpload, { onConflict: 'user_id,reference' });
   }
 
   setSyncState({ lastNotesSync: Date.now() });
@@ -132,8 +128,7 @@ async function syncAnnotations(): Promise<void> {
   if (!userId) return;
 
   // Get all local annotations from IndexedDB
-  const db = await (annotationStorage as any).dbPromise;
-  const localAnnotations: AnnotationRecord[] = await db.getAll('annotations');
+  const localAnnotations: AnnotationRecord[] = await annotationStorage.getAllAnnotations();
 
   // Get remote annotations modified since last sync
   const syncState = getSyncState();
@@ -159,28 +154,28 @@ async function syncAnnotations(): Promise<void> {
     );
   }
 
-  // Upload local annotations to remote
-  for (const local of localAnnotations) {
-    const matchKey = `${local.bookId}:${local.chapter}:${local.panelId || ''}`;
-    const existingRemote = remoteAnnotations?.find(r => 
-      r.book_id === local.bookId && 
-      r.chapter === local.chapter && 
-      (r.panel_id || '') === (local.panelId || '')
-    );
+  // Upload local annotations to remote — batch upsert
+  const annotationsToUpload = localAnnotations
+    .filter(local => {
+      const existingRemote = remoteAnnotations?.find(r =>
+        r.book_id === local.bookId &&
+        r.chapter === local.chapter &&
+        (r.panel_id || '') === (local.panelId || '')
+      );
+      return !existingRemote || local.lastModified > new Date(existingRemote!.updated_at).getTime();
+    })
+    .map(local => ({
+      user_id: userId,
+      book_id: local.bookId,
+      chapter: local.chapter,
+      panel_id: local.panelId || '',
+      canvas_data: local.canvasData,
+      canvas_height: local.canvasHeight,
+      updated_at: new Date(local.lastModified).toISOString()
+    }));
 
-    if (!existingRemote || local.lastModified > new Date(existingRemote.updated_at).getTime()) {
-      await supabase.from('annotations').upsert({
-        user_id: userId,
-        book_id: local.bookId,
-        chapter: local.chapter,
-        panel_id: local.panelId || null,
-        canvas_data: local.canvasData,
-        canvas_height: local.canvasHeight,
-        updated_at: new Date(local.lastModified).toISOString()
-      }, {
-        onConflict: 'user_id,book_id,chapter,panel_id'
-      });
-    }
+  if (annotationsToUpload.length > 0) {
+    await supabase.from('annotations').upsert(annotationsToUpload, { onConflict: 'user_id,book_id,chapter,panel_id' });
   }
 
   setSyncState({ lastAnnotationsSync: Date.now() });
@@ -201,7 +196,6 @@ async function syncReadingHistory(): Promise<void> {
   const lastRead = readingHistory.getLastRead();
 
   // Get remote history
-  const syncState = getSyncState();
   const { data: remoteHistory, error: historyError } = await supabase
     .from('reading_history')
     .select('*')
@@ -223,19 +217,19 @@ async function syncReadingHistory(): Promise<void> {
     );
   }
 
-  // Upload local history to remote
-  for (const local of localHistory) {
-    await supabase.from('reading_history').upsert({
-      user_id: userId,
-      book_id: local.bookId,
-      book_name: local.bookName,
-      chapter: local.chapter,
-      last_read: new Date(local.lastRead).toISOString(),
-      has_notes: local.hasNotes || false,
-      has_ai_research: local.hasAIResearch || false
-    }, {
-      onConflict: 'user_id,book_id,chapter'
-    });
+  // Upload local history to remote — batch upsert
+  const historyToUpload = localHistory.map(local => ({
+    user_id: userId,
+    book_id: local.bookId,
+    book_name: local.bookName,
+    chapter: local.chapter,
+    last_read: new Date(local.lastRead).toISOString(),
+    has_notes: local.hasNotes || false,
+    has_ai_research: local.hasAIResearch || false
+  }));
+
+  if (historyToUpload.length > 0) {
+    await supabase.from('reading_history').upsert(historyToUpload, { onConflict: 'user_id,book_id,chapter' });
   }
 
   // Sync last read position
@@ -246,6 +240,8 @@ async function syncReadingHistory(): Promise<void> {
       book_name: lastRead.bookName,
       chapter: lastRead.chapter,
       updated_at: new Date(lastRead.timestamp).toISOString()
+    }, {
+      onConflict: 'user_id'
     });
   }
 
@@ -273,6 +269,74 @@ async function syncReadingHistory(): Promise<void> {
 }
 
 // =====================================================
+// SETTINGS SYNC
+// =====================================================
+
+const SYNCED_SETTINGS_KEYS = [
+  STORAGE_KEYS.AI_PROVIDER,
+  STORAGE_KEYS.AI_MODEL,
+  STORAGE_KEYS.GEMINI_API_KEY,
+  STORAGE_KEYS.CLAUDE_API_KEY,
+  STORAGE_KEYS.OPENAI_API_KEY,
+  STORAGE_KEYS.KIMI_API_KEY,
+  STORAGE_KEYS.OPENROUTER_API_KEY,
+  STORAGE_KEYS.AUTO_SAVE_RESEARCH,
+  STORAGE_KEYS.ENGLISH_VERSION,
+  STORAGE_KEYS.CHINESE_MODE,
+  STORAGE_KEYS.FONT_SIZE,
+  STORAGE_KEYS.VIEW_LAYOUT,
+  'useFreeRouter',
+];
+
+async function syncSettings(): Promise<void> {
+  if (!supabase || !canSync()) return;
+
+  const userId = authManager.getUserId();
+  if (!userId) return;
+
+  // Get remote settings
+  const { data: remote } = await supabase
+    .from('user_settings')
+    .select('*')
+    .eq('user_id', userId)
+    .single();
+
+  // Build local settings object
+  const localSettings: Record<string, string> = {};
+  for (const key of SYNCED_SETTINGS_KEYS) {
+    const val = localStorage.getItem(key);
+    if (val) localSettings[key] = val;
+  }
+
+  if (remote?.settings) {
+    const remoteSettings = remote.settings as Record<string, string>;
+    const remoteTime = new Date(remote.updated_at).getTime();
+    const syncState = getSyncState();
+
+    if (remoteTime > syncState.lastSettingsSync) {
+      // Remote is newer — merge remote into local (remote wins)
+      for (const [key, val] of Object.entries(remoteSettings)) {
+        if (val && SYNCED_SETTINGS_KEYS.includes(key)) {
+          localStorage.setItem(key, val);
+          localSettings[key] = val;
+        }
+      }
+    }
+  }
+
+  // Upload merged settings to remote
+  await supabase.from('user_settings').upsert({
+    user_id: userId,
+    settings: localSettings,
+    updated_at: new Date().toISOString()
+  }, {
+    onConflict: 'user_id'
+  });
+
+  setSyncState({ lastSettingsSync: Date.now() });
+}
+
+// =====================================================
 // FULL SYNC
 // =====================================================
 
@@ -287,7 +351,8 @@ export async function performFullSync(): Promise<void> {
     await Promise.all([
       syncNotes(),
       syncAnnotations(),
-      syncReadingHistory()
+      syncReadingHistory(),
+      syncSettings()
     ]);
 
     syncManager.setStatus('idle');
@@ -327,6 +392,38 @@ if (typeof window !== 'undefined') {
 }
 
 // =====================================================
+// SYNC ON TAB VISIBILITY (e.g. switch back to app)
+// =====================================================
+
+if (typeof window !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && canSync() && syncManager.getStatus() === 'idle') {
+      performFullSync().catch(() => {});
+    }
+  });
+}
+
+// =====================================================
+// BACKGROUND SYNC ON LOCAL CHANGES
+// =====================================================
+
+let bgSyncTimer: ReturnType<typeof setTimeout> | null = null;
+
+function scheduleBgSync() {
+  if (!canSync() || syncManager.getStatus() === 'syncing') return;
+  if (bgSyncTimer) clearTimeout(bgSyncTimer);
+  // Debounce 5 seconds so rapid changes don't flood the server
+  bgSyncTimer = setTimeout(() => {
+    performFullSync().catch(() => {});
+  }, 5000);
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('versedata-updated', scheduleBgSync);
+  window.addEventListener('annotation-updated', scheduleBgSync);
+}
+
+// =====================================================
 // EXPORT
 // =====================================================
 
@@ -335,6 +432,7 @@ export const syncService = {
   syncNotes,
   syncAnnotations,
   syncReadingHistory,
+  syncSettings,
   canSync,
   getSyncState,
 };
