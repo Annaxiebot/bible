@@ -311,9 +311,9 @@ const App: React.FC = () => {
       if (supabase && canSync()) {
         const userId = authManager.getUserId();
         if (userId) {
-          if (types.notes) ops.push(supabase.from('notes').delete().eq('user_id', userId).then(() => {}));
-          if (types.annotations) ops.push(supabase.from('annotations').delete().eq('user_id', userId).then(() => {}));
-          if (types.research) ops.push(supabase.from('reading_history').delete().eq('user_id', userId).then(() => {}));
+          if (types.notes) ops.push(Promise.resolve(supabase.from('notes').delete().eq('user_id', userId)).then(() => {}));
+          if (types.annotations) ops.push(Promise.resolve(supabase.from('annotations').delete().eq('user_id', userId)).then(() => {}));
+          if (types.research) ops.push(Promise.resolve(supabase.from('reading_history').delete().eq('user_id', userId)).then(() => {}));
         }
       }
       await Promise.all(ops);

@@ -181,6 +181,30 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
 
     autoSaveResearchService.setAutoSaveEnabled(autoSaveResearch);
 
+    // Sync settings to Supabase if logged in
+    import('../services/supabase').then(({ supabase, authManager, canSync }) => {
+      if (supabase && canSync()) {
+        const userId = authManager.getUserId();
+        if (userId) {
+          const settings: Record<string, string> = {};
+          for (const key of [
+            STORAGE_KEYS.AI_PROVIDER, STORAGE_KEYS.AI_MODEL,
+            STORAGE_KEYS.GEMINI_API_KEY, STORAGE_KEYS.CLAUDE_API_KEY,
+            STORAGE_KEYS.OPENAI_API_KEY, STORAGE_KEYS.KIMI_API_KEY,
+            STORAGE_KEYS.OPENROUTER_API_KEY, STORAGE_KEYS.AUTO_SAVE_RESEARCH,
+            'useFreeRouter',
+          ]) {
+            const val = localStorage.getItem(key);
+            if (val) settings[key] = val;
+          }
+          Promise.resolve(supabase.from('user_settings').upsert(
+            { user_id: userId, settings, updated_at: new Date().toISOString() },
+            { onConflict: 'user_id' }
+          )).catch(() => {});
+        }
+      }
+    }).catch(() => {});
+
     onClose();
   };
 

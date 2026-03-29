@@ -59,7 +59,64 @@ export const setModel = (model: AIModel): void => {
 };
 
 /**
- * Call a single provider and normalize the result
+ * Call AI via Supabase Edge Function (server-side proxy).
+ * Used when user is logged in — avoids CORS issues and keeps API keys server-side.
+ */
+const callViaEdgeFunction = async (
+  prompt: string,
+  history: { role: string; content: string }[],
+  options: { thinking?: boolean; fast?: boolean; search?: boolean; image?: { data: string; mimeType: string }; model?: string }
+): Promise<{ text: string; model?: string; provider: string }> => {
+  const { supabase, authManager } = await import('./supabase');
+  if (!supabase) throw new Error('Supabase not configured');
+
+  const session = authManager.getState().session;
+  if (!session?.access_token) throw new Error('Not authenticated');
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const response = await fetch(`${supabaseUrl}/functions/v1/ai-chat`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`,
+    },
+    body: JSON.stringify({
+      prompt,
+      history,
+      options: {
+        ...options,
+        useFreeRouter: localStorage.getItem('useFreeRouter') !== 'false',
+      },
+    }),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.error || `Edge function error: ${response.status}`);
+  }
+
+  return { text: data.text, model: data.model, provider: data.provider };
+};
+
+/**
+ * Check if we should use the Edge Function (user is logged in with synced settings)
+ */
+// Cache auth state to avoid async import in sync function
+let _isEdgeFunctionEnabled = false;
+
+// Listen for auth changes to update edge function routing
+import('./supabase').then(({ authManager, isSupabaseConfigured }) => {
+  if (!isSupabaseConfigured()) return;
+  authManager.subscribe((state) => {
+    _isEdgeFunctionEnabled = state.isAuthenticated;
+  });
+}).catch(() => {});
+
+const shouldUseEdgeFunction = (): boolean => _isEdgeFunctionEnabled;
+
+/**
+ * Call a single provider and normalize the result.
+ * Routes through Edge Function when logged in, otherwise calls directly.
  */
 const callProvider = async (
   provider: AIProvider,
@@ -67,6 +124,12 @@ const callProvider = async (
   history: { role: string; content: string }[],
   options: { thinking?: boolean; fast?: boolean; search?: boolean; image?: { data: string; mimeType: string }; model?: string }
 ): Promise<{ text: string; model?: string; provider: string }> => {
+  // When logged in, route through Edge Function (server-side proxy)
+  if (shouldUseEdgeFunction()) {
+    return callViaEdgeFunction(prompt, history, options);
+  }
+
+  // Otherwise, call providers directly (local API keys)
   const providerNames: Record<AIProvider, string> = {
     openrouter: 'OpenRouter',
     gemini: 'Gemini',
@@ -93,7 +156,6 @@ const callProvider = async (
     return { text: String(text), model: options.model || 'openai', provider: providerNames.openai };
   } else {
     const result = await gemini.chatWithAI(prompt, history, options);
-    // Gemini may return candidates for grounding - pass through
     if (typeof result === 'object' && result !== null && 'candidates' in result) {
       return { text: (result as any).text || String(result), model: options.model || 'gemini', provider: providerNames.gemini, ...(result as any) };
     }
