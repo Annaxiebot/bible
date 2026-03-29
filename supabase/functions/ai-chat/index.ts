@@ -116,19 +116,25 @@ async function callSingleProvider(
   model: string,
   messages: { role: string; content: any }[],
   prompt: string,
+  image?: { data: string; mimeType: string },
 ): Promise<CallResult> {
   const startTime = Date.now();
 
   if (providerName === "gemini") {
     const geminiModel = model || "gemini-3-flash-preview";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`;
+    // Gemini image format: inlineData in parts
+    const parts: any[] = [{ text: typeof messages[messages.length - 1]?.content === "string" ? messages[messages.length - 1].content : prompt }];
+    if (image) {
+      parts.push({ inlineData: { mimeType: image.mimeType, data: image.data } });
+    }
     const response = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: messages.map((m) => ({
+        contents: messages.map((m, i) => ({
           role: m.role === "assistant" ? "model" : "user",
-          parts: [{ text: typeof m.content === "string" ? m.content : prompt }],
+          parts: i === messages.length - 1 ? parts : [{ text: typeof m.content === "string" ? m.content : prompt }],
         })),
       }),
     });
@@ -138,6 +144,19 @@ async function callSingleProvider(
     return { text, model: geminiModel, provider: "Gemini", responseMs: Date.now() - startTime };
 
   } else if (ANTHROPIC_PROTOCOL_PROVIDERS.has(providerName)) {
+    // Claude/Anthropic image format: type "image" with source
+    const anthropicMessages = messages.map((m, i) => {
+      if (i === messages.length - 1 && image) {
+        return {
+          role: m.role,
+          content: [
+            { type: "image", source: { type: "base64", media_type: image.mimeType, data: image.data } },
+            { type: "text", text: typeof m.content === "string" ? m.content : prompt },
+          ],
+        };
+      }
+      return m;
+    });
     const endpoint = PROVIDER_ENDPOINTS[providerName];
     const response = await fetch(endpoint, {
       method: "POST",
@@ -146,7 +165,7 @@ async function callSingleProvider(
         "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
       },
-      body: JSON.stringify({ model, max_tokens: 4096, messages }),
+      body: JSON.stringify({ model, max_tokens: 4096, messages: anthropicMessages }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error?.message || `${providerName} API error`);
@@ -154,11 +173,24 @@ async function callSingleProvider(
     return { text, model, provider: PROVIDER_NAMES[providerName] || providerName, responseMs: Date.now() - startTime };
 
   } else {
+    // OpenAI-compatible format with image_url
     const endpoint = PROVIDER_ENDPOINTS[providerName] || PROVIDER_ENDPOINTS.openrouter;
     let finalModel = model;
     if (providerName === "openrouter") {
       if (!model || model === "openrouter/auto:free") finalModel = "openrouter/auto";
     }
+    const openaiMessages = image ? messages.map((m, i) => {
+      if (i === messages.length - 1) {
+        return {
+          role: m.role,
+          content: [
+            { type: "text", text: typeof m.content === "string" ? m.content : prompt },
+            { type: "image_url", image_url: { url: `data:${image.mimeType};base64,${image.data}` } },
+          ],
+        };
+      }
+      return m;
+    }) : messages;
     const response = await fetch(endpoint, {
       method: "POST",
       headers: {
@@ -166,7 +198,7 @@ async function callSingleProvider(
         Authorization: `Bearer ${apiKey}`,
         ...(providerName === "openrouter" ? { "HTTP-Referer": "https://bible.annaxie.com" } : {}),
       },
-      body: JSON.stringify({ model: finalModel, messages, max_tokens: 4096, temperature: 0.7 }),
+      body: JSON.stringify({ model: finalModel, messages: openaiMessages, max_tokens: 4096, temperature: 0.7 }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error?.message || `${providerName} API error`);
@@ -203,6 +235,7 @@ async function raceProviders(
   prompt: string,
   supabase: any,
   userId: string,
+  image?: { data: string; mimeType: string },
 ): Promise<RaceResult> {
   const maxRace = Math.min(providers.length, 5);
   const racers = providers.slice(0, maxRace);
@@ -213,7 +246,7 @@ async function raceProviders(
 
   const racePromises = racers.map(async (p, i) => {
     try {
-      const result = await callSingleProvider(p.name, p.apiKey, p.model, messages, prompt);
+      const result = await callSingleProvider(p.name, p.apiKey, p.model, messages, prompt, image);
       raceDetails[i].responseMs = result.responseMs;
 
       // Save timing to provider_health (fire and forget)
@@ -311,14 +344,7 @@ Deno.serve(async (req: Request) => {
       { role: "user", content: prompt },
     ];
 
-    // Add image if provided
-    if (options.image && messages.length > 0) {
-      const lastMsg = messages[messages.length - 1];
-      lastMsg.content = [
-        { type: "text", text: prompt },
-        { type: "image_url", image_url: { url: `data:${options.image.mimeType};base64,${options.image.data}` } },
-      ];
-    }
+    // Image is passed to callSingleProvider which formats per provider
 
     // ── Race mode: autoRace=true and 3+ configured models across providers ──
     const hasImage = !!options.image;
@@ -393,7 +419,7 @@ Deno.serve(async (req: Request) => {
 
         if (diversified.length >= 3) {
           try {
-            const { winner, raceDetails } = await raceProviders(diversified, messages, prompt, supabase, user.id);
+            const { winner, raceDetails } = await raceProviders(diversified, messages, prompt, supabase, user.id, hasImage ? options.image : undefined);
             return new Response(JSON.stringify({
               text: winner.text,
               model: winner.model,
@@ -436,7 +462,7 @@ Deno.serve(async (req: Request) => {
     const model = options.model || settings["ai_model"] || DEFAULT_MODELS[provider] || "";
 
     try {
-      const result = await callSingleProvider(provider, apiKey, model, messages, prompt);
+      const result = await callSingleProvider(provider, apiKey, model, messages, prompt, hasImage ? options.image : undefined);
 
       // Save timing (fire and forget)
       supabase.from("provider_health").upsert({
