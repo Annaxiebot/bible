@@ -12,7 +12,7 @@ import * as openai from './openai';
 import * as openrouter from './openrouter';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 
-export type AIProvider = 'gemini' | 'claude' | 'kimi' | 'openai' | 'openrouter';
+export type AIProvider = 'openrouter' | 'gemini' | 'claude' | 'openai' | 'kimi' | 'nvidia' | 'deepseek' | 'groq' | 'dashscope' | 'minimax' | 'zhipu' | 'zai' | 'r9s' | 'moonshot';
 export type AIModel = 'claude-haiku-4-5' | 'claude-sonnet-4-5' | 'claude-opus-4-5' | 'gemini-3-flash-preview' | 'gemini-3-pro-preview' | 'gemini-flash-lite-latest' | 'moonshot-v1-128k' | 'gpt-4o' | 'gpt-4o-mini' | string;
 
 // Storage keys
@@ -22,9 +22,11 @@ const MODEL_KEY = STORAGE_KEYS.AI_MODEL;
 /**
  * Get the current AI provider from settings
  */
+const ALL_PROVIDERS: AIProvider[] = ['openrouter', 'gemini', 'claude', 'openai', 'kimi', 'nvidia', 'deepseek', 'groq', 'dashscope', 'minimax', 'zhipu', 'zai', 'r9s', 'moonshot'];
+
 export const getCurrentProvider = (): AIProvider => {
   const stored = localStorage.getItem(PROVIDER_KEY);
-  return (stored === 'claude' || stored === 'gemini' || stored === 'kimi' || stored === 'openai' || stored === 'openrouter') ? stored : 'gemini';
+  return ALL_PROVIDERS.includes(stored as AIProvider) ? (stored as AIProvider) : 'gemini';
 };
 
 /**
@@ -133,12 +135,12 @@ const callProvider = async (
   }
 
   // Otherwise, call providers directly (local API keys)
-  const providerNames: Record<AIProvider, string> = {
-    openrouter: 'OpenRouter',
-    gemini: 'Gemini',
-    claude: 'Claude',
-    openai: 'OpenAI',
-    kimi: 'Kimi',
+  const providerNames: Record<string, string> = {
+    openrouter: 'OpenRouter', gemini: 'Gemini', claude: 'Claude',
+    openai: 'OpenAI', kimi: 'Kimi', nvidia: 'NVIDIA',
+    deepseek: 'DeepSeek', groq: 'Groq', dashscope: 'DashScope/Qwen',
+    minimax: 'MiniMax', zhipu: 'Zhipu/GLM', zai: 'Z.AI',
+    r9s: 'R9S.AI', moonshot: 'Moonshot/Kimi',
   };
 
   if (provider === 'openrouter') {
@@ -171,8 +173,7 @@ const callProvider = async (
  * Get fallback providers (configured providers other than the primary)
  */
 const getFallbackProviders = (primary: AIProvider): AIProvider[] => {
-  const all: AIProvider[] = ['openrouter', 'gemini', 'claude', 'openai', 'kimi'];
-  return all.filter(p => p !== primary && isProviderConfigured(p));
+  return ALL_PROVIDERS.filter(p => p !== primary && isProviderConfigured(p));
 };
 
 /**
@@ -218,7 +219,7 @@ export const getAvailableProviders = (): { id: AIProvider; name: string; models:
     ...openrouter.FREE_MODELS.map(m => `${m.id} (${m.provider} - Free)`),
     ...openrouter.PREMIUM_MODELS.map(m => `${m.id} (${m.provider})`),
   ];
-  
+
   return [
     {
       id: 'openrouter',
@@ -257,6 +258,86 @@ export const getAvailableProviders = (): { id: AIProvider; name: string; models:
       models: [
         'moonshot-v1-128k'
       ]
+    },
+    {
+      id: 'nvidia',
+      name: 'NVIDIA NIM',
+      models: [
+        'nvidia/llama-3.1-nemotron-ultra-253b-v1',
+        'nvidia/llama-3.3-nemotron-super-49b-v1',
+        'meta/llama-3.1-8b-instruct'
+      ]
+    },
+    {
+      id: 'deepseek',
+      name: 'DeepSeek',
+      models: [
+        'deepseek-chat',
+        'deepseek-reasoner'
+      ]
+    },
+    {
+      id: 'groq',
+      name: 'Groq (Fast Inference)',
+      models: [
+        'llama-3.3-70b-versatile',
+        'llama-3.1-8b-instant',
+        'meta-llama/llama-4-scout-17b-16e-instruct'
+      ]
+    },
+    {
+      id: 'dashscope',
+      name: 'DashScope / Qwen (阿里通义)',
+      models: [
+        'qwen3.5-max',
+        'qwen3.5-plus',
+        'qwen3.5-flash'
+      ]
+    },
+    {
+      id: 'minimax',
+      name: 'MiniMax',
+      models: [
+        'MiniMax-M2.5',
+        'MiniMax-M2.5-highspeed',
+        'MiniMax-M2.1'
+      ]
+    },
+    {
+      id: 'zhipu',
+      name: 'Zhipu GLM (智谱清言)',
+      models: [
+        'glm-5',
+        'glm-4-plus',
+        'glm-4-air'
+      ]
+    },
+    {
+      id: 'zai',
+      name: 'Z.AI',
+      models: [
+        'glm-5',
+        'glm-4.7',
+        'glm-4.5-air'
+      ]
+    },
+    {
+      id: 'r9s',
+      name: 'R9S.AI',
+      models: [
+        'claude-sonnet-4-6',
+        'claude-opus-4-6',
+        'claude-haiku-4-5'
+      ]
+    },
+    {
+      id: 'moonshot',
+      name: 'Moonshot (月之暗面 v2)',
+      models: [
+        'kimi-k2.5',
+        'kimi-k2-thinking',
+        'kimi-k2-thinking-turbo'
+      ]
     }
   ];
 };
@@ -264,20 +345,26 @@ export const getAvailableProviders = (): { id: AIProvider; name: string; models:
 /**
  * Check if a provider is configured (has API key)
  */
+const PROVIDER_KEY_MAP: Record<AIProvider, string> = {
+  openrouter: STORAGE_KEYS.OPENROUTER_API_KEY,
+  gemini: STORAGE_KEYS.GEMINI_API_KEY,
+  claude: STORAGE_KEYS.CLAUDE_API_KEY,
+  openai: STORAGE_KEYS.OPENAI_API_KEY,
+  kimi: STORAGE_KEYS.KIMI_API_KEY,
+  nvidia: STORAGE_KEYS.NVIDIA_API_KEY,
+  deepseek: STORAGE_KEYS.DEEPSEEK_API_KEY,
+  groq: STORAGE_KEYS.GROQ_API_KEY,
+  dashscope: STORAGE_KEYS.DASHSCOPE_API_KEY,
+  minimax: STORAGE_KEYS.MINIMAX_API_KEY,
+  zhipu: STORAGE_KEYS.ZHIPU_API_KEY,
+  zai: STORAGE_KEYS.ZAI_API_KEY,
+  r9s: STORAGE_KEYS.R9S_API_KEY,
+  moonshot: STORAGE_KEYS.MOONSHOT_API_KEY,
+};
+
 export const isProviderConfigured = (provider: AIProvider): boolean => {
-  if (provider === 'openrouter') {
-    return !!localStorage.getItem(STORAGE_KEYS.OPENROUTER_API_KEY);
-  } else if (provider === 'gemini') {
-    return !!(import.meta.env.VITE_GEMINI_API_KEY || localStorage.getItem(STORAGE_KEYS.GEMINI_API_KEY) || process.env.API_KEY);
-  } else if (provider === 'claude') {
-    // Claude API key must be user-provided (never from environment/secrets)
-    return !!localStorage.getItem(STORAGE_KEYS.CLAUDE_API_KEY);
-  } else if (provider === 'openai') {
-    return !!(import.meta.env.VITE_OPENAI_API_KEY || localStorage.getItem(STORAGE_KEYS.OPENAI_API_KEY) || process.env.OPENAI_API_KEY);
-  } else if (provider === 'kimi') {
-    return !!(import.meta.env.VITE_KIMI_API_KEY || localStorage.getItem(STORAGE_KEYS.KIMI_API_KEY) || process.env.KIMI_API_KEY);
-  }
-  return false;
+  const key = PROVIDER_KEY_MAP[provider];
+  return key ? !!localStorage.getItem(key) : false;
 };
 
 /**

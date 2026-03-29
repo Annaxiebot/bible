@@ -17,14 +17,26 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
-// Provider API endpoints
+// Provider API endpoints (OpenAI-compatible use /chat/completions)
 const PROVIDER_ENDPOINTS: Record<string, string> = {
   openrouter: "https://openrouter.ai/api/v1/chat/completions",
   claude: "https://api.anthropic.com/v1/messages",
   gemini: "https://generativelanguage.googleapis.com/v1beta/models",
   openai: "https://api.openai.com/v1/chat/completions",
   kimi: "https://api.moonshot.cn/v1/chat/completions",
+  nvidia: "https://integrate.api.nvidia.com/v1/chat/completions",
+  deepseek: "https://api.deepseek.com/v1/chat/completions",
+  groq: "https://api.groq.com/openai/v1/chat/completions",
+  dashscope: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+  minimax: "https://api.minimax.io/v1/chat/completions",
+  zhipu: "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+  zai: "https://api.z.ai/api/anthropic/v1/messages",
+  r9s: "https://api.r9s.ai/v1/chat/completions",
+  moonshot: "https://api.moonshot.ai/v1/chat/completions",
 };
+
+// Providers that use Anthropic Messages API format (not OpenAI-compatible)
+const ANTHROPIC_PROTOCOL_PROVIDERS = new Set(["claude", "zai"]);
 
 // Provider API key storage key names (must match constants/storageKeys.ts)
 const PROVIDER_KEY_NAMES: Record<string, string> = {
@@ -33,15 +45,33 @@ const PROVIDER_KEY_NAMES: Record<string, string> = {
   gemini: "gemini_api_key",
   openai: "openai_api_key",
   kimi: "kimi_api_key",
+  nvidia: "nvidia_api_key",
+  deepseek: "deepseek_api_key",
+  groq: "groq_api_key",
+  dashscope: "dashscope_api_key",
+  minimax: "minimax_api_key",
+  zhipu: "zhipu_api_key",
+  zai: "zai_api_key",
+  r9s: "r9s_api_key",
+  moonshot: "moonshot_api_key",
 };
 
 // Default models per provider
 const DEFAULT_MODELS: Record<string, string> = {
   openrouter: "openrouter/auto",
-  claude: "claude-sonnet-4-5",
+  claude: "claude-sonnet-4-6",
   gemini: "gemini-3-flash-preview",
   openai: "gpt-4o-mini",
   kimi: "moonshot-v1-128k",
+  nvidia: "meta/llama-3.1-8b-instruct",
+  deepseek: "deepseek-chat",
+  groq: "llama-3.3-70b-versatile",
+  dashscope: "qwen3.5-flash",
+  minimax: "MiniMax-M2.5",
+  zhipu: "glm-4-plus",
+  zai: "glm-5",
+  r9s: "claude-sonnet-4-6",
+  moonshot: "kimi-k2.5",
 };
 
 interface ChatRequest {
@@ -130,36 +160,16 @@ Deno.serve(async (req: Request) => {
 
     // Route to provider
     let response: Response;
+    const providerNames: Record<string, string> = {
+      openrouter: "OpenRouter", claude: "Claude", gemini: "Gemini",
+      openai: "OpenAI", kimi: "Kimi", nvidia: "NVIDIA",
+      deepseek: "DeepSeek", groq: "Groq", dashscope: "DashScope/Qwen",
+      minimax: "MiniMax", zhipu: "Zhipu/GLM", zai: "Z.AI",
+      r9s: "R9S.AI", moonshot: "Moonshot/Kimi",
+    };
 
-    if (provider === "claude") {
-      response = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey,
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model,
-          max_tokens: 4096,
-          messages,
-        }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        return new Response(JSON.stringify({ error: data.error?.message || "Claude API error" }), {
-          status: response.status,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-
-      const text = data.content?.[0]?.text || "";
-      return new Response(JSON.stringify({ text, model, provider: "Claude" }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-
-    } else if (provider === "gemini") {
+    if (provider === "gemini") {
+      // Gemini uses its own API format
       const geminiModel = model || "gemini-3-flash-preview";
       const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`;
 
@@ -177,8 +187,7 @@ Deno.serve(async (req: Request) => {
       const data = await response.json();
       if (!response.ok) {
         return new Response(JSON.stringify({ error: data.error?.message || "Gemini API error" }), {
-          status: response.status,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
 
@@ -187,8 +196,34 @@ Deno.serve(async (req: Request) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
 
+    } else if (ANTHROPIC_PROTOCOL_PROVIDERS.has(provider)) {
+      // Claude, Z.AI — use Anthropic Messages API format
+      const endpoint = PROVIDER_ENDPOINTS[provider];
+
+      response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({ model, max_tokens: 4096, messages }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        return new Response(JSON.stringify({ error: data.error?.message || `${provider} API error` }), {
+          status: response.status, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const text = data.content?.[0]?.text || "";
+      return new Response(JSON.stringify({ text, model, provider: providerNames[provider] || provider }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+
     } else {
-      // OpenRouter, OpenAI, Kimi — all use OpenAI-compatible format
+      // All others: OpenAI-compatible format (OpenRouter, OpenAI, Kimi, NVIDIA, DeepSeek, Groq, etc.)
       const endpoint = PROVIDER_ENDPOINTS[provider] || PROVIDER_ENDPOINTS.openrouter;
       const useFreeRouter = provider === "openrouter" && (options.useFreeRouter !== false);
       const finalModel = useFreeRouter ? "openrouter/auto" : model;
@@ -200,12 +235,7 @@ Deno.serve(async (req: Request) => {
           Authorization: `Bearer ${apiKey}`,
           ...(provider === "openrouter" ? { "HTTP-Referer": "https://bible.annaxie.com" } : {}),
         },
-        body: JSON.stringify({
-          model: finalModel,
-          messages,
-          max_tokens: 4096,
-          temperature: 0.7,
-        }),
+        body: JSON.stringify({ model: finalModel, messages, max_tokens: 4096, temperature: 0.7 }),
       });
 
       const data = await response.json();
@@ -218,9 +248,8 @@ Deno.serve(async (req: Request) => {
 
       const text = data.choices?.[0]?.message?.content || "";
       const usedModel = data.model || finalModel;
-      const providerName = provider === "openrouter" ? "OpenRouter" : provider === "openai" ? "OpenAI" : "Kimi";
 
-      return new Response(JSON.stringify({ text, model: usedModel, provider: providerName }), {
+      return new Response(JSON.stringify({ text, model: usedModel, provider: providerNames[provider] || provider }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
