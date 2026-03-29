@@ -10,9 +10,10 @@ import * as claude from './claude';
 import * as kimi from './kimi';
 import * as openai from './openai';
 import * as openrouter from './openrouter';
+import * as perplexity from './perplexity';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 
-export type AIProvider = 'openrouter' | 'gemini' | 'claude' | 'openai' | 'kimi' | 'nvidia' | 'deepseek' | 'groq' | 'dashscope' | 'minimax' | 'zhipu' | 'zai' | 'r9s' | 'moonshot';
+export type AIProvider = 'openrouter' | 'gemini' | 'claude' | 'openai' | 'kimi' | 'nvidia' | 'deepseek' | 'groq' | 'dashscope' | 'minimax' | 'zhipu' | 'zai' | 'r9s' | 'moonshot' | 'perplexity';
 export type AIModel = 'claude-haiku-4-5' | 'claude-sonnet-4-5' | 'claude-opus-4-5' | 'gemini-3-flash-preview' | 'gemini-3-pro-preview' | 'gemini-flash-lite-latest' | 'moonshot-v1-128k' | 'gpt-4o' | 'gpt-4o-mini' | string;
 
 // Storage keys
@@ -22,7 +23,7 @@ const MODEL_KEY = STORAGE_KEYS.AI_MODEL;
 /**
  * Get the current AI provider from settings
  */
-const ALL_PROVIDERS: AIProvider[] = ['openrouter', 'gemini', 'claude', 'openai', 'kimi', 'nvidia', 'deepseek', 'groq', 'dashscope', 'minimax', 'zhipu', 'zai', 'r9s', 'moonshot'];
+const ALL_PROVIDERS: AIProvider[] = ['openrouter', 'gemini', 'claude', 'openai', 'kimi', 'nvidia', 'deepseek', 'groq', 'dashscope', 'minimax', 'zhipu', 'zai', 'r9s', 'moonshot', 'perplexity'];
 
 export const getCurrentProvider = (): AIProvider => {
   const stored = localStorage.getItem(PROVIDER_KEY);
@@ -254,7 +255,7 @@ const callProvider = async (
     openai: 'OpenAI', kimi: 'Kimi', nvidia: 'NVIDIA',
     deepseek: 'DeepSeek', groq: 'Groq', dashscope: 'DashScope/Qwen',
     minimax: 'MiniMax', zhipu: 'Zhipu/GLM', zai: 'Z.AI',
-    r9s: 'R9S.AI', moonshot: 'Moonshot/Kimi',
+    r9s: 'R9S.AI', moonshot: 'Moonshot/Kimi', perplexity: 'Perplexity',
   };
 
   if (provider === 'openrouter') {
@@ -282,6 +283,9 @@ const callProvider = async (
     }
     const text = typeof result === 'string' ? result : (result as any).text || result;
     return { text: String(text), model: options.model || 'gemini', provider: providerNames.gemini };
+  } else if (provider === 'perplexity') {
+    const result = await perplexity.chatWithAI(prompt, history, options);
+    return { text: result.text, model: options.model || 'sonar', provider: providerNames.perplexity };
   } else {
     // Generic OpenAI-compatible handler for: nvidia, deepseek, groq, dashscope, minimax, zhipu, r9s, moonshot
     const OPENAI_COMPATIBLE_ENDPOINTS: Record<string, string> = {
@@ -497,6 +501,14 @@ export const getAvailableProviders = (): { id: AIProvider; name: string; models:
         'kimi-k2-thinking',
         'kimi-k2-thinking-turbo'
       ]
+    },
+    {
+      id: 'perplexity',
+      name: 'Perplexity (Web Search)',
+      models: [
+        'sonar',
+        'sonar-pro'
+      ]
     }
   ];
 };
@@ -519,6 +531,7 @@ const PROVIDER_KEY_MAP: Record<AIProvider, string> = {
   zai: STORAGE_KEYS.ZAI_API_KEY,
   r9s: STORAGE_KEYS.R9S_API_KEY,
   moonshot: STORAGE_KEYS.MOONSHOT_API_KEY,
+  perplexity: STORAGE_KEYS.PERPLEXITY_API_KEY,
 };
 
 export const isProviderConfigured = (provider: AIProvider): boolean => {
@@ -535,6 +548,19 @@ export const testApiKey = async (provider: AIProvider, apiKey: string, model?: s
   }
   // Other providers don't have test functions yet
   return { success: true };
+};
+
+/**
+ * Chat with Perplexity for web-grounded responses.
+ * Used by the "Web Search" toggle — bypasses normal provider routing.
+ */
+export const chatWithPerplexity = async (
+  prompt: string,
+  history: { role: string; content: string }[],
+  options: { thinking?: boolean; fast?: boolean; model?: string } = {}
+): Promise<{ text: string; model?: string; provider: string; citations?: string[] }> => {
+  const result = await perplexity.chatWithAI(prompt, history, options);
+  return { text: result.text, model: options.model || 'sonar', provider: 'Perplexity', citations: result.citations };
 };
 
 // Re-export other services from gemini (image, video, TTS, etc.)

@@ -30,6 +30,7 @@ const ALL_KEY_CONFIGS: Record<string, string> = {
   zai: STORAGE_KEYS.ZAI_API_KEY,
   r9s: STORAGE_KEYS.R9S_API_KEY,
   moonshot: STORAGE_KEYS.MOONSHOT_API_KEY,
+  perplexity: STORAGE_KEYS.PERPLEXITY_API_KEY,
 };
 
 const KEY_UI: Record<string, { label: string; placeholder: string; helpUrl: string; helpText: string }> = {
@@ -47,6 +48,7 @@ const KEY_UI: Record<string, { label: string; placeholder: string; helpUrl: stri
   zai: { label: 'Z.AI API Key', placeholder: 'Enter your Z.AI API key', helpUrl: 'https://z.ai/', helpText: 'Z.AI' },
   r9s: { label: 'R9S.AI API Key', placeholder: 'Enter your R9S API key', helpUrl: 'https://r9s.ai/', helpText: 'R9S.AI' },
   moonshot: { label: 'Moonshot v2 API Key', placeholder: 'Enter your Moonshot API key', helpUrl: 'https://platform.moonshot.ai/', helpText: 'Moonshot AI Platform' },
+  perplexity: { label: 'Perplexity API Key', placeholder: 'Enter your Perplexity API key', helpUrl: 'https://www.perplexity.ai/settings/api', helpText: 'Perplexity (Web Search AI)' },
 };
 
 interface AIProviderSettingsProps {
