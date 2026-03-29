@@ -285,13 +285,22 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpe
                   <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[9px] font-medium">
                     race {m.racePool.length}
                   </span>
-                  <div className="absolute bottom-full right-0 mb-1 hidden group-hover:block z-50 w-64 p-2 bg-slate-800 text-white rounded-lg shadow-lg text-[10px] text-left">
+                  <div className="absolute bottom-full right-0 mb-1 hidden group-hover:block z-50 w-72 p-2 bg-slate-800 text-white rounded-lg shadow-lg text-[10px] text-left">
                     <div className="font-semibold mb-1">Raced {m.racePool.length} models:</div>
-                    {m.racePool.map((p: string, i: number) => (
-                      <div key={i} className={`py-0.5 ${p.includes(m.model || '') ? 'text-green-400 font-semibold' : 'text-slate-300'}`}>
-                        {p.includes(m.model || '') ? '★ ' : '  '}{p}
-                      </div>
-                    ))}
+                    {m.racePool
+                      .sort((a, b) => (a.responseMs ?? 99999) - (b.responseMs ?? 99999))
+                      .map((r, i) => {
+                        const isWinner = r.model === m.model || (m.model && r.model.includes(m.model));
+                        const timeStr = r.responseMs != null
+                          ? r.responseMs < 1000 ? `${r.responseMs}ms` : `${(r.responseMs / 1000).toFixed(1)}s`
+                          : r.status === 'error' ? 'failed' : r.status === 'low_quality' ? 'low quality' : '...';
+                        return (
+                          <div key={i} className={`py-0.5 flex justify-between ${isWinner ? 'text-green-400 font-semibold' : r.status === 'error' ? 'text-red-400' : 'text-slate-300'}`}>
+                            <span>{isWinner ? '★ ' : '  '}{r.provider}/{r.model}</span>
+                            <span className="ml-2 tabular-nums">{timeStr}</span>
+                          </div>
+                        );
+                      })}
                     <div className="mt-1 pt-1 border-t border-slate-600 text-slate-400">
                       ★ = winner (fastest quality response)
                     </div>
