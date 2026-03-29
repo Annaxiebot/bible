@@ -306,8 +306,20 @@ const App: React.FC = () => {
       if (types.annotations) {
         ops.push(annotationStorage.clearAllAnnotations());
       }
+      // Also clear from Supabase if logged in
+      const { supabase, authManager, canSync } = await import('./services/supabase');
+      if (supabase && canSync()) {
+        const userId = authManager.getUserId();
+        if (userId) {
+          if (types.notes) ops.push(supabase.from('notes').delete().eq('user_id', userId).then(() => {}));
+          if (types.annotations) ops.push(supabase.from('annotations').delete().eq('user_id', userId).then(() => {}));
+          if (types.research) ops.push(supabase.from('reading_history').delete().eq('user_id', userId).then(() => {}));
+        }
+      }
       await Promise.all(ops);
       if (types.notes) setNotes({});
+      // Reset sync timestamps so next sync pulls everything fresh
+      localStorage.removeItem('bible-app-sync-state');
       setDataUpdateTrigger(prev => prev + 1);
       setTimeout(() => {
         setToast({ message: '成功清除！Successfully cleared!', type: 'success' });
