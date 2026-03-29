@@ -347,15 +347,41 @@ Deno.serve(async (req: Request) => {
             return aMs - bMs;
           });
 
-        if (eligible.length >= 3) {
+        // Diversify: pick at most 1 model per provider (fastest from each),
+        // then fill remaining slots with second-fastest from providers
+        const diversified: typeof eligible = [];
+        const providerPicked = new Map<string, number>();
+        // Round 1: one per provider (fastest)
+        for (const c of eligible) {
+          if (!providerPicked.has(c.name)) {
+            diversified.push(c);
+            providerPicked.set(c.name, 1);
+            if (diversified.length >= 5) break;
+          }
+        }
+        // Round 2: fill remaining slots with second models from providers
+        if (diversified.length < 5) {
+          for (const c of eligible) {
+            const count = providerPicked.get(c.name) || 0;
+            if (count < 2 && !diversified.includes(c)) {
+              diversified.push(c);
+              providerPicked.set(c.name, count + 1);
+              if (diversified.length >= 5) break;
+            }
+          }
+        }
+
+        if (diversified.length >= 3) {
           try {
-            const result = await raceProviders(eligible, messages, prompt, supabase, user.id);
+            const racePool = diversified.map(d => `${PROVIDER_NAMES[d.name] || d.name}/${d.model}`);
+            const result = await raceProviders(diversified, messages, prompt, supabase, user.id);
             return new Response(JSON.stringify({
               text: result.text,
               model: result.model,
               provider: result.provider,
               responseMs: result.responseMs,
               raceMode: true,
+              racePool,
             }), {
               headers: { ...corsHeaders, "Content-Type": "application/json" },
             });

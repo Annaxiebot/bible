@@ -274,11 +274,31 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpe
           </div>
         )}
         {m.role === 'assistant' && (m.model || m.responseTime) && (
-          <div className="mt-2 pt-1.5 border-t border-slate-100 text-[10px] text-slate-400 text-right flex items-center justify-end gap-2">
-            {m.responseTime && (
-              <span>{m.responseTime < 1000 ? `${m.responseTime}ms` : `${(m.responseTime / 1000).toFixed(1)}s`}</span>
-            )}
-            {m.model && <span>{m.model}</span>}
+          <div className="mt-2 pt-1.5 border-t border-slate-100 text-[10px] text-slate-400 text-right">
+            <div className="flex items-center justify-end gap-2">
+              {m.responseTime && (
+                <span>{m.responseTime < 1000 ? `${m.responseTime}ms` : `${(m.responseTime / 1000).toFixed(1)}s`}</span>
+              )}
+              {m.model && <span>{m.model}</span>}
+              {m.racePool && (
+                <span className="relative group cursor-help">
+                  <span className="px-1.5 py-0.5 bg-green-100 text-green-700 rounded text-[9px] font-medium">
+                    race {m.racePool.length}
+                  </span>
+                  <div className="absolute bottom-full right-0 mb-1 hidden group-hover:block z-50 w-64 p-2 bg-slate-800 text-white rounded-lg shadow-lg text-[10px] text-left">
+                    <div className="font-semibold mb-1">Raced {m.racePool.length} models:</div>
+                    {m.racePool.map((p: string, i: number) => (
+                      <div key={i} className={`py-0.5 ${p.includes(m.model || '') ? 'text-green-400 font-semibold' : 'text-slate-300'}`}>
+                        {p.includes(m.model || '') ? '★ ' : '  '}{p}
+                      </div>
+                    ))}
+                    <div className="mt-1 pt-1 border-t border-slate-600 text-slate-400">
+                      ★ = winner (fastest quality response)
+                    </div>
+                  </div>
+                </span>
+              )}
+            </div>
           </div>
         )}
       </div>
@@ -600,12 +620,15 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
         ? (groundingChunks as GroundingChunk[]).map((chunk) => ({ title: chunk.web?.title || '参考资料', uri: chunk.web?.uri || '' })).filter((c) => c.uri)
         : undefined;
 
+      const racePool = responseObj && 'racePool' in responseObj ? (responseObj as any).racePool : undefined;
+
       assistantMessage = {
         role: 'assistant',
         content: responseText,
         model: modelUsed,
         timestamp: new Date(),
         responseTime: Date.now() - requestStartTime,
+        racePool,
         references: references
       };
 
