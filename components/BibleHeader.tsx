@@ -126,7 +126,7 @@ const BibleHeader: React.FC<BibleHeaderProps> = ({
 
   return (
     <div
-      className={`flex items-center justify-between px-3 py-2 border-b bg-slate-50 sticky top-0 z-10 shrink-0 shadow-sm ${isIPhone ? 'gap-2' : ''}`}
+      className={`app-header flex items-center justify-between px-3 py-2 border-b bg-slate-50 sticky top-0 z-10 shrink-0 shadow-sm ${isIPhone ? 'gap-2' : ''}`}
       onClick={e => e.stopPropagation()}
     >
       <div className={`flex ${isIPhone ? 'gap-1' : 'gap-3'} items-center`}>

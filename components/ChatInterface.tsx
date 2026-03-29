@@ -13,6 +13,8 @@ import { backgroundBibleDownload } from '../services/backgroundBibleDownload';
 import { autoSaveResearchService } from '../services/autoSaveResearchService';
 import { ToastContainer, useToast } from './Toast';
 import { compressImage, compressImageFromUrl } from '../services/imageCompressionService';
+import { savePhotoToDevice } from '../utils/photoSaveUtils';
+import { supabaseMediaService } from '../services/supabaseMediaService';
 import {
   parseMessage,
   parseBibleReference,
@@ -331,6 +333,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
   // Toast notifications
   const toast = useToast();
   const [imageAttachment, setImageAttachment] = useState<{ data: string; mimeType: string } | null>(null);
+  const [isCameraCapture, setIsCameraCapture] = useState(false);
   const [showImageMenu, setShowImageMenu] = useState(false);
   const [showWebcam, setShowWebcam] = useState(false);
   const webcamVideoRef = useRef<HTMLVideoElement>(null);
@@ -508,6 +511,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
   const handleImageSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    setIsCameraCapture(false);
 
     try {
       const compressed = await compressImage(file);
@@ -552,6 +556,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     const dataUrl = canvas.toDataURL('image/jpeg', IMAGE.THUMBNAIL_QUALITY);
     const compressed = await compressImageFromUrl(dataUrl);
     setImageAttachment({ data: `data:${compressed.mimeType};base64,${compressed.base64}`, mimeType: compressed.mimeType });
+    setIsCameraCapture(true);
     closeWebcam();
   }, []);
 
@@ -869,7 +874,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
   }, [isResizing, resize, stopResizing]);
 
   return (
-    <div className={`h-full flex flex-col relative bg-slate-50 ${vibeClassName || ''}`} ref={containerRef}>
+    <div className={`chat-panel h-full flex flex-col relative bg-slate-50 ${vibeClassName || ''}`} ref={containerRef}>
       {/* AI Provider Header */}
       <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-indigo-100 px-4 py-2 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">

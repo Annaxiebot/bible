@@ -214,9 +214,9 @@ const BibleVersePanel: React.FC<BibleVersePanelProps> = ({
                     : {}),
                 }}
               >
-                <span className="font-bold mr-3 text-xs" style={{ color: verseNumColor }}>{v.verse}</span>
+                <span className="verse-number font-bold mr-3 text-xs" style={{ color: verseNumColor }}>{v.verse}</span>
                 <span
-                  className={`leading-relaxed ${isChinese ? '' : `text-slate-700 italic ${vibeVerseClassName || ''}`}`}
+                  className={`verse-text leading-relaxed ${isChinese ? '' : `text-slate-700 italic ${vibeVerseClassName || ''}`}`}
                   style={{ fontSize: `${fontSize}px`, color: textColor }}
                 >
                   {displayText}

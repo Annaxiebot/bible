@@ -10,6 +10,7 @@ import { Toast } from './components/Toast';
 import { printStudyNotes, PrintOptions } from './services/printService';
 import { useSeasonThemeInit, SeasonThemeProvider } from './hooks/useSeasonTheme';
 import { VibeStyles, isVibeAvailable, loadVibeStyles, getEmptyStyles } from './services/vibe';
+import { customizationService } from './services/customizationService';
 import { useDataStats } from './hooks/useDataStats';
 import './services/syncService'; // Initialize sync service
 import { backgroundBibleDownload, BgDownloadProgress } from './services/backgroundBibleDownload';
@@ -180,6 +181,7 @@ const App: React.FC = () => {
   // Load saved vibe styles
   useEffect(() => {
     setVibeStyles(loadVibeStyles());
+    customizationService.loadFromCloud().catch(() => {});
   }, []);
 
   // Start background Bible download after 5s delay
@@ -407,7 +409,7 @@ const App: React.FC = () => {
         </div>
       </div>
     }>
-    <div className={`flex flex-col h-screen w-screen overflow-hidden ${vibeStyles.background}`} style={{ backgroundColor: vibeStyles.background ? undefined : theme.background }}>
+    <div className={`vibe-app-root flex flex-col h-screen w-screen overflow-hidden ${vibeStyles.background}`} style={{ backgroundColor: vibeStyles.background ? undefined : theme.background }}>
       <input type="file" ref={libraryInputRef} onChange={handleLibraryImport} accept=".json,.bible-library" className="hidden" />
       
       {showResumeNotification && initialBookId && (

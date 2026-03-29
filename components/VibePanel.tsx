@@ -1,189 +1,28 @@
-import React, { useState } from 'react';
-import { VibeStyles, VIBE_PRESETS, generateVibeStyles, saveVibeStyles, clearVibeStyles, getEmptyStyles, getVibeProviderName } from '../services/vibe';
-
-interface VibePanelProps {
-  onClose: () => void;
-  onApplyStyles: (styles: VibeStyles) => void;
-  currentStyles: VibeStyles;
-  isApiAvailable: boolean;
-}
-
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { VibeStyles, VibeChatMessage, VIBE_PRESETS, generateVibeStyles, generateVibeCSS, saveVibeStyles, clearVibeStyles, getEmptyStyles, saveVibeChatHistory, loadVibeChatHistory, clearVibeChatHistory } from '../services/vibe';
+import { customizationService, Customization } from '../services/customizationService';
+interface VibePanelProps { onClose: () => void; onApplyStyles: (styles: VibeStyles) => void; currentStyles: VibeStyles; isApiAvailable: boolean; }
+type TabId = 'chat' | 'presets' | 'history';
 const VibePanel: React.FC<VibePanelProps> = ({ onClose, onApplyStyles, currentStyles, isApiAvailable }) => {
-  const [customPrompt, setCustomPrompt] = useState('');
+  const [activeTab, setActiveTab] = useState<TabId>('chat');
+  const [chatInput, setChatInput] = useState('');
+  const [chatMessages, setChatMessages] = useState<VibeChatMessage[]>([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeVibe, setActiveVibe] = useState<string | null>(null);
-
-  const handleVibeCoding = async (vibePrompt: string) => {
-    setIsGenerating(true);
-    setError(null);
-    setActiveVibe(vibePrompt);
-    try {
-      const styles = await generateVibeStyles(vibePrompt);
-      onApplyStyles(styles);
-      saveVibeStyles(styles);
-    } catch (err) {
-      // TODO: use error reporting service
-      setError(err instanceof Error ? err.message : 'Failed to generate vibe');
-      setActiveVibe(null);
-    } finally {
-      setIsGenerating(false);
-    }
-  };
-
-  const handleReset = () => {
-    clearVibeStyles();
-    onApplyStyles(getEmptyStyles());
-    setActiveVibe(null);
-    setError(null);
-  };
-
-  const handleCustomSubmit = () => {
-    if (customPrompt.trim() && !isGenerating) {
-      handleVibeCoding(customPrompt.trim());
-      setCustomPrompt('');
-    }
-  };
-
-  const hasActiveStyles = Object.values(currentStyles).some(v => v !== '');
-
-  return (
-    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" onClick={onClose}>
-      <div
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col m-4"
-        onClick={e => e.stopPropagation()}
-      >
-        {/* Header */}
-        <div className="p-6 border-b border-slate-200">
-          <div className="flex items-center justify-between mb-1">
-            <h2 className="text-2xl font-bold text-slate-800">Vibe Studio</h2>
-            <button
-              onClick={onClose}
-              className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          </div>
-          <p className="text-sm text-slate-500">
-            Describe the atmosphere you want, and AI will style the app.
-          </p>
-        </div>
-
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-6">
-          {!isApiAvailable && (
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
-              <p className="text-amber-800 font-medium">AI API key required</p>
-              <p className="text-amber-600 text-sm mt-1">Configure an API key in AI Research settings to use Vibe Studio</p>
-            </div>
-          )}
-
-          {/* Preset Vibe Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {VIBE_PRESETS.map(preset => (
-              <button
-                key={preset}
-                onClick={() => handleVibeCoding(preset)}
-                disabled={isGenerating}
-                className={`p-5 rounded-xl border text-left transition-all group disabled:opacity-50 disabled:cursor-not-allowed ${
-                  activeVibe === preset
-                    ? 'border-indigo-300 bg-indigo-50 shadow-md'
-                    : 'border-slate-100 bg-white hover:border-indigo-300 hover:shadow-lg'
-                }`}
-              >
-                <p className={`font-medium ${
-                  activeVibe === preset ? 'text-indigo-700' : 'text-slate-800 group-hover:text-indigo-600'
-                }`}>
-                  {preset}
-                </p>
-                {isGenerating && activeVibe === preset && (
-                  <div className="flex items-center gap-2 mt-2">
-                    <div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-                    <span className="text-xs text-indigo-500">Generating...</span>
-                  </div>
-                )}
-              </button>
-            ))}
-          </div>
-
-          {/* Custom Vibe Prompt */}
-          <div className="bg-indigo-50 rounded-xl border border-indigo-100 p-5">
-            <h4 className="font-bold text-indigo-800 mb-3">Custom Vibe Prompt</h4>
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={customPrompt}
-                onChange={e => setCustomPrompt(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleCustomSubmit(); }}
-                placeholder="e.g. A serene mountain morning..."
-                className="flex-1 px-4 py-2.5 rounded-xl border border-indigo-200 outline-none focus:ring-2 focus:ring-indigo-400 bg-white text-sm"
-                disabled={isGenerating}
-              />
-              <button
-                onClick={handleCustomSubmit}
-                disabled={isGenerating || !customPrompt.trim()}
-                className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors font-semibold text-sm"
-              >
-                {isGenerating && activeVibe === customPrompt ? 'Styling...' : 'Apply'}
-              </button>
-            </div>
-          </div>
-
-          {/* Error */}
-          {error && (
-            <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-              <p className="text-red-800 text-sm">{error}</p>
-            </div>
-          )}
-
-          {/* Current Vibe Preview */}
-          {hasActiveStyles && (
-            <div className="bg-slate-50 rounded-xl border border-slate-200 p-5">
-              <div className="flex items-center justify-between mb-3">
-                <h4 className="font-bold text-slate-700">Active Vibe</h4>
-                <button
-                  onClick={handleReset}
-                  className="px-3 py-1.5 bg-slate-200 text-slate-600 rounded-lg hover:bg-slate-300 transition-colors text-xs font-medium"
-                >
-                  Reset to Default
-                </button>
-              </div>
-              <div className="space-y-1.5 text-xs font-mono text-slate-500">
-                {Object.entries(currentStyles).map(([key, value]) =>
-                  value ? (
-                    <div key={key} className="flex gap-2">
-                      <span className="text-slate-400 w-24">{key}:</span>
-                      <span className="text-indigo-600">{value}</span>
-                    </div>
-                  ) : null
-                )}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="p-4 border-t border-slate-200 flex gap-2">
-          {hasActiveStyles && (
-            <button
-              onClick={handleReset}
-              className="flex-1 px-4 py-2.5 bg-slate-200 text-slate-700 rounded-xl hover:bg-slate-300 transition-colors text-sm font-medium"
-            >
-              Reset All
-            </button>
-          )}
-          <button
-            onClick={onClose}
-            className="flex-1 px-4 py-2.5 bg-indigo-100 text-indigo-700 rounded-xl hover:bg-indigo-200 transition-colors text-sm font-medium"
-          >
-            Done
-          </button>
-        </div>
-      </div>
-    </div>
-  );
+  const [pendingCSS, setPendingCSS] = useState<{ css: string; description: string } | null>(null);
+  const [customizations, setCustomizations] = useState<Customization[]>([]);
+  const [activePreset, setActivePreset] = useState<string | null>(null);
+  const chatEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { setChatMessages(loadVibeChatHistory()); setCustomizations(customizationService.getAll()); const u = customizationService.subscribe(s => setCustomizations(s.customizations)); return u; }, []);
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages, pendingCSS]);
+  useEffect(() => { if (activeTab === 'chat') setTimeout(() => inputRef.current?.focus(), 100); }, [activeTab]);
+  const handleChatSubmit = useCallback(async () => { const req = chatInput.trim(); if (!req || isGenerating) return; setChatInput(''); setError(null); setPendingCSS(null); const um: VibeChatMessage = { role: 'user', content: req, timestamp: new Date().toISOString() }; const upd = [...chatMessages, um]; setChatMessages(upd); setIsGenerating(true); try { const { css, explanation } = await generateVibeCSS(req, upd, customizationService.getActiveCSS()); const am: VibeChatMessage = { role: 'assistant', content: explanation, css, timestamp: new Date().toISOString() }; const fin = [...upd, am]; setChatMessages(fin); saveVibeChatHistory(fin); setPendingCSS({ css, description: req }); } catch (e) { const msg = e instanceof Error ? e.message : 'Failed'; setError(msg); const em: VibeChatMessage = { role: 'assistant', content: `Error: ${msg}`, timestamp: new Date().toISOString() }; const fin = [...upd, em]; setChatMessages(fin); saveVibeChatHistory(fin); } finally { setIsGenerating(false); } }, [chatInput, chatMessages, isGenerating]);
+  const handleConfirmCSS = useCallback(() => { if (!pendingCSS) return; customizationService.add(pendingCSS.description, pendingCSS.css); setPendingCSS(null); setCustomizations(customizationService.getAll()); }, [pendingCSS]);
+  const handlePresetVibe = async (p: string) => { setIsGenerating(true); setError(null); setActivePreset(p); try { const s = await generateVibeStyles(p); onApplyStyles(s); saveVibeStyles(s); } catch (e) { setError(e instanceof Error ? e.message : 'Failed'); setActivePreset(null); } finally { setIsGenerating(false); } };
+  const handleResetAll = () => { clearVibeStyles(); onApplyStyles(getEmptyStyles()); customizationService.clearAll(); setActivePreset(null); setError(null); };
+  const handleClearChat = () => { setChatMessages([]); clearVibeChatHistory(); setPendingCSS(null); };
+  const hasActive = Object.values(currentStyles).some(v => v !== '');
+  return (<div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" onClick={onClose}><div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col m-4" onClick={e => e.stopPropagation()}><div className="px-6 pt-5 pb-3 border-b border-slate-200"><div className="flex items-center justify-between mb-2"><h2 className="text-2xl font-bold text-slate-800">Vibe Studio</h2><button onClick={onClose} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg></button></div><p className="text-xs text-slate-400 mb-3">Customize the app with natural language. AI generates and applies changes in real-time.</p><div className="flex gap-1">{([{id:'chat' as TabId,label:'Customize'},{id:'presets' as TabId,label:'Presets'},{id:'history' as TabId,label:'My Customizations',badge:customizations.length}]).map(t=><button key={t.id} onClick={()=>setActiveTab(t.id)} className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab===t.id?'bg-indigo-100 text-indigo-700':'text-slate-500 hover:bg-slate-100'}`}>{t.label}{t.badge?<span className="ml-1 px-1.5 py-0.5 bg-indigo-200 text-indigo-700 rounded-full text-[10px] font-bold">{t.badge}</span>:null}</button>)}</div></div><div className="flex-1 overflow-hidden flex flex-col min-h-0" style={{height:'60vh'}}>{error&&<div className="mx-4 mt-3 bg-red-50 border border-red-200 rounded-lg p-3"><p className="text-red-800 text-sm">{error}</p></div>}{activeTab==='chat'&&<div className="flex flex-col h-full"><div className="flex-1 overflow-y-auto p-4 space-y-3 min-h-0">{chatMessages.length===0&&<div className="text-center py-8 text-slate-400"><p className="font-medium text-slate-500">Describe how you want the app to look</p><div className="flex flex-wrap gap-2 mt-4 justify-center">{['Make font larger','Dark mode','Sepia tone','More verse spacing'].map(s=><button key={s} onClick={()=>{setChatInput(s);inputRef.current?.focus();}} className="px-3 py-1.5 text-xs bg-slate-100 hover:bg-indigo-100 rounded-full">{s}</button>)}</div></div>}{chatMessages.map((m,i)=><div key={i} className={`flex ${m.role==='user'?'justify-end':'justify-start'}`}><div className={`max-w-[85%] rounded-2xl px-4 py-2.5 text-sm ${m.role==='user'?'bg-indigo-600 text-white rounded-br-md':'bg-slate-100 text-slate-800 rounded-bl-md'}`}><p className="whitespace-pre-wrap">{m.content}</p>{m.css&&<details className="mt-2 text-xs"><summary className="cursor-pointer text-slate-500">View CSS</summary><pre className="mt-1 p-2 bg-slate-800 text-green-300 rounded-lg overflow-x-auto text-[11px] max-h-40 overflow-y-auto">{m.css}</pre></details>}</div></div>)}{isGenerating&&<div className="flex justify-start"><div className="bg-slate-100 rounded-2xl px-4 py-3"><div className="flex gap-2"><div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce"/><div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style={{animationDelay:'150ms'}}/><div className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce" style={{animationDelay:'300ms'}}/></div></div></div>}{pendingCSS&&<div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mx-2"><p className="text-sm font-medium text-amber-800 mb-2">Apply this customization?</p><pre className="text-[11px] bg-slate-800 text-green-300 p-3 rounded-lg overflow-x-auto max-h-32 overflow-y-auto mb-3">{pendingCSS.css}</pre><div className="flex gap-2"><button onClick={handleConfirmCSS} className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium">Apply</button><button onClick={()=>setPendingCSS(null)} className="flex-1 px-4 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 text-sm font-medium">Discard</button></div></div>}<div ref={chatEndRef}/></div><div className="p-4 border-t border-slate-200 bg-white">{!isApiAvailable&&<div className="bg-amber-50 border border-amber-200 rounded-lg p-3 mb-3 text-center"><p className="text-amber-800 text-sm font-medium">AI API key required</p></div>}<div className="flex gap-2"><input ref={inputRef} type="text" value={chatInput} onChange={e=>setChatInput(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();handleChatSubmit();}}} placeholder="Describe a UI change..." className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-indigo-400 text-sm" disabled={isGenerating||!isApiAvailable}/><button onClick={handleChatSubmit} disabled={isGenerating||!chatInput.trim()||!isApiAvailable} className="px-5 py-2.5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 font-semibold text-sm">Send</button></div>{chatMessages.length>0&&<button onClick={handleClearChat} className="mt-2 text-xs text-slate-400 hover:text-slate-600">Clear chat</button>}</div></div>}{activeTab==='presets'&&<div className="p-6 space-y-4 overflow-y-auto"><div className="grid grid-cols-1 sm:grid-cols-2 gap-3">{VIBE_PRESETS.map(p=><button key={p} onClick={()=>handlePresetVibe(p)} disabled={isGenerating} className={`p-5 rounded-xl border text-left transition-all group disabled:opacity-50 ${activePreset===p?'border-indigo-300 bg-indigo-50 shadow-md':'border-slate-100 bg-white hover:border-indigo-300 hover:shadow-lg'}`}><p className={`font-medium ${activePreset===p?'text-indigo-700':'text-slate-800 group-hover:text-indigo-600'}`}>{p}</p>{isGenerating&&activePreset===p&&<div className="flex items-center gap-2 mt-2"><div className="w-4 h-4 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin"/><span className="text-xs text-indigo-500">Generating...</span></div>}</button>)}</div>{hasActive&&<div className="bg-slate-50 rounded-xl border border-slate-200 p-5"><div className="flex items-center justify-between mb-3"><h4 className="font-bold text-slate-700">Active Preset</h4><button onClick={()=>{clearVibeStyles();onApplyStyles(getEmptyStyles());setActivePreset(null);}} className="px-3 py-1.5 bg-slate-200 text-slate-600 rounded-lg hover:bg-slate-300 text-xs font-medium">Reset</button></div><div className="space-y-1.5 text-xs font-mono text-slate-500">{Object.entries(currentStyles).map(([k,v])=>v?<div key={k} className="flex gap-2"><span className="text-slate-400 w-24">{k}:</span><span className="text-indigo-600">{v}</span></div>:null)}</div></div>}</div>}{activeTab==='history'&&<div className="p-6 space-y-4 overflow-y-auto">{customizations.length===0?<div className="text-center py-8 text-slate-400"><p className="font-medium text-slate-500">No customizations yet</p></div>:customizations.map(c=><div key={c.id} className={`border rounded-xl p-4 ${c.isActive?'border-green-200 bg-green-50/50':'border-slate-200 bg-slate-50/50 opacity-70'}`}><div className="flex items-start justify-between gap-2"><div className="flex-1 min-w-0"><p className="text-sm font-medium text-slate-800 truncate">{c.description}</p><p className="text-xs text-slate-400 mt-0.5">{new Date(c.createdAt).toLocaleDateString()}</p></div><div className="flex items-center gap-1"><button onClick={()=>customizationService.toggle(c.id)} className={`px-2.5 py-1 rounded-lg text-xs font-medium ${c.isActive?'bg-green-200 text-green-800':'bg-slate-200 text-slate-600'}`}>{c.isActive?'ON':'OFF'}</button><button onClick={()=>customizationService.remove(c.id)} className="p-1 rounded-lg text-slate-400 hover:text-red-600" title="Remove"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg></button></div></div><details className="mt-2 text-xs"><summary className="cursor-pointer text-slate-400">View CSS</summary><pre className="mt-1 p-2 bg-slate-800 text-green-300 rounded-lg overflow-x-auto text-[11px] max-h-24 overflow-y-auto">{c.css}</pre></details><div className="mt-2 flex items-center gap-1 text-xs text-slate-300"><span>Share (coming soon)</span></div></div>)}</div>}</div><div className="p-4 border-t border-slate-200 flex gap-2">{(hasActive||customizations.length>0)&&<button onClick={handleResetAll} className="flex-1 px-4 py-2.5 bg-red-50 text-red-700 rounded-xl hover:bg-red-100 text-sm font-medium">Reset All</button>}<button onClick={onClose} className="flex-1 px-4 py-2.5 bg-indigo-100 text-indigo-700 rounded-xl hover:bg-indigo-200 text-sm font-medium">Done</button></div></div></div>);
 };
-
 export default VibePanel;

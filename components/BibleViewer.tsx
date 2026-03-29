@@ -918,7 +918,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
 
   return (
     <div 
-      className={`h-full flex flex-col overflow-hidden ${isTransitioning ? 'select-none' : ''} ${vibeClassName || ''}`}
+      className={`bible-panel h-full flex flex-col overflow-hidden ${isTransitioning ? 'select-none' : ''} ${vibeClassName || ''}`}
       ref={containerRef}
       onClick={handleEmptySpaceClick}
       onMouseUp={handleMouseUp}
