@@ -354,7 +354,7 @@ Deno.serve(async (req: Request) => {
     // ── Race mode: autoRace=true and 3+ configured models across providers ──
     const hasImage = !!options.image;
 
-    if (options.autoRace) {
+    if (options.autoRace === true || options.autoRace === "true") {
       // Gather all models from all configured providers
       const candidates: { name: string; apiKey: string; model: string }[] = [];
       for (const [prov, keyName] of Object.entries(PROVIDER_KEY_NAMES)) {
@@ -399,9 +399,12 @@ Deno.serve(async (req: Request) => {
           });
 
         // Diversify: pick at most 1 model per provider (fastest from each),
-        // then fill remaining slots with second-fastest from providers
+        // then fill remaining slots with additional models from providers
         const diversified: typeof eligible = [];
         const providerPicked = new Map<string, number>();
+        const uniqueProviders = new Set(eligible.map(c => c.name)).size;
+        // Allow more models per provider when few providers are available
+        const maxPerProvider = uniqueProviders >= 3 ? 2 : 5;
         // Round 1: one per provider (fastest)
         for (const c of eligible) {
           if (!providerPicked.has(c.name)) {
@@ -410,11 +413,11 @@ Deno.serve(async (req: Request) => {
             if (diversified.length >= 5) break;
           }
         }
-        // Round 2: fill remaining slots with second models from providers
+        // Round 2+: fill remaining slots with additional models from providers
         if (diversified.length < 5) {
           for (const c of eligible) {
             const count = providerPicked.get(c.name) || 0;
-            if (count < 2 && !diversified.includes(c)) {
+            if (count < maxPerProvider && !diversified.includes(c)) {
               diversified.push(c);
               providerPicked.set(c.name, count + 1);
               if (diversified.length >= 5) break;
@@ -453,9 +456,29 @@ Deno.serve(async (req: Request) => {
     }
 
     // ── Single provider mode ──
-    const provider = settings["ai_provider"] || "openrouter";
-    const apiKeyName = PROVIDER_KEY_NAMES[provider];
-    const apiKey = apiKeyName ? settings[apiKeyName] : null;
+    let provider = settings["ai_provider"] || "openrouter";
+    let apiKeyName = PROVIDER_KEY_NAMES[provider];
+    let apiKey = apiKeyName ? settings[apiKeyName] : null;
+
+    // If image attached but current provider/model doesn't support vision, find one that does
+    if (hasImage) {
+      const currentModel = options.model || settings["ai_model"] || DEFAULT_MODELS[provider] || "";
+      if (!VISION_MODELS.has(currentModel)) {
+        // Try to find a configured provider with a vision-capable model
+        for (const [prov, keyName] of Object.entries(PROVIDER_KEY_NAMES)) {
+          const key = settings[keyName];
+          if (!key) continue;
+          const visionModel = (ALL_MODELS[prov] || []).find(m => VISION_MODELS.has(m));
+          if (visionModel) {
+            provider = prov;
+            apiKeyName = keyName;
+            apiKey = key;
+            options.model = visionModel;
+            break;
+          }
+        }
+      }
+    }
 
     if (!apiKey) {
       return new Response(
@@ -486,6 +509,7 @@ Deno.serve(async (req: Request) => {
         model: result.model,
         provider: result.provider,
         responseMs: result.responseMs,
+        debug: { mode: "single", autoRace: options.autoRace, autoRaceType: typeof options.autoRace },
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
