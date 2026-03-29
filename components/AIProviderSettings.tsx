@@ -159,7 +159,9 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
       }),
     });
 
-    const data = await response.json();
+    const text = await response.text();
+    let data;
+    try { data = JSON.parse(text); } catch { throw new Error(`Server returned invalid response (${response.status})`); }
     if (!response.ok) throw new Error(data.error || `Server error: ${response.status}`);
     return { success: true, model: data.model };
   };
