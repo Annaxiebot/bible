@@ -117,9 +117,69 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
     }
   };
 
+  const testViaEdgeFunction = async (provider: aiProvider.AIProvider, apiKey: string) => {
+    // Save key to Supabase first so Edge Function can read it
+    const { supabase, authManager } = await import('../services/supabase');
+    if (!supabase) throw new Error('Supabase not configured');
+    const userId = authManager.getUserId();
+    if (!userId) throw new Error('Not logged in');
+    const session = authManager.getState().session;
+    if (!session?.access_token) throw new Error('No session');
+
+    // Push current settings + this key to user_settings
+    const settings: Record<string, string> = {};
+    const syncKeys = [STORAGE_KEYS.AI_PROVIDER, STORAGE_KEYS.AI_MODEL, ...Object.values(ALL_KEY_CONFIGS)];
+    for (const key of syncKeys) { const v = localStorage.getItem(key); if (v) settings[key] = v; }
+    // Override with the key being tested
+    const storageKey = ALL_KEY_CONFIGS[provider];
+    if (storageKey) settings[storageKey] = apiKey;
+    settings[STORAGE_KEYS.AI_PROVIDER] = provider;
+
+    await Promise.resolve(supabase.from('user_settings').upsert(
+      { user_id: userId, settings, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id' }
+    ));
+
+    // Call Edge Function with a simple test prompt
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const response = await fetch(`${supabaseUrl}/functions/v1/ai-chat`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        prompt: 'Say "OK" in one word.',
+        history: [],
+        options: { model: selectedModel || undefined },
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || `Server error: ${response.status}`);
+    return { success: true, model: data.model };
+  };
+
   const handleTestKey = async (provider: aiProvider.AIProvider, apiKey: string) => {
     if (!apiKey.trim()) {
       setTestResults(prev => ({ ...prev, [provider]: { success: false, error: 'API key is empty' } }));
+      return;
+    }
+
+    // Test via Edge Function when server-side AI is enabled and logged in
+    if (useServerAI && isLoggedIn && provider !== 'openrouter') {
+      setTestingKey(provider);
+      try {
+        const result = await testViaEdgeFunction(provider, apiKey);
+        setTestResults(prev => ({ ...prev, [provider]: result }));
+      } catch (error) {
+        setTestResults(prev => ({
+          ...prev,
+          [provider]: { success: false, error: error instanceof Error ? error.message : 'Unknown error' }
+        }));
+      } finally {
+        setTestingKey(null);
+      }
       return;
     }
 
