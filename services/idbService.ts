@@ -76,6 +76,28 @@ export interface AnnotationRecord {
   panelId?: string;
 }
 
+/** Serialized chat message for IndexedDB storage (Date -> ISO string) */
+export interface ChatHistoryMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: string; // ISO string
+  type?: 'text' | 'image' | 'video' | 'audio';
+  mediaUrl?: string;
+  model?: string;
+  responseTime?: number;
+  references?: Array<{ title: string; uri: string }>;
+}
+
+/** A persisted chat thread keyed by chapter context */
+export interface ChatHistoryRecord {
+  /** Composite key: "bookId:chapter" */
+  id: string;
+  bookId: string;
+  chapter: number;
+  messages: ChatHistoryMessage[];
+  lastModified: number;
+}
+
 export type PlanType = 'bible-in-year' | 'nt-90-days' | 'psalms-proverbs';
 
 export interface ReadingPlanState {
@@ -135,6 +157,14 @@ export interface BibleAppSchema extends DBSchema {
     key: string;
     value: ReadingPlanState;
   };
+  chatHistory: {
+    key: string;
+    value: ChatHistoryRecord;
+    indexes: {
+      'by-book': string;
+      'by-modified': number;
+    };
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -142,7 +172,7 @@ export interface BibleAppSchema extends DBSchema {
 // ---------------------------------------------------------------------------
 
 const DB_NAME = 'BibleApp';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 class IDBService {
   private dbPromise: Promise<IDBPDatabase<BibleAppSchema>>;
@@ -190,6 +220,13 @@ class IDBService {
         // readingPlans
         if (!db.objectStoreNames.contains('readingPlans')) {
           db.createObjectStore('readingPlans', { keyPath: 'id' });
+        }
+
+        // chatHistory (added in v2)
+        if (!db.objectStoreNames.contains('chatHistory')) {
+          const chatStore = db.createObjectStore('chatHistory', { keyPath: 'id' });
+          chatStore.createIndex('by-book', 'bookId');
+          chatStore.createIndex('by-modified', 'lastModified');
         }
       },
     });
