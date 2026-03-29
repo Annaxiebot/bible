@@ -25,6 +25,7 @@ export interface AnnotationToolState {
 export interface InlineBibleAnnotationHandle {
   undo: () => void;
   clearAll: () => void;
+  setPaperType: (type: import('../services/strokeNormalizer').PaperType) => void;
 }
 
 interface InlineBibleAnnotationProps {
@@ -107,6 +108,9 @@ const InlineBibleAnnotation = forwardRef<InlineBibleAnnotationHandle, InlineBibl
       setSavedPaths('');
       setExtraHeight(0);
       annotationStorage.deleteAnnotation(bookId, chapter, panelId);
+    },
+    setPaperType: (type: import('../services/strokeNormalizer').PaperType) => {
+      canvasRef.current?.setPaperType(type);
     },
   }));
 
