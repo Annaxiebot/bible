@@ -123,8 +123,10 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
     if (!supabase) throw new Error('Supabase not configured');
     const userId = authManager.getUserId();
     if (!userId) throw new Error('Not logged in');
-    const session = authManager.getState().session;
-    if (!session?.access_token) throw new Error('No session');
+
+    // Refresh session to ensure token is valid
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.access_token) throw new Error('No session — try signing out and back in');
 
     // Push current settings + this key to user_settings
     const settings: Record<string, string> = {};
@@ -142,11 +144,13 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
 
     // Call Edge Function with a simple test prompt
     const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+    const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
     const response = await fetch(`${supabaseUrl}/functions/v1/ai-chat`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${session.access_token}`,
+        'apikey': supabaseKey,
       },
       body: JSON.stringify({
         prompt: 'Say "OK" in one word.',
