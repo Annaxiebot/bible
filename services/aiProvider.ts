@@ -112,7 +112,10 @@ import('./supabase').then(({ authManager, isSupabaseConfigured }) => {
   });
 }).catch(() => {});
 
-const shouldUseEdgeFunction = (): boolean => _isEdgeFunctionEnabled;
+const shouldUseEdgeFunction = (): boolean => {
+  if (!_isEdgeFunctionEnabled) return false;
+  return localStorage.getItem('useServerAI') !== 'false';
+};
 
 /**
  * Call a single provider and normalize the result.
