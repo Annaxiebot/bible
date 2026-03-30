@@ -606,9 +606,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       const history = messages.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content }));
       const requestStartTime = Date.now();
 
-      // Try streaming for faster perceived response (single provider, no image)
-      const isRacing = localStorage.getItem('autoRaceAI') === 'true';
-      const canStream = !currentImage && !isRacing && aiService.streamViaEdgeFunction && localStorage.getItem('useServerAI') !== 'false';
+      // Try streaming for faster perceived response (both single and race mode, no image)
+      const canStream = !currentImage && aiService.streamViaEdgeFunction && localStorage.getItem('useServerAI') !== 'false';
 
       if (canStream) {
         // Streaming path — user sees tokens as they arrive
