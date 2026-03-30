@@ -563,6 +563,8 @@ const App: React.FC = () => {
                 setNavigateTo({ bookId, chapter, verses });
                 setTimeout(() => setNavigateTo(null), 5000);
               }}
+              currentBookId={currentBibleContext?.bookId}
+              currentChapter={currentBibleContext?.chapter}
             />
           </div>
         </div>

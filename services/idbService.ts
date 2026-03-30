@@ -76,6 +76,19 @@ export interface AnnotationRecord {
   panelId?: string;
 }
 
+export interface JournalEntry {
+  id: string;
+  title: string;
+  content: string; // HTML
+  plainText: string;
+  bookId?: string;
+  chapter?: number;
+  verseRef?: string;
+  tags: string[];
+  createdAt: string; // ISO string
+  updatedAt: string; // ISO string
+}
+
 export type PlanType = 'bible-in-year' | 'nt-90-days' | 'psalms-proverbs';
 
 export interface ReadingPlanState {
@@ -135,6 +148,15 @@ export interface BibleAppSchema extends DBSchema {
     key: string;
     value: ReadingPlanState;
   };
+  journal: {
+    key: string;
+    value: JournalEntry;
+    indexes: {
+      'by-created': string;
+      'by-updated': string;
+      'by-bookId': string;
+    };
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -142,7 +164,7 @@ export interface BibleAppSchema extends DBSchema {
 // ---------------------------------------------------------------------------
 
 const DB_NAME = 'BibleApp';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 class IDBService {
   private dbPromise: Promise<IDBPDatabase<BibleAppSchema>>;
@@ -190,6 +212,14 @@ class IDBService {
         // readingPlans
         if (!db.objectStoreNames.contains('readingPlans')) {
           db.createObjectStore('readingPlans', { keyPath: 'id' });
+        }
+
+        // journal (added in v2)
+        if (!db.objectStoreNames.contains('journal')) {
+          const journalStore = db.createObjectStore('journal', { keyPath: 'id' });
+          journalStore.createIndex('by-created', 'createdAt');
+          journalStore.createIndex('by-updated', 'updatedAt');
+          journalStore.createIndex('by-bookId', 'bookId');
         }
       },
     });

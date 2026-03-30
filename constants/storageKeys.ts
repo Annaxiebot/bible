@@ -44,6 +44,9 @@ export const STORAGE_KEYS = {
   VIBE_STYLES: 'bible_vibe_styles',
   SEASON_OVERRIDE: 'bible-app-season-override',
 
+  // Notes view mode
+  NOTES_VIEW_MODE: 'bible_notes_view_mode',
+
   // Legacy migration
   LEGACY_NOTES: 'scripture_scholar_notes',
 } as const;
