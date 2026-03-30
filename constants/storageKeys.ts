@@ -9,6 +9,7 @@ export const STORAGE_KEYS = {
   CHINESE_MODE: 'bibleChineseMode',
   FONT_SIZE: 'bibleFontSize',
   VIEW_LAYOUT: 'bibleViewLayout',
+  PREFERRED_LAYOUT: 'biblePreferredLayout',
 
   // Auto-save
   AUTO_SAVE_RESEARCH: 'auto_save_research',
