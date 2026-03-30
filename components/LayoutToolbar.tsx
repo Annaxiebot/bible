@@ -7,6 +7,7 @@ interface LayoutToolbarProps {
   currentMode: LayoutMode;
   onLayoutChange: (mode: LayoutMode) => void;
   isIPhone?: boolean;
+  isMobile?: boolean;
 }
 
 /** Derive the active layout mode from vertical/horizontal split percentages. */
@@ -18,12 +19,13 @@ export function getLayoutMode(vertical: number, horizontal: number): LayoutMode 
 }
 
 /** Convert a layout mode to vertical/horizontal split percentages. */
-export function layoutModeToSplits(mode: LayoutMode): { vertical: number; horizontal: number } {
+export function layoutModeToSplits(mode: LayoutMode, isMobile = false): { vertical: number; horizontal: number } {
   switch (mode) {
     case 'bible': return { vertical: 100, horizontal: 100 };
     case 'chat':  return { vertical: 0, horizontal: 100 };
     case 'notes': return { vertical: 0, horizontal: 0 };
-    case 'study': return { vertical: 50, horizontal: 50 };
+    // Mobile study: Bible (Chinese) top + AI chat bottom. Desktop: Bible + Chat/Notes side-by-side
+    case 'study': return { vertical: 50, horizontal: isMobile ? 100 : 50 };
   }
 }
 
@@ -75,7 +77,7 @@ const LAYOUT_ITEMS: { mode: LayoutMode; label: string; icon: React.ReactNode }[]
   },
 ];
 
-const LayoutToolbar: React.FC<LayoutToolbarProps> = ({ currentMode, onLayoutChange, isIPhone }) => {
+const LayoutToolbar: React.FC<LayoutToolbarProps> = ({ currentMode, onLayoutChange, isIPhone, isMobile }) => {
   const handleClick = (mode: LayoutMode) => {
     localStorage.setItem(STORAGE_KEYS.PREFERRED_LAYOUT, mode);
     onLayoutChange(mode);

@@ -101,16 +101,16 @@ const App: React.FC = () => {
 
   // Device-aware default layout: restore saved preference, or default to full Bible on mobile
   const [initialLayout] = useState<LayoutMode>(() => getSavedLayout(isMobile));
-  const initialSplits = layoutModeToSplits(initialLayout);
+  const initialSplits = layoutModeToSplits(initialLayout, isMobile);
   const split = useSplitView(initialSplits.vertical, initialSplits.horizontal);
 
   const currentLayoutMode = getLayoutMode(split.vertical, split.horizontal);
 
   const handleLayoutModeChange = useCallback((mode: LayoutMode) => {
-    const { vertical, horizontal } = layoutModeToSplits(mode);
+    const { vertical, horizontal } = layoutModeToSplits(mode, isMobile);
     split.setVertical(vertical);
     split.setHorizontal(horizontal);
-  }, [split]);
+  }, [split, isMobile]);
   const [initialBookId, setInitialBookId] = useState<string | undefined>();
   const [initialChapter, setInitialChapter] = useState<number | undefined>();
   const [showResumeNotification, setShowResumeNotification] = useState(false);
@@ -506,19 +506,19 @@ const App: React.FC = () => {
           )}
         </div>
 
-        <div className="relative w-full flex items-center justify-center select-none" style={{ flexShrink: 0, height: '32px', touchAction: 'none' }}>
-          <div className={`absolute w-full ${split.isResizing ? 'h-3' : 'h-2 bg-slate-400'} transition-all`} style={{ backgroundColor: split.isResizing ? theme.dividerActive : undefined }}></div>
+        <div className="relative w-full flex items-center justify-center select-none" style={{ flexShrink: 0, height: '20px', touchAction: 'none' }}>
+          <div className={`absolute w-full ${split.isResizing ? 'h-2' : 'h-0.5 bg-slate-300'} transition-all`} style={{ backgroundColor: split.isResizing ? theme.dividerActive : undefined }}></div>
           <div onMouseDown={split.startResizeV} onTouchStart={split.startResizeV} onPointerDown={split.startResizeV} className="absolute w-full h-full cursor-row-resize" style={{ zIndex: 20 }}></div>
-          <div className="relative flex items-center gap-1 bg-white px-2 py-1 rounded-full shadow-xl border-2 border-slate-400" style={{ height: isIPhone ? '36px' : '20px', zIndex: 60 }}>
-            <button onClick={() => split.setVertical(split.vertical >= 100 ? 50 : split.vertical >= 50 ? 0 : 67)} className="p-px hover:bg-slate-200 rounded" style={{ height: isIPhone ? '28px' : '14px', width: isIPhone ? '28px' : '14px' }}>
-              <svg className={`${isIPhone ? 'w-6 h-6' : 'w-3 h-3'} text-slate-500`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 15l7-7 7 7" /></svg>
+          <div className="relative flex items-center gap-0.5 bg-white/90 px-1.5 py-0.5 rounded-full shadow-sm border border-slate-300" style={{ height: isIPhone ? '28px' : '16px', zIndex: 60 }}>
+            <button onClick={() => split.setVertical(split.vertical >= 100 ? 50 : split.vertical >= 50 ? 0 : 67)} className="p-px hover:bg-slate-200 rounded" style={{ height: isIPhone ? '22px' : '12px', width: isIPhone ? '22px' : '12px' }}>
+              <svg className={`${isIPhone ? 'w-4 h-4' : 'w-2.5 h-2.5'} text-slate-400`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 15l7-7 7 7" /></svg>
             </button>
-            <div onMouseDown={split.startResizeV} onTouchStart={split.startResizeV} className="flex flex-col gap-0.5 px-1 cursor-row-resize justify-center" style={{ height: isIPhone ? '28px' : '14px' }}>
-              <div className="w-4 h-0.5 bg-slate-300"></div>
-              <div className="w-4 h-0.5 bg-slate-300"></div>
+            <div onMouseDown={split.startResizeV} onTouchStart={split.startResizeV} className="flex flex-col gap-0.5 px-0.5 cursor-row-resize justify-center" style={{ height: isIPhone ? '22px' : '12px' }}>
+              <div className="w-3 h-px bg-slate-300"></div>
+              <div className="w-3 h-px bg-slate-300"></div>
             </div>
-            <button onClick={() => split.setVertical(split.vertical <= 0 ? 50 : 100)} className="p-px hover:bg-slate-200 rounded" style={{ height: isIPhone ? '28px' : '14px', width: isIPhone ? '28px' : '14px' }}>
-              <svg className={`${isIPhone ? 'w-6 h-6' : 'w-3 h-3'} text-slate-500`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" /></svg>
+            <button onClick={() => split.setVertical(split.vertical <= 0 ? 50 : 100)} className="p-px hover:bg-slate-200 rounded" style={{ height: isIPhone ? '22px' : '12px', width: isIPhone ? '22px' : '12px' }}>
+              <svg className={`${isIPhone ? 'w-4 h-4' : 'w-2.5 h-2.5'} text-slate-400`} fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M19 9l-7 7-7-7" /></svg>
             </button>
           </div>
         </div>
@@ -668,6 +668,7 @@ const App: React.FC = () => {
         currentMode={currentLayoutMode}
         onLayoutChange={handleLayoutModeChange}
         isIPhone={isIPhone}
+        isMobile={isMobile}
       />
     </div>
     </Suspense>
