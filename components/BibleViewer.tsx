@@ -109,7 +109,10 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   const [vSplitOffset, setVSplitOffset] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.VIEW_LAYOUT);
     if (saved !== null) return parseInt(saved);
-    return 50; // Default: bilingual side-by-side for new users
+    // On iPhone/iPad: default to Chinese-only (100%). Desktop: bilingual (50%)
+    const isMobile = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+      (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    return isMobile ? 100 : 50;
   });
   const [isResizing, setIsResizing] = useState(false);
   

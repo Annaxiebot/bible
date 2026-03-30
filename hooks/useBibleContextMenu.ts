@@ -95,25 +95,62 @@ export function useBibleContextMenu({
     onVersesSelectedForChat(textToSend);
   }, [selectedBook, selectedChapter, leftVerses, rightVerses, englishVersion, onSelectionChange, onVersesSelectedForChat]);
 
+  /**
+   * 3-state verse tap cycle:
+   *   1. Tap unselected verse -> select it (highlight)
+   *   2. Tap selected verse   -> show context menu ("Research with AI", "Add to Notes")
+   *   3. Tap again (or tap elsewhere) -> close menu & deselect
+   */
   const handleVerseClick = (verseNum: number, e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
 
     // Don't respond to verse clicks if there's already text selection
-    // (text selection takes priority over verse selection on all platforms)
-
-    // If there's text selection, don't handle the click
     const selection = window.getSelection()?.toString();
     if (selection && selection.length > 0) return;
 
-    // Toggle verse selection - deselect if already selected, select if not
     // Clear any text selection when clicking a verse
     window.getSelection()?.removeAllRanges();
 
     const isCurrentlySelected = selectedVerses.includes(verseNum);
-    const newSelection = isCurrentlySelected ? [] : [verseNum];
-    setSelectedVerses(newSelection);
-    notifySelection(newSelection);
+
+    // If a context menu is already visible, close it and deselect (state 3 -> 1)
+    if (contextMenu) {
+      setContextMenu(null);
+      setSelectedVerses([]);
+      notifySelection([]);
+      return;
+    }
+
+    if (isCurrentlySelected) {
+      // State 1 -> 2: verse is selected, show context menu on second tap
+      const target = e.currentTarget as HTMLElement;
+      const rect = target.getBoundingClientRect();
+
+      const leftV = leftVerses.find(v => v.verse === verseNum);
+      const rightV = rightVerses.find(v => v.verse === verseNum);
+      const fullVerseText = leftV?.text || rightV?.text || '';
+
+      setContextMenu({
+        position: {
+          x: rect.left + rect.width / 2,
+          y: rect.bottom,
+        },
+        selectedText: fullVerseText,
+        verseInfo: {
+          bookId: selectedBook.id,
+          bookName: selectedBook.name,
+          chapter: selectedChapter,
+          verseNum,
+          fullVerseText,
+        },
+      });
+    } else {
+      // State unselected -> 1: select the verse
+      const newSelection = [verseNum];
+      setSelectedVerses(newSelection);
+      notifySelection(newSelection);
+    }
   };
 
   const handleMouseUp = (e: React.MouseEvent) => {
