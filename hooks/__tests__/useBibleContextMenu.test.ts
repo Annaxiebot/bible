@@ -92,10 +92,52 @@ describe('useBibleContextMenu', () => {
     expect(setSelectedVerses).toHaveBeenCalledWith([1]);
   });
 
-  it('handleVerseClick deselects a currently selected verse', () => {
+  it('handleVerseClick shows context menu on second tap (verse already selected)', () => {
     const setSelectedVerses = vi.fn();
+    const setContextMenu = vi.fn();
     const { result } = renderHook(() =>
-      useBibleContextMenu(makeParams({ setSelectedVerses, selectedVerses: [1] }))
+      useBibleContextMenu(makeParams({ setSelectedVerses, setContextMenu, selectedVerses: [1] }))
+    );
+
+    const mockEvent = {
+      stopPropagation: vi.fn(),
+      preventDefault: vi.fn(),
+      currentTarget: {
+        getBoundingClientRect: () => ({ left: 10, top: 20, width: 200, height: 30, bottom: 50, right: 210 }),
+      },
+    } as unknown as React.MouseEvent;
+
+    act(() => {
+      result.current.handleVerseClick(1, mockEvent);
+    });
+
+    // Should not deselect — instead shows context menu
+    expect(setSelectedVerses).not.toHaveBeenCalled();
+    expect(setContextMenu).toHaveBeenCalledWith(
+      expect.objectContaining({
+        selectedText: expect.any(String),
+        verseInfo: expect.objectContaining({ verseNum: 1 }),
+      })
+    );
+  });
+
+  it('handleVerseClick closes context menu and deselects on third tap', () => {
+    const setSelectedVerses = vi.fn();
+    const setContextMenu = vi.fn();
+    const onVersesSelectedForChat = vi.fn();
+    const contextMenu = {
+      position: { x: 0, y: 0 },
+      selectedText: 'some text',
+      verseInfo: { bookId: 'genesis', bookName: '创世记', chapter: 1, verseNum: 1, fullVerseText: 'some text' },
+    };
+    const { result } = renderHook(() =>
+      useBibleContextMenu(makeParams({
+        setSelectedVerses,
+        setContextMenu,
+        contextMenu,
+        selectedVerses: [1],
+        onVersesSelectedForChat,
+      }))
     );
 
     const mockEvent = {
@@ -107,6 +149,8 @@ describe('useBibleContextMenu', () => {
       result.current.handleVerseClick(1, mockEvent);
     });
 
+    // Should close context menu and deselect
+    expect(setContextMenu).toHaveBeenCalledWith(null);
     expect(setSelectedVerses).toHaveBeenCalledWith([]);
   });
 
