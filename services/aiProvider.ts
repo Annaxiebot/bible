@@ -162,8 +162,8 @@ export const streamViaEdgeFunction = async (
   }
 
   // SSE streaming
-  const model = response.headers.get('X-AI-Model') || undefined;
-  const provider = response.headers.get('X-AI-Provider') || undefined;
+  let model: string | undefined;
+  let provider: string | undefined;
   const reader = response.body?.getReader();
   if (!reader) { onError(new Error('No response body')); return; }
 
@@ -185,6 +185,12 @@ export const streamViaEdgeFunction = async (
 
       try {
         const parsed = JSON.parse(payload);
+        // Metadata event (first event from edge function)
+        if (parsed.meta) {
+          model = parsed.model;
+          provider = parsed.provider;
+          continue;
+        }
         // Gemini SSE format
         if (parsed.candidates?.[0]?.content?.parts?.[0]?.text) {
           onChunk(parsed.candidates[0].content.parts[0].text);

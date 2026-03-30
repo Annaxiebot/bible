@@ -609,13 +609,29 @@ Deno.serve(async (req: Request) => {
     if (wantsStream && !hasImage) {
       try {
         const { stream, model: usedModel, provider: providerLabel } = await streamProvider(provider, apiKey, model, messages, prompt);
-        return new Response(stream, {
+
+        // Prepend a metadata event so the client knows model/provider
+        const metaEvent = `data: ${JSON.stringify({ meta: true, model: usedModel, provider: providerLabel })}\n\n`;
+        const metaStream = new ReadableStream({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode(metaEvent));
+            const reader = stream.getReader();
+            function pump(): Promise<void> {
+              return reader.read().then(({ done, value }) => {
+                if (done) { controller.close(); return; }
+                controller.enqueue(value);
+                return pump();
+              });
+            }
+            pump();
+          },
+        });
+
+        return new Response(metaStream, {
           headers: {
             ...corsHeaders,
             "Content-Type": "text/event-stream",
             "Cache-Control": "no-cache",
-            "X-AI-Model": usedModel,
-            "X-AI-Provider": providerLabel,
           },
         });
       } catch (error) {
