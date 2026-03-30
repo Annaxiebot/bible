@@ -140,7 +140,7 @@ export const streamViaEdgeFunction = async (
         ...options,
         useFreeRouter: localStorage.getItem('useFreeRouter') !== 'false',
         autoRace: isRacing,
-        stream: !isRacing, // Only stream in single-provider mode (race needs full response)
+        stream: true, // Stream in both single and race mode (race streams first-token-wins)
       },
     }),
   });

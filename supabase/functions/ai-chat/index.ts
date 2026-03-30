@@ -311,6 +311,133 @@ async function raceProviders(
   return { winner, raceDetails };
 }
 
+// ── Streaming race mode ──────────────────────────────────────────
+// Race with streaming: first provider to emit a token wins, then stream that response.
+
+interface StreamRacer {
+  name: string;
+  apiKey: string;
+  model: string;
+  providerLabel: string;
+}
+
+async function raceStreaming(
+  racers: StreamRacer[],
+  messages: { role: string; content: any }[],
+  prompt: string,
+  supabase: any,
+  userId: string,
+): Promise<{ winnerStream: ReadableStream; winnerModel: string; winnerProvider: string; raceDetails: any[] }> {
+  const startTimes = racers.map(() => Date.now());
+  const raceDetails = racers.map(r => ({ provider: r.providerLabel, model: r.model, responseMs: null as number | null, status: "racing" }));
+
+  // Open streaming connections to all racers
+  const abortControllers = racers.map(() => new AbortController());
+
+  const streamPromises = racers.map(async (r, i) => {
+    try {
+      const endpoint = ANTHROPIC_PROTOCOL_PROVIDERS.has(r.name)
+        ? PROVIDER_ENDPOINTS[r.name]
+        : (PROVIDER_ENDPOINTS[r.name] || PROVIDER_ENDPOINTS.openrouter);
+
+      let response: Response;
+
+      if (r.name === "gemini") {
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${r.model}:streamGenerateContent?alt=sse&key=${r.apiKey}`;
+        response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          signal: abortControllers[i].signal,
+          body: JSON.stringify({
+            contents: messages.map((m) => ({
+              role: m.role === "assistant" ? "model" : "user",
+              parts: [{ text: typeof m.content === "string" ? m.content : prompt }],
+            })),
+          }),
+        });
+      } else if (ANTHROPIC_PROTOCOL_PROVIDERS.has(r.name)) {
+        response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-api-key": r.apiKey, "anthropic-version": "2023-06-01" },
+          signal: abortControllers[i].signal,
+          body: JSON.stringify({ model: r.model, max_tokens: 4096, messages, stream: true }),
+        });
+      } else {
+        let finalModel = r.model;
+        if (r.name === "openrouter" && (!r.model || r.model === "openrouter/auto:free")) finalModel = "openrouter/auto";
+        response = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${r.apiKey}`,
+            ...(r.name === "openrouter" ? { "HTTP-Referer": "https://bible.annaxie.com" } : {}),
+          },
+          signal: abortControllers[i].signal,
+          body: JSON.stringify({ model: finalModel, messages, max_tokens: 4096, temperature: 0.7, stream: true }),
+        });
+      }
+
+      if (!response.ok) {
+        const errData = await response.json().catch(() => ({}));
+        throw new Error((errData as any).error?.message || `${r.name} error ${response.status}`);
+      }
+
+      raceDetails[i].responseMs = Date.now() - startTimes[i];
+      return { index: i, stream: response.body! };
+    } catch (error) {
+      raceDetails[i].status = "error";
+      raceDetails[i].responseMs = Date.now() - startTimes[i];
+      // Save error to health (fire and forget)
+      supabase.from("provider_health").upsert({
+        user_id: userId, provider: r.name, model: r.model,
+        status: "error", response_ms: 0, response_length: 0,
+        tested_at: new Date().toISOString(),
+        error_message: error instanceof Error ? error.message : "Unknown error",
+      }, { onConflict: "user_id,provider,model" }).then(() => {}).catch(() => {});
+      throw error;
+    }
+  });
+
+  // First provider to return a valid stream wins
+  const winner = await new Promise<{ index: number; stream: ReadableStream }>((resolve, reject) => {
+    let resolved = false;
+    let failCount = 0;
+
+    streamPromises.forEach((p) => {
+      p.then((result) => {
+        if (!resolved) {
+          resolved = true;
+          // Abort all other racers
+          abortControllers.forEach((ac, j) => { if (j !== result.index) try { ac.abort(); } catch {} });
+          raceDetails[result.index].status = "ok";
+          resolve(result);
+        }
+      }).catch(() => {
+        failCount++;
+        if (failCount === racers.length) reject(new Error("All streaming providers failed"));
+      });
+    });
+  });
+
+  // Mark losers
+  raceDetails.forEach((d, i) => { if (i !== winner.index && d.status === "racing") d.status = "..."; });
+
+  // Save winner timing to health
+  const w = racers[winner.index];
+  supabase.from("provider_health").upsert({
+    user_id: userId, provider: w.name, model: w.model,
+    status: "ok", response_ms: raceDetails[winner.index].responseMs || 0,
+    response_length: 0, tested_at: new Date().toISOString(), error_message: null,
+  }, { onConflict: "user_id,provider,model" }).then(() => {}).catch(() => {});
+
+  return {
+    winnerStream: winner.stream,
+    winnerModel: racers[winner.index].model,
+    winnerProvider: racers[winner.index].providerLabel,
+    raceDetails,
+  };
+}
+
 // ── Settings cache (per-user, 60s TTL) ───────────────────────────
 
 const settingsCache = new Map<string, { settings: Record<string, string>; ts: number }>();
@@ -542,6 +669,51 @@ Deno.serve(async (req: Request) => {
         }
 
         if (diversified.length >= 3) {
+          // Streaming race: first token wins, then stream that response
+          if (!hasImage) {
+            try {
+              const streamRacers: StreamRacer[] = diversified.map(c => ({
+                name: c.name, apiKey: c.apiKey, model: c.model,
+                providerLabel: PROVIDER_NAMES[c.name] || c.name,
+              }));
+              const { winnerStream, winnerModel, winnerProvider, raceDetails } = await raceStreaming(
+                streamRacers, messages, prompt, supabase, user.id,
+              );
+
+              // Prepend metadata + racePool as first SSE event, then pipe winner stream
+              const meta = {
+                meta: true, model: winnerModel, provider: winnerProvider,
+                raceMode: true,
+                racePool: raceDetails.map(d => ({
+                  provider: d.provider, model: d.model,
+                  responseMs: d.responseMs, status: d.status,
+                })),
+              };
+              const metaEvent = `data: ${JSON.stringify(meta)}\n\n`;
+              const combinedStream = new ReadableStream({
+                start(controller) {
+                  controller.enqueue(new TextEncoder().encode(metaEvent));
+                  const reader = winnerStream.getReader();
+                  function pump(): Promise<void> {
+                    return reader.read().then(({ done, value }) => {
+                      if (done) { controller.close(); return; }
+                      controller.enqueue(value);
+                      return pump();
+                    });
+                  }
+                  pump();
+                },
+              });
+
+              return new Response(combinedStream, {
+                headers: { ...corsHeaders, "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
+              });
+            } catch (error) {
+              // Fall through to non-streaming race for images or if streaming race fails
+            }
+          }
+
+          // Non-streaming race (for images, or streaming race fallback)
           try {
             const { winner, raceDetails } = await raceProviders(diversified, messages, prompt, supabase, user.id, hasImage ? options.image : undefined);
             return new Response(JSON.stringify({
