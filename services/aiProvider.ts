@@ -105,6 +105,108 @@ const callViaEdgeFunction = async (
 };
 
 /**
+ * Stream AI response via Edge Function (SSE).
+ * Yields text chunks as they arrive — user sees tokens immediately.
+ */
+export const streamViaEdgeFunction = async (
+  prompt: string,
+  history: { role: string; content: string }[],
+  options: { thinking?: boolean; fast?: boolean; search?: boolean; model?: string },
+  onChunk: (text: string) => void,
+  onDone: (model?: string, provider?: string) => void,
+  onError: (error: Error) => void,
+): Promise<void> => {
+  const { supabase } = await import('./supabase');
+  if (!supabase) { onError(new Error('Supabase not configured')); return; }
+
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session?.access_token) { onError(new Error('Not authenticated')); return; }
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const isRacing = localStorage.getItem('autoRaceAI') === 'true';
+
+  const response = await fetch(`${supabaseUrl}/functions/v1/ai-chat`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${session.access_token}`,
+      'apikey': supabaseKey,
+    },
+    body: JSON.stringify({
+      prompt,
+      history,
+      options: {
+        ...options,
+        useFreeRouter: localStorage.getItem('useFreeRouter') !== 'false',
+        autoRace: isRacing,
+        stream: !isRacing, // Only stream in single-provider mode (race needs full response)
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    const data = await response.json().catch(() => ({}));
+    onError(new Error(data.error || `Edge function error: ${response.status}`));
+    return;
+  }
+
+  const contentType = response.headers.get('Content-Type') || '';
+
+  // If server returned JSON (race mode or non-streaming fallback), handle as before
+  if (contentType.includes('application/json')) {
+    const data = await response.json();
+    onChunk(data.text || '');
+    onDone(data.model, data.provider);
+    return;
+  }
+
+  // SSE streaming
+  const model = response.headers.get('X-AI-Model') || undefined;
+  const provider = response.headers.get('X-AI-Provider') || undefined;
+  const reader = response.body?.getReader();
+  if (!reader) { onError(new Error('No response body')); return; }
+
+  const decoder = new TextDecoder();
+  let buffer = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split('\n');
+    buffer = lines.pop() || '';
+
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const payload = line.slice(6).trim();
+      if (payload === '[DONE]') continue;
+
+      try {
+        const parsed = JSON.parse(payload);
+        // Gemini SSE format
+        if (parsed.candidates?.[0]?.content?.parts?.[0]?.text) {
+          onChunk(parsed.candidates[0].content.parts[0].text);
+        }
+        // OpenAI-compatible SSE format
+        else if (parsed.choices?.[0]?.delta?.content) {
+          onChunk(parsed.choices[0].delta.content);
+        }
+        // Anthropic SSE format
+        else if (parsed.type === 'content_block_delta' && parsed.delta?.text) {
+          onChunk(parsed.delta.text);
+        }
+      } catch {
+        // Skip unparseable lines
+      }
+    }
+  }
+
+  onDone(model, provider);
+};
+
+/**
  * Check if we should use the Edge Function (user is logged in with synced settings)
  */
 // Cache auth state to avoid async import in sync function

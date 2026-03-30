@@ -311,6 +311,104 @@ async function raceProviders(
   return { winner, raceDetails };
 }
 
+// ── Settings cache (per-user, 60s TTL) ───────────────────────────
+
+const settingsCache = new Map<string, { settings: Record<string, string>; ts: number }>();
+const CACHE_TTL = 60_000; // 60 seconds
+
+function getCachedSettings(userId: string): Record<string, string> | null {
+  const entry = settingsCache.get(userId);
+  if (entry && Date.now() - entry.ts < CACHE_TTL) return entry.settings;
+  return null;
+}
+
+function setCachedSettings(userId: string, settings: Record<string, string>) {
+  settingsCache.set(userId, { settings, ts: Date.now() });
+  // Evict old entries to prevent memory leak (keep max 100 users)
+  if (settingsCache.size > 100) {
+    const oldest = [...settingsCache.entries()].sort((a, b) => a[1].ts - b[1].ts)[0];
+    if (oldest) settingsCache.delete(oldest[0]);
+  }
+}
+
+// ── Streaming helper ─────────────────────────────────────────────
+
+async function streamProvider(
+  providerName: string,
+  apiKey: string,
+  model: string,
+  messages: { role: string; content: any }[],
+  prompt: string,
+): Promise<{ stream: ReadableStream; model: string; provider: string }> {
+  const startTime = Date.now();
+
+  if (providerName === "gemini") {
+    const geminiModel = model || "gemini-3-flash-preview";
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:streamGenerateContent?alt=sse&key=${apiKey}`;
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contents: messages.map((m) => ({
+          role: m.role === "assistant" ? "model" : "user",
+          parts: [{ text: typeof m.content === "string" ? m.content : prompt }],
+        })),
+      }),
+    });
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error?.message || "Gemini streaming error");
+    }
+    return {
+      stream: response.body!,
+      model: geminiModel,
+      provider: "Gemini",
+    };
+  }
+
+  // OpenAI-compatible streaming (OpenRouter, NVIDIA, DeepSeek, Groq, etc.)
+  const endpoint = ANTHROPIC_PROTOCOL_PROVIDERS.has(providerName)
+    ? PROVIDER_ENDPOINTS[providerName]
+    : (PROVIDER_ENDPOINTS[providerName] || PROVIDER_ENDPOINTS.openrouter);
+
+  if (ANTHROPIC_PROTOCOL_PROVIDERS.has(providerName)) {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": apiKey,
+        "anthropic-version": "2023-06-01",
+      },
+      body: JSON.stringify({ model, max_tokens: 4096, messages, stream: true }),
+    });
+    if (!response.ok) {
+      const data = await response.json();
+      throw new Error(data.error?.message || `${providerName} streaming error`);
+    }
+    return { stream: response.body!, model, provider: PROVIDER_NAMES[providerName] || providerName };
+  }
+
+  // OpenAI-compatible
+  let finalModel = model;
+  if (providerName === "openrouter" && (!model || model === "openrouter/auto:free")) {
+    finalModel = "openrouter/auto";
+  }
+  const response = await fetch(endpoint, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+      ...(providerName === "openrouter" ? { "HTTP-Referer": "https://bible.annaxie.com" } : {}),
+    },
+    body: JSON.stringify({ model: finalModel, messages, max_tokens: 4096, temperature: 0.7, stream: true }),
+  });
+  if (!response.ok) {
+    const data = await response.json();
+    throw new Error(data.error?.message || `${providerName} streaming error`);
+  }
+  return { stream: response.body!, model: finalModel, provider: PROVIDER_NAMES[providerName] || providerName };
+}
+
 // ── Main handler ──────────────────────────────────────────────────
 
 Deno.serve(async (req: Request) => {
@@ -347,16 +445,19 @@ Deno.serve(async (req: Request) => {
 
     const { prompt, history = [], options = {} } = body;
 
-    // Fetch settings (needed always) and health data (needed for race) in parallel
+    // Use cached settings if available (saves ~300ms DB query)
     const wantsRace = options.autoRace === true || options.autoRace === "true";
-    const [{ data: settingsRow }, healthResult] = await Promise.all([
-      supabase.from("user_settings").select("settings").eq("user_id", user.id).single(),
+    const wantsStream = options.stream === true || options.stream === "true";
+    const cached = getCachedSettings(user.id);
+    const [settingsResult, healthResult] = await Promise.all([
+      cached ? Promise.resolve(null) : supabase.from("user_settings").select("settings").eq("user_id", user.id).single(),
       wantsRace
         ? supabase.from("provider_health").select("provider, model, response_ms, status, tested_at").eq("user_id", user.id)
         : Promise.resolve({ data: null }),
     ]);
 
-    const settings = (settingsRow?.settings || {}) as Record<string, string>;
+    const settings = cached || ((settingsResult?.data?.settings || {}) as Record<string, string>);
+    if (!cached) setCachedSettings(user.id, settings);
 
     const messages = [
       ...history.map((h: any) => ({ role: h.role, content: h.content })),
@@ -504,6 +605,28 @@ Deno.serve(async (req: Request) => {
 
     const model = options.model || settings["ai_model"] || DEFAULT_MODELS[provider] || "";
 
+    // ── Streaming mode (no image, single provider) ──
+    if (wantsStream && !hasImage) {
+      try {
+        const { stream, model: usedModel, provider: providerLabel } = await streamProvider(provider, apiKey, model, messages, prompt);
+        return new Response(stream, {
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "X-AI-Model": usedModel,
+            "X-AI-Provider": providerLabel,
+          },
+        });
+      } catch (error) {
+        return new Response(
+          JSON.stringify({ error: error instanceof Error ? error.message : `${provider} streaming error` }),
+          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+    }
+
+    // ── Non-streaming single provider ──
     try {
       const result = await callSingleProvider(provider, apiKey, model, messages, prompt, hasImage ? options.image : undefined);
 
