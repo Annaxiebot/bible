@@ -605,56 +605,134 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
 
       const history = messages.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content }));
       const requestStartTime = Date.now();
-      const response = await aiService.chatWithAI(currentInput, history, {
-        thinking: isThinking,
-        search: true,
-        fast: !isThinking,
-        ...(currentImage ? { image: currentImage } : {}),
-      });
 
-      // Extract response text and model info
-      const responseObj = typeof response === 'string' ? null : response;
-      const responseText = typeof response === 'string' ? response : (response.text || "我无法生成回应。");
-      const modelUsed = responseObj?.model;
-      const providerUsed = responseObj && 'provider' in responseObj ? (responseObj as any).provider : null;
+      // Try streaming for faster perceived response (single provider, no image)
+      const canStream = !currentImage && aiService.streamViaEdgeFunction && localStorage.getItem('useServerAI') !== 'false';
 
-      // Update header if provider changed (e.g. fallback)
-      if (providerUsed) {
-        setActiveProviderLabel(modelUsed ? `${providerUsed} · ${modelUsed}` : providerUsed);
-      } else if (modelUsed) {
-        setActiveProviderLabel(null); // Clear - using primary provider
-      }
-      // Check for Gemini-style grounding (has candidates), not OpenRouter object response
-      const isGeminiResponse = responseObj && 'candidates' in responseObj;
-      const groundingChunks = isGeminiResponse ? ((responseObj as any).candidates?.[0] as any)?.groundingMetadata?.groundingChunks : undefined;
-      const references = Array.isArray(groundingChunks)
-        ? (groundingChunks as GroundingChunk[]).map((chunk) => ({ title: chunk.web?.title || '参考资料', uri: chunk.web?.uri || '' })).filter((c) => c.uri)
-        : undefined;
+      if (canStream) {
+        // Streaming path — user sees tokens as they arrive
+        let streamedText = '';
+        let streamModel: string | undefined;
+        let streamProvider: string | undefined;
+        let racePool: any;
 
-      const racePool = responseObj && 'racePool' in responseObj ? (responseObj as any).racePool : undefined;
+        // Add placeholder assistant message
+        const placeholderMsg: ChatMessage = { role: 'assistant', content: '', timestamp: new Date() };
+        setMessages(prev => [...prev, placeholderMsg]);
 
-      assistantMessage = {
-        role: 'assistant',
-        content: responseText,
-        model: modelUsed,
-        timestamp: new Date(),
-        responseTime: Date.now() - requestStartTime,
-        racePool,
-        references: references
-      };
+        await aiService.streamViaEdgeFunction(
+          currentInput,
+          history,
+          { thinking: isThinking, search: true, fast: !isThinking },
+          // onChunk
+          (chunk: string) => {
+            streamedText += chunk;
+            setMessages(prev => {
+              const updated = [...prev];
+              const last = updated[updated.length - 1];
+              if (last?.role === 'assistant') {
+                updated[updated.length - 1] = { ...last, content: streamedText };
+              }
+              return updated;
+            });
+          },
+          // onDone
+          (model?: string, provider?: string) => {
+            streamModel = model;
+            streamProvider = provider;
+          },
+          // onError — fall through to non-streaming
+          (error: Error) => { throw error; },
+        );
 
-      setMessages(prev => [...prev, assistantMessage!]);
+        // Check if the response was JSON (race mode) — extract racePool
+        try {
+          const parsed = JSON.parse(streamedText);
+          if (parsed.racePool) {
+            racePool = parsed.racePool;
+            streamedText = parsed.text || streamedText;
+            streamModel = parsed.model;
+            streamProvider = parsed.provider;
+          }
+        } catch { /* not JSON, streamed text is fine */ }
 
-      // Save last used model to localStorage for display in settings
-      if (modelUsed) {
-        localStorage.setItem('lastUsedModel', modelUsed);
+        if (streamProvider) {
+          setActiveProviderLabel(streamModel ? `${streamProvider} · ${streamModel}` : streamProvider);
+        }
+
+        assistantMessage = {
+          role: 'assistant',
+          content: streamedText || "我无法生成回应。",
+          model: streamModel,
+          timestamp: new Date(),
+          responseTime: Date.now() - requestStartTime,
+          racePool,
+        };
+
+        // Replace placeholder with final message
+        setMessages(prev => {
+          const updated = [...prev];
+          updated[updated.length - 1] = assistantMessage!;
+          return updated;
+        });
+
+        if (streamModel) localStorage.setItem('lastUsedModel', streamModel);
+
+      } else {
+        // Non-streaming path (image attached, or server AI off)
+        const response = await aiService.chatWithAI(currentInput, history, {
+          thinking: isThinking,
+          search: true,
+          fast: !isThinking,
+          ...(currentImage ? { image: currentImage } : {}),
+        });
+
+        // Extract response text and model info
+        const responseObj = typeof response === 'string' ? null : response;
+        const responseText = typeof response === 'string' ? response : (response.text || "我无法生成回应。");
+        const modelUsed = responseObj?.model;
+        const providerUsed = responseObj && 'provider' in responseObj ? (responseObj as any).provider : null;
+
+        // Update header if provider changed (e.g. fallback)
+        if (providerUsed) {
+          setActiveProviderLabel(modelUsed ? `${providerUsed} · ${modelUsed}` : providerUsed);
+        } else if (modelUsed) {
+          setActiveProviderLabel(null);
+        }
+        const isGeminiResponse = responseObj && 'candidates' in responseObj;
+        const groundingChunks = isGeminiResponse ? ((responseObj as any).candidates?.[0] as any)?.groundingMetadata?.groundingChunks : undefined;
+        const references = Array.isArray(groundingChunks)
+          ? (groundingChunks as GroundingChunk[]).map((chunk) => ({ title: chunk.web?.title || '参考资料', uri: chunk.web?.uri || '' })).filter((c) => c.uri)
+          : undefined;
+
+        const racePool = responseObj && 'racePool' in responseObj ? (responseObj as any).racePool : undefined;
+
+        assistantMessage = {
+          role: 'assistant',
+          content: responseText,
+          model: modelUsed,
+          timestamp: new Date(),
+          responseTime: Date.now() - requestStartTime,
+          racePool,
+          references: references
+        };
+
+        setMessages(prev => [...prev, assistantMessage!]);
+
+        if (modelUsed) localStorage.setItem('lastUsedModel', modelUsed);
       }
     } catch (error: any) {
       // Don't show error message if request was aborted intentionally
       if (error?.name !== 'AbortError') {
-        // TODO: use error reporting service
         const errorDetail = error?.message || error?.status || String(error);
-        setMessages(prev => [...prev, { role: 'assistant', content: `连接失败：${errorDetail}\nConnection failed. Please check your API key and try again.`, timestamp: new Date() }]);
+        setMessages(prev => {
+          // Remove placeholder if it exists
+          const last = prev[prev.length - 1];
+          if (last?.role === 'assistant' && !last.content) {
+            return [...prev.slice(0, -1), { role: 'assistant' as const, content: `连接失败：${errorDetail}\nConnection failed. Please check your API key and try again.`, timestamp: new Date() }];
+          }
+          return [...prev, { role: 'assistant' as const, content: `连接失败：${errorDetail}\nConnection failed. Please check your API key and try again.`, timestamp: new Date() }];
+        });
         return;
       }
     } finally {
