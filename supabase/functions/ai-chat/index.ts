@@ -382,12 +382,33 @@ async function raceStreaming(
         throw new Error((errData as any).error?.message || `${r.name} error ${response.status}`);
       }
 
+      // Wait for the first actual data chunk (first token), not just HTTP headers
+      const reader = response.body!.getReader();
+      const firstRead = await reader.read();
+      if (firstRead.done) throw new Error(`${r.name} returned empty stream`);
+
       raceDetails[i].responseMs = Date.now() - startTimes[i];
-      return { index: i, stream: response.body! };
+
+      // Reconstruct the stream with the first chunk prepended
+      const remainingStream = new ReadableStream({
+        start(controller) {
+          // Push the first chunk we already read
+          controller.enqueue(firstRead.value);
+          function pump(): Promise<void> {
+            return reader.read().then(({ done, value }) => {
+              if (done) { controller.close(); return; }
+              controller.enqueue(value);
+              return pump();
+            });
+          }
+          pump();
+        },
+      });
+
+      return { index: i, stream: remainingStream };
     } catch (error) {
       raceDetails[i].status = "error";
       raceDetails[i].responseMs = Date.now() - startTimes[i];
-      // Save error to health (fire and forget)
       supabase.from("provider_health").upsert({
         user_id: userId, provider: r.name, model: r.model,
         status: "error", response_ms: 0, response_length: 0,
@@ -398,7 +419,7 @@ async function raceStreaming(
     }
   });
 
-  // First provider to return a valid stream wins
+  // First provider to emit a content token wins
   const winner = await new Promise<{ index: number; stream: ReadableStream }>((resolve, reject) => {
     let resolved = false;
     let failCount = 0;
