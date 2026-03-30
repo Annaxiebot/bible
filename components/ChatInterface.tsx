@@ -607,7 +607,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       const requestStartTime = Date.now();
 
       // Try streaming for faster perceived response (single provider, no image)
-      const canStream = !currentImage && aiService.streamViaEdgeFunction && localStorage.getItem('useServerAI') !== 'false';
+      const isRacing = localStorage.getItem('autoRaceAI') === 'true';
+      const canStream = !currentImage && !isRacing && aiService.streamViaEdgeFunction && localStorage.getItem('useServerAI') !== 'false';
 
       if (canStream) {
         // Streaming path — user sees tokens as they arrive
