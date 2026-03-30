@@ -113,7 +113,7 @@ export const streamViaEdgeFunction = async (
   history: { role: string; content: string }[],
   options: { thinking?: boolean; fast?: boolean; search?: boolean; model?: string },
   onChunk: (text: string) => void,
-  onDone: (model?: string, provider?: string) => void,
+  onDone: (model?: string, provider?: string, racePool?: any[]) => void,
   onError: (error: Error) => void,
 ): Promise<void> => {
   const { supabase } = await import('./supabase');
@@ -157,13 +157,14 @@ export const streamViaEdgeFunction = async (
   if (contentType.includes('application/json')) {
     const data = await response.json();
     onChunk(data.text || '');
-    onDone(data.model, data.provider);
+    onDone(data.model, data.provider, data.racePool);
     return;
   }
 
   // SSE streaming
   let model: string | undefined;
   let provider: string | undefined;
+  let racePool: any[] | undefined;
   const reader = response.body?.getReader();
   if (!reader) { onError(new Error('No response body')); return; }
 
@@ -189,6 +190,7 @@ export const streamViaEdgeFunction = async (
         if (parsed.meta) {
           model = parsed.model;
           provider = parsed.provider;
+          if (parsed.racePool) racePool = parsed.racePool;
           continue;
         }
         // Gemini SSE format
@@ -209,7 +211,7 @@ export const streamViaEdgeFunction = async (
     }
   }
 
-  onDone(model, provider);
+  onDone(model, provider, racePool);
 };
 
 /**
