@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { SelectionInfo, MediaAttachment } from '../types';
 import { VerseData, PersonalNote, AIResearchEntry } from '../types/verseData';
 import { verseDataStorage } from '../services/verseDataStorage';
@@ -11,6 +11,42 @@ import { IMAGE, TIMING } from '../constants/appConfig';
 import 'katex/dist/katex.min.css';
 import { CHINESE_ABBREV_TO_BOOK_ID, BIBLE_BOOKS } from '../constants';
 import { stripHTML } from '../utils/textUtils';
+
+const JournalView = lazy(() => import('./JournalView'));
+
+type NotesViewMode = 'journal' | 'verse-notes';
+const NOTES_VIEW_MODE_KEY = 'bible_notes_view_mode';
+
+const modeBarStyles = `
+  .notes-mode-bar {
+    display: flex;
+    padding: 8px 12px 0;
+    gap: 0;
+    background: #fff;
+    border-bottom: 1px solid #f3f4f6;
+    flex-shrink: 0;
+  }
+  .notes-mode-tab {
+    flex: 1;
+    padding: 8px 16px;
+    border: none;
+    background: transparent;
+    font-size: 13px;
+    font-weight: 500;
+    color: #9ca3af;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  .notes-mode-tab.active {
+    color: #4f46e5;
+    border-bottom-color: #4f46e5;
+  }
+  .notes-mode-tab:hover:not(.active) {
+    color: #6b7280;
+  }
+`;
 
 const _allBookNames = Object.keys(CHINESE_ABBREV_TO_BOOK_ID)
   .sort((a, b) => b.length - a.length)
@@ -84,6 +120,10 @@ interface EnhancedNotebookProps {
   initialTab?: TabType;
   researchUpdateTrigger?: number;
   onNavigate?: (bookId: string, chapter: number, verses?: number[]) => void;
+  /** Current Bible reading context for the journal */
+  currentBookId?: string;
+  currentChapter?: number;
+  currentBookName?: string;
 }
 
 type TabType = 'research' | 'notes' | 'all';
@@ -98,8 +138,29 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
   initialContent,
   initialTab = 'research',
   researchUpdateTrigger: _researchUpdateTrigger = 0,
-  onNavigate
+  onNavigate,
+  currentBookId,
+  currentChapter,
+  currentBookName,
 }) => {
+  // Top-level dual-mode: Journal vs Verse Notes
+  const [viewMode, setViewMode] = useState<NotesViewMode>(() => {
+    const saved = localStorage.getItem(NOTES_VIEW_MODE_KEY);
+    if (saved === 'journal' || saved === 'verse-notes') return saved;
+    return selection ? 'verse-notes' : 'journal';
+  });
+
+  // Auto-switch to verse-notes when a verse is selected
+  useEffect(() => {
+    if (selection) {
+      setViewMode('verse-notes');
+    }
+  }, [selection?.id]);
+
+  const handleViewModeChange = (mode: NotesViewMode) => {
+    setViewMode(mode);
+    localStorage.setItem(NOTES_VIEW_MODE_KEY, mode);
+  };
   const storageTick = useStorageUpdate();
   const [activeTab, setActiveTab] = useState<TabType>(initialTab);
   const [verseData, setVerseData] = useState<VerseData | null>(null);
@@ -1071,16 +1132,70 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
     );
   };
 
+  // Dual-mode tab bar component
+  const modeTabBar = (
+    <div className="notes-mode-bar">
+      <button
+        className={`notes-mode-tab ${viewMode === 'journal' ? 'active' : ''}`}
+        onClick={() => handleViewModeChange('journal')}
+      >
+        Journal
+      </button>
+      <button
+        className={`notes-mode-tab ${viewMode === 'verse-notes' ? 'active' : ''}`}
+        onClick={() => handleViewModeChange('verse-notes')}
+      >
+        Verse Notes
+      </button>
+    </div>
+  );
+
+  if (!selection && viewMode === 'verse-notes') {
+    return (
+      <div className="enhanced-notebook" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        {modeTabBar}
+        <div className="notebook-empty" style={{ flex: 1 }}>
+          <p>Select a verse to add notes</p>
+        </div>
+        <style>{modeBarStyles}</style>
+      </div>
+    );
+  }
+
+  if (viewMode === 'journal') {
+    return (
+      <div className="enhanced-notebook" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        {modeTabBar}
+        <div style={{ flex: 1, overflow: 'hidden' }}>
+          <Suspense fallback={<div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#9ca3af' }}>Loading...</div>}>
+            <JournalView
+              bookId={currentBookId || selection?.bookId}
+              chapter={currentChapter || selection?.chapter}
+              bookName={currentBookName || selection?.bookName}
+              onNavigate={onNavigate ? (bookId, chapter) => onNavigate(bookId, chapter) : undefined}
+            />
+          </Suspense>
+        </div>
+        <style>{modeBarStyles}</style>
+      </div>
+    );
+  }
+
   if (!selection) {
     return (
-      <div className="notebook-empty">
-        <p>Select a verse to add notes</p>
+      <div className="enhanced-notebook" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+        {modeTabBar}
+        <div className="notebook-empty" style={{ flex: 1 }}>
+          <p>Select a verse to add notes</p>
+        </div>
+        <style>{modeBarStyles}</style>
       </div>
     );
   }
 
   return (
     <div className="enhanced-notebook">
+      {modeTabBar}
       <div className="notebook-header">
         <h3>{selection.bookName} {selection.chapter}:{selection.verseNums.join('-')}</h3>
 
@@ -1456,6 +1571,7 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
           display: none;
         }
       `}</style>
+      <style>{modeBarStyles}</style>
     </div>
   );
 };
