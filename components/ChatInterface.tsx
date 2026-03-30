@@ -637,24 +637,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
             });
           },
           // onDone
-          (model?: string, provider?: string) => {
+          (model?: string, provider?: string, pool?: any[]) => {
             streamModel = model;
             streamProvider = provider;
+            if (pool) racePool = pool;
           },
           // onError — fall through to non-streaming
           (error: Error) => { throw error; },
         );
-
-        // Check if the response was JSON (race mode) — extract racePool
-        try {
-          const parsed = JSON.parse(streamedText);
-          if (parsed.racePool) {
-            racePool = parsed.racePool;
-            streamedText = parsed.text || streamedText;
-            streamModel = parsed.model;
-            streamProvider = parsed.provider;
-          }
-        } catch { /* not JSON, streamed text is fine */ }
 
         if (streamProvider) {
           setActiveProviderLabel(streamModel ? `${streamProvider} · ${streamModel}` : streamProvider);
