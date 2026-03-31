@@ -762,9 +762,11 @@ async function syncChatHistory(): Promise<void> {
     if (!local || remote.last_modified > local.lastModified) {
       await idbService.put('chatHistory', {
         id: remote.id,
-        bookId: remote.book_id,
-        chapter: remote.chapter,
+        title: remote.title || '',
+        bookId: remote.book_id || undefined,
+        chapter: remote.chapter || undefined,
         messages: remote.messages || [],
+        createdAt: remote.created_at || new Date(remote.last_modified).toISOString(),
         lastModified: remote.last_modified,
       });
     }
@@ -783,9 +785,11 @@ async function syncChatHistory(): Promise<void> {
     const rows = toUpload.map(e => ({
       id: e.id,
       user_id: userId,
-      book_id: e.bookId,
-      chapter: e.chapter,
+      title: e.title || '',
+      book_id: e.bookId || '',
+      chapter: e.chapter || 0,
       messages: e.messages,
+      created_at: e.createdAt || new Date(e.lastModified).toISOString(),
       last_modified: e.lastModified,
       updated_at: new Date(e.lastModified).toISOString(),
     }));
