@@ -82,6 +82,9 @@ export interface JournalEntry {
   content: string; // HTML
   plainText: string;
   drawing?: string; // Canvas data (strokes or data URL)
+  latitude?: number;
+  longitude?: number;
+  locationName?: string; // reverse-geocoded address, e.g. "Near San Jose, CA"
   bookId?: string;
   chapter?: number;
   verseRef?: string;
