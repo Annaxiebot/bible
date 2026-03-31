@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { JournalEntry } from '../services/idbService';
 import { journalStorage } from '../services/journalStorage';
 import JournalEditor from './JournalEditor';
+import SimpleDrawingCanvas, { SimpleDrawingCanvasHandle } from './SimpleDrawingCanvas';
+import { compressImage } from '../services/imageCompressionService';
 
 interface JournalViewProps {
   /** Current Bible reading context for linking new entries */
@@ -54,6 +56,7 @@ const JournalView: React.FC<JournalViewProps> = ({
 
   // Create new entry
   const handleNew = async () => {
+    setSearchQuery(''); // Clear search so new entry is visible
     const verseRef =
       bookId && chapter && bookName ? `${bookName} ${chapter}` : undefined;
     const entry = await journalStorage.createEntry({
@@ -61,7 +64,8 @@ const JournalView: React.FC<JournalViewProps> = ({
       chapter,
       verseRef,
     });
-    await loadEntries();
+    const allEntries = await journalStorage.getAllEntries();
+    setEntries(allEntries);
     setSelectedId(entry.id);
   };
 
@@ -357,81 +361,245 @@ const JournalView: React.FC<JournalViewProps> = ({
     </div>
   );
 
+  // Drawing state
+  type NoteMode = 'text' | 'draw' | 'overlay';
+  const [noteMode, setNoteMode] = useState<NoteMode>('text');
+  const [drawingData, setDrawingData] = useState('');
+  const [drawingTool, setDrawingTool] = useState<'pen' | 'marker' | 'highlighter' | 'eraser'>('pen');
+  const [drawingColor, setDrawingColor] = useState('#000000');
+  const [drawingSize, setDrawingSize] = useState(3);
+  const canvasRef = useRef<SimpleDrawingCanvasHandle>(null);
+  const editorRef = useRef<HTMLDivElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const cameraCanvasRef = useRef<HTMLCanvasElement>(null);
+  const [showWebcam, setShowWebcam] = useState(false);
+  const [isWritingMode, setIsWritingMode] = useState(false);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+
+  const DRAW_COLORS = ['#000000', '#ef4444', '#3b82f6', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899'];
+
+  // Load drawing data when entry changes
+  useEffect(() => {
+    if (selectedEntry) {
+      setDrawingData((selectedEntry as any).drawing || '');
+    }
+  }, [selectedId]);
+
+  // Save drawing data
+  const handleDrawingChange = useCallback((data: string) => {
+    setDrawingData(data);
+    if (!selectedId) return;
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      await journalStorage.updateEntry(selectedId, { drawing: data } as any);
+    }, 2000);
+  }, [selectedId]);
+
+  // Camera
+  const openWebcam = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+      mediaStreamRef.current = stream;
+      setShowWebcam(true);
+      setTimeout(() => { if (videoRef.current) videoRef.current.srcObject = stream; }, 100);
+    } catch { /* camera not available */ }
+  };
+
+  const closeWebcam = () => {
+    mediaStreamRef.current?.getTracks().forEach(t => t.stop());
+    mediaStreamRef.current = null;
+    setShowWebcam(false);
+  };
+
+  const capturePhoto = () => {
+    if (!videoRef.current || !cameraCanvasRef.current) return;
+    const video = videoRef.current;
+    const canvas = cameraCanvasRef.current;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d')?.drawImage(video, 0, 0);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    insertImageIntoEditor(dataUrl);
+    closeWebcam();
+  };
+
+  const handleCameraInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    try {
+      const compressed = await compressImage(file);
+      insertImageIntoEditor(`data:${compressed.mimeType};base64,${compressed.base64}`);
+    } catch {
+      const reader = new FileReader();
+      reader.onload = (ev) => { if (ev.target?.result) insertImageIntoEditor(ev.target.result as string); };
+      reader.readAsDataURL(file);
+    }
+    e.target.value = '';
+  };
+
+  const insertImageIntoEditor = (dataUrl: string) => {
+    if (editorRef.current) {
+      const img = document.createElement('img');
+      img.src = dataUrl;
+      img.style.maxWidth = '100%';
+      img.style.borderRadius = '8px';
+      img.style.margin = '8px 0';
+      editorRef.current.appendChild(img);
+      // Trigger change
+      const html = editorRef.current.innerHTML;
+      const text = editorRef.current.innerText;
+      handleEditorChange(html, text);
+    }
+  };
+
+  const execCommand = (cmd: string, value?: string) => {
+    document.execCommand(cmd, false, value);
+    if (editorRef.current) {
+      handleEditorChange(editorRef.current.innerHTML, editorRef.current.innerText);
+    }
+  };
+
+  const handleContentEditableInput = () => {
+    if (editorRef.current) {
+      handleEditorChange(editorRef.current.innerHTML, editorRef.current.innerText);
+    }
+  };
+
+  // Sync editor content when switching entries
+  useEffect(() => {
+    if (editorRef.current && selectedEntry && (noteMode === 'text' || noteMode === 'overlay')) {
+      if (editorRef.current.innerHTML !== selectedEntry.content) {
+        editorRef.current.innerHTML = selectedEntry.content || '';
+      }
+    }
+  }, [selectedId, noteMode]);
+
   const editorContent = selectedEntry ? (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header */}
-      <div
-        style={{
-          padding: '12px 16px',
-          borderBottom: '1px solid #f3f4f6',
-          flexShrink: 0,
-          display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-        }}
-      >
+      <div style={{ padding: '8px 16px', borderBottom: '1px solid #f3f4f6', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
         {isMobile && (
-          <button
-            onClick={mobileBack}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#4f46e5',
-              cursor: 'pointer',
-              padding: 4,
-              display: 'flex',
-              alignItems: 'center',
-              fontSize: 14,
-            }}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M15 18l-6-6 6-6" />
-            </svg>
+          <button onClick={mobileBack} style={{ background: 'none', border: 'none', color: '#4f46e5', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', fontSize: 14 }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6" /></svg>
             Back
           </button>
         )}
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 12, color: '#9ca3af' }}>{formatDate(selectedEntry.createdAt)}</div>
           {selectedEntry.verseRef && (
-            <div
-              onClick={() => {
-                if (onNavigate && selectedEntry.bookId && selectedEntry.chapter) {
-                  onNavigate(selectedEntry.bookId, selectedEntry.chapter);
-                }
-              }}
-              style={{
-                fontSize: 12,
-                color: '#6366f1',
-                cursor: selectedEntry.bookId ? 'pointer' : 'default',
-                marginTop: 2,
-              }}
-            >
+            <div onClick={() => { if (onNavigate && selectedEntry.bookId && selectedEntry.chapter) onNavigate(selectedEntry.bookId, selectedEntry.chapter); }}
+              style={{ fontSize: 12, color: '#6366f1', cursor: selectedEntry.bookId ? 'pointer' : 'default', marginTop: 2 }}>
               {selectedEntry.verseRef}
             </div>
           )}
         </div>
       </div>
 
-      {/* Editor */}
-      <div style={{ flex: 1, overflow: 'hidden' }}>
-        <JournalEditor
-          content={selectedEntry.content}
-          onChange={handleEditorChange}
-        />
+      {/* Webcam overlay */}
+      {showWebcam && (
+        <div style={{ position: 'absolute', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.8)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <video ref={videoRef} autoPlay playsInline style={{ width: '100%', maxHeight: '60vh', borderRadius: 8, marginBottom: 12 }} />
+          <canvas ref={cameraCanvasRef} className="hidden" style={{ display: 'none' }} />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={capturePhoto} style={{ background: '#4f46e5', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: 'pointer', fontSize: 14 }}>Capture</button>
+            <button onClick={closeWebcam} style={{ background: '#6b7280', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: 'pointer', fontSize: 14 }}>Cancel</button>
+          </div>
+        </div>
+      )}
+
+      {/* Hidden camera input for mobile */}
+      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleCameraInput} style={{ display: 'none' }} />
+
+      {/* Mode selector */}
+      <div style={{ display: 'flex', gap: 4, padding: '6px 12px', borderBottom: '1px solid #f3f4f6', flexShrink: 0, background: '#fafafa' }}>
+        {(['text', 'draw', 'overlay'] as NoteMode[]).map(m => (
+          <button key={m} onClick={() => setNoteMode(m)}
+            style={{ fontSize: 13, padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
+              background: noteMode === m ? '#4f46e5' : '#f3f4f6', color: noteMode === m ? '#fff' : '#6b7280', fontWeight: noteMode === m ? 600 : 400 }}>
+            {m === 'text' ? '📝 Text' : m === 'draw' ? '✏️ Draw' : '🔀 Both'}
+          </button>
+        ))}
+        <span style={{ flex: 1 }} />
+        {/* Camera button */}
+        <button onClick={() => { if (isMobile && cameraInputRef.current) cameraInputRef.current.click(); else openWebcam(); }}
+          style={{ fontSize: 13, padding: '4px 8px', borderRadius: 6, border: 'none', cursor: 'pointer', background: '#f3f4f6', color: '#6b7280' }}
+          title="Take photo">📷</button>
+      </div>
+
+      {/* Rich text toolbar — text/overlay modes */}
+      {(noteMode === 'text' || noteMode === 'overlay') && (
+        <div style={{ display: 'flex', gap: 2, padding: '4px 12px', borderBottom: '1px solid #f3f4f6', flexShrink: 0, background: '#fafafa', flexWrap: 'wrap', alignItems: 'center' }}>
+          <button onClick={() => execCommand('bold')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', borderRadius: 4, fontSize: 14, fontWeight: 700 }} title="Bold">B</button>
+          <button onClick={() => execCommand('italic')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', borderRadius: 4, fontSize: 14, fontStyle: 'italic' }} title="Italic">I</button>
+          <button onClick={() => execCommand('underline')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', borderRadius: 4, fontSize: 14, textDecoration: 'underline' }} title="Underline">U</button>
+          <span style={{ width: 1, height: 16, background: '#e5e7eb', margin: '0 4px' }} />
+          <button onClick={() => execCommand('formatBlock', 'h2')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', borderRadius: 4, fontSize: 13, fontWeight: 600 }} title="Heading">H</button>
+          <button onClick={() => execCommand('formatBlock', 'blockquote')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', borderRadius: 4, fontSize: 14 }} title="Quote">❝</button>
+          <button onClick={() => execCommand('insertUnorderedList')} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 6px', borderRadius: 4, fontSize: 14 }} title="List">≡</button>
+        </div>
+      )}
+
+      {/* Drawing palette — draw/overlay modes */}
+      {(noteMode === 'draw' || noteMode === 'overlay') && (
+        <div style={{ display: 'flex', gap: 4, padding: '4px 12px', borderBottom: '1px solid #f3f4f6', flexShrink: 0, background: '#fafafa', alignItems: 'center', flexWrap: 'wrap' }}>
+          {(['pen', 'marker', 'highlighter', 'eraser'] as const).map(t => (
+            <button key={t} onClick={() => { setDrawingTool(t); canvasRef.current?.setTool(t); }}
+              style={{ fontSize: 13, padding: '3px 6px', borderRadius: 4, border: 'none', cursor: 'pointer',
+                background: drawingTool === t ? (t === 'eraser' ? '#fee2e2' : '#e0e7ff') : 'transparent' }}
+              title={t}>
+              {t === 'pen' ? '✏️' : t === 'marker' ? '🖊️' : t === 'highlighter' ? '🖍️' : '🧹'}
+            </button>
+          ))}
+          <button onClick={() => canvasRef.current?.undo()} style={{ fontSize: 13, padding: '3px 6px', borderRadius: 4, border: 'none', cursor: 'pointer', background: 'transparent' }} title="Undo">↩️</button>
+          <button onClick={() => canvasRef.current?.clear()} style={{ fontSize: 13, padding: '3px 6px', borderRadius: 4, border: 'none', cursor: 'pointer', background: 'transparent' }} title="Clear">🗑️</button>
+          <span style={{ width: 1, height: 16, background: '#e5e7eb', margin: '0 2px' }} />
+          {DRAW_COLORS.map(color => (
+            <button key={color} onClick={() => { setDrawingColor(color); canvasRef.current?.setColor(color); }}
+              style={{ width: 18, height: 18, borderRadius: '50%', backgroundColor: color, border: drawingColor === color ? '2px solid #4f46e5' : '2px solid transparent', cursor: 'pointer', padding: 0 }}
+              title={color} />
+          ))}
+          <input type="range" min="1" max="20" value={drawingSize}
+            onChange={(e) => { const s = Number(e.target.value); setDrawingSize(s); canvasRef.current?.setSize(s); }}
+            style={{ width: 50, marginLeft: 4 }} />
+        </div>
+      )}
+
+      {/* Editor / Canvas area */}
+      <div style={{ flex: 1, overflow: 'auto', position: 'relative' }}>
+        {noteMode === 'text' && (
+          <div ref={editorRef} contentEditable onInput={handleContentEditableInput}
+            data-placeholder="Write your thoughts, reflections, prayers..."
+            style={{ minHeight: '100%', padding: '16px 20px', outline: 'none', fontSize: 16, lineHeight: 1.7, color: '#1f2937', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }} />
+        )}
+
+        {noteMode === 'draw' && (
+          <div style={{ position: 'relative', minHeight: '400px', height: '100%', background: '#f8f8f8' }}>
+            <SimpleDrawingCanvas ref={canvasRef} onChange={handleDrawingChange} initialData={drawingData} overlayMode={false} isWritingMode={true} />
+          </div>
+        )}
+
+        {noteMode === 'overlay' && (
+          <div style={{ position: 'relative', minHeight: '400px', height: '100%' }}>
+            <div ref={editorRef} contentEditable={!isWritingMode} onInput={handleContentEditableInput}
+              data-placeholder="Write and draw..."
+              style={{ minHeight: '100%', padding: '16px 20px', outline: 'none', fontSize: 16, lineHeight: 1.7, color: '#1f2937', pointerEvents: isWritingMode ? 'none' : 'auto' }} />
+            <div style={{ position: 'absolute', inset: 0, zIndex: 10, pointerEvents: isWritingMode ? 'auto' : 'none' }}>
+              <SimpleDrawingCanvas ref={canvasRef} onChange={handleDrawingChange} initialData={drawingData} overlayMode={true} isWritingMode={isWritingMode} />
+            </div>
+            <div style={{ position: 'absolute', bottom: 8, right: 8, zIndex: 20 }}>
+              <button onClick={() => setIsWritingMode(!isWritingMode)}
+                style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                  background: isWritingMode ? '#e0e7ff' : '#f3f4f6', color: isWritingMode ? '#4f46e5' : '#6b7280' }}>
+                {isWritingMode ? '✏️ Drawing' : '📝 Typing'}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   ) : (
-    <div
-      style={{
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        height: '100%',
-        color: '#d1d5db',
-        fontSize: 15,
-        fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
-      }}
-    >
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#d1d5db', fontSize: 15 }}>
       Select an entry or create a new one
     </div>
   );
