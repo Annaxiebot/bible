@@ -19,7 +19,8 @@ import {
   processTextWithBibleRefs,
   BOOK_ID_TO_ENGLISH,
 } from '../services/messageParsingService';
-import { loadChatHistory, saveChatHistory, clearChatHistory } from '../services/chatHistoryStorage';
+import { loadThreadMessages, saveThreadMessages, getOrCreateChapterThread, createThread, deleteThread } from '../services/chatHistoryStorage';
+import ChatThreadList from './ChatThreadList';
 
 interface GroundingChunk {
   web?: {
@@ -391,6 +392,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     selectedText: string;
   } | null>(null);
   const [quotedText, setQuotedText] = useState<string | null>(null);
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const [showThreadList, setShowThreadList] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
   const zhScrollRef = useRef<HTMLDivElement>(null);
@@ -521,14 +524,16 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     };
   }, []);
 
-  // --- Chat persistence: load history when chapter changes ---
+  // --- Chat persistence: load/create thread when chapter changes ---
   useEffect(() => {
     if (!currentBookId || currentChapter == null) return;
     let cancelled = false;
-    loadChatHistory(currentBookId, currentChapter).then(saved => {
-      if (!cancelled && saved.length > 0) {
-        setMessages(saved);
-      }
+    getOrCreateChapterThread(currentBookId, currentChapter).then(thread => {
+      if (cancelled) return;
+      setActiveThreadId(thread.id);
+      loadThreadMessages(thread.id).then(saved => {
+        if (!cancelled) setMessages(saved);
+      });
     });
     return () => { cancelled = true; };
   }, [currentBookId, currentChapter]);
@@ -536,12 +541,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
   // --- Chat persistence: save whenever messages change ---
   const lastSavedRef = useRef<string>('');
   useEffect(() => {
-    if (!currentBookId || currentChapter == null) return;
+    if (!activeThreadId) return;
     const key = JSON.stringify(messages.map(m => m.timestamp));
     if (key === lastSavedRef.current) return;
     lastSavedRef.current = key;
-    saveChatHistory(currentBookId, currentChapter, messages);
-  }, [messages, currentBookId, currentChapter]);
+    saveThreadMessages(activeThreadId, messages);
+  }, [messages, activeThreadId]);
 
   // --- Quote handler ---
   const handleQuote = useCallback((text: string) => {
@@ -553,10 +558,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
   const handleClearChat = useCallback(async () => {
     setMessages([]);
     setQuotedText(null);
-    if (currentBookId && currentChapter != null) {
-      await clearChatHistory(currentBookId, currentChapter);
+    if (activeThreadId) {
+      await saveThreadMessages(activeThreadId, []);
     }
-  }, [currentBookId, currentChapter]);
+  }, [activeThreadId]);
 
   // --- Delete a message pair (user + assistant) ---
   const handleDeleteMessagePair = useCallback((idx: number) => {
@@ -966,6 +971,18 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
           </span>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowThreadList(v => !v)}
+            className={`text-xs px-3 py-1 bg-white border rounded-lg transition-colors flex items-center gap-1.5 ${
+              showThreadList ? 'border-indigo-400 bg-indigo-50 text-indigo-600' : 'border-slate-200 hover:bg-slate-50 text-slate-600'
+            }`}
+            title="Chat history"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+            </svg>
+            History
+          </button>
           {hasMessages && (
             <button
               onClick={handleClearChat}
@@ -992,6 +1009,28 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       </div>
 
       <div className="flex-1 flex overflow-hidden relative min-h-0">
+        {/* Thread list sidebar */}
+        {showThreadList && (
+          <div className="w-56 flex-shrink-0 border-r border-slate-200 bg-white overflow-hidden">
+            <ChatThreadList
+              activeThreadId={activeThreadId}
+              onSelectThread={async (threadId) => {
+                setActiveThreadId(threadId);
+                const saved = await loadThreadMessages(threadId);
+                setMessages(saved);
+                lastSavedRef.current = JSON.stringify(saved.map(m => m.timestamp));
+              }}
+              onNewThread={(thread) => {
+                setActiveThreadId(thread.id);
+                setMessages([]);
+                lastSavedRef.current = '';
+              }}
+              bookId={currentBookId}
+              chapter={currentChapter}
+            />
+          </div>
+        )}
+
         {/* Chinese Side */}
         <div 
           ref={zhScrollRef} 
