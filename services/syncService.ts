@@ -21,6 +21,11 @@ import { STORAGE_KEYS } from '../constants/storageKeys';
 import { notesStorage } from './notesStorage';
 import { annotationStorage, AnnotationRecord } from './annotationStorage';
 import { readingHistory } from './readingHistory';
+import { verseDataStorage } from './verseDataStorage';
+import { bookmarkStorage } from './bookmarkStorage';
+import { bibleStorage, BibleTranslation } from './bibleStorage';
+import type { VerseData } from '../types/verseData';
+import type { Bookmark } from './idbService';
 
 // =====================================================
 // SYNC STATE
@@ -31,26 +36,29 @@ interface SyncState {
   lastAnnotationsSync: number;
   lastHistorySync: number;
   lastSettingsSync: number;
+  lastVerseDataSync: number;
+  lastBookmarksSync: number;
+  lastBibleCacheSync: number;
 }
 
 const SYNC_STATE_KEY = STORAGE_KEYS.SYNC_STATE;
 
+const DEFAULT_SYNC_STATE: SyncState = {
+  lastNotesSync: 0,
+  lastAnnotationsSync: 0,
+  lastHistorySync: 0,
+  lastSettingsSync: 0,
+  lastVerseDataSync: 0,
+  lastBookmarksSync: 0,
+  lastBibleCacheSync: 0,
+};
+
 function getSyncState(): SyncState {
   try {
     const data = localStorage.getItem(SYNC_STATE_KEY);
-    return data ? JSON.parse(data) : {
-      lastNotesSync: 0,
-      lastAnnotationsSync: 0,
-      lastHistorySync: 0,
-      lastSettingsSync: 0
-    };
+    return data ? { ...DEFAULT_SYNC_STATE, ...JSON.parse(data) } : { ...DEFAULT_SYNC_STATE };
   } catch {
-    return {
-      lastNotesSync: 0,
-      lastAnnotationsSync: 0,
-      lastHistorySync: 0,
-      lastSettingsSync: 0
-    };
+    return { ...DEFAULT_SYNC_STATE };
   }
 }
 
@@ -348,6 +356,250 @@ async function syncSettings(): Promise<void> {
 }
 
 // =====================================================
+// VERSE DATA SYNC (personal notes + AI research per verse)
+// =====================================================
+//
+// Supabase table DDL:
+//
+// CREATE TABLE verse_data (
+//   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+//   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+//   verse_id TEXT NOT NULL,           -- e.g. "GEN:1:1" or "GENERAL:0:0"
+//   book_id TEXT NOT NULL,
+//   chapter INTEGER NOT NULL,
+//   verses INTEGER[] NOT NULL,
+//   data JSONB NOT NULL,              -- full VerseData object (personalNote + aiResearch)
+//   updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+//   UNIQUE(user_id, verse_id)
+// );
+// CREATE INDEX idx_verse_data_user ON verse_data(user_id);
+// ALTER TABLE verse_data ENABLE ROW LEVEL SECURITY;
+// CREATE POLICY "Users can manage own verse data" ON verse_data
+//   FOR ALL USING (auth.uid() = user_id);
+//
+
+async function syncVerseData(): Promise<void> {
+  if (!supabase || !canSync()) return;
+
+  const userId = authManager.getUserId();
+  if (!userId) return;
+
+  // Get all local verse data
+  const localData: VerseData[] = await verseDataStorage.getAllData();
+
+  // Get remote verse data modified since last sync
+  const syncState = getSyncState();
+  const { data: remoteRows, error } = await supabase
+    .from('verse_data')
+    .select('*')
+    .eq('user_id', userId)
+    .gte('updated_at', new Date(syncState.lastVerseDataSync).toISOString());
+
+  if (error) throw error;
+
+  // Merge remote into local (remote wins on conflict)
+  for (const remote of remoteRows || []) {
+    const remoteVerseData = remote.data as VerseData;
+    if (!remoteVerseData) continue;
+
+    // Ensure id is set correctly
+    remoteVerseData.id = remote.verse_id;
+    await verseDataStorage.importData([remoteVerseData], 'merge');
+  }
+
+  // Upload local verse data that is newer or doesn't exist remotely
+  const remoteIds = new Set((remoteRows || []).map((r: { verse_id: string }) => r.verse_id));
+  const dataToUpload = localData
+    .filter(local => !remoteIds.has(local.id))
+    .map(local => ({
+      user_id: userId,
+      verse_id: local.id,
+      book_id: local.bookId,
+      chapter: local.chapter,
+      verses: local.verses,
+      data: local,
+      updated_at: new Date().toISOString(),
+    }));
+
+  if (dataToUpload.length > 0) {
+    // Batch in chunks of 100 to avoid payload limits
+    for (let i = 0; i < dataToUpload.length; i += 100) {
+      const batch = dataToUpload.slice(i, i + 100);
+      await supabase.from('verse_data').upsert(batch, { onConflict: 'user_id,verse_id' });
+    }
+  }
+
+  setSyncState({ lastVerseDataSync: Date.now() });
+}
+
+// =====================================================
+// BOOKMARKS SYNC
+// =====================================================
+//
+// Supabase table DDL:
+//
+// CREATE TABLE bookmarks (
+//   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+//   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+//   bookmark_id TEXT NOT NULL,        -- e.g. "GEN:1:1"
+//   book_id TEXT NOT NULL,
+//   book_name TEXT NOT NULL,
+//   chapter INTEGER NOT NULL,
+//   verse INTEGER NOT NULL,
+//   text_preview TEXT NOT NULL DEFAULT '',
+//   created_at BIGINT NOT NULL,       -- epoch ms from client
+//   updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+//   UNIQUE(user_id, bookmark_id)
+// );
+// CREATE INDEX idx_bookmarks_user ON bookmarks(user_id);
+// ALTER TABLE bookmarks ENABLE ROW LEVEL SECURITY;
+// CREATE POLICY "Users can manage own bookmarks" ON bookmarks
+//   FOR ALL USING (auth.uid() = user_id);
+//
+
+async function syncBookmarks(): Promise<void> {
+  if (!supabase || !canSync()) return;
+
+  const userId = authManager.getUserId();
+  if (!userId) return;
+
+  // Get all local bookmarks
+  const localBookmarks: Bookmark[] = await bookmarkStorage.getAllBookmarks();
+
+  // Get all remote bookmarks
+  const { data: remoteBookmarks, error } = await supabase
+    .from('bookmarks')
+    .select('*')
+    .eq('user_id', userId);
+
+  if (error) throw error;
+
+  // Build a set of local bookmark IDs for quick lookup
+  const localIds = new Set(localBookmarks.map(b => b.id));
+
+  // Merge remote into local — add any bookmarks we don't have locally
+  for (const remote of remoteBookmarks || []) {
+    if (!localIds.has(remote.bookmark_id)) {
+      await bookmarkStorage.importBookmark({
+        id: remote.bookmark_id,
+        bookId: remote.book_id,
+        bookName: remote.book_name,
+        chapter: remote.chapter,
+        verse: remote.verse,
+        textPreview: remote.text_preview || '',
+        createdAt: remote.created_at,
+      });
+    }
+  }
+
+  // Upload local bookmarks to remote — batch upsert
+  const remoteIds = new Set((remoteBookmarks || []).map((r: { bookmark_id: string }) => r.bookmark_id));
+  const bookmarksToUpload = localBookmarks
+    .filter(local => !remoteIds.has(local.id))
+    .map(local => ({
+      user_id: userId,
+      bookmark_id: local.id,
+      book_id: local.bookId,
+      book_name: local.bookName,
+      chapter: local.chapter,
+      verse: local.verse,
+      text_preview: local.textPreview || '',
+      created_at: local.createdAt,
+      updated_at: new Date().toISOString(),
+    }));
+
+  if (bookmarksToUpload.length > 0) {
+    await supabase.from('bookmarks').upsert(bookmarksToUpload, { onConflict: 'user_id,bookmark_id' });
+  }
+
+  setSyncState({ lastBookmarksSync: Date.now() });
+}
+
+// =====================================================
+// BIBLE CACHE SYNC
+// =====================================================
+//
+// Supabase table DDL:
+//
+// CREATE TABLE bible_cache (
+//   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+//   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+//   cache_key TEXT NOT NULL,          -- e.g. "GEN_1_cuv"
+//   book_id TEXT NOT NULL,
+//   chapter INTEGER NOT NULL,
+//   translation TEXT NOT NULL,
+//   data JSONB NOT NULL,              -- ChapterStorageData (verse array)
+//   updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+//   UNIQUE(user_id, cache_key)
+// );
+// CREATE INDEX idx_bible_cache_user ON bible_cache(user_id);
+// ALTER TABLE bible_cache ENABLE ROW LEVEL SECURITY;
+// CREATE POLICY "Users can manage own bible cache" ON bible_cache
+//   FOR ALL USING (auth.uid() = user_id);
+//
+
+async function syncBibleCache(): Promise<void> {
+  if (!supabase || !canSync()) return;
+
+  const userId = authManager.getUserId();
+  if (!userId) return;
+
+  // Get all locally cached chapters
+  const localChapters = await bibleStorage.getAllChapters();
+
+  // Get remote cache keys so we know what already exists
+  const { data: remoteRows, error } = await supabase
+    .from('bible_cache')
+    .select('cache_key, book_id, chapter, translation, data, updated_at')
+    .eq('user_id', userId);
+
+  if (error) throw error;
+
+  const remoteKeySet = new Set((remoteRows || []).map((r: { cache_key: string }) => r.cache_key));
+
+  // Merge remote chapters into local — download any we don't have
+  for (const remote of remoteRows || []) {
+    const locallyExists = localChapters.some(
+      l => `${l.bookId}_${l.chapter}_${l.translation}` === remote.cache_key
+    );
+    if (!locallyExists && remote.data) {
+      await bibleStorage.saveChapter(
+        remote.book_id,
+        remote.chapter,
+        remote.translation as BibleTranslation,
+        remote.data
+      );
+    }
+  }
+
+  // Upload local chapters that don't exist remotely — batch upsert
+  const chaptersToUpload = localChapters
+    .filter(local => {
+      const key = `${local.bookId}_${local.chapter}_${local.translation}`;
+      return !remoteKeySet.has(key);
+    })
+    .map(local => ({
+      user_id: userId,
+      cache_key: `${local.bookId}_${local.chapter}_${local.translation}`,
+      book_id: local.bookId,
+      chapter: local.chapter,
+      translation: local.translation,
+      data: local.data,
+      updated_at: new Date().toISOString(),
+    }));
+
+  if (chaptersToUpload.length > 0) {
+    // Batch in chunks of 50 (chapter data can be large)
+    for (let i = 0; i < chaptersToUpload.length; i += 50) {
+      const batch = chaptersToUpload.slice(i, i + 50);
+      await supabase.from('bible_cache').upsert(batch, { onConflict: 'user_id,cache_key' });
+    }
+  }
+
+  setSyncState({ lastBibleCacheSync: Date.now() });
+}
+
+// =====================================================
 // FULL SYNC
 // =====================================================
 
@@ -363,7 +615,10 @@ export async function performFullSync(): Promise<void> {
       syncNotes(),
       syncAnnotations(),
       syncReadingHistory(),
-      syncSettings()
+      syncSettings(),
+      syncVerseData(),
+      syncBookmarks(),
+      syncBibleCache(),
     ]);
 
     syncManager.setStatus('idle');
@@ -432,6 +687,8 @@ function scheduleBgSync() {
 if (typeof window !== 'undefined') {
   window.addEventListener('versedata-updated', scheduleBgSync);
   window.addEventListener('annotation-updated', scheduleBgSync);
+  window.addEventListener('bookmark-updated', scheduleBgSync);
+  window.addEventListener('bible-cache-updated', scheduleBgSync);
 }
 
 // =====================================================
@@ -444,6 +701,9 @@ export const syncService = {
   syncAnnotations,
   syncReadingHistory,
   syncSettings,
+  syncVerseData,
+  syncBookmarks,
+  syncBibleCache,
   canSync,
   getSyncState,
 };
