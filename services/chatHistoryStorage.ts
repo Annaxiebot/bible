@@ -80,12 +80,18 @@ export async function saveChatHistory(
     lastModified: Date.now(),
   };
   await idbService.put('chatHistory', record);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('chathistory-updated'));
+  }
 }
 
 /** Delete persisted chat for a chapter. */
 export async function clearChatHistory(bookId: string, chapter: number): Promise<void> {
   const key = chatHistoryKey(bookId, chapter);
   await idbService.delete('chatHistory', key);
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new Event('chathistory-updated'));
+  }
 }
 
 /** Delete all persisted chat threads. */

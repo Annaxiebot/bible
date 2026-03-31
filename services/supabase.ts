@@ -185,14 +185,34 @@ export const authManager = new AuthManager();
 
 export type SyncStatus = 'idle' | 'syncing' | 'error' | 'offline' | 'disabled';
 
+export interface SyncProgress {
+  status: SyncStatus;
+  currentStep?: string;
+  completedSteps: string[];
+  totalSteps: number;
+}
+
 class SyncManager {
   private status: SyncStatus = supabase ? 'idle' : 'disabled';
   private listeners: Set<(status: SyncStatus) => void> = new Set();
+  private progressListeners: Set<(progress: SyncProgress) => void> = new Set();
   private lastSyncTime: number | null = null;
   private syncError: string | null = null;
+  private currentStep: string | undefined;
+  private completedSteps: string[] = [];
+  private totalSteps = 0;
 
   getStatus(): SyncStatus {
     return this.status;
+  }
+
+  getProgress(): SyncProgress {
+    return {
+      status: this.status,
+      currentStep: this.currentStep,
+      completedSteps: [...this.completedSteps],
+      totalSteps: this.totalSteps,
+    };
   }
 
   setStatus(status: SyncStatus, error?: string) {
@@ -202,12 +222,40 @@ class SyncManager {
     } else if (status !== 'error') {
       this.syncError = null;
     }
-    
+
     if (status === 'idle' && !error) {
       this.lastSyncTime = Date.now();
+      this.currentStep = undefined;
+      this.completedSteps = [];
     }
-    
+
     this.listeners.forEach(listener => listener(status));
+    this.notifyProgress();
+  }
+
+  startSync(totalSteps: number) {
+    this.totalSteps = totalSteps;
+    this.completedSteps = [];
+    this.currentStep = undefined;
+    this.setStatus('syncing');
+  }
+
+  stepStart(name: string) {
+    this.currentStep = name;
+    this.notifyProgress();
+  }
+
+  stepDone(name: string) {
+    this.currentStep = undefined;
+    if (!this.completedSteps.includes(name)) {
+      this.completedSteps.push(name);
+    }
+    this.notifyProgress();
+  }
+
+  private notifyProgress() {
+    const progress = this.getProgress();
+    this.progressListeners.forEach(listener => listener(progress));
   }
 
   getLastSyncTime(): number | null {
@@ -221,6 +269,11 @@ class SyncManager {
   subscribe(listener: (status: SyncStatus) => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
+  }
+
+  subscribeProgress(listener: (progress: SyncProgress) => void): () => void {
+    this.progressListeners.add(listener);
+    return () => this.progressListeners.delete(listener);
   }
 
   isEnabled(): boolean {

@@ -132,6 +132,7 @@ const App: React.FC = () => {
   const [currentSelectedVerses, setCurrentSelectedVerses] = useState<number[]>([]);
   const [showVibePanel, setShowVibePanel] = useState(false);
   const [showSearch, setShowSearch] = useState(false);
+  const [searchInitialQuery, setSearchInitialQuery] = useState('');
   const [showPrintOptions, setShowPrintOptions] = useState(false);
   const [backupDialog, setBackupDialog] = useState<{ mode: 'export' | 'import'; summary: BackupSummaryData; fileContent?: string } | null>(null);
   const [backupLoading, setBackupLoading] = useState(false);
@@ -538,6 +539,7 @@ const App: React.FC = () => {
                  setNavigateTo({ bookId, chapter, verses });
                  setTimeout(() => setNavigateTo(null), 5000);
                }}
+               onSearchReference={(query) => { setSearchInitialQuery(query); setShowSearch(true); }}
                vibeClassName={vibeStyles.chat_panel}
              />
           </div>
@@ -602,7 +604,8 @@ const App: React.FC = () => {
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl h-[80vh] overflow-hidden">
             <BibleSearch
-              onClose={() => setShowSearch(false)}
+              initialQuery={searchInitialQuery}
+              onClose={() => { setShowSearch(false); setSearchInitialQuery(''); }}
               onNavigate={(bookId, chapter, verses) => {
                 setShowSearch(false);
                 setNavigateTo({ bookId, chapter, verses });

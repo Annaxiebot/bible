@@ -40,6 +40,7 @@ interface SyncState {
   lastBookmarksSync: number;
   lastBibleCacheSync: number;
   lastJournalSync: number;
+  lastChatHistorySync: number;
 }
 
 const SYNC_STATE_KEY = STORAGE_KEYS.SYNC_STATE;
@@ -53,6 +54,7 @@ const DEFAULT_SYNC_STATE: SyncState = {
   lastBookmarksSync: 0,
   lastBibleCacheSync: 0,
   lastJournalSync: 0,
+  lastChatHistorySync: 0,
 };
 
 function getSyncState(): SyncState {
@@ -720,6 +722,83 @@ async function syncJournal(): Promise<void> {
 }
 
 // =====================================================
+// CHAT HISTORY SYNC
+// =====================================================
+// Supabase DDL:
+// CREATE TABLE chat_history (
+//   id TEXT NOT NULL,
+//   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+//   book_id TEXT NOT NULL,
+//   chapter INTEGER NOT NULL,
+//   messages JSONB NOT NULL DEFAULT '[]',
+//   last_modified BIGINT NOT NULL,
+//   updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
+//   PRIMARY KEY (user_id, id)
+// );
+// CREATE INDEX idx_chat_history_user ON chat_history(user_id);
+// ALTER TABLE chat_history ENABLE ROW LEVEL SECURITY;
+// CREATE POLICY "Users can manage own chat history" ON chat_history FOR ALL USING (auth.uid() = user_id);
+
+async function syncChatHistory(): Promise<void> {
+  if (!supabase || !canSync()) return;
+
+  const userId = authManager.getUserId();
+  if (!userId) return;
+
+  const { idbService } = await import('./idbService');
+
+  const syncState = getSyncState();
+  const { data: remoteRecords, error } = await supabase
+    .from('chat_history')
+    .select('*')
+    .eq('user_id', userId)
+    .gte('updated_at', new Date(syncState.lastChatHistorySync).toISOString());
+
+  if (error) throw error;
+
+  // Merge remote into local (remote wins on conflict)
+  for (const remote of remoteRecords || []) {
+    const local = await idbService.get('chatHistory', remote.id);
+    if (!local || remote.last_modified > local.lastModified) {
+      await idbService.put('chatHistory', {
+        id: remote.id,
+        bookId: remote.book_id,
+        chapter: remote.chapter,
+        messages: remote.messages || [],
+        lastModified: remote.last_modified,
+      });
+    }
+  }
+
+  // Upload local records that are newer or missing remotely
+  const allLocal = await idbService.getAll('chatHistory');
+  const remoteIds = new Set((remoteRecords || []).map((r: any) => r.id));
+  const toUpload = allLocal.filter(local => {
+    if (!remoteIds.has(local.id)) return true;
+    const remote = (remoteRecords || []).find((r: any) => r.id === local.id);
+    return remote && local.lastModified > remote.last_modified;
+  });
+
+  if (toUpload.length > 0) {
+    const rows = toUpload.map(e => ({
+      id: e.id,
+      user_id: userId,
+      book_id: e.bookId,
+      chapter: e.chapter,
+      messages: e.messages,
+      last_modified: e.lastModified,
+      updated_at: new Date(e.lastModified).toISOString(),
+    }));
+
+    for (let i = 0; i < rows.length; i += 50) {
+      await supabase.from('chat_history').upsert(rows.slice(i, i + 50), { onConflict: 'user_id,id' });
+    }
+  }
+
+  setSyncState({ lastChatHistorySync: Date.now() });
+}
+
+// =====================================================
 // FULL SYNC
 // =====================================================
 
@@ -729,18 +808,29 @@ export async function performFullSync(): Promise<void> {
   }
 
   try {
-    syncManager.setStatus('syncing');
-    
-    await Promise.all([
-      syncNotes(),
-      syncAnnotations(),
-      syncReadingHistory(),
-      syncSettings(),
-      syncVerseData(),
-      syncBookmarks(),
-      syncBibleCache(),
-      syncJournal(),
-    ]);
+    const steps: Array<{ name: string; fn: () => Promise<void> }> = [
+      { name: 'Notes', fn: syncNotes },
+      { name: 'Annotations', fn: syncAnnotations },
+      { name: 'Reading History', fn: syncReadingHistory },
+      { name: 'Settings', fn: syncSettings },
+      { name: 'Verse Data', fn: syncVerseData },
+      { name: 'Bookmarks', fn: syncBookmarks },
+      { name: 'Bible Cache', fn: syncBibleCache },
+      { name: 'Journal', fn: syncJournal },
+      { name: 'Chat History', fn: syncChatHistory },
+    ];
+
+    syncManager.startSync(steps.length);
+
+    for (const step of steps) {
+      syncManager.stepStart(step.name);
+      try {
+        await step.fn();
+      } catch {
+        // Individual step failure doesn't block others
+      }
+      syncManager.stepDone(step.name);
+    }
 
     syncManager.setStatus('idle');
   } catch (error) {
@@ -810,6 +900,7 @@ if (typeof window !== 'undefined') {
   window.addEventListener('annotation-updated', scheduleBgSync);
   window.addEventListener('bookmark-updated', scheduleBgSync);
   window.addEventListener('bible-cache-updated', scheduleBgSync);
+  window.addEventListener('chathistory-updated', scheduleBgSync);
 }
 
 // =====================================================
@@ -826,6 +917,7 @@ export const syncService = {
   syncBookmarks,
   syncBibleCache,
   syncJournal,
+  syncChatHistory,
   canSync,
   getSyncState,
 };

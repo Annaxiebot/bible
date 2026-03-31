@@ -324,7 +324,7 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
         {/* Header */}
         <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-white">
           <div className="flex items-center justify-between">
@@ -350,7 +350,7 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
         </div>
 
         {/* Content */}
-        <div className="p-6 overflow-y-auto" style={{ maxHeight: 'calc(90vh - 180px)' }}>
+        <div className="p-6 overflow-y-auto flex-1 min-h-0">
           {/* Provider Selection - Dropdown */}
           <div className="mb-6">
             <label className="block text-sm font-semibold text-slate-700 mb-2">
@@ -701,7 +701,7 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
         </div>
 
         {/* Footer */}
-        <div className="p-6 border-t bg-slate-50 flex gap-3 justify-end">
+        <div className="p-6 border-t bg-slate-50 flex gap-3 justify-end flex-shrink-0">
           <button
             onClick={onClose}
             className="px-6 py-2 text-slate-700 hover:bg-slate-200 rounded-lg transition-colors"
