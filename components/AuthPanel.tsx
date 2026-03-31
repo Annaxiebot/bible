@@ -5,13 +5,14 @@
  */
 
 import { useState, useEffect } from 'react';
-import { authManager, syncManager, isSupabaseConfigured, type AuthState, type SyncStatus } from '../services/supabase';
+import { authManager, syncManager, isSupabaseConfigured, type AuthState, type SyncStatus, type SyncProgress } from '../services/supabase';
 import { syncService } from '../services/syncService';
 import '../styles/AuthPanel.css';
 
 export function AuthPanel() {
   const [authState, setAuthState] = useState<AuthState>(authManager.getState());
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(syncManager.getStatus());
+  const [syncProgress, setSyncProgress] = useState<SyncProgress>(syncManager.getProgress());
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -19,7 +20,8 @@ export function AuthPanel() {
   useEffect(() => {
     const unsubAuth = authManager.subscribe(setAuthState);
     const unsubSync = syncManager.subscribe(setSyncStatus);
-    return () => { unsubAuth(); unsubSync(); };
+    const unsubProgress = syncManager.subscribeProgress(setSyncProgress);
+    return () => { unsubAuth(); unsubSync(); unsubProgress(); };
   }, []);
 
   const handleGoogleSignIn = async () => {
@@ -93,6 +95,30 @@ export function AuthPanel() {
               )}
             </div>
           </div>
+          {syncStatus === 'syncing' && syncProgress.totalSteps > 0 && (
+            <div className="sync-progress">
+              <div className="sync-progress-bar">
+                <div
+                  className="sync-progress-fill"
+                  style={{ width: `${(syncProgress.completedSteps.length / syncProgress.totalSteps) * 100}%` }}
+                />
+              </div>
+              <div className="sync-steps">
+                {syncProgress.currentStep && (
+                  <div className="sync-current-step">
+                    <span className="sync-step-spinner">⟳</span> {syncProgress.currentStep}
+                  </div>
+                )}
+                {syncProgress.completedSteps.length > 0 && (
+                  <div className="sync-completed-steps">
+                    {syncProgress.completedSteps.map(step => (
+                      <span key={step} className="sync-step-done">✓ {step}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           <div className="auth-actions">
             <button onClick={handleSync} disabled={syncStatus === 'syncing' || isLoading} className="btn-sync">
               Sync Now
@@ -102,7 +128,7 @@ export function AuthPanel() {
             </button>
           </div>
           {error && <div className="auth-error">{error}</div>}
-          {message && <div className="auth-message">{message}</div>}
+          {message && !error && syncStatus !== 'syncing' && <div className="auth-message">{message}</div>}
         </div>
       ) : (
         <div className="auth-signed-out">

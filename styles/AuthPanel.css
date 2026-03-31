@@ -52,6 +52,60 @@
   margin-left: 0.5rem;
 }
 
+/* Sync Progress */
+.sync-progress {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sync-progress-bar {
+  height: 4px;
+  background: #e0e0e0;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.sync-progress-fill {
+  height: 100%;
+  background: #4CAF50;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+.sync-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.sync-current-step {
+  font-size: 0.8rem;
+  color: #1976d2;
+  font-weight: 500;
+}
+
+.sync-step-spinner {
+  display: inline-block;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.sync-completed-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+}
+
+.sync-step-done {
+  font-size: 0.75rem;
+  color: #4CAF50;
+}
+
 .auth-actions {
   display: flex;
   gap: 0.5rem;

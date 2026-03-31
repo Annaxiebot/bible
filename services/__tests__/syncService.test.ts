@@ -41,6 +41,9 @@ vi.mock('../supabase', () => ({
   syncManager: {
     setStatus: vi.fn(),
     getStatus: () => 'idle',
+    startSync: vi.fn(),
+    stepStart: vi.fn(),
+    stepDone: vi.fn(),
   },
   canSync: () => true,
 }));
