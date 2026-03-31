@@ -5,10 +5,11 @@ interface BibleSearchProps {
   onNavigate: (bookId: string, chapter: number, verses?: number[]) => void;
   onClose: () => void;
   onDownloadBible?: () => void;
+  initialQuery?: string;
 }
 
-const BibleSearch: React.FC<BibleSearchProps> = ({ onNavigate, onClose, onDownloadBible }) => {
-  const [query, setQuery] = useState('');
+const BibleSearch: React.FC<BibleSearchProps> = ({ onNavigate, onClose, onDownloadBible, initialQuery }) => {
+  const [query, setQuery] = useState(initialQuery || '');
   const [results, setResults] = useState<SearchResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
   const [progress, setProgress] = useState({ searched: 0, total: 0 });
@@ -18,6 +19,8 @@ const BibleSearch: React.FC<BibleSearchProps> = ({ onNavigate, onClose, onDownlo
   const [hasSearched, setHasSearched] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const initialSearchDone = useRef(false);
 
   useEffect(() => {
     bibleSearchService.getDownloadStatus().then(status => {
@@ -58,6 +61,14 @@ const BibleSearch: React.FC<BibleSearchProps> = ({ onNavigate, onClose, onDownlo
       }
     }
   }, [query, translation, testament]);
+
+  // Auto-search when opened with initialQuery
+  useEffect(() => {
+    if (initialQuery && !initialSearchDone.current) {
+      initialSearchDone.current = true;
+      handleSearch();
+    }
+  }, [initialQuery, handleSearch]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') handleSearch();

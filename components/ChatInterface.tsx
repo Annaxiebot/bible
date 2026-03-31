@@ -35,6 +35,7 @@ interface ChatInterfaceProps {
   currentVerses?: number[];
   onResearchSaved?: () => void;
   onNavigate?: (bookId: string, chapter: number, verses?: number[]) => void;
+  onSearchReference?: (query: string) => void;
   vibeClassName?: string;
 }
 
@@ -111,9 +112,10 @@ interface MessageBubbleProps {
   currentBookId?: string;
   onTextSelection?: (selectedText: string, position: { x: number; y: number }) => void;
   onQuote?: (text: string) => void;
+  onDelete?: () => void;
 }
 
-const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpeaking, onSpeak, onStop, onSaveResearch, isSaved, onNavigate, currentBookId, onTextSelection, onQuote }) => {
+const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpeaking, onSpeak, onStop, onSaveResearch, isSaved, onNavigate, currentBookId, onTextSelection, onQuote, onDelete }) => {
   const { zh, en } = parseMessage(m.content, m.role);
   const content = side === 'zh' ? zh : en;
 
@@ -234,6 +236,21 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpe
                 </svg>
               </button>
             )}
+            {onDelete && (
+              <button
+                onClick={onDelete}
+                className={`shrink-0 transition-colors p-1 rounded-full ${
+                  m.role === 'user'
+                    ? 'text-indigo-200 hover:text-red-300 hover:bg-indigo-500'
+                    : 'text-slate-400 hover:text-red-500 hover:bg-red-50'
+                }`}
+                title={side === 'zh' ? '删除此对话' : 'Delete this exchange'}
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                </svg>
+              </button>
+            )}
             {m.role === 'assistant' && (
               <>
                 <button
@@ -339,7 +356,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpe
 });
 MessageBubble.displayName = 'MessageBubble';
 
-const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBookId, currentChapter, currentVerses, onResearchSaved, onNavigate, vibeClassName }) => {
+const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBookId, currentChapter, currentVerses, onResearchSaved, onNavigate, onSearchReference, vibeClassName }) => {
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [researchToSave, setResearchToSave] = useState<{ message: ChatMessage; side: 'zh' | 'en' } | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -462,31 +479,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     
     switch (action) {
       case 'search':
-        // Search for the selected text as a potential Bible reference
-        const text = contextMenu.selectedText.trim();
-        
-        if (onNavigate) {
-          // First, try to parse as a complete Bible reference (e.g., "诗篇95:11" or "Psalm 95:11")
-          let parsed = parseBibleReference(text);
-          
-          // If that fails, check if it's a standalone chapter:verse pattern and use current book context
-          if (!parsed && currentBookId) {
-            const refPattern = /(\d{1,3}:\d{1,3}(?:-\d{1,3})?)/;
-            const match = text.match(refPattern);
-            if (match) {
-              const currentBook = BIBLE_BOOKS.find(b => b.id === currentBookId);
-              if (currentBook) {
-                const chineseName = BOOK_ID_TO_CHINESE_NAME[currentBookId];
-                const fullRef = `${chineseName}${match[1]}`;
-                parsed = parseBibleReference(fullRef);
-              }
-            }
-          }
-          
-          // Navigate if we successfully parsed a reference
-          if (parsed) {
-            onNavigate(parsed.bookId, parsed.chapter, parsed.verses);
-          }
+        if (onSearchReference) {
+          onSearchReference(contextMenu.selectedText.trim());
         }
         break;
       case 'copy':
@@ -563,6 +557,27 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       await clearChatHistory(currentBookId, currentChapter);
     }
   }, [currentBookId, currentChapter]);
+
+  // --- Delete a message pair (user + assistant) ---
+  const handleDeleteMessagePair = useCallback((idx: number) => {
+    setMessages(prev => {
+      const msg = prev[idx];
+      if (!msg) return prev;
+
+      let startIdx: number;
+      let endIdx: number;
+
+      if (msg.role === 'user') {
+        startIdx = idx;
+        endIdx = (idx + 1 < prev.length && prev[idx + 1].role === 'assistant') ? idx + 2 : idx + 1;
+      } else {
+        startIdx = (idx - 1 >= 0 && prev[idx - 1].role === 'user') ? idx - 1 : idx;
+        endIdx = idx + 1;
+      }
+
+      return [...prev.slice(0, startIdx), ...prev.slice(endIdx)];
+    });
+  }, []);
 
   const handleImageSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1008,6 +1023,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
               currentBookId={currentBookId}
               onTextSelection={handleTextSelection}
               onQuote={handleQuote}
+              onDelete={() => handleDeleteMessagePair(idx)}
             />
           ))}
           {isTyping && (
@@ -1131,6 +1147,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
               currentBookId={currentBookId}
               onTextSelection={handleTextSelection}
               onQuote={handleQuote}
+              onDelete={() => handleDeleteMessagePair(idx)}
             />
           ))}
         </div>
@@ -1140,22 +1157,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       <div className="p-4 bg-white border-t border-slate-200 z-10 shadow-lg relative flex-shrink-0">
         <div className="max-w-5xl mx-auto flex flex-col gap-2">
           <div className="relative">
-            {/* Quoted text indicator */}
-            {quotedText && (
-              <div className="mb-2 flex items-start gap-2 bg-slate-50 border-l-4 border-indigo-400 rounded-r-lg p-2">
-                <div className="flex-1 text-xs text-slate-600 italic line-clamp-3 overflow-hidden">
-                  <span className="font-semibold text-indigo-500 mr-1">Quote:</span>
-                  {quotedText}
-                </div>
-                <button
-                  onClick={() => setQuotedText(null)}
-                  className="shrink-0 w-5 h-5 text-slate-400 hover:text-red-500 transition-colors flex items-center justify-center"
-                  title="Remove quote"
-                >
-                  <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-              </div>
-            )}
             {/* Image preview */}
             {imageAttachment && (
               <div className="mb-2 relative inline-block">
@@ -1168,14 +1169,32 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
                 </button>
               </div>
             )}
-            <textarea
-              value={input}
-              onChange={handleInputChange}
-              onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
-              placeholder="点击上方选择经文，或在此直接输入问题..."
-              className="w-full p-3 pr-24 rounded-xl border border-slate-200 bg-slate-50 resize-none min-h-[80px] focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm shadow-inner transition-all"
-              rows={3}
-            />
+            <div className={`rounded-xl border bg-slate-50 shadow-inner transition-all ${quotedText ? 'border-indigo-300 ring-2 ring-indigo-500/20' : 'border-slate-200'} focus-within:ring-2 focus-within:ring-indigo-500`}>
+              {/* Quoted text inside input box */}
+              {quotedText && (
+                <div className="flex items-start gap-2 border-b border-slate-200 px-3 pt-2 pb-1.5">
+                  <div className="flex-1 text-xs text-slate-600 italic line-clamp-2 overflow-hidden border-l-3 border-indigo-400 pl-2">
+                    <span className="font-semibold text-indigo-500 mr-1">Quote:</span>
+                    {quotedText}
+                  </div>
+                  <button
+                    onClick={() => setQuotedText(null)}
+                    className="shrink-0 w-5 h-5 text-slate-400 hover:text-red-500 transition-colors flex items-center justify-center"
+                    title="Remove quote"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                  </button>
+                </div>
+              )}
+              <textarea
+                value={input}
+                onChange={handleInputChange}
+                onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); } }}
+                placeholder="点击上方选择经文，或在此直接输入问题..."
+                className="w-full p-3 pr-24 bg-transparent resize-none min-h-[80px] focus:outline-none text-sm"
+                rows={3}
+              />
+            </div>
             {/* Off-screen file input for touch devices (iOS Safari + Chrome compatible) */}
             <input
               ref={fileInputRef}
