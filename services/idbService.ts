@@ -165,7 +165,7 @@ export interface BibleAppSchema extends DBSchema {
 // ---------------------------------------------------------------------------
 
 const DB_NAME = 'BibleApp';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 class IDBService {
   private dbPromise: Promise<IDBPDatabase<BibleAppSchema>>;
