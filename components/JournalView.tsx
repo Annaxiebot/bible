@@ -3,7 +3,7 @@ import { JournalEntry } from '../services/idbService';
 import { journalStorage } from '../services/journalStorage';
 import JournalEditor from './JournalEditor';
 import SimpleDrawingCanvas, { SimpleDrawingCanvasHandle } from './SimpleDrawingCanvas';
-import { compressImage } from '../services/imageCompressionService';
+import { compressImage, compressImageFromUrl } from '../services/imageCompressionService';
 
 interface JournalViewProps {
   /** Current Bible reading context for linking new entries */
@@ -56,17 +56,22 @@ const JournalView: React.FC<JournalViewProps> = ({
 
   // Create new entry
   const handleNew = async () => {
-    setSearchQuery(''); // Clear search so new entry is visible
-    const verseRef =
-      bookId && chapter && bookName ? `${bookName} ${chapter}` : undefined;
-    const entry = await journalStorage.createEntry({
-      bookId,
-      chapter,
-      verseRef,
-    });
-    const allEntries = await journalStorage.getAllEntries();
-    setEntries(allEntries);
-    setSelectedId(entry.id);
+    try {
+      setSearchQuery(''); // Clear search so new entry is visible
+      const verseRef =
+        bookId && chapter && bookName ? `${bookName} ${chapter}` : undefined;
+      const entry = await journalStorage.createEntry({
+        bookId,
+        chapter,
+        verseRef,
+      });
+      const allEntries = await journalStorage.getAllEntries();
+      setEntries(allEntries);
+      setSelectedId(entry.id);
+      if (isMobile) setMobileShowEditor(true);
+    } catch (err) {
+      console.error('[Journal] Failed to create entry:', err);
+    }
   };
 
   // Delete entry
@@ -370,12 +375,16 @@ const JournalView: React.FC<JournalViewProps> = ({
   const [drawingSize, setDrawingSize] = useState(3);
   const canvasRef = useRef<SimpleDrawingCanvasHandle>(null);
   const editorRef = useRef<HTMLDivElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
-  const cameraCanvasRef = useRef<HTMLCanvasElement>(null);
+  const webcamStreamRef = useRef<MediaStream | null>(null);
   const [showWebcam, setShowWebcam] = useState(false);
+  const [showImageMenu, setShowImageMenu] = useState(false);
   const [isWritingMode, setIsWritingMode] = useState(false);
-  const mediaStreamRef = useRef<MediaStream | null>(null);
+
+  // Detect mobile/tablet (same logic as ChatInterface)
+  const isTouchDevice = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+    (navigator.maxTouchPoints > 0 && /Macintosh/i.test(navigator.userAgent));
 
   const DRAW_COLORS = ['#000000', '#ef4444', '#3b82f6', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899'];
 
@@ -396,35 +405,8 @@ const JournalView: React.FC<JournalViewProps> = ({
     }, 2000);
   }, [selectedId]);
 
-  // Camera
-  const openWebcam = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-      mediaStreamRef.current = stream;
-      setShowWebcam(true);
-      setTimeout(() => { if (videoRef.current) videoRef.current.srcObject = stream; }, 100);
-    } catch { /* camera not available */ }
-  };
-
-  const closeWebcam = () => {
-    mediaStreamRef.current?.getTracks().forEach(t => t.stop());
-    mediaStreamRef.current = null;
-    setShowWebcam(false);
-  };
-
-  const capturePhoto = () => {
-    if (!videoRef.current || !cameraCanvasRef.current) return;
-    const video = videoRef.current;
-    const canvas = cameraCanvasRef.current;
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext('2d')?.drawImage(video, 0, 0);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
-    insertImageIntoEditor(dataUrl);
-    closeWebcam();
-  };
-
-  const handleCameraInput = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // File/photo selection (works on all browsers)
+  const handleImageSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     try {
@@ -436,7 +418,49 @@ const JournalView: React.FC<JournalViewProps> = ({
       reader.readAsDataURL(file);
     }
     e.target.value = '';
-  };
+  }, []);
+
+  // Webcam — open stream first, then show UI (desktop only)
+  const openWebcam = useCallback(async () => {
+    setShowImageMenu(false);
+    setShowWebcam(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
+      });
+      webcamStreamRef.current = stream;
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch {
+      setShowWebcam(false);
+    }
+  }, []);
+
+  const closeWebcam = useCallback(() => {
+    if (webcamStreamRef.current) {
+      webcamStreamRef.current.getTracks().forEach(t => t.stop());
+      webcamStreamRef.current = null;
+    }
+    setShowWebcam(false);
+  }, []);
+
+  const capturePhoto = useCallback(async () => {
+    const video = videoRef.current;
+    if (!video) return;
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    canvas.getContext('2d')!.drawImage(video, 0, 0);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    try {
+      const compressed = await compressImageFromUrl(dataUrl);
+      insertImageIntoEditor(`data:${compressed.mimeType};base64,${compressed.base64}`);
+    } catch {
+      insertImageIntoEditor(dataUrl);
+    }
+    closeWebcam();
+  }, []);
 
   const insertImageIntoEditor = (dataUrl: string) => {
     if (editorRef.current) {
@@ -496,11 +520,10 @@ const JournalView: React.FC<JournalViewProps> = ({
         </div>
       </div>
 
-      {/* Webcam overlay */}
+      {/* Webcam overlay (desktop only) */}
       {showWebcam && (
-        <div style={{ position: 'absolute', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.8)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
-          <video ref={videoRef} autoPlay playsInline style={{ width: '100%', maxHeight: '60vh', borderRadius: 8, marginBottom: 12 }} />
-          <canvas ref={cameraCanvasRef} className="hidden" style={{ display: 'none' }} />
+        <div style={{ position: 'absolute', inset: 0, zIndex: 50, background: 'rgba(0,0,0,0.85)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 16 }}>
+          <video ref={videoRef} autoPlay playsInline muted style={{ width: '100%', maxHeight: '60vh', borderRadius: 8, marginBottom: 12, background: '#000' }} />
           <div style={{ display: 'flex', gap: 8 }}>
             <button onClick={capturePhoto} style={{ background: '#4f46e5', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: 'pointer', fontSize: 14 }}>Capture</button>
             <button onClick={closeWebcam} style={{ background: '#6b7280', color: '#fff', border: 'none', borderRadius: 8, padding: '8px 20px', cursor: 'pointer', fontSize: 14 }}>Cancel</button>
@@ -508,8 +531,8 @@ const JournalView: React.FC<JournalViewProps> = ({
         </div>
       )}
 
-      {/* Hidden camera input for mobile */}
-      <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleCameraInput} style={{ display: 'none' }} />
+      {/* Off-screen file input (iOS Safari + Chrome compatible) */}
+      <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect} style={{ position: 'fixed', top: '-10000px', left: '-10000px' }} />
 
       {/* Mode selector */}
       <div style={{ display: 'flex', gap: 4, padding: '6px 12px', borderBottom: '1px solid #f3f4f6', flexShrink: 0, background: '#fafafa' }}>
@@ -521,10 +544,33 @@ const JournalView: React.FC<JournalViewProps> = ({
           </button>
         ))}
         <span style={{ flex: 1 }} />
-        {/* Camera button */}
-        <button onClick={() => { if (isMobile && cameraInputRef.current) cameraInputRef.current.click(); else openWebcam(); }}
-          style={{ fontSize: 13, padding: '4px 8px', borderRadius: 6, border: 'none', cursor: 'pointer', background: '#f3f4f6', color: '#6b7280' }}
-          title="Take photo">📷</button>
+        {/* Camera/photo button — mobile: OS file picker, desktop: menu with webcam + file */}
+        {isTouchDevice ? (
+          <button onClick={() => fileInputRef.current?.click()}
+            style={{ fontSize: 13, padding: '4px 8px', borderRadius: 6, border: 'none', cursor: 'pointer', background: '#f3f4f6', color: '#6b7280' }}
+            title="Take photo / choose image">📷</button>
+        ) : (
+          <div style={{ position: 'relative' }}>
+            <button onClick={() => setShowImageMenu(!showImageMenu)}
+              style={{ fontSize: 13, padding: '4px 8px', borderRadius: 6, border: 'none', cursor: 'pointer', background: showImageMenu ? '#e0e7ff' : '#f3f4f6', color: '#6b7280' }}
+              title="Add photo">📷</button>
+            {showImageMenu && (
+              <>
+                <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setShowImageMenu(false)} />
+                <div style={{ position: 'absolute', bottom: '100%', right: 0, marginBottom: 4, background: '#fff', borderRadius: 8, boxShadow: '0 4px 16px rgba(0,0,0,0.15)', border: '1px solid #e5e7eb', padding: '4px 0', width: 150, zIndex: 50 }}>
+                  <button onClick={openWebcam}
+                    style={{ width: '100%', padding: '8px 12px', textAlign: 'left', fontSize: 13, border: 'none', background: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8 }}>
+                    📸 Take Photo
+                  </button>
+                  <label style={{ width: '100%', padding: '8px 12px', textAlign: 'left', fontSize: 13, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                    🖼️ Choose Photo
+                    <input type="file" accept="image/*" onChange={(e) => { setShowImageMenu(false); handleImageSelect(e); }} style={{ display: 'none' }} />
+                  </label>
+                </div>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Rich text toolbar — text/overlay modes */}
@@ -575,7 +621,7 @@ const JournalView: React.FC<JournalViewProps> = ({
 
         {noteMode === 'draw' && (
           <div style={{ position: 'relative', minHeight: '400px', height: '100%', background: '#f8f8f8' }}>
-            <SimpleDrawingCanvas ref={canvasRef} onChange={handleDrawingChange} initialData={drawingData} overlayMode={false} isWritingMode={true} />
+            <SimpleDrawingCanvas key={`draw-${selectedId}`} ref={canvasRef} onChange={handleDrawingChange} initialData={drawingData} overlayMode={false} isWritingMode={true} />
           </div>
         )}
 
@@ -585,7 +631,7 @@ const JournalView: React.FC<JournalViewProps> = ({
               data-placeholder="Write and draw..."
               style={{ minHeight: '100%', padding: '16px 20px', outline: 'none', fontSize: 16, lineHeight: 1.7, color: '#1f2937', pointerEvents: isWritingMode ? 'none' : 'auto' }} />
             <div style={{ position: 'absolute', inset: 0, zIndex: 10, pointerEvents: isWritingMode ? 'auto' : 'none' }}>
-              <SimpleDrawingCanvas ref={canvasRef} onChange={handleDrawingChange} initialData={drawingData} overlayMode={true} isWritingMode={isWritingMode} />
+              <SimpleDrawingCanvas key={`overlay-${selectedId}`} ref={canvasRef} onChange={handleDrawingChange} initialData={drawingData} overlayMode={true} isWritingMode={isWritingMode} />
             </div>
             <div style={{ position: 'absolute', bottom: 8, right: 8, zIndex: 20 }}>
               <button onClick={() => setIsWritingMode(!isWritingMode)}
