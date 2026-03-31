@@ -39,6 +39,7 @@ interface SyncState {
   lastVerseDataSync: number;
   lastBookmarksSync: number;
   lastBibleCacheSync: number;
+  lastJournalSync: number;
 }
 
 const SYNC_STATE_KEY = STORAGE_KEYS.SYNC_STATE;
@@ -51,6 +52,7 @@ const DEFAULT_SYNC_STATE: SyncState = {
   lastVerseDataSync: 0,
   lastBookmarksSync: 0,
   lastBibleCacheSync: 0,
+  lastJournalSync: 0,
 };
 
 function getSyncState(): SyncState {
@@ -600,6 +602,112 @@ async function syncBibleCache(): Promise<void> {
 }
 
 // =====================================================
+// JOURNAL SYNC
+// =====================================================
+// Supabase table DDL (run via dashboard):
+// CREATE TABLE journal (
+//   id TEXT PRIMARY KEY,
+//   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+//   title TEXT DEFAULT '',
+//   content TEXT DEFAULT '',
+//   plain_text TEXT DEFAULT '',
+//   drawing TEXT DEFAULT '',
+//   book_id TEXT,
+//   chapter INT,
+//   verse_ref TEXT,
+//   tags TEXT[] DEFAULT '{}',
+//   created_at TIMESTAMPTZ DEFAULT now(),
+//   updated_at TIMESTAMPTZ DEFAULT now()
+// );
+// CREATE INDEX idx_journal_user ON journal(user_id);
+// ALTER TABLE journal ENABLE ROW LEVEL SECURITY;
+// CREATE POLICY "Users can manage own journal" ON journal FOR ALL USING (auth.uid() = user_id);
+
+async function syncJournal(): Promise<void> {
+  if (!supabase || !canSync()) return;
+
+  const userId = authManager.getUserId();
+  if (!userId) return;
+
+  const { journalStorage } = await import('./journalStorage');
+
+  const syncState = getSyncState();
+  const { data: remoteEntries, error } = await supabase
+    .from('journal')
+    .select('*')
+    .eq('user_id', userId)
+    .gte('updated_at', new Date(syncState.lastJournalSync).toISOString());
+
+  if (error) throw error;
+
+  // Merge remote into local (remote wins on conflict)
+  for (const remote of remoteEntries || []) {
+    const local = await journalStorage.getEntry(remote.id);
+    if (!local || new Date(remote.updated_at).getTime() > new Date(local.updatedAt).getTime()) {
+      if (local) {
+        await journalStorage.updateEntry(remote.id, {
+          title: remote.title,
+          content: remote.content,
+          plainText: remote.plain_text,
+          drawing: remote.drawing,
+          bookId: remote.book_id,
+          chapter: remote.chapter,
+          verseRef: remote.verse_ref,
+          tags: remote.tags || [],
+        });
+      } else {
+        const { idbService } = await import('./idbService');
+        await idbService.put('journal', {
+          id: remote.id,
+          title: remote.title || '',
+          content: remote.content || '',
+          plainText: remote.plain_text || '',
+          drawing: remote.drawing || '',
+          bookId: remote.book_id,
+          chapter: remote.chapter,
+          verseRef: remote.verse_ref,
+          tags: remote.tags || [],
+          createdAt: remote.created_at,
+          updatedAt: remote.updated_at,
+        });
+      }
+    }
+  }
+
+  // Upload local entries to remote
+  const allLocal = await journalStorage.getAllEntries();
+  const remoteIds = new Set((remoteEntries || []).map((r: any) => r.id));
+  const toUpload = allLocal.filter(local => {
+    if (!remoteIds.has(local.id)) return true;
+    const remote = (remoteEntries || []).find((r: any) => r.id === local.id);
+    return remote && new Date(local.updatedAt).getTime() > new Date(remote.updated_at).getTime();
+  });
+
+  if (toUpload.length > 0) {
+    const rows = toUpload.map(e => ({
+      id: e.id,
+      user_id: userId,
+      title: e.title,
+      content: e.content,
+      plain_text: e.plainText,
+      drawing: (e as any).drawing || '',
+      book_id: e.bookId || null,
+      chapter: e.chapter || null,
+      verse_ref: e.verseRef || null,
+      tags: e.tags || [],
+      created_at: e.createdAt,
+      updated_at: e.updatedAt,
+    }));
+
+    for (let i = 0; i < rows.length; i += 50) {
+      await supabase.from('journal').upsert(rows.slice(i, i + 50), { onConflict: 'id' });
+    }
+  }
+
+  setSyncState({ lastJournalSync: Date.now() });
+}
+
+// =====================================================
 // FULL SYNC
 // =====================================================
 
@@ -619,6 +727,7 @@ export async function performFullSync(): Promise<void> {
       syncVerseData(),
       syncBookmarks(),
       syncBibleCache(),
+      syncJournal(),
     ]);
 
     syncManager.setStatus('idle');
@@ -704,6 +813,7 @@ export const syncService = {
   syncVerseData,
   syncBookmarks,
   syncBibleCache,
+  syncJournal,
   canSync,
   getSyncState,
 };
