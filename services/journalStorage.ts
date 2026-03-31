@@ -16,6 +16,9 @@ class JournalStorageService {
     title?: string;
     content?: string;
     plainText?: string;
+    latitude?: number;
+    longitude?: number;
+    locationName?: string;
     bookId?: string;
     chapter?: number;
     verseRef?: string;
@@ -27,6 +30,9 @@ class JournalStorageService {
       title: params.title || '',
       content: params.content || '',
       plainText: params.plainText || '',
+      latitude: params.latitude,
+      longitude: params.longitude,
+      locationName: params.locationName,
       bookId: params.bookId,
       chapter: params.chapter,
       verseRef: params.verseRef,

@@ -13,13 +13,32 @@ interface JournalViewProps {
   onNavigate?: (bookId: string, chapter: number) => void;
 }
 
-function formatDate(iso: string): string {
+function formatDate(iso: string, includeTime = false): string {
   const d = new Date(iso);
-  return d.toLocaleDateString('en-US', {
+  const date = d.toLocaleDateString('en-US', {
     year: 'numeric',
     month: 'long',
     day: 'numeric',
   });
+  if (!includeTime) return date;
+  const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+  return `${date} · ${time}`;
+}
+
+/** Reverse-geocode lat/lng to a human-readable location name */
+async function reverseGeocode(lat: number, lng: number): Promise<string> {
+  try {
+    const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=10`, {
+      headers: { 'User-Agent': 'BibleStudyApp/1.0' },
+    });
+    const data = await resp.json();
+    // Build a short location: city, state or country
+    const addr = data.address || {};
+    const parts = [addr.city || addr.town || addr.village || addr.county, addr.state || addr.country].filter(Boolean);
+    return parts.length > 0 ? parts.join(', ') : data.display_name?.split(',').slice(0, 2).join(',') || '';
+  } catch {
+    return '';
+  }
 }
 
 function truncate(text: string, max: number): string {
@@ -54,7 +73,7 @@ const JournalView: React.FC<JournalViewProps> = ({
     loadEntries();
   }, [loadEntries]);
 
-  // Create new entry
+  // Create new entry with auto-location
   const handleNew = async () => {
     try {
       setSearchQuery(''); // Clear search so new entry is visible
@@ -69,6 +88,23 @@ const JournalView: React.FC<JournalViewProps> = ({
       setEntries(allEntries);
       setSelectedId(entry.id);
       if (isMobile) setMobileShowEditor(true);
+
+      // Auto-capture location (non-blocking)
+      if ('geolocation' in navigator) {
+        navigator.geolocation.getCurrentPosition(
+          async (pos) => {
+            const { latitude, longitude } = pos.coords;
+            const locationName = await reverseGeocode(latitude, longitude);
+            await journalStorage.updateEntry(entry.id, { latitude, longitude, locationName });
+            // Update local state
+            setEntries(prev => prev.map(e =>
+              e.id === entry.id ? { ...e, latitude, longitude, locationName } : e
+            ));
+          },
+          () => { /* silently skip if denied */ },
+          { timeout: 10000, enableHighAccuracy: false }
+        );
+      }
     } catch (err) {
       console.error('[Journal] Failed to create entry:', err);
     }
@@ -253,8 +289,13 @@ const JournalView: React.FC<JournalViewProps> = ({
                     {entry.title || 'Untitled'}
                   </div>
                   <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>
-                    {formatDate(entry.createdAt)}
+                    {formatDate(entry.createdAt, true)}
                   </div>
+                  {entry.locationName && (
+                    <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1, display: 'flex', alignItems: 'center', gap: 3 }}>
+                      <span>📍</span>{entry.locationName}
+                    </div>
+                  )}
                   {entry.verseRef && (
                     <div
                       style={{
@@ -510,7 +551,16 @@ const JournalView: React.FC<JournalViewProps> = ({
           </button>
         )}
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 12, color: '#9ca3af' }}>{formatDate(selectedEntry.createdAt)}</div>
+          <div style={{ fontSize: 12, color: '#9ca3af' }}>{formatDate(selectedEntry.createdAt, true)}</div>
+          {selectedEntry.locationName && (
+            <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1, display: 'flex', alignItems: 'center', gap: 3 }}>
+              <span>📍</span>{selectedEntry.locationName}
+              <button onClick={async () => {
+                await journalStorage.updateEntry(selectedEntry.id, { latitude: undefined, longitude: undefined, locationName: undefined });
+                setEntries(prev => prev.map(e => e.id === selectedEntry.id ? { ...e, latitude: undefined, longitude: undefined, locationName: undefined } : e));
+              }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#d1d5db', fontSize: 10, padding: '0 2px' }} title="Remove location">✕</button>
+            </div>
+          )}
           {selectedEntry.verseRef && (
             <div onClick={() => { if (onNavigate && selectedEntry.bookId && selectedEntry.chapter) onNavigate(selectedEntry.bookId, selectedEntry.chapter); }}
               style={{ fontSize: 12, color: '#6366f1', cursor: selectedEntry.bookId ? 'pointer' : 'default', marginTop: 2 }}>
@@ -519,6 +569,21 @@ const JournalView: React.FC<JournalViewProps> = ({
           )}
         </div>
       </div>
+
+      {/* Google Maps embed */}
+      {selectedEntry.latitude != null && selectedEntry.longitude != null && (
+        <div style={{ padding: '0 16px 8px', flexShrink: 0 }}>
+          <iframe
+            src={`https://www.google.com/maps/embed?pb=!1m14!1m12!1m3!1d5000!2d${selectedEntry.longitude}!3d${selectedEntry.latitude}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1`}
+            width="100%"
+            height="120"
+            style={{ border: 0, borderRadius: 8 }}
+            loading="lazy"
+            referrerPolicy="no-referrer-when-downgrade"
+            title="Entry location"
+          />
+        </div>
+      )}
 
       {/* Webcam overlay (desktop only) */}
       {showWebcam && (
