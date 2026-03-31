@@ -93,6 +93,28 @@ export interface JournalEntry {
   updatedAt: string; // ISO string
 }
 
+/** Serialized chat message for IndexedDB storage (Date -> ISO string) */
+export interface ChatHistoryMessage {
+  role: 'user' | 'assistant' | 'system';
+  content: string;
+  timestamp: string; // ISO string
+  type?: 'text' | 'image' | 'video' | 'audio';
+  mediaUrl?: string;
+  model?: string;
+  responseTime?: number;
+  references?: Array<{ title: string; uri: string }>;
+}
+
+/** A persisted chat thread keyed by chapter context */
+export interface ChatHistoryRecord {
+  /** Composite key: "bookId:chapter" */
+  id: string;
+  bookId: string;
+  chapter: number;
+  messages: ChatHistoryMessage[];
+  lastModified: number;
+}
+
 export type PlanType = 'bible-in-year' | 'nt-90-days' | 'psalms-proverbs';
 
 export interface ReadingPlanState {
@@ -161,6 +183,14 @@ export interface BibleAppSchema extends DBSchema {
       'by-bookId': string;
     };
   };
+  chatHistory: {
+    key: string;
+    value: ChatHistoryRecord;
+    indexes: {
+      'by-book': string;
+      'by-modified': number;
+    };
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -224,6 +254,13 @@ class IDBService {
           journalStore.createIndex('by-created', 'createdAt');
           journalStore.createIndex('by-updated', 'updatedAt');
           journalStore.createIndex('by-bookId', 'bookId');
+        }
+
+        // chatHistory (added in v2)
+        if (!db.objectStoreNames.contains('chatHistory')) {
+          const chatStore = db.createObjectStore('chatHistory', { keyPath: 'id' });
+          chatStore.createIndex('by-book', 'bookId');
+          chatStore.createIndex('by-modified', 'lastModified');
         }
       },
     });
