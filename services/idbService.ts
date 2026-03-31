@@ -81,6 +81,7 @@ export interface JournalEntry {
   title: string;
   content: string; // HTML
   plainText: string;
+  drawing?: string; // Canvas data (strokes or data URL)
   bookId?: string;
   chapter?: number;
   verseRef?: string;
