@@ -105,13 +105,16 @@ export interface ChatHistoryMessage {
   references?: Array<{ title: string; uri: string }>;
 }
 
-/** A persisted chat thread keyed by chapter context */
+/** A persisted chat thread — can be tied to a chapter or free-form */
 export interface ChatHistoryRecord {
-  /** Composite key: "bookId:chapter" */
+  /** UUID or composite key "bookId:chapter" for legacy threads */
   id: string;
-  bookId: string;
-  chapter: number;
+  /** Auto-generated from first message content */
+  title: string;
+  bookId?: string;
+  chapter?: number;
   messages: ChatHistoryMessage[];
+  createdAt: string; // ISO string
   lastModified: number;
 }
 
@@ -187,7 +190,6 @@ export interface BibleAppSchema extends DBSchema {
     key: string;
     value: ChatHistoryRecord;
     indexes: {
-      'by-book': string;
       'by-modified': number;
     };
   };
@@ -259,7 +261,6 @@ class IDBService {
         // chatHistory (added in v2)
         if (!db.objectStoreNames.contains('chatHistory')) {
           const chatStore = db.createObjectStore('chatHistory', { keyPath: 'id' });
-          chatStore.createIndex('by-book', 'bookId');
           chatStore.createIndex('by-modified', 'lastModified');
         }
       },
