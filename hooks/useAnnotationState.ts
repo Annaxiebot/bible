@@ -1,8 +1,6 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { InlineBibleAnnotationHandle } from '../components/InlineBibleAnnotation';
-import type { PaperType } from '../services/strokeNormalizer';
-
-const PAPER_TYPE_STORAGE_KEY = 'bible-annotation-paper-type';
+import { usePaperType } from './usePaperType';
 
 const DEFAULT_TOOL_SIZES: Record<string, number> = {
   pen: 2, marker: 3, highlighter: 4, eraser: 8,
@@ -33,23 +31,16 @@ export function useAnnotationState(
     vSplitOffset: number;
   } | null>(null);
 
-  const [paperType, setPaperTypeState] = useState<PaperType>(() => {
-    try {
-      const stored = localStorage.getItem(PAPER_TYPE_STORAGE_KEY);
-      if (stored === 'grid' || stored === 'ruled' || stored === 'plain') return stored;
-    } catch { /* ignore */ }
-    return 'plain';
-  });
+  const { paperType, setPaperType: setSharedPaperType } = usePaperType();
 
   const chineseAnnotationRef = useRef<InlineBibleAnnotationHandle | null>(null);
   const englishAnnotationRef = useRef<InlineBibleAnnotationHandle | null>(null);
 
-  const setPaperType = useCallback((type: PaperType) => {
-    setPaperTypeState(type);
-    try { localStorage.setItem(PAPER_TYPE_STORAGE_KEY, type); } catch { /* ignore */ }
+  const setPaperType = useCallback((type: Parameters<typeof setSharedPaperType>[0]) => {
+    setSharedPaperType(type);
     chineseAnnotationRef.current?.setPaperType(type);
     englishAnnotationRef.current?.setPaperType(type);
-  }, []);
+  }, [setSharedPaperType]);
 
   const selectAnnotationTool = useCallback((tool: AnnotationTool) => {
     setToolSizes(prev => ({ ...prev, [annotationTool]: annotationSize }));

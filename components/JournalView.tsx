@@ -4,6 +4,8 @@ import { journalStorage } from '../services/journalStorage';
 import JournalEditor from './JournalEditor';
 import SimpleDrawingCanvas, { SimpleDrawingCanvasHandle } from './SimpleDrawingCanvas';
 import { compressImage, compressImageFromUrl } from '../services/imageCompressionService';
+import { usePaperType } from '../hooks/usePaperType';
+import type { PaperType } from '../services/strokeNormalizer';
 
 interface JournalViewProps {
   /** Current Bible reading context for linking new entries */
@@ -415,6 +417,7 @@ const JournalView: React.FC<JournalViewProps> = ({
   const [drawingColor, setDrawingColor] = useState('#000000');
   const [drawingSize, setDrawingSize] = useState(3);
   const canvasRef = useRef<SimpleDrawingCanvasHandle>(null);
+  const { paperType, setPaperType } = usePaperType();
   const editorRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -665,6 +668,15 @@ const JournalView: React.FC<JournalViewProps> = ({
           <button onClick={() => canvasRef.current?.undo()} style={{ fontSize: 13, padding: '3px 6px', borderRadius: 4, border: 'none', cursor: 'pointer', background: 'transparent' }} title="Undo">↩️</button>
           <button onClick={() => canvasRef.current?.clear()} style={{ fontSize: 13, padding: '3px 6px', borderRadius: 4, border: 'none', cursor: 'pointer', background: 'transparent' }} title="Clear">🗑️</button>
           <span style={{ width: 1, height: 16, background: '#e5e7eb', margin: '0 2px' }} />
+          {(['plain', 'grid', 'ruled'] as PaperType[]).map(t => (
+            <button key={t} onClick={() => { setPaperType(t); canvasRef.current?.setPaperType(t); }}
+              style={{ fontSize: 13, padding: '3px 6px', borderRadius: 4, border: 'none', cursor: 'pointer',
+                background: paperType === t ? '#e0e7ff' : 'transparent' }}
+              title={t === 'plain' ? 'Plain' : t === 'grid' ? 'Grid' : 'College Ruled'}>
+              {t === 'plain' ? '📄' : t === 'grid' ? '📐' : '📝'}
+            </button>
+          ))}
+          <span style={{ width: 1, height: 16, background: '#e5e7eb', margin: '0 2px' }} />
           {DRAW_COLORS.map(color => (
             <button key={color} onClick={() => { setDrawingColor(color); canvasRef.current?.setColor(color); }}
               style={{ width: 18, height: 18, borderRadius: '50%', backgroundColor: color, border: drawingColor === color ? '2px solid #4f46e5' : '2px solid transparent', cursor: 'pointer', padding: 0 }}
@@ -686,7 +698,7 @@ const JournalView: React.FC<JournalViewProps> = ({
 
         {noteMode === 'draw' && (
           <div style={{ position: 'relative', minHeight: '400px', height: '100%', background: '#f8f8f8' }}>
-            <SimpleDrawingCanvas key={`draw-${selectedId}`} ref={canvasRef} onChange={handleDrawingChange} initialData={drawingData} overlayMode={false} isWritingMode={true} />
+            <SimpleDrawingCanvas key={`draw-${selectedId}`} ref={canvasRef} onChange={handleDrawingChange} initialData={drawingData} overlayMode={false} isWritingMode={true} paperType={paperType} />
           </div>
         )}
 
@@ -696,7 +708,7 @@ const JournalView: React.FC<JournalViewProps> = ({
               data-placeholder="Write and draw..."
               style={{ minHeight: '100%', padding: '16px 20px', outline: 'none', fontSize: 16, lineHeight: 1.7, color: '#1f2937', pointerEvents: isWritingMode ? 'none' : 'auto' }} />
             <div style={{ position: 'absolute', inset: 0, zIndex: 10, pointerEvents: isWritingMode ? 'auto' : 'none' }}>
-              <SimpleDrawingCanvas key={`overlay-${selectedId}`} ref={canvasRef} onChange={handleDrawingChange} initialData={drawingData} overlayMode={true} isWritingMode={isWritingMode} />
+              <SimpleDrawingCanvas key={`overlay-${selectedId}`} ref={canvasRef} onChange={handleDrawingChange} initialData={drawingData} overlayMode={true} isWritingMode={isWritingMode} paperType={paperType} />
             </div>
             <div style={{ position: 'absolute', bottom: 8, right: 8, zIndex: 20 }}>
               <button onClick={() => setIsWritingMode(!isWritingMode)}
