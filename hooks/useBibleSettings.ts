@@ -1,10 +1,14 @@
 import { useState, useEffect } from 'react';
 import { STORAGE_KEYS } from '../constants/storageKeys';
+import { preloadConverter } from '../services/chineseConverter';
 
 export function useBibleSettings() {
   const [isSimplified, setIsSimplified] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.CHINESE_MODE);
-    return saved === 'simplified';
+    // Default to simplified if no preference saved
+    const simplified = saved ? saved === 'simplified' : true;
+    if (simplified) preloadConverter();
+    return simplified;
   });
 
   const [englishVersion, setEnglishVersion] = useState(() => {
