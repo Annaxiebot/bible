@@ -5,6 +5,8 @@ import { verseDataStorage } from '../services/verseDataStorage';
 import { useStorageUpdate } from '../hooks/useStorageUpdate';
 import SimpleDrawingCanvas, { SimpleDrawingCanvasHandle } from './SimpleDrawingCanvas';
 import LazyMarkdown from './LazyMarkdown';
+import { usePaperType } from '../hooks/usePaperType';
+import type { PaperType } from '../services/strokeNormalizer';
 import { downloadNote, readNoteFile } from '../services/fileSystem';
 import * as aiService from '../services/gemini';
 import { IMAGE, TIMING } from '../constants/appConfig';
@@ -185,6 +187,7 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
 
   const editorRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<SimpleDrawingCanvasHandle>(null);
+  const { paperType, setPaperType } = usePaperType();
   const autoSaveTimer = useRef<number | null>(null);
   const previousSelectionIdRef = useRef<string | null>(null);
   const lastActivityTime = useRef<number>(Date.now());
@@ -834,6 +837,7 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
             initialData={drawingData}
             overlayMode={false}
             isWritingMode={isWritingMode}
+            paperType={paperType}
           />
           {/* Drawing palette */}
           <div className="draw-palette">
@@ -850,6 +854,15 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
             ))}
             <button onClick={() => canvasRef.current?.undo()} className="toolbar-btn" title="Undo">↩️</button>
             <button onClick={() => canvasRef.current?.clear()} className="toolbar-btn" title="Clear">🗑️</button>
+            <span className="toolbar-sep" />
+            {(['plain', 'grid', 'ruled'] as PaperType[]).map(t => (
+              <button key={t} onClick={() => { setPaperType(t); canvasRef.current?.setPaperType(t); }}
+                className="toolbar-btn"
+                style={paperType === t ? { background: '#e0e7ff' } : {}}
+                title={t === 'plain' ? 'Plain' : t === 'grid' ? 'Grid' : 'College Ruled'}>
+                {t === 'plain' ? '📄' : t === 'grid' ? '📐' : '📝'}
+              </button>
+            ))}
             <span className="toolbar-sep" />
             {DRAW_COLORS.map(color => (
               <button
@@ -890,6 +903,7 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
               initialData={drawingData}
               overlayMode={true}
               isWritingMode={isWritingMode}
+              paperType={paperType}
             />
           </div>
           <div style={{ position: 'absolute', bottom: '8px', right: '8px', zIndex: 20 }}>
