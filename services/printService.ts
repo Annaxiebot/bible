@@ -1,4 +1,5 @@
 import { NoteData } from '../types';
+import type { JournalEntry } from './idbService';
 import { getChineseName, getBookIndex, BIBLE_BOOKS } from './bibleBookData';
 import { verseDataStorage } from './verseDataStorage';
 import { annotationStorage } from './annotationStorage';
@@ -814,6 +815,80 @@ export async function printStudyNotes(options?: PrintOptions) {
     return;
   }
   const html = generateStudyPrintHTML(sections);
+  const printWindow = window.open('', '_blank');
+  if (printWindow) {
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.onload = () => setTimeout(() => printWindow.print(), TIMING.PRINT_WINDOW_DELAY_MS);
+  }
+}
+
+// =====================================================
+// Journal Print Support
+// =====================================================
+
+export function generateJournalPrintHTML(entries: JournalEntry[]): string {
+  const currentDate = new Date().toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric' });
+
+  let html = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>Personal Journal - ${currentDate}</title>
+<style>
+@media print { @page { size: A4; margin: 2cm; } .no-print { display: none !important; } .journal-entry { break-inside: avoid; } }
+body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans CJK SC", sans-serif; line-height: 1.8; color: #222; max-width: 800px; margin: 0 auto; padding: 20px; }
+h1 { text-align: center; color: #1a1a2e; border-bottom: 3px solid #6366f1; padding-bottom: 15px; font-size: 24px; }
+.info { text-align: center; color: #666; margin-bottom: 30px; font-size: 14px; }
+.journal-entry { margin-bottom: 30px; padding: 20px; background: #f8f9fa; border-left: 4px solid #6366f1; border-radius: 5px; }
+.entry-title { font-size: 18px; font-weight: bold; color: #1a1a2e; margin-bottom: 4px; }
+.entry-meta { font-size: 12px; color: #777; margin-bottom: 12px; display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.entry-ref { color: #6366f1; background: #e0e7ff; padding: 1px 8px; border-radius: 10px; font-size: 11px; }
+.entry-tag { color: #6366f1; font-size: 11px; }
+.entry-content { color: #222; font-size: 14px; line-height: 1.8; }
+.entry-drawing { margin-top: 12px; text-align: center; }
+.entry-drawing img { max-width: 100%; border: 1px solid #ddd; border-radius: 4px; padding: 8px; background: white; }
+.print-btn { position: fixed; top: 20px; right: 20px; padding: 10px 20px; background: #6366f1; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; z-index: 1000; }
+.print-btn:hover { background: #4f46e5; }
+.stats { margin: 20px 0; padding: 15px; background: #f0f0ff; border-radius: 5px; text-align: center; }
+.stat { display: inline-block; margin: 0 15px; }
+.stat-n { font-size: 22px; font-weight: bold; color: #6366f1; }
+</style>
+</head>
+<body>
+<button class="print-btn no-print" onclick="window.print()">Print</button>
+<h1>Personal Journal</h1>
+<div class="info">${currentDate} | ${entries.length} entries</div>
+<div class="stats no-print">
+  <span class="stat"><span class="stat-n">${entries.length}</span> entries</span>
+  <span class="stat"><span class="stat-n">${entries.filter(e => e.drawing && e.drawing.length > PRINT.DRAWING_MIN_LENGTH).length}</span> drawings</span>
+  <span class="stat"><span class="stat-n">${entries.filter(e => e.verseRef).length}</span> with Bible ref</span>
+</div>`;
+
+  entries.forEach(entry => {
+    const dateStr = new Date(entry.createdAt).toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' });
+    const timeStr = new Date(entry.createdAt).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+
+    html += `<div class="journal-entry">`;
+    html += `<div class="entry-title">${entry.title || 'Untitled'}</div>`;
+    html += `<div class="entry-meta"><span>${dateStr} ${timeStr}</span>`;
+    if (entry.verseRef) html += `<span class="entry-ref">${entry.verseRef}</span>`;
+    if (entry.tags?.length) html += entry.tags.map(t => `<span class="entry-tag">#${t}</span>`).join(' ');
+    html += `</div>`;
+    if (entry.content?.trim()) html += `<div class="entry-content">${entry.content}</div>`;
+    if (entry.drawing && entry.drawing.length > PRINT.DRAWING_MIN_LENGTH) {
+      html += `<div class="entry-drawing"><img src="${entry.drawing}" alt="drawing" /></div>`;
+    }
+    html += `</div>`;
+  });
+
+  html += `<div class="info" style="margin-top:40px;border-top:1px solid #ddd;padding-top:15px;">Personal Journal - The Bible App</div></body></html>`;
+  return html;
+}
+
+export function printJournalEntries(entries: JournalEntry[]) {
+  if (entries.length === 0) { alert('No journal entries to print.'); return; }
+  const html = generateJournalPrintHTML(entries);
   const printWindow = window.open('', '_blank');
   if (printWindow) {
     printWindow.document.write(html);
