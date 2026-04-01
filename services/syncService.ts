@@ -122,7 +122,7 @@ async function syncNotes(): Promise<void> {
       };
     });
 
-  if (notesToUpload.length > 0) {
+  if (notesToUpload.length > 0 && canSync()) {
     await supabase.from('notes').upsert(notesToUpload, { onConflict: 'user_id,reference' });
   }
 
@@ -186,7 +186,7 @@ async function syncAnnotations(): Promise<void> {
       updated_at: new Date(local.lastModified).toISOString()
     }));
 
-  if (annotationsToUpload.length > 0) {
+  if (annotationsToUpload.length > 0 && canSync()) {
     await supabase.from('annotations').upsert(annotationsToUpload, { onConflict: 'user_id,book_id,chapter,panel_id' });
   }
 
@@ -240,12 +240,12 @@ async function syncReadingHistory(): Promise<void> {
     has_ai_research: local.hasAIResearch || false
   }));
 
-  if (historyToUpload.length > 0) {
+  if (historyToUpload.length > 0 && canSync()) {
     await supabase.from('reading_history').upsert(historyToUpload, { onConflict: 'user_id,book_id,chapter' });
   }
 
   // Sync last read position
-  if (lastRead) {
+  if (lastRead && canSync()) {
     await supabase.from('last_read').upsert({
       user_id: userId,
       book_id: lastRead.bookId,
@@ -348,6 +348,7 @@ async function syncSettings(): Promise<void> {
   }
 
   // Upload merged settings to remote
+  if (!canSync()) return;
   await supabase.from('user_settings').upsert({
     user_id: userId,
     settings: localSettings,
@@ -428,6 +429,7 @@ async function syncVerseData(): Promise<void> {
   if (dataToUpload.length > 0) {
     // Batch in chunks of 100 to avoid payload limits
     for (let i = 0; i < dataToUpload.length; i += 100) {
+      if (!canSync()) break;
       const batch = dataToUpload.slice(i, i + 100);
       await supabase.from('verse_data').upsert(batch, { onConflict: 'user_id,verse_id' });
     }
@@ -512,7 +514,7 @@ async function syncBookmarks(): Promise<void> {
       updated_at: new Date().toISOString(),
     }));
 
-  if (bookmarksToUpload.length > 0) {
+  if (bookmarksToUpload.length > 0 && canSync()) {
     await supabase.from('bookmarks').upsert(bookmarksToUpload, { onConflict: 'user_id,bookmark_id' });
   }
 
