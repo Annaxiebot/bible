@@ -603,6 +603,7 @@ async function syncBibleCache(): Promise<void> {
   if (chaptersToUpload.length > 0) {
     // Batch in chunks of 50 (chapter data can be large)
     for (let i = 0; i < chaptersToUpload.length; i += 50) {
+      if (!canSync()) break;
       const batch = chaptersToUpload.slice(i, i + 50);
       await supabase.from('bible_cache').upsert(batch, { onConflict: 'user_id,cache_key' });
     }
@@ -726,6 +727,7 @@ async function syncJournal(): Promise<void> {
     });
 
     for (let i = 0; i < rows.length; i += 50) {
+      if (!canSync()) break;
       await supabase.from('journal').upsert(rows.slice(i, i + 50), { onConflict: 'id' });
     }
   }
@@ -807,6 +809,7 @@ async function syncChatHistory(): Promise<void> {
     }));
 
     for (let i = 0; i < rows.length; i += 50) {
+      if (!canSync()) break;
       await supabase.from('chat_history').upsert(rows.slice(i, i + 50), { onConflict: 'user_id,id' });
     }
   }
@@ -843,7 +846,7 @@ export async function performFullSync(): Promise<void> {
       Promise.race([fn(), new Promise<void>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))]);
 
     for (const step of steps) {
-      if (syncManager.isCancelled()) break;
+      if (syncManager.isCancelled() || !canSync()) break;
       syncManager.stepStart(step.name);
       try {
         await withTimeout(step.fn);
