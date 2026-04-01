@@ -601,11 +601,13 @@ async function syncBibleCache(): Promise<void> {
     }));
 
   if (chaptersToUpload.length > 0) {
-    // Batch in chunks of 50 (chapter data can be large)
-    for (let i = 0; i < chaptersToUpload.length; i += 50) {
+    // Batch in chunks of 5 (chapter JSONB data is large)
+    for (let i = 0; i < chaptersToUpload.length; i += 5) {
       if (!canSync()) break;
-      const batch = chaptersToUpload.slice(i, i + 50);
-      await supabase.from('bible_cache').upsert(batch, { onConflict: 'user_id,cache_key' });
+      const batch = chaptersToUpload.slice(i, i + 5);
+      await supabase.from('bible_cache').upsert(batch, { onConflict: 'user_id,cache_key' }).then(({ error }) => {
+        if (error) throw error;
+      });
     }
   }
 
