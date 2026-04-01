@@ -118,6 +118,15 @@ export interface ChatHistoryRecord {
   lastModified: number;
 }
 
+export interface SpiritualMemoryItem {
+  id: string;
+  category: 'theme' | 'prayer' | 'growth' | 'question';
+  content: string;
+  source?: string; // journal entry id
+  createdAt: string; // ISO string
+  updatedAt: string; // ISO string
+}
+
 export type PlanType = 'bible-in-year' | 'nt-90-days' | 'psalms-proverbs';
 
 export interface ReadingPlanState {
@@ -193,6 +202,14 @@ export interface BibleAppSchema extends DBSchema {
       'by-modified': number;
     };
   };
+  spiritualMemory: {
+    key: string;
+    value: SpiritualMemoryItem;
+    indexes: {
+      'by-category': string;
+      'by-created': string;
+    };
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -200,7 +217,7 @@ export interface BibleAppSchema extends DBSchema {
 // ---------------------------------------------------------------------------
 
 const DB_NAME = 'BibleApp';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 class IDBService {
   private dbPromise: Promise<IDBPDatabase<BibleAppSchema>>;
@@ -262,6 +279,13 @@ class IDBService {
         if (!db.objectStoreNames.contains('chatHistory')) {
           const chatStore = db.createObjectStore('chatHistory', { keyPath: 'id' });
           chatStore.createIndex('by-modified', 'lastModified');
+        }
+
+        // spiritualMemory (added in v4)
+        if (!db.objectStoreNames.contains('spiritualMemory')) {
+          const memoryStore = db.createObjectStore('spiritualMemory', { keyPath: 'id' });
+          memoryStore.createIndex('by-category', 'category');
+          memoryStore.createIndex('by-created', 'createdAt');
         }
       },
     });

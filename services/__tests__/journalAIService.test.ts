@@ -6,9 +6,19 @@ import {
   findRelatedEntries,
   generateWeeklyDigest,
   getTimelineGroups,
+  generateReflectionPrompt,
+  extendThinking,
+  summarizeEntry,
+  findRelatedScripture,
+  chatAboutEntry,
+  extractMemoryItems,
+  getMemoryContext,
+  generateSpiritualProfile,
+  generateProactiveSuggestion,
 } from '../journalAIService';
 import { journalStorage } from '../journalStorage';
-import type { JournalEntry } from '../idbService';
+import { spiritualMemory } from '../spiritualMemory';
+import type { JournalEntry, SpiritualMemoryItem } from '../idbService';
 
 // Mock the AI provider
 vi.mock('../aiProvider', () => ({
@@ -291,6 +301,321 @@ describe('journalAIService', () => {
       if (groups.length >= 2) {
         expect(groups[0].date >= groups[1].date).toBe(true);
       }
+    });
+  });
+
+  // ── generateReflectionPrompt ────────────────────────────────────────
+
+  describe('generateReflectionPrompt', () => {
+    it('should generate a prompt from current entry and Bible context', async () => {
+      mockChatWithAI.mockResolvedValueOnce({
+        text: 'What does grace mean to you in this season of life?',
+        provider: 'test',
+      });
+
+      const entry = makeEntry({ plainText: 'Thinking about grace and forgiveness today.' });
+      const result = await generateReflectionPrompt(
+        entry,
+        { bookId: 'ROM', chapter: 8, bookName: 'Romans' },
+        []
+      );
+
+      expect(result).toBe('What does grace mean to you in this season of life?');
+      expect(mockChatWithAI).toHaveBeenCalledOnce();
+    });
+
+    it('should work with no entry and no context', async () => {
+      mockChatWithAI.mockResolvedValueOnce({
+        text: 'What is on your heart today?',
+        provider: 'test',
+      });
+
+      const result = await generateReflectionPrompt(null, null, []);
+      expect(result).toBe('What is on your heart today?');
+    });
+
+    it('should return fallback on AI failure', async () => {
+      mockChatWithAI.mockRejectedValueOnce(new Error('API error'));
+
+      const result = await generateReflectionPrompt(null, null, []);
+      expect(result).toBe('What is one thing you are grateful for today?');
+    });
+  });
+
+  // ── extendThinking ──────────────────────────────────────────────────
+
+  describe('extendThinking', () => {
+    it('should extend the user text', async () => {
+      mockChatWithAI.mockResolvedValueOnce({
+        text: 'This connects to a broader theme of surrender...',
+        provider: 'test',
+      });
+
+      const result = await extendThinking('Letting go of control is hard.');
+      expect(result).toBe('This connects to a broader theme of surrender...');
+      expect(mockChatWithAI).toHaveBeenCalledOnce();
+    });
+
+    it('should return empty string for empty text', async () => {
+      const result = await extendThinking('');
+      expect(result).toBe('');
+      expect(mockChatWithAI).not.toHaveBeenCalled();
+    });
+
+    it('should return empty string on AI failure', async () => {
+      mockChatWithAI.mockRejectedValueOnce(new Error('API error'));
+      const result = await extendThinking('Some text here about faith.');
+      expect(result).toBe('');
+    });
+  });
+
+  // ── summarizeEntry ──────────────────────────────────────────────────
+
+  describe('summarizeEntry', () => {
+    it('should summarize entry text', async () => {
+      mockChatWithAI.mockResolvedValueOnce({
+        text: '- Finding peace through prayer\n- Learning to trust God',
+        provider: 'test',
+      });
+
+      const result = await summarizeEntry('A long journal entry about finding peace through prayer and trusting God in difficult times.');
+      expect(result).toContain('peace');
+      expect(mockChatWithAI).toHaveBeenCalledOnce();
+    });
+
+    it('should return empty for short text', async () => {
+      const result = await summarizeEntry('Hi');
+      expect(result).toBe('');
+      expect(mockChatWithAI).not.toHaveBeenCalled();
+    });
+
+    it('should return empty on failure', async () => {
+      mockChatWithAI.mockRejectedValueOnce(new Error('API error'));
+      const result = await summarizeEntry('A moderately long entry about spiritual growth and transformation.');
+      expect(result).toBe('');
+    });
+  });
+
+  // ── findRelatedScripture ────────────────────────────────────────────
+
+  describe('findRelatedScripture', () => {
+    it('should return scripture suggestions', async () => {
+      mockChatWithAI.mockResolvedValueOnce({
+        text: '[{"reference":"Philippians 4:6-7","reason":"About finding peace through prayer."},{"reference":"Psalm 23:1","reason":"God as shepherd and provider."}]',
+        provider: 'test',
+      });
+
+      const results = await findRelatedScripture('I prayed for peace today and felt God providing.');
+      expect(results).toHaveLength(2);
+      expect(results[0].reference).toBe('Philippians 4:6-7');
+      expect(results[0].reason).toContain('peace');
+    });
+
+    it('should return empty for short text', async () => {
+      const results = await findRelatedScripture('Hi');
+      expect(results).toEqual([]);
+    });
+
+    it('should handle malformed AI response', async () => {
+      mockChatWithAI.mockResolvedValueOnce({
+        text: 'Here are some verses: Psalm 23, Romans 8',
+        provider: 'test',
+      });
+
+      const results = await findRelatedScripture('I need guidance and peace today in my spiritual walk.');
+      expect(results).toEqual([]);
+    });
+
+    it('should return empty on failure', async () => {
+      mockChatWithAI.mockRejectedValueOnce(new Error('API error'));
+      const results = await findRelatedScripture('Looking for peace and comfort today.');
+      expect(results).toEqual([]);
+    });
+
+    it('should limit to 5 results', async () => {
+      mockChatWithAI.mockResolvedValueOnce({
+        text: JSON.stringify(
+          Array.from({ length: 8 }, (_, i) => ({ reference: `Verse ${i}`, reason: `Reason ${i}` }))
+        ),
+        provider: 'test',
+      });
+
+      const results = await findRelatedScripture('A rich journal entry with many themes and ideas to explore.');
+      expect(results.length).toBeLessThanOrEqual(5);
+    });
+  });
+
+  // ── chatAboutEntry ──────────────────────────────────────────────────
+
+  describe('chatAboutEntry', () => {
+    it('should return AI answer', async () => {
+      mockChatWithAI.mockResolvedValueOnce({
+        text: 'That is a wonderful question. Grace means...',
+        provider: 'test',
+      });
+
+      const answer = await chatAboutEntry(
+        'What does grace mean?',
+        'Today I reflected on grace.',
+        []
+      );
+      expect(answer).toContain('Grace means');
+    });
+
+    it('should return empty for empty question', async () => {
+      const answer = await chatAboutEntry('', 'some content', []);
+      expect(answer).toBe('');
+      expect(mockChatWithAI).not.toHaveBeenCalled();
+    });
+
+    it('should return fallback on failure', async () => {
+      mockChatWithAI.mockRejectedValueOnce(new Error('API error'));
+      const answer = await chatAboutEntry('Help me understand this passage about faith.', 'some content', []);
+      expect(answer).toContain('could not process');
+    });
+  });
+
+  // ── extractMemoryItems ──────────────────────────────────────────────
+
+  describe('extractMemoryItems', () => {
+    beforeEach(async () => {
+      await spiritualMemory.clearAll();
+    });
+
+    it('should extract and save memory items', async () => {
+      mockChatWithAI.mockResolvedValueOnce({
+        text: '[{"category":"theme","content":"Forgiveness"},{"category":"prayer","content":"Praying for healing"}]',
+        provider: 'test',
+      });
+
+      const items = await extractMemoryItems(
+        'Today I reflected deeply on forgiveness and prayed for healing for my mother.',
+        'entry123'
+      );
+      expect(items).toHaveLength(2);
+      expect(items[0].category).toBe('theme');
+      expect(items[1].category).toBe('prayer');
+
+      // Verify saved to spiritualMemory store
+      const saved = await spiritualMemory.getAllItems();
+      expect(saved.length).toBe(2);
+      expect(saved.some(s => s.content === 'Forgiveness')).toBe(true);
+    });
+
+    it('should return empty for short text', async () => {
+      const items = await extractMemoryItems('Hi');
+      expect(items).toEqual([]);
+    });
+
+    it('should return empty on failure', async () => {
+      mockChatWithAI.mockRejectedValueOnce(new Error('API error'));
+      const items = await extractMemoryItems('A moderately long entry about spiritual growth and learning.');
+      expect(items).toEqual([]);
+    });
+
+    it('should filter invalid categories', async () => {
+      mockChatWithAI.mockResolvedValueOnce({
+        text: '[{"category":"theme","content":"Grace"},{"category":"invalid","content":"Bad"}]',
+        provider: 'test',
+      });
+
+      const items = await extractMemoryItems('Reflecting on the grace of God in this time of testing and growth.');
+      expect(items).toHaveLength(1);
+      expect(items[0].category).toBe('theme');
+    });
+  });
+
+  // ── getMemoryContext ────────────────────────────────────────────────
+
+  describe('getMemoryContext', () => {
+    beforeEach(async () => {
+      await spiritualMemory.clearAll();
+    });
+
+    it('should return all memory items', async () => {
+      await spiritualMemory.addItem({ category: 'theme', content: 'Forgiveness' });
+      await spiritualMemory.addItem({ category: 'prayer', content: 'Healing' });
+
+      const items = await getMemoryContext();
+      expect(items).toHaveLength(2);
+    });
+
+    it('should return empty when no items', async () => {
+      const items = await getMemoryContext();
+      expect(items).toEqual([]);
+    });
+  });
+
+  // ── generateSpiritualProfile ────────────────────────────────────────
+
+  describe('generateSpiritualProfile', () => {
+    it('should generate profile from memory items', async () => {
+      mockChatWithAI.mockResolvedValueOnce({
+        text: '**Key Themes**: Forgiveness, Grace\n**Active Prayer Requests**: Healing for mother',
+        provider: 'test',
+      });
+
+      const items: SpiritualMemoryItem[] = [
+        { id: '1', category: 'theme', content: 'Forgiveness', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+        { id: '2', category: 'prayer', content: 'Healing for mother', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+      ];
+
+      const profile = await generateSpiritualProfile(items);
+      expect(profile).toContain('Forgiveness');
+      expect(mockChatWithAI).toHaveBeenCalledOnce();
+    });
+
+    it('should return default message when no items', async () => {
+      const profile = await generateSpiritualProfile([]);
+      expect(profile).toContain('No spiritual memory');
+      expect(mockChatWithAI).not.toHaveBeenCalled();
+    });
+
+    it('should return fallback on failure', async () => {
+      mockChatWithAI.mockRejectedValueOnce(new Error('API error'));
+
+      const items: SpiritualMemoryItem[] = [
+        { id: '1', category: 'theme', content: 'Grace', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+      ];
+
+      const profile = await generateSpiritualProfile(items);
+      expect(profile).toContain('Could not generate');
+    });
+  });
+
+  // ── generateProactiveSuggestion ─────────────────────────────────────
+
+  describe('generateProactiveSuggestion', () => {
+    it('should generate suggestion with context', async () => {
+      mockChatWithAI.mockResolvedValueOnce({
+        text: 'You mentioned wanting to study forgiveness — consider reading Colossians 3:13 today.',
+        provider: 'test',
+      });
+
+      const items: SpiritualMemoryItem[] = [
+        { id: '1', category: 'theme', content: 'Forgiveness', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
+      ];
+
+      const lastEntry = makeEntry({ plainText: 'I want to learn more about forgiveness.', createdAt: new Date(Date.now() - 2 * 86400000).toISOString() });
+
+      const suggestion = await generateProactiveSuggestion(items, lastEntry, { bookId: 'COL', chapter: 3, bookName: 'Colossians' });
+      expect(suggestion).toContain('forgiveness');
+    });
+
+    it('should work with no context', async () => {
+      mockChatWithAI.mockResolvedValueOnce({
+        text: 'Welcome! Consider starting with what you are grateful for.',
+        provider: 'test',
+      });
+
+      const suggestion = await generateProactiveSuggestion([], null, null);
+      expect(suggestion).toContain('grateful');
+    });
+
+    it('should return empty on failure', async () => {
+      mockChatWithAI.mockRejectedValueOnce(new Error('API error'));
+      const suggestion = await generateProactiveSuggestion([], null, null);
+      expect(suggestion).toBe('');
     });
   });
 });

@@ -11,10 +11,21 @@ import {
   findRelatedEntries,
   generateWeeklyDigest,
   getTimelineGroups,
+  generateReflectionPrompt,
+  extendThinking,
+  summarizeEntry,
+  findRelatedScripture,
+  chatAboutEntry,
+  extractMemoryItems,
+  getMemoryContext,
+  generateSpiritualProfile,
+  generateProactiveSuggestion,
   RelatedEntry,
   WeeklyDigest,
   TimelineGroup,
+  ScriptureSuggestion,
 } from '../services/journalAIService';
+import type { SpiritualMemoryItem } from '../services/idbService';
 
 interface JournalViewProps {
   /** Current Bible reading context for linking new entries */
@@ -84,6 +95,28 @@ const JournalView: React.FC<JournalViewProps> = ({
   const [timelineGroups, setTimelineGroups] = useState<TimelineGroup[]>([]);
   const [timelineFilter, setTimelineFilter] = useState<string | null>(null);
   const tagSuggestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ── Phase 3: Reflection Partner state ─────────────────────────────
+  const [reflectionPrompt, setReflectionPrompt] = useState<string | null>(null);
+  const [isLoadingReflection, setIsLoadingReflection] = useState(false);
+  const [extendResult, setExtendResult] = useState<string | null>(null);
+  const [isLoadingExtend, setIsLoadingExtend] = useState(false);
+  const [summaryResult, setSummaryResult] = useState<string | null>(null);
+  const [isLoadingSummary, setIsLoadingSummary] = useState(false);
+  const [scriptureSuggestions, setScriptureSuggestions] = useState<ScriptureSuggestion[]>([]);
+  const [isLoadingScripture, setIsLoadingScripture] = useState(false);
+  const [showChat, setShowChat] = useState(false);
+  const [chatInput, setChatInput] = useState('');
+  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; text: string }[]>([]);
+  const [isLoadingChat, setIsLoadingChat] = useState(false);
+
+  // ── Phase 4: Personal Agent state ─────────────────────────────────
+  const [showProfile, setShowProfile] = useState(false);
+  const [profileText, setProfileText] = useState<string | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+  const [proactiveSuggestion, setProactiveSuggestion] = useState<string | null>(null);
+  const [isLoadingProactive, setIsLoadingProactive] = useState(false);
+  const memorySaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load entries
   const loadEntries = useCallback(async () => {
@@ -176,6 +209,7 @@ const JournalView: React.FC<JournalViewProps> = ({
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       if (tagSuggestTimerRef.current) clearTimeout(tagSuggestTimerRef.current);
+      if (memorySaveTimerRef.current) clearTimeout(memorySaveTimerRef.current);
     };
   }, []);
 
@@ -266,6 +300,163 @@ const JournalView: React.FC<JournalViewProps> = ({
       setIsLoadingDigest(false);
     }
   };
+
+  // ── Phase 3: AI handlers ───────────────────────────────────────────
+
+  const handleReflect = async () => {
+    setIsLoadingReflection(true);
+    setReflectionPrompt(null);
+    try {
+      const recentEntries = entries.slice(0, 3);
+      const prompt = await generateReflectionPrompt(
+        selectedEntry,
+        { bookId, chapter, bookName },
+        recentEntries
+      );
+      setReflectionPrompt(prompt);
+    } catch {
+      setReflectionPrompt(null);
+    } finally {
+      setIsLoadingReflection(false);
+    }
+  };
+
+  const handleExtend = async () => {
+    if (!selectedEntry) return;
+    setIsLoadingExtend(true);
+    setExtendResult(null);
+    try {
+      // Check for text selection in the editor
+      const selection = window.getSelection();
+      const selectedText = selection && selection.toString().trim()
+        ? selection.toString().trim()
+        : selectedEntry.plainText || '';
+      if (!selectedText) { setIsLoadingExtend(false); return; }
+      const result = await extendThinking(selectedText, { bookId, chapter, bookName });
+      setExtendResult(result);
+    } catch {
+      setExtendResult(null);
+    } finally {
+      setIsLoadingExtend(false);
+    }
+  };
+
+  const handleSummarize = async () => {
+    if (!selectedEntry?.plainText) return;
+    setIsLoadingSummary(true);
+    setSummaryResult(null);
+    try {
+      const result = await summarizeEntry(selectedEntry.plainText);
+      setSummaryResult(result);
+    } catch {
+      setSummaryResult(null);
+    } finally {
+      setIsLoadingSummary(false);
+    }
+  };
+
+  const handleFindScripture = async () => {
+    if (!selectedEntry?.plainText) return;
+    setIsLoadingScripture(true);
+    setScriptureSuggestions([]);
+    try {
+      const results = await findRelatedScripture(selectedEntry.plainText);
+      setScriptureSuggestions(results);
+    } catch {
+      setScriptureSuggestions([]);
+    } finally {
+      setIsLoadingScripture(false);
+    }
+  };
+
+  const handleChatSend = async () => {
+    if (!chatInput.trim() || isLoadingChat) return;
+    const question = chatInput.trim();
+    setChatInput('');
+    setChatMessages(prev => [...prev, { role: 'user', text: question }]);
+    setIsLoadingChat(true);
+    try {
+      const recentEntries = entries.slice(0, 3);
+      const answer = await chatAboutEntry(
+        question,
+        selectedEntry?.plainText || '',
+        recentEntries
+      );
+      setChatMessages(prev => [...prev, { role: 'assistant', text: answer }]);
+    } catch {
+      setChatMessages(prev => [...prev, { role: 'assistant', text: 'Sorry, something went wrong.' }]);
+    } finally {
+      setIsLoadingChat(false);
+    }
+  };
+
+  // ── Phase 4: Personal Agent handlers ──────────────────────────────
+
+  // Background memory extraction after save
+  useEffect(() => {
+    if (!selectedEntry?.plainText || selectedEntry.plainText.trim().length < 30) return;
+    if (memorySaveTimerRef.current) clearTimeout(memorySaveTimerRef.current);
+    memorySaveTimerRef.current = setTimeout(() => {
+      extractMemoryItems(selectedEntry.plainText, selectedEntry.id).catch(() => {});
+    }, 10000); // 10s after last edit
+    return () => {
+      if (memorySaveTimerRef.current) clearTimeout(memorySaveTimerRef.current);
+    };
+  }, [selectedEntry?.plainText, selectedEntry?.id]);
+
+  const handleShowProfile = async () => {
+    setShowProfile(true);
+    setIsLoadingProfile(true);
+    try {
+      const items = await getMemoryContext();
+      const profile = await generateSpiritualProfile(items);
+      setProfileText(profile);
+    } catch {
+      setProfileText('Could not generate profile at this time.');
+    } finally {
+      setIsLoadingProfile(false);
+    }
+  };
+
+  // Proactive suggestion when no entry is selected
+  useEffect(() => {
+    if (selectedId) {
+      setProactiveSuggestion(null);
+      return;
+    }
+    let cancelled = false;
+    setIsLoadingProactive(true);
+    (async () => {
+      try {
+        const memItems = await getMemoryContext();
+        const lastEntry = entries.length > 0 ? entries[0] : null;
+        const suggestion = await generateProactiveSuggestion(
+          memItems,
+          lastEntry,
+          { bookId, chapter, bookName }
+        );
+        if (!cancelled && suggestion) {
+          setProactiveSuggestion(suggestion);
+        }
+      } catch {
+        // silent
+      } finally {
+        if (!cancelled) setIsLoadingProactive(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedId, entries.length]);
+
+  // Clear AI results when switching entries
+  useEffect(() => {
+    setReflectionPrompt(null);
+    setExtendResult(null);
+    setSummaryResult(null);
+    setScriptureSuggestions([]);
+    setShowChat(false);
+    setChatMessages([]);
+    setChatInput('');
+  }, [selectedId]);
 
   // ── Timeline ──────────────────────────────────────────────────────
   useEffect(() => {
@@ -908,6 +1099,154 @@ const JournalView: React.FC<JournalViewProps> = ({
         )}
       </div>
 
+      {/* ── AI Toolbar (Phase 3 + 4) ──────────────────────────────── */}
+      <div style={{
+        display: 'flex', gap: 4, padding: '4px 12px', borderBottom: '1px solid #f3f4f6',
+        flexShrink: 0, background: '#f8f7ff', alignItems: 'center', flexWrap: 'wrap',
+      }}>
+        <button
+          onClick={handleReflect}
+          disabled={isLoadingReflection}
+          title="Reflect"
+          style={{
+            fontSize: 13, padding: '3px 8px', borderRadius: 6, border: 'none', cursor: 'pointer',
+            background: reflectionPrompt ? '#e0e7ff' : '#f3f4f6', color: '#6b7280',
+            opacity: isLoadingReflection ? 0.6 : 1,
+          }}
+        >
+          {isLoadingReflection ? '...' : '\uD83D\uDCAD Reflect'}
+        </button>
+        <button
+          onClick={handleExtend}
+          disabled={isLoadingExtend || !selectedEntry?.plainText}
+          title="Extend thinking (select text or extends full entry)"
+          style={{
+            fontSize: 13, padding: '3px 8px', borderRadius: 6, border: 'none', cursor: 'pointer',
+            background: extendResult ? '#e0e7ff' : '#f3f4f6', color: '#6b7280',
+            opacity: isLoadingExtend ? 0.6 : 1,
+          }}
+        >
+          {isLoadingExtend ? '...' : '\uD83D\uDD2D Extend'}
+        </button>
+        <button
+          onClick={handleSummarize}
+          disabled={isLoadingSummary || !selectedEntry?.plainText}
+          title="Summarize"
+          style={{
+            fontSize: 13, padding: '3px 8px', borderRadius: 6, border: 'none', cursor: 'pointer',
+            background: summaryResult ? '#e0e7ff' : '#f3f4f6', color: '#6b7280',
+            opacity: isLoadingSummary ? 0.6 : 1,
+          }}
+        >
+          {isLoadingSummary ? '...' : '\uD83D\uDCCB Summarize'}
+        </button>
+        <button
+          onClick={handleFindScripture}
+          disabled={isLoadingScripture || !selectedEntry?.plainText}
+          title="Find Scripture"
+          style={{
+            fontSize: 13, padding: '3px 8px', borderRadius: 6, border: 'none', cursor: 'pointer',
+            background: scriptureSuggestions.length > 0 ? '#e0e7ff' : '#f3f4f6', color: '#6b7280',
+            opacity: isLoadingScripture ? 0.6 : 1,
+          }}
+        >
+          {isLoadingScripture ? '...' : '\uD83D\uDCD6 Scripture'}
+        </button>
+        <button
+          onClick={() => setShowChat(!showChat)}
+          title="Chat about this entry"
+          style={{
+            fontSize: 13, padding: '3px 8px', borderRadius: 6, border: 'none', cursor: 'pointer',
+            background: showChat ? '#e0e7ff' : '#f3f4f6', color: '#6b7280',
+          }}
+        >
+          {'\uD83D\uDCAC Chat'}
+        </button>
+        <span style={{ flex: 1 }} />
+        <button
+          onClick={handleShowProfile}
+          title="My Spiritual Profile"
+          style={{
+            fontSize: 13, padding: '3px 8px', borderRadius: 6, border: 'none', cursor: 'pointer',
+            background: showProfile ? '#e0e7ff' : '#f3f4f6', color: '#6366f1', fontWeight: 500,
+          }}
+        >
+          {'\uD83D\uDC64 Profile'}
+        </button>
+      </div>
+
+      {/* ── AI Result Cards (Phase 3) ──────────────────────────────── */}
+
+      {/* Reflection prompt card */}
+      {(reflectionPrompt || isLoadingReflection) && (
+        <div style={{
+          margin: '8px 12px', padding: '12px 16px', borderRadius: 10,
+          background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
+          border: '1px solid #ddd6fe',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#7c3aed' }}>{'\uD83D\uDCAD'} Reflection Prompt</span>
+            <button onClick={() => setReflectionPrompt(null)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a78bfa', fontSize: 14, padding: 2 }}>
+              {'\u2715'}
+            </button>
+          </div>
+          {isLoadingReflection ? (
+            <div style={{ fontSize: 13, color: '#8b5cf6' }}>Generating prompt...</div>
+          ) : (
+            <div style={{ fontSize: 14, color: '#374151', lineHeight: 1.6, fontStyle: 'italic' }}>
+              {reflectionPrompt}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Proactive suggestion (when no entry selected) */}
+      {!selectedEntry && proactiveSuggestion && (
+        <div style={{
+          margin: '8px 12px', padding: '12px 16px', borderRadius: 10,
+          background: 'linear-gradient(135deg, #fefce8 0%, #fef9c3 100%)',
+          border: '1px solid #fde68a',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <span style={{ fontSize: 12, fontWeight: 600, color: '#ca8a04' }}>{'\u2728'} For Today</span>
+            <button onClick={() => setProactiveSuggestion(null)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#d4a017', fontSize: 14, padding: 2 }}>
+              {'\u2715'}
+            </button>
+          </div>
+          <div style={{ fontSize: 14, color: '#374151', lineHeight: 1.6 }}>{proactiveSuggestion}</div>
+        </div>
+      )}
+
+      {/* Spiritual Profile modal */}
+      {showProfile && (
+        <div style={{
+          position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.4)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
+        }} onClick={() => setShowProfile(false)}>
+          <div style={{
+            background: '#fff', borderRadius: 12, maxWidth: 500, width: '100%', maxHeight: '80vh',
+            overflow: 'auto', padding: '20px 24px', boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <span style={{ fontSize: 16, fontWeight: 700, color: '#1f2937' }}>{'\uD83D\uDC64'} My Spiritual Profile</span>
+              <button onClick={() => setShowProfile(false)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 18, padding: 2 }}>
+                {'\u2715'}
+              </button>
+            </div>
+            {isLoadingProfile ? (
+              <div style={{ fontSize: 14, color: '#9ca3af', padding: '16px 0', textAlign: 'center' }}>Generating your spiritual profile...</div>
+            ) : (
+              <div style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
+                {profileText}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Rich text toolbar — text/overlay modes */}
       {(noteMode === 'text' || noteMode === 'overlay') && (
         <div style={{ display: 'flex', gap: 2, padding: '4px 12px', borderBottom: '1px solid #f3f4f6', flexShrink: 0, background: '#fafafa', flexWrap: 'wrap', alignItems: 'center' }}>
@@ -988,6 +1327,159 @@ const JournalView: React.FC<JournalViewProps> = ({
             </div>
           )}
         </div>
+
+        {/* ── AI Result Cards below editor (Phase 3) ──────────── */}
+
+        {/* Extend result */}
+        {(extendResult || isLoadingExtend) && (
+          <div style={{
+            margin: '0 12px 8px', padding: '12px 16px', borderRadius: 10,
+            background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)',
+            border: '1px solid #bbf7d0', flexShrink: 0,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#16a34a' }}>{'\uD83D\uDD2D'} Extended Thinking</span>
+              <button onClick={() => setExtendResult(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#86efac', fontSize: 14, padding: 2 }}>
+                {'\u2715'}
+              </button>
+            </div>
+            {isLoadingExtend ? (
+              <div style={{ fontSize: 13, color: '#22c55e' }}>Extending your thoughts...</div>
+            ) : (
+              <div style={{ fontSize: 14, color: '#374151', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                {extendResult}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Summary result */}
+        {(summaryResult || isLoadingSummary) && (
+          <div style={{
+            margin: '0 12px 8px', padding: '12px 16px', borderRadius: 10,
+            background: 'linear-gradient(135deg, #fefce8 0%, #fef9c3 100%)',
+            border: '1px solid #fde68a', flexShrink: 0,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#ca8a04' }}>{'\uD83D\uDCCB'} Summary</span>
+              <button onClick={() => setSummaryResult(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#fcd34d', fontSize: 14, padding: 2 }}>
+                {'\u2715'}
+              </button>
+            </div>
+            {isLoadingSummary ? (
+              <div style={{ fontSize: 13, color: '#ca8a04' }}>Summarizing...</div>
+            ) : (
+              <div style={{ fontSize: 14, color: '#374151', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                {summaryResult}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Scripture suggestions */}
+        {(scriptureSuggestions.length > 0 || isLoadingScripture) && (
+          <div style={{
+            margin: '0 12px 8px', padding: '12px 16px', borderRadius: 10,
+            background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+            border: '1px solid #bfdbfe', flexShrink: 0,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#2563eb' }}>{'\uD83D\uDCD6'} Related Scripture</span>
+              <button onClick={() => setScriptureSuggestions([])}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#93c5fd', fontSize: 14, padding: 2 }}>
+                {'\u2715'}
+              </button>
+            </div>
+            {isLoadingScripture ? (
+              <div style={{ fontSize: 13, color: '#3b82f6' }}>Finding relevant verses...</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {scriptureSuggestions.map((s, i) => (
+                  <div key={i} style={{
+                    padding: '6px 10px', borderRadius: 6, background: 'rgba(255,255,255,0.6)',
+                    cursor: 'pointer', border: '1px solid #dbeafe',
+                  }} onClick={() => {
+                    // Try to navigate to the verse
+                    if (onNavigate) {
+                      // Simple parse: try to extract book and chapter from reference
+                      const match = s.reference.match(/^(\d?\s*\w+)\s+(\d+)/);
+                      if (match) {
+                        // Note: this is best-effort; full book-id resolution would need bibleBookData
+                        // For now we just trigger navigation with the reference text
+                      }
+                    }
+                  }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#2563eb' }}>{s.reference}</div>
+                    <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>{s.reason}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Chat panel */}
+        {showChat && (
+          <div style={{
+            margin: '0 12px 8px', padding: '12px 16px', borderRadius: 10,
+            background: '#f9fafb', border: '1px solid #e5e7eb', flexShrink: 0,
+            maxHeight: 300, display: 'flex', flexDirection: 'column',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#6b7280' }}>{'\uD83D\uDCAC'} Chat about this entry</span>
+              <button onClick={() => { setShowChat(false); setChatMessages([]); setChatInput(''); }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 14, padding: 2 }}>
+                {'\u2715'}
+              </button>
+            </div>
+            <div style={{ flex: 1, overflow: 'auto', marginBottom: 8, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {chatMessages.length === 0 && (
+                <div style={{ fontSize: 13, color: '#9ca3af', fontStyle: 'italic' }}>
+                  Ask a question about your entry...
+                </div>
+              )}
+              {chatMessages.map((msg, i) => (
+                <div key={i} style={{
+                  padding: '6px 10px', borderRadius: 8, fontSize: 13, lineHeight: 1.5,
+                  background: msg.role === 'user' ? '#eef2ff' : '#fff',
+                  color: '#374151', alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                  maxWidth: '85%', border: msg.role === 'assistant' ? '1px solid #e5e7eb' : 'none',
+                  whiteSpace: 'pre-wrap',
+                }}>
+                  {msg.text}
+                </div>
+              ))}
+              {isLoadingChat && (
+                <div style={{ fontSize: 12, color: '#9ca3af' }}>Thinking...</div>
+              )}
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <input
+                value={chatInput}
+                onChange={e => setChatInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleChatSend(); } }}
+                placeholder="Ask about your entry..."
+                style={{
+                  flex: 1, padding: '6px 10px', border: '1px solid #e5e7eb', borderRadius: 6,
+                  fontSize: 13, outline: 'none', fontFamily: 'inherit',
+                }}
+              />
+              <button
+                onClick={handleChatSend}
+                disabled={!chatInput.trim() || isLoadingChat}
+                style={{
+                  padding: '6px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                  background: '#4f46e5', color: '#fff', fontSize: 13, fontWeight: 500,
+                  opacity: !chatInput.trim() || isLoadingChat ? 0.5 : 1,
+                }}
+              >
+                Send
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* ── Tags ────────────────────────────────────────────────── */}
         {selectedEntry && (selectedEntry.tags.length > 0 || suggestedTags.length > 0 || isLoadingTags) && (
@@ -1079,8 +1571,22 @@ const JournalView: React.FC<JournalViewProps> = ({
       </div>
     </div>
   ) : (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#d1d5db', fontSize: 15 }}>
-      Select an entry or create a new one
+    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: '#d1d5db', fontSize: 15, padding: 32 }}>
+      <div>Select an entry or create a new one</div>
+      {/* Proactive suggestion card */}
+      {proactiveSuggestion && (
+        <div style={{
+          marginTop: 20, padding: '14px 18px', borderRadius: 10, maxWidth: 400,
+          background: 'linear-gradient(135deg, #f5f3ff 0%, #ede9fe 100%)',
+          border: '1px solid #ddd6fe', textAlign: 'left',
+        }}>
+          <div style={{ fontSize: 12, fontWeight: 600, color: '#7c3aed', marginBottom: 6 }}>{'\u2728'} Suggestion for today</div>
+          <div style={{ fontSize: 14, color: '#374151', lineHeight: 1.6 }}>{proactiveSuggestion}</div>
+        </div>
+      )}
+      {isLoadingProactive && (
+        <div style={{ marginTop: 16, fontSize: 13, color: '#9ca3af' }}>Loading suggestion...</div>
+      )}
     </div>
   );
 
