@@ -44,6 +44,9 @@ vi.mock('../supabase', () => ({
     startSync: vi.fn(),
     stepStart: vi.fn(),
     stepDone: vi.fn(),
+    resetCancelled: vi.fn(),
+    isCancelled: () => false,
+    cancelSync: vi.fn(),
   },
   canSync: () => true,
 }));

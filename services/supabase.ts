@@ -164,6 +164,8 @@ class AuthManager {
     if (!supabase) {
       return { error: new Error('Supabase not configured') as unknown as AuthError };
     }
+    // Cancel any running sync so sign out doesn't wait
+    syncManager.cancelSync();
     const { error } = await supabase.auth.signOut();
     return { error };
   }
@@ -274,6 +276,21 @@ class SyncManager {
   subscribeProgress(listener: (progress: SyncProgress) => void): () => void {
     this.progressListeners.add(listener);
     return () => this.progressListeners.delete(listener);
+  }
+
+  private cancelled = false;
+
+  cancelSync() {
+    this.cancelled = true;
+    this.setStatus('idle');
+  }
+
+  isCancelled(): boolean {
+    return this.cancelled;
+  }
+
+  resetCancelled() {
+    this.cancelled = false;
   }
 
   isEnabled(): boolean {
