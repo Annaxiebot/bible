@@ -101,3 +101,23 @@ export function clearVibeStyles(): void {
 export function getEmptyStyles(): VibeStyles {
   return { ...EMPTY_STYLES };
 }
+
+export interface VibeChatMessage { role: 'user' | 'assistant' | 'system'; content: string; css?: string; timestamp: string; }
+
+const CSS_CTX = `You are a UI customization assistant for a Bible study web app. Generate CSS for the user's request. The app has: .vibe-app-root, .bible-panel, .verse-text, .verse-number, .chat-panel, .sidebar, .app-header, .notebook-panel. Scope under .vibe-app-root. No @import/javascript:/expression(). Output ONLY CSS.`;
+
+export async function generateVibeCSS(userRequest: string, conversationHistory: VibeChatMessage[] = [], currentCSS: string = ''): Promise<{ css: string; explanation: string }> {
+  const aiHistory = conversationHistory.map(m => ({ role: m.role, content: m.role === 'assistant' && m.css ? `${m.content}\n\nCSS:\n${m.css}` : m.content }));
+  const ctx = currentCSS ? `\n\nCurrent CSS:\n${currentCSS}\n\nBuild on these.` : '';
+  const prompt = `${CSS_CTX}${ctx}\n\nUser: "${userRequest}"\n\nRespond:\nEXPLANATION: <one sentence>\nCSS:\n<code>`;
+  const result = await chatWithAI(prompt, aiHistory, { fast: true });
+  const text = typeof result === 'string' ? result : (result as any)?.text || (result as any)?.content || String(result);
+  const expMatch = text.match(/EXPLANATION:\s*(.+?)(?:\n|CSS:)/s);
+  const cssMatch = text.match(/CSS:\s*\n?([\s\S]+?)(?:```|$)/);
+  const cbMatch = text.match(/```(?:css)?\s*\n?([\s\S]*?)\n?```/);
+  return { css: (cssMatch?.[1] || cbMatch?.[1] || text).trim(), explanation: (expMatch?.[1] || 'Applied customization').trim() };
+}
+
+export function saveVibeChatHistory(messages: VibeChatMessage[]): void { try { localStorage.setItem(STORAGE_KEYS.VIBE_CHAT_HISTORY, JSON.stringify(messages.slice(-50))); } catch {} }
+export function loadVibeChatHistory(): VibeChatMessage[] { try { const s = localStorage.getItem(STORAGE_KEYS.VIBE_CHAT_HISTORY); return s ? JSON.parse(s) : []; } catch { return []; } }
+export function clearVibeChatHistory(): void { localStorage.removeItem(STORAGE_KEYS.VIBE_CHAT_HISTORY); }
