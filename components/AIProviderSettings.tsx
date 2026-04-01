@@ -14,6 +14,18 @@ import {
 import { autoSaveResearchService } from '../services/autoSaveResearchService';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 
+function formatTestedAt(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const diffMs = now.getTime() - d.getTime();
+  const mins = Math.floor(diffMs / 60000);
+  if (mins < 1) return 'just now';
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+}
+
 // Provider → localStorage key mapping + UI metadata
 const ALL_KEY_CONFIGS: Record<string, string> = {
   openrouter: STORAGE_KEYS.OPENROUTER_API_KEY,
@@ -72,6 +84,7 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [configuredCount, setConfiguredCount] = useState(0);
   const [workingModelCount, setWorkingModelCount] = useState(0);
+  const [healthData, setHealthData] = useState<Array<{ provider: string; model: string; status: string; response_ms: number; tested_at: string }>>([]);
   const [testingKey, setTestingKey] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; error?: string; model?: string }>>({});
   const [dynamicFreeModels, setDynamicFreeModels] = useState<OpenRouterModelInfo[] | null>(null);
@@ -91,10 +104,13 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
         if (userId) {
           const { data } = await supabase
             .from('provider_health')
-            .select('provider, model')
+            .select('provider, model, status, response_ms, tested_at')
             .eq('user_id', userId)
-            .eq('status', 'ok');
-          setWorkingModelCount(data?.length || 0);
+            .order('response_ms', { ascending: true });
+          if (data) {
+            setHealthData(data);
+            setWorkingModelCount(data.filter(d => d.status === 'ok').length);
+          }
         }
       }
     }).catch(() => {});
@@ -639,6 +655,33 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
                     </div>
                   )}
                 </>
+              )}
+
+              {/* Tested Models Pool */}
+              {healthData.length > 0 && (
+                <div className="mt-4">
+                  <div className="text-xs font-semibold text-slate-600 mb-2">Tested Models Pool</div>
+                  <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
+                    {healthData.map((h, i) => (
+                      <div key={i} className="flex items-center justify-between px-3 py-1.5 text-xs hover:bg-slate-50">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className={`w-2 h-2 rounded-full flex-shrink-0 ${h.status === 'ok' ? 'bg-green-500' : 'bg-red-400'}`} />
+                          <span className="font-medium text-slate-700 truncate">{h.provider}</span>
+                          <span className="text-slate-400 truncate">{h.model}</span>
+                        </div>
+                        <div className="flex items-center gap-3 flex-shrink-0 text-slate-400">
+                          {h.status === 'ok' && h.response_ms && (
+                            <span>{h.response_ms < 1000 ? `${h.response_ms}ms` : `${(h.response_ms / 1000).toFixed(1)}s`}</span>
+                          )}
+                          {h.status !== 'ok' && <span className="text-red-400">failed</span>}
+                          <span title={new Date(h.tested_at).toLocaleString()}>
+                            {formatTestedAt(h.tested_at)}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           )}

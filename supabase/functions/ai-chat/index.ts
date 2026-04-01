@@ -730,7 +730,34 @@ Deno.serve(async (req: Request) => {
                 headers: { ...corsHeaders, "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
               });
             } catch (error) {
-              // Fall through to non-streaming race for images or if streaming race fails
+              // Streaming race failed — try single-provider streaming with fastest known model
+              if (wantsStream && diversified.length > 0) {
+                try {
+                  const preferred = diversified[0];
+                  const { stream, model: usedModel, provider: providerLabel } = await streamProvider(
+                    preferred.name, preferred.apiKey, preferred.model, messages, prompt
+                  );
+                  const metaEvent = `data: ${JSON.stringify({ meta: true, model: usedModel, provider: providerLabel })}\n\n`;
+                  const fallbackStream = new ReadableStream({
+                    async start(controller) {
+                      controller.enqueue(new TextEncoder().encode(metaEvent));
+                      const reader = stream.getReader();
+                      try {
+                        while (true) {
+                          const { done, value } = await reader.read();
+                          if (done) break;
+                          controller.enqueue(value);
+                        }
+                      } finally { controller.close(); }
+                    },
+                  });
+                  return new Response(fallbackStream, {
+                    headers: { ...corsHeaders, "Content-Type": "text/event-stream", "Cache-Control": "no-cache" },
+                  });
+                } catch {
+                  // Fall through to non-streaming race
+                }
+              }
             }
           }
 
