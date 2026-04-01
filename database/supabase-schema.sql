@@ -205,6 +205,25 @@ CREATE POLICY "Users can delete their own last read"
   USING (auth.uid() = user_id);
 
 -- =====================================================
+-- CUSTOMIZATIONS TABLE
+CREATE TABLE IF NOT EXISTS customizations (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  description TEXT NOT NULL,
+  css TEXT NOT NULL DEFAULT '',
+  config JSONB DEFAULT '{}'::jsonb,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_by_email TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+ALTER TABLE customizations ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can view own customizations" ON customizations FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "Users can insert own customizations" ON customizations FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update own customizations" ON customizations FOR UPDATE USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can delete own customizations" ON customizations FOR DELETE USING (auth.uid() = user_id);
+CREATE INDEX idx_customizations_user_id ON customizations(user_id);
+
 -- FUNCTIONS & TRIGGERS
 -- =====================================================
 
