@@ -1,5 +1,6 @@
 import React from 'react';
 import { useSeasonTheme } from '../hooks/useSeasonTheme';
+import type { PaperType } from '../services/strokeNormalizer';
 
 type AnnotationTool = 'pen' | 'marker' | 'highlighter' | 'eraser';
 
@@ -12,6 +13,7 @@ interface AnnotationToolbarProps {
   isAnnotationToolbarCollapsed: boolean;
   annotationOriginalLayout: { fontSize: number; vSplitOffset: number } | null;
   colorPresets: readonly string[];
+  paperType?: PaperType;
   onSelectTool: (tool: AnnotationTool) => void;
   onColorChange: (color: string) => void;
   onSizeChange: (size: number) => void;
@@ -21,6 +23,7 @@ interface AnnotationToolbarProps {
   onClearAll: () => void;
   onRestoreAlignment: () => void;
   onClose: () => void;
+  onPaperTypeChange?: (type: PaperType) => void;
 }
 
 const TOOL_BUTTONS: Array<{ tool: AnnotationTool; icon: string; label: string; labelEn: string }> = [
@@ -34,6 +37,12 @@ const GRAYSCALE_LIGHTNESS = [100, 95, 88, 80, 70, 60, 50, 40, 30, 20, 10, 0];
 const COLOR_HUES = [190, 210, 240, 270, 300, 340, 10, 30, 50, 80, 110, 150];
 const COLOR_LIGHTNESS_ROWS = [25, 35, 45, 55, 65, 75, 85];
 
+const PAPER_TYPES: Array<{ type: PaperType; icon: string; label: string; labelEn: string }> = [
+  { type: 'plain', icon: '📄', label: '空白', labelEn: 'Plain' },
+  { type: 'grid', icon: '📐', label: '方格', labelEn: 'Grid' },
+  { type: 'ruled', icon: '📝', label: '横线', labelEn: 'Ruled' },
+];
+
 const AnnotationToolbar: React.FC<AnnotationToolbarProps> = ({
   isAnnotationMode,
   annotationTool,
@@ -42,6 +51,7 @@ const AnnotationToolbar: React.FC<AnnotationToolbarProps> = ({
   showAnnotationColorPicker,
   isAnnotationToolbarCollapsed,
   annotationOriginalLayout,
+  paperType = 'plain',
   onSelectTool,
   onColorChange,
   onSizeChange,
@@ -51,6 +61,7 @@ const AnnotationToolbar: React.FC<AnnotationToolbarProps> = ({
   onClearAll,
   onRestoreAlignment,
   onClose,
+  onPaperTypeChange,
 }) => {
   const { theme } = useSeasonTheme();
 
@@ -241,6 +252,33 @@ const AnnotationToolbar: React.FC<AnnotationToolbarProps> = ({
           </svg>
           <span className="hidden sm:block text-[9px] font-medium text-slate-500 mt-0.5">清除</span>
         </button>
+
+        {/* Paper type toggle */}
+        {onPaperTypeChange && (
+          <>
+            <div className="w-[1px] h-5 sm:h-6 bg-slate-200 mx-0.5 sm:mx-1" />
+            {PAPER_TYPES.map(({ type, icon, label, labelEn }) => (
+              <button
+                key={type}
+                onClick={() => onPaperTypeChange(type)}
+                className={`flex flex-col items-center justify-center p-1.5 sm:px-2 sm:py-1 rounded-lg sm:rounded-xl transition-all ${
+                  paperType === type
+                    ? 'shadow-md'
+                    : 'hover:bg-slate-100 opacity-70'
+                }`}
+                style={{
+                  backgroundColor: paperType === type ? `${theme.accent}20` : undefined,
+                  border: paperType === type ? `2px solid ${theme.accent}` : '2px solid transparent',
+                  minWidth: '32px',
+                }}
+                title={`${labelEn} paper`}
+              >
+                <span className="text-sm leading-none">{icon}</span>
+                <span className="hidden sm:block text-[9px] font-medium text-slate-500 mt-0.5">{label}</span>
+              </button>
+            ))}
+          </>
+        )}
 
         {/* Restore Alignment - only shows when annotations are misaligned */}
         {annotationOriginalLayout && (
