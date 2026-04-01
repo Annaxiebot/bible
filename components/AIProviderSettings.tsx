@@ -85,6 +85,7 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
   const [configuredCount, setConfiguredCount] = useState(0);
   const [workingModelCount, setWorkingModelCount] = useState(0);
   const [healthData, setHealthData] = useState<Array<{ provider: string; model: string; status: string; response_ms: number; tested_at: string }>>([]);
+  const [poolSort, setPoolSort] = useState<'speed' | 'time' | 'name'>('speed');
   const [testingKey, setTestingKey] = useState<string | null>(null);
   const [testResults, setTestResults] = useState<Record<string, { success: boolean; error?: string; model?: string }>>({});
   const [dynamicFreeModels, setDynamicFreeModels] = useState<OpenRouterModelInfo[] | null>(null);
@@ -94,25 +95,28 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
   const [autoDetecting, setAutoDetecting] = useState(false);
   const [detectProgress, setDetectProgress] = useState<AutoDetectProgress[]>([]);
 
+  const refreshHealthData = async () => {
+    try {
+      const { supabase, authManager, isSupabaseConfigured } = await import('../services/supabase');
+      if (!isSupabaseConfigured() || !authManager.getState().isAuthenticated || !supabase) return;
+      const userId = authManager.getUserId();
+      if (!userId) return;
+      const { data } = await supabase
+        .from('provider_health')
+        .select('provider, model, status, response_ms, tested_at')
+        .eq('user_id', userId);
+      if (data) {
+        setHealthData(data);
+        setWorkingModelCount(data.filter(d => d.status === 'ok').length);
+      }
+    } catch {}
+  };
+
   useEffect(() => {
-    import('../services/supabase').then(async ({ supabase, authManager, isSupabaseConfigured }) => {
+    import('../services/supabase').then(async ({ authManager, isSupabaseConfigured }) => {
       const loggedIn = isSupabaseConfigured() && authManager.getState().isAuthenticated;
       setIsLoggedIn(loggedIn);
-      // Fetch working model count from provider_health
-      if (loggedIn && supabase) {
-        const userId = authManager.getUserId();
-        if (userId) {
-          const { data } = await supabase
-            .from('provider_health')
-            .select('provider, model, status, response_ms, tested_at')
-            .eq('user_id', userId)
-            .order('response_ms', { ascending: true });
-          if (data) {
-            setHealthData(data);
-            setWorkingModelCount(data.filter(d => d.status === 'ok').length);
-          }
-        }
-      }
+      if (loggedIn) refreshHealthData();
     }).catch(() => {});
   }, [isOpen]);
 
@@ -228,6 +232,7 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
         }));
       } finally {
         setTestingKey(null);
+        refreshHealthData();
       }
       return;
     }
@@ -264,6 +269,7 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
         }));
       } finally {
         setAutoDetecting(false);
+        refreshHealthData();
       }
       return;
     }
@@ -282,6 +288,7 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
       }));
     } finally {
       setTestingKey(null);
+      refreshHealthData();
     }
   };
 
@@ -657,12 +664,26 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
                 </>
               )}
 
-              {/* Tested Models Pool */}
+              {/* Working Models Pool */}
               {healthData.length > 0 && (
                 <div className="mt-4">
-                  <div className="text-xs font-semibold text-slate-600 mb-2">Tested Models Pool</div>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="text-xs font-semibold text-slate-600">Working Models Pool</div>
+                    <div className="flex gap-1">
+                      {(['speed', 'time', 'name'] as const).map(s => (
+                        <button key={s} onClick={() => setPoolSort(s)}
+                          className={`text-[10px] px-2 py-0.5 rounded ${poolSort === s ? 'bg-indigo-100 text-indigo-700' : 'text-slate-400 hover:bg-slate-100'}`}>
+                          {s === 'speed' ? 'Speed' : s === 'time' ? 'Recent' : 'Name'}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                   <div className="max-h-48 overflow-y-auto border border-slate-200 rounded-lg divide-y divide-slate-100">
-                    {healthData.map((h, i) => (
+                    {[...healthData].sort((a, b) => {
+                      if (poolSort === 'speed') return (a.response_ms || 99999) - (b.response_ms || 99999);
+                      if (poolSort === 'time') return new Date(b.tested_at).getTime() - new Date(a.tested_at).getTime();
+                      return `${a.provider}:${a.model}`.localeCompare(`${b.provider}:${b.model}`);
+                    }).map((h, i) => (
                       <div key={i} className="flex items-center justify-between px-3 py-1.5 text-xs hover:bg-slate-50">
                         <div className="flex items-center gap-2 min-w-0">
                           <span className={`w-2 h-2 rounded-full flex-shrink-0 ${h.status === 'ok' ? 'bg-green-500' : 'bg-red-400'}`} />
