@@ -28,6 +28,7 @@ const defaultProps = {
   isAnnotationToolbarCollapsed: false,
   annotationOriginalLayout: null,
   colorPresets: ['#000000', '#ffffff'] as readonly string[],
+  paperType: 'plain' as const,
   onSelectTool: vi.fn(),
   onColorChange: vi.fn(),
   onSizeChange: vi.fn(),
@@ -37,6 +38,7 @@ const defaultProps = {
   onClearAll: vi.fn(),
   onRestoreAlignment: vi.fn(),
   onClose: vi.fn(),
+  onPaperTypeChange: vi.fn(),
 };
 
 describe('AnnotationToolbar', () => {
@@ -153,5 +155,32 @@ describe('AnnotationToolbar', () => {
 
     const expandButton = screen.getByText('展开工具栏');
     expect(expandButton).not.toBeNull();
+  });
+
+  it('renders paper type buttons when onPaperTypeChange is provided', () => {
+    render(<AnnotationToolbar {...defaultProps} />);
+
+    expect(screen.getByTitle('Plain paper')).not.toBeNull();
+    expect(screen.getByTitle('Grid paper')).not.toBeNull();
+    expect(screen.getByTitle('Ruled paper')).not.toBeNull();
+  });
+
+  it('calls onPaperTypeChange when a paper type button is clicked', () => {
+    const onPaperTypeChange = vi.fn();
+    render(<AnnotationToolbar {...defaultProps} onPaperTypeChange={onPaperTypeChange} />);
+
+    fireEvent.click(screen.getByTitle('Grid paper'));
+    expect(onPaperTypeChange).toHaveBeenCalledWith('grid');
+
+    fireEvent.click(screen.getByTitle('Ruled paper'));
+    expect(onPaperTypeChange).toHaveBeenCalledWith('ruled');
+  });
+
+  it('does not render paper type buttons when onPaperTypeChange is not provided', () => {
+    render(<AnnotationToolbar {...defaultProps} onPaperTypeChange={undefined} />);
+
+    expect(screen.queryByTitle('Plain paper')).toBeNull();
+    expect(screen.queryByTitle('Grid paper')).toBeNull();
+    expect(screen.queryByTitle('Ruled paper')).toBeNull();
   });
 });

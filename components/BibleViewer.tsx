@@ -191,6 +191,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     handleAlignmentMismatch, handleRestoreAlignment,
     handleAnnotationUndo, handleAnnotationClearAll,
     annotationToolState,
+    paperType, setPaperType,
   } = useAnnotationState(setFontSize, setVSplitOffset, selectedBook.id, selectedChapter);
 
   // ── Swipe navigation (via hook) ────────────────────────────────────────
@@ -1299,6 +1300,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           isAnnotationToolbarCollapsed={isAnnotationToolbarCollapsed}
           annotationOriginalLayout={annotationOriginalLayout}
           colorPresets={COLOR_PRESETS}
+          paperType={paperType}
           onSelectTool={selectAnnotationTool}
           onColorChange={setAnnotationColor}
           onSizeChange={setAnnotationSize}
@@ -1308,6 +1310,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           onClearAll={handleAnnotationClearAll}
           onRestoreAlignment={handleRestoreAlignment}
           onClose={() => setIsAnnotationMode(false)}
+          onPaperTypeChange={setPaperType}
         />
       )}
     </div>
