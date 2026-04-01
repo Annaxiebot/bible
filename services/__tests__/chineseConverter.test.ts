@@ -1,7 +1,10 @@
-import { describe, it, expect } from 'vitest';
-import { toSimplified, toTraditional } from '../chineseConverter';
+import { describe, it, expect, beforeAll } from 'vitest';
+import { toSimplified, toTraditional, preloadConverter } from '../chineseConverter';
 
 describe('chineseConverter', () => {
+  beforeAll(async () => {
+    await preloadConverter();
+  });
   describe('toSimplified', () => {
     it('should convert traditional Chinese to simplified', () => {
       expect(toSimplified('聖經')).toBe('圣经');
