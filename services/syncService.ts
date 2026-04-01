@@ -703,13 +703,16 @@ async function syncJournal(): Promise<void> {
   });
 
   if (toUpload.length > 0) {
-    const rows = toUpload.map(e => ({
+    const rows = toUpload.map(e => {
+      // Cap drawing data to 500KB to avoid timeout on large canvases
+      const drawing = (e as any).drawing || '';
+      return {
       id: e.id,
       user_id: userId,
       title: e.title,
       content: e.content,
       plain_text: e.plainText,
-      drawing: (e as any).drawing || '',
+      drawing: drawing.length > 512000 ? '' : drawing,
       latitude: e.latitude || null,
       longitude: e.longitude || null,
       location_name: e.locationName || null,
@@ -719,7 +722,8 @@ async function syncJournal(): Promise<void> {
       tags: e.tags || [],
       created_at: e.createdAt,
       updated_at: e.updatedAt,
-    }));
+    };
+    });
 
     for (let i = 0; i < rows.length; i += 50) {
       await supabase.from('journal').upsert(rows.slice(i, i + 50), { onConflict: 'id' });
@@ -832,12 +836,14 @@ export async function performFullSync(): Promise<void> {
       { name: 'Chat History', fn: syncChatHistory },
     ];
 
+    syncManager.resetCancelled();
     syncManager.startSync(steps.length);
 
     const withTimeout = (fn: () => Promise<void>, ms = 15000) =>
       Promise.race([fn(), new Promise<void>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))]);
 
     for (const step of steps) {
+      if (syncManager.isCancelled()) break;
       syncManager.stepStart(step.name);
       try {
         await withTimeout(step.fn);
