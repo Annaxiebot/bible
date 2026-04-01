@@ -5,11 +5,20 @@
  * 1. Auto-tagging — suggests tags via AI after saving
  * 2. Smart linking — finds related entries via TF-IDF-like keyword matching
  * 3. Weekly digest — AI-summarized weekly reflections
+ * 4. Reflection prompts — contextual prompts based on entry + Bible reading
+ * 5. Extend thinking — AI expands on selected text or full entry
+ * 6. Summarize — condenses entry into key insights
+ * 7. Scripture finder — suggests relevant Bible verses
+ * 8. Inline chat — Q&A about the current entry
+ * 9. Memory extraction — extracts themes, prayers, growth areas, questions
+ * 10. Spiritual profile — AI-generated user profile from memory
+ * 11. Proactive suggestions — personalized prompts based on context
  */
 
 import { chatWithAI } from './aiProvider';
 import { journalStorage } from './journalStorage';
-import { JournalEntry } from './idbService';
+import { JournalEntry, SpiritualMemoryItem } from './idbService';
+import { spiritualMemory } from './spiritualMemory';
 
 // ─── Stop words for keyword extraction ─────────────────────────────────────
 const STOP_WORDS = new Set([
@@ -295,4 +304,381 @@ export async function getTimelineGroups(): Promise<TimelineGroup[]> {
       }),
       entries,
     }));
+}
+
+// ─── 5. Reflection prompts (Phase 3) ──────────────────────────────────────
+
+const REFLECTION_PROMPT = `You are a thoughtful spiritual companion. Based on the context below, generate ONE reflective question or prompt that would help the writer go deeper in their spiritual reflection. Keep it warm, open-ended, and 1-2 sentences max. Do not use quotes around the prompt. Do not add a prefix like "Prompt:" — just the prompt itself.`;
+
+/**
+ * Generate a contextual reflection prompt based on current entry,
+ * Bible reading context, and recent entries.
+ */
+export async function generateReflectionPrompt(
+  currentEntry: JournalEntry | null,
+  bibleContext: { bookId?: string; chapter?: number; bookName?: string } | null,
+  recentEntries: JournalEntry[]
+): Promise<string> {
+  const parts: string[] = [];
+
+  if (currentEntry?.plainText?.trim()) {
+    parts.push(`Current entry:\n${currentEntry.plainText.slice(0, 500)}`);
+  }
+
+  if (bibleContext?.bookName && bibleContext?.chapter) {
+    parts.push(`Currently reading: ${bibleContext.bookName} ${bibleContext.chapter}`);
+  }
+
+  if (recentEntries.length > 0) {
+    const recentText = recentEntries
+      .slice(0, 3)
+      .map((e, i) => `Recent entry ${i + 1}: ${(e.plainText || e.title).slice(0, 200)}`)
+      .join('\n');
+    parts.push(recentText);
+  }
+
+  if (parts.length === 0) {
+    parts.push('The user is starting a new journal entry with no previous context.');
+  }
+
+  try {
+    const result = await chatWithAI(
+      `${REFLECTION_PROMPT}\n\n${parts.join('\n\n')}`,
+      [],
+      { fast: true }
+    );
+    const text = typeof result === 'string' ? result : result.text;
+    return text.trim();
+  } catch (err) {
+    console.warn('[JournalAI] Reflection prompt failed:', err);
+    return 'What is one thing you are grateful for today?';
+  }
+}
+
+// ─── 6. Extend thinking (Phase 3) ─────────────────────────────────────────
+
+const EXTEND_PROMPT = `The user wrote this spiritual reflection. Gently extend their thinking — what deeper meaning might this have? How does it connect to broader spiritual themes? Keep the same tone and language. Write 2-3 short paragraphs.`;
+
+/**
+ * Extend the user's thinking on selected text or the full entry.
+ */
+export async function extendThinking(
+  text: string,
+  bibleContext?: { bookId?: string; chapter?: number; bookName?: string }
+): Promise<string> {
+  if (!text.trim()) return '';
+
+  let prompt = `${EXTEND_PROMPT}\n\nUser's writing:\n${text.slice(0, 2000)}`;
+
+  if (bibleContext?.bookName && bibleContext?.chapter) {
+    prompt += `\n\nThey are currently reading: ${bibleContext.bookName} ${bibleContext.chapter}`;
+  }
+
+  try {
+    const result = await chatWithAI(prompt, [], { fast: true });
+    return (typeof result === 'string' ? result : result.text).trim();
+  } catch (err) {
+    console.warn('[JournalAI] Extend thinking failed:', err);
+    return '';
+  }
+}
+
+// ─── 7. Summarize (Phase 3) ───────────────────────────────────────────────
+
+const SUMMARIZE_PROMPT = `Summarize this journal entry into 2-3 key insights or takeaways. Use bullet points (markdown). Be concise — each point should be 1 sentence. Capture the spiritual/emotional essence.`;
+
+/**
+ * Condense a journal entry into 2-3 key insights.
+ */
+export async function summarizeEntry(text: string): Promise<string> {
+  if (!text.trim() || text.trim().length < 20) return '';
+
+  try {
+    const result = await chatWithAI(
+      `${SUMMARIZE_PROMPT}\n\nJournal entry:\n${text.slice(0, 3000)}`,
+      [],
+      { fast: true }
+    );
+    return (typeof result === 'string' ? result : result.text).trim();
+  } catch (err) {
+    console.warn('[JournalAI] Summarize failed:', err);
+    return '';
+  }
+}
+
+// ─── 8. Scripture finder (Phase 3) ────────────────────────────────────────
+
+const SCRIPTURE_PROMPT = `Based on this journal entry, suggest 3-5 relevant Bible verses. For each, provide:
+1. The reference (e.g. "Philippians 4:6-7")
+2. A brief explanation (1 sentence) of why it's relevant
+
+Return as a JSON array of objects with "reference" and "reason" fields. Example:
+[{"reference":"Philippians 4:6-7","reason":"Speaks to finding peace through prayer instead of anxiety."}]
+Return ONLY the JSON array. No other text.`;
+
+export interface ScriptureSuggestion {
+  reference: string;
+  reason: string;
+}
+
+/**
+ * Find Bible verses relevant to the journal entry text.
+ */
+export async function findRelatedScripture(text: string): Promise<ScriptureSuggestion[]> {
+  if (!text.trim() || text.trim().length < 10) return [];
+
+  try {
+    const result = await chatWithAI(
+      `${SCRIPTURE_PROMPT}\n\nJournal entry:\n${text.slice(0, 2000)}`,
+      [],
+      { fast: true }
+    );
+    const responseText = typeof result === 'string' ? result : result.text;
+
+    const jsonMatch = responseText.match(/\[[\s\S]*?\]/);
+    if (!jsonMatch) return [];
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    if (!Array.isArray(parsed)) return [];
+
+    return parsed
+      .filter(
+        (item: unknown): item is { reference: string; reason: string } =>
+          typeof item === 'object' &&
+          item !== null &&
+          typeof (item as any).reference === 'string' &&
+          typeof (item as any).reason === 'string'
+      )
+      .slice(0, 5);
+  } catch (err) {
+    console.warn('[JournalAI] Scripture finder failed:', err);
+    return [];
+  }
+}
+
+// ─── 9. Inline chat about entry (Phase 3) ─────────────────────────────────
+
+/**
+ * Chat about the current entry. User asks a question, AI responds with
+ * context of the entry + recent entries.
+ */
+export async function chatAboutEntry(
+  question: string,
+  entryContent: string,
+  recentEntries: JournalEntry[]
+): Promise<string> {
+  if (!question.trim()) return '';
+
+  const context: string[] = [
+    'You are a thoughtful spiritual companion. The user is asking about their journal entry. Answer warmly and concisely.',
+  ];
+
+  if (entryContent.trim()) {
+    context.push(`Current journal entry:\n${entryContent.slice(0, 1500)}`);
+  }
+
+  if (recentEntries.length > 0) {
+    const recentText = recentEntries
+      .slice(0, 3)
+      .map((e, i) => `Recent entry ${i + 1}: ${(e.plainText || e.title).slice(0, 300)}`)
+      .join('\n');
+    context.push(`Recent entries:\n${recentText}`);
+  }
+
+  context.push(`User's question: ${question}`);
+
+  try {
+    const result = await chatWithAI(context.join('\n\n'), [], { fast: true });
+    return (typeof result === 'string' ? result : result.text).trim();
+  } catch (err) {
+    console.warn('[JournalAI] Chat about entry failed:', err);
+    return 'Sorry, I could not process your question right now. Please try again.';
+  }
+}
+
+// ─── 10. Memory extraction (Phase 4) ──────────────────────────────────────
+
+const MEMORY_EXTRACT_PROMPT = `Analyze this journal entry and extract any items worth remembering about the user. Categories:
+- "theme": recurring spiritual themes (e.g. "forgiveness", "seeking God's will")
+- "prayer": specific prayer requests or answered prayers
+- "growth": areas of spiritual growth or goals
+- "question": open spiritual questions the user is wrestling with
+
+Return a JSON array of objects with "category" and "content" fields. Only include genuinely meaningful items (not every detail). Return an empty array [] if nothing stands out.
+Example: [{"category":"prayer","content":"Praying for healing for their mother"},{"category":"theme","content":"Finding peace through surrender"}]
+Return ONLY the JSON array.`;
+
+export interface MemoryItem {
+  category: 'theme' | 'prayer' | 'growth' | 'question';
+  content: string;
+}
+
+/**
+ * Extract memory-worthy items from a journal entry.
+ * Saves them to the spiritualMemory store.
+ */
+export async function extractMemoryItems(
+  entryText: string,
+  entryId?: string
+): Promise<MemoryItem[]> {
+  if (!entryText.trim() || entryText.trim().length < 30) return [];
+
+  try {
+    const result = await chatWithAI(
+      `${MEMORY_EXTRACT_PROMPT}\n\nJournal entry:\n${entryText.slice(0, 2000)}`,
+      [],
+      { fast: true }
+    );
+    const responseText = typeof result === 'string' ? result : result.text;
+
+    const jsonMatch = responseText.match(/\[[\s\S]*?\]/);
+    if (!jsonMatch) return [];
+
+    const parsed = JSON.parse(jsonMatch[0]);
+    if (!Array.isArray(parsed)) return [];
+
+    const validCategories = new Set(['theme', 'prayer', 'growth', 'question']);
+    const items: MemoryItem[] = parsed
+      .filter(
+        (item: unknown): item is MemoryItem =>
+          typeof item === 'object' &&
+          item !== null &&
+          typeof (item as any).category === 'string' &&
+          validCategories.has((item as any).category) &&
+          typeof (item as any).content === 'string' &&
+          (item as any).content.trim().length > 0
+      )
+      .slice(0, 10);
+
+    // Save to IndexedDB (non-blocking)
+    for (const item of items) {
+      await spiritualMemory.addItem({
+        category: item.category,
+        content: item.content,
+        source: entryId,
+      });
+    }
+
+    return items;
+  } catch (err) {
+    console.warn('[JournalAI] Memory extraction failed:', err);
+    return [];
+  }
+}
+
+/**
+ * Get all memory items for context building.
+ */
+export async function getMemoryContext(): Promise<SpiritualMemoryItem[]> {
+  return spiritualMemory.getAllItems();
+}
+
+// ─── 11. Spiritual profile (Phase 4) ──────────────────────────────────────
+
+const PROFILE_PROMPT = `Based on these memory items about a person's spiritual journey, generate a brief spiritual profile. Organize into sections:
+
+**Key Themes**: The recurring spiritual themes in their journey (2-3 items)
+**Active Prayer Requests**: Current prayers and petitions (list each)
+**Growth Areas**: Where they are growing or want to grow (2-3 items)
+**Open Questions**: Spiritual questions they are exploring (list each)
+
+If a category has no items, write "None recorded yet." Be warm and encouraging. Use markdown formatting.`;
+
+/**
+ * Generate a spiritual profile from memory items.
+ */
+export async function generateSpiritualProfile(
+  memoryItems: SpiritualMemoryItem[]
+): Promise<string> {
+  if (memoryItems.length === 0) {
+    return 'No spiritual memory recorded yet. Keep journaling and your profile will be built over time!';
+  }
+
+  const grouped: Record<string, string[]> = {
+    theme: [],
+    prayer: [],
+    growth: [],
+    question: [],
+  };
+
+  for (const item of memoryItems) {
+    if (grouped[item.category]) {
+      grouped[item.category].push(item.content);
+    }
+  }
+
+  const contextLines = Object.entries(grouped)
+    .map(([cat, items]) => `${cat}: ${items.length > 0 ? items.join('; ') : 'none'}`)
+    .join('\n');
+
+  try {
+    const result = await chatWithAI(
+      `${PROFILE_PROMPT}\n\nMemory items:\n${contextLines}`,
+      [],
+      { fast: true }
+    );
+    return (typeof result === 'string' ? result : result.text).trim();
+  } catch (err) {
+    console.warn('[JournalAI] Spiritual profile failed:', err);
+    return 'Could not generate profile at this time. Please try again later.';
+  }
+}
+
+// ─── 12. Proactive suggestions (Phase 4) ──────────────────────────────────
+
+const PROACTIVE_PROMPT = `You are a thoughtful spiritual companion. Based on the user's context below, generate a brief, encouraging suggestion for their journaling session today. Keep it to 2-3 sentences. Be warm and specific (reference their actual themes/prayers if available). Do not use generic platitudes.`;
+
+/**
+ * Generate a proactive suggestion when opening the journal.
+ */
+export async function generateProactiveSuggestion(
+  memoryItems: SpiritualMemoryItem[],
+  lastEntry: JournalEntry | null,
+  bibleContext: { bookId?: string; chapter?: number; bookName?: string } | null
+): Promise<string> {
+  const parts: string[] = [];
+
+  if (memoryItems.length > 0) {
+    const themes = memoryItems
+      .filter(m => m.category === 'theme')
+      .slice(0, 3)
+      .map(m => m.content);
+    const prayers = memoryItems
+      .filter(m => m.category === 'prayer')
+      .slice(0, 3)
+      .map(m => m.content);
+    const growth = memoryItems
+      .filter(m => m.category === 'growth')
+      .slice(0, 2)
+      .map(m => m.content);
+
+    if (themes.length > 0) parts.push(`Key themes: ${themes.join(', ')}`);
+    if (prayers.length > 0) parts.push(`Active prayers: ${prayers.join(', ')}`);
+    if (growth.length > 0) parts.push(`Growth areas: ${growth.join(', ')}`);
+  }
+
+  if (lastEntry) {
+    const daysSince = Math.floor(
+      (Date.now() - new Date(lastEntry.createdAt).getTime()) / (1000 * 60 * 60 * 24)
+    );
+    parts.push(`Last journal entry was ${daysSince} day(s) ago: "${(lastEntry.plainText || lastEntry.title).slice(0, 200)}"`);
+  } else {
+    parts.push('This is potentially their first journal entry.');
+  }
+
+  if (bibleContext?.bookName && bibleContext?.chapter) {
+    parts.push(`Currently reading: ${bibleContext.bookName} ${bibleContext.chapter}`);
+  }
+
+  try {
+    const result = await chatWithAI(
+      `${PROACTIVE_PROMPT}\n\n${parts.join('\n')}`,
+      [],
+      { fast: true }
+    );
+    return (typeof result === 'string' ? result : result.text).trim();
+  } catch (err) {
+    console.warn('[JournalAI] Proactive suggestion failed:', err);
+    return '';
+  }
 }
