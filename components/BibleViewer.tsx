@@ -4,7 +4,7 @@ import { STORAGE_KEYS } from '../constants/storageKeys';
 import { Verse, Book, SelectionInfo } from '../types';
 import { BIBLE_BOOKS } from '../constants';
 import { parseBibleReference } from '../services/bibleBookData';
-import { toSimplified } from '../services/chineseConverter';
+import { toSimplified, preloadConverter } from '../services/chineseConverter';
 import { bibleStorage, BibleTranslation } from '../services/bibleStorage';
 import { readingHistory } from '../services/readingHistory';
 import { verseDataStorage } from '../services/verseDataStorage';
@@ -752,6 +752,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     const newMode = !isSimplified;
     setIsSimplified(newMode);
     localStorage.setItem(STORAGE_KEYS.CHINESE_MODE, newMode ? 'simplified' : 'traditional');
+    if (newMode) preloadConverter();
   };
 
   const adjustFontSize = (delta: number) => {
