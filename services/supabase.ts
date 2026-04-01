@@ -112,14 +112,14 @@ class AuthManager {
       return;
     }
 
-    // Get initial session
-    const { data: { session } } = await supabase.auth.getSession();
-    this.updateState(session);
-
-    // Listen for auth changes
+    // Listen for auth changes FIRST — catches OAuth redirect token exchange
     supabase.auth.onAuthStateChange((_event, session) => {
       this.updateState(session);
     });
+
+    // Then check for existing session
+    const { data: { session } } = await supabase.auth.getSession();
+    this.updateState(session);
 
     this.state.isLoading = false;
     this.notify();
