@@ -551,37 +551,45 @@ async function syncBibleCache(): Promise<void> {
   // Get all locally cached chapters
   const localChapters = await bibleStorage.getAllChapters();
 
-  // Get remote cache keys so we know what already exists
-  const { data: remoteRows, error } = await supabase
+  // Get remote cache keys only (not full data) for comparison
+  const { data: remoteKeys, error } = await supabase
     .from('bible_cache')
-    .select('cache_key, book_id, chapter, translation, data, updated_at')
+    .select('cache_key')
     .eq('user_id', userId);
 
   if (error) throw error;
 
-  const remoteKeySet = new Set((remoteRows || []).map((r: { cache_key: string }) => r.cache_key));
+  const remoteKeySet = new Set((remoteKeys || []).map((r: { cache_key: string }) => r.cache_key));
+  const localKeySet = new Set(localChapters.map(l => `${l.bookId}_${l.chapter}_${l.translation}`));
 
-  // Merge remote chapters into local — download any we don't have
-  for (const remote of remoteRows || []) {
-    const locallyExists = localChapters.some(
-      l => `${l.bookId}_${l.chapter}_${l.translation}` === remote.cache_key
-    );
-    if (!locallyExists && remote.data) {
-      await bibleStorage.saveChapter(
-        remote.book_id,
-        remote.chapter,
-        remote.translation as BibleTranslation,
-        remote.data
-      );
+  // Download remote chapters we don't have locally (fetch data only for missing ones)
+  const missingKeys = [...remoteKeySet].filter(k => !localKeySet.has(k));
+  if (missingKeys.length > 0) {
+    // Fetch in batches of 20 to avoid huge responses
+    for (let i = 0; i < missingKeys.length; i += 20) {
+      const batch = missingKeys.slice(i, i + 20);
+      const { data: remoteChapters } = await supabase
+        .from('bible_cache')
+        .select('cache_key, book_id, chapter, translation, data')
+        .eq('user_id', userId)
+        .in('cache_key', batch);
+
+      for (const remote of remoteChapters || []) {
+        if (remote.data) {
+          await bibleStorage.saveChapter(
+            remote.book_id,
+            remote.chapter,
+            remote.translation as BibleTranslation,
+            remote.data
+          );
+        }
+      }
     }
   }
 
   // Upload local chapters that don't exist remotely — batch upsert
   const chaptersToUpload = localChapters
-    .filter(local => {
-      const key = `${local.bookId}_${local.chapter}_${local.translation}`;
-      return !remoteKeySet.has(key);
-    })
+    .filter(local => !remoteKeySet.has(`${local.bookId}_${local.chapter}_${local.translation}`))
     .map(local => ({
       user_id: userId,
       cache_key: `${local.bookId}_${local.chapter}_${local.translation}`,
@@ -826,12 +834,15 @@ export async function performFullSync(): Promise<void> {
 
     syncManager.startSync(steps.length);
 
+    const withTimeout = (fn: () => Promise<void>, ms = 15000) =>
+      Promise.race([fn(), new Promise<void>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))]);
+
     for (const step of steps) {
       syncManager.stepStart(step.name);
       try {
-        await step.fn();
+        await withTimeout(step.fn);
       } catch {
-        // Individual step failure doesn't block others
+        // Individual step failure or timeout doesn't block others
       }
       syncManager.stepDone(step.name);
     }
