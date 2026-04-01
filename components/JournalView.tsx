@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { JournalEntry } from '../services/idbService';
 import { journalStorage } from '../services/journalStorage';
 import JournalEditor from './JournalEditor';
@@ -6,6 +6,15 @@ import SimpleDrawingCanvas, { SimpleDrawingCanvasHandle } from './SimpleDrawingC
 import { compressImage, compressImageFromUrl } from '../services/imageCompressionService';
 import { usePaperType } from '../hooks/usePaperType';
 import type { PaperType } from '../services/strokeNormalizer';
+import {
+  suggestTags,
+  findRelatedEntries,
+  generateWeeklyDigest,
+  getTimelineGroups,
+  RelatedEntry,
+  WeeklyDigest,
+  TimelineGroup,
+} from '../services/journalAIService';
 
 interface JournalViewProps {
   /** Current Bible reading context for linking new entries */
@@ -62,6 +71,19 @@ const JournalView: React.FC<JournalViewProps> = ({
   const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
   const selectedEntry = entries.find((e) => e.id === selectedId) ?? null;
+
+  // ── AI Intelligence state ──────────────────────────────────────────
+  const [suggestedTags, setSuggestedTags] = useState<string[]>([]);
+  const [isLoadingTags, setIsLoadingTags] = useState(false);
+  const [relatedEntries, setRelatedEntries] = useState<RelatedEntry[]>([]);
+  const [isLoadingRelated, setIsLoadingRelated] = useState(false);
+  const [weeklyDigest, setWeeklyDigest] = useState<WeeklyDigest | null>(null);
+  const [isLoadingDigest, setIsLoadingDigest] = useState(false);
+  const [showDigest, setShowDigest] = useState(false);
+  const [listView, setListView] = useState<'list' | 'timeline'>('list');
+  const [timelineGroups, setTimelineGroups] = useState<TimelineGroup[]>([]);
+  const [timelineFilter, setTimelineFilter] = useState<string | null>(null);
+  const tagSuggestTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Load entries
   const loadEntries = useCallback(async () => {
@@ -153,8 +175,109 @@ const JournalView: React.FC<JournalViewProps> = ({
   useEffect(() => {
     return () => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      if (tagSuggestTimerRef.current) clearTimeout(tagSuggestTimerRef.current);
     };
   }, []);
+
+  // ── Auto-tagging: debounce 5s after last edit ──────────────────────
+  useEffect(() => {
+    if (!selectedEntry || !selectedEntry.plainText || selectedEntry.plainText.trim().length < 20) {
+      setSuggestedTags([]);
+      return;
+    }
+    if (tagSuggestTimerRef.current) clearTimeout(tagSuggestTimerRef.current);
+    tagSuggestTimerRef.current = setTimeout(async () => {
+      setIsLoadingTags(true);
+      try {
+        const tags = await suggestTags(selectedEntry);
+        // Filter out tags already on the entry
+        const newTags = tags.filter(t => !selectedEntry.tags.includes(t));
+        setSuggestedTags(newTags);
+      } catch {
+        setSuggestedTags([]);
+      } finally {
+        setIsLoadingTags(false);
+      }
+    }, 5000);
+    return () => {
+      if (tagSuggestTimerRef.current) clearTimeout(tagSuggestTimerRef.current);
+    };
+  }, [selectedEntry?.plainText, selectedEntry?.id]);
+
+  // ── Related entries: load when selecting an entry ──────────────────
+  useEffect(() => {
+    if (!selectedEntry) {
+      setRelatedEntries([]);
+      return;
+    }
+    let cancelled = false;
+    setIsLoadingRelated(true);
+    findRelatedEntries(selectedEntry).then(results => {
+      if (!cancelled) {
+        setRelatedEntries(results);
+        setIsLoadingRelated(false);
+      }
+    }).catch(() => {
+      if (!cancelled) {
+        setRelatedEntries([]);
+        setIsLoadingRelated(false);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [selectedId]);
+
+  // Clear suggested tags when switching entries
+  useEffect(() => {
+    setSuggestedTags([]);
+  }, [selectedId]);
+
+  // Accept a suggested tag
+  const acceptTag = async (tag: string) => {
+    if (!selectedEntry) return;
+    const newTags = [...selectedEntry.tags, tag];
+    await journalStorage.updateEntry(selectedEntry.id, { tags: newTags });
+    setEntries(prev => prev.map(e => e.id === selectedEntry.id ? { ...e, tags: newTags } : e));
+    setSuggestedTags(prev => prev.filter(t => t !== tag));
+  };
+
+  // Dismiss a suggested tag
+  const dismissTag = (tag: string) => {
+    setSuggestedTags(prev => prev.filter(t => t !== tag));
+  };
+
+  // Remove an existing tag
+  const removeTag = async (tag: string) => {
+    if (!selectedEntry) return;
+    const newTags = selectedEntry.tags.filter(t => t !== tag);
+    await journalStorage.updateEntry(selectedEntry.id, { tags: newTags });
+    setEntries(prev => prev.map(e => e.id === selectedEntry.id ? { ...e, tags: newTags } : e));
+  };
+
+  // ── Weekly digest ─────────────────────────────────────────────────
+  const handleWeeklyDigest = async () => {
+    setIsLoadingDigest(true);
+    setShowDigest(true);
+    try {
+      const digest = await generateWeeklyDigest(true);
+      setWeeklyDigest(digest);
+    } catch {
+      setWeeklyDigest(null);
+    } finally {
+      setIsLoadingDigest(false);
+    }
+  };
+
+  // ── Timeline ──────────────────────────────────────────────────────
+  useEffect(() => {
+    if (listView === 'timeline') {
+      getTimelineGroups().then(setTimelineGroups).catch(() => setTimelineGroups([]));
+    }
+  }, [listView, entries]);
+
+  const filteredEntries = useMemo(() => {
+    if (!timelineFilter) return entries;
+    return entries.filter(e => e.createdAt.startsWith(timelineFilter));
+  }, [entries, timelineFilter]);
 
   // ---------------------------------------------------------------
   // Mobile: show list OR editor, not both
@@ -176,72 +299,202 @@ const JournalView: React.FC<JournalViewProps> = ({
 
   const listContent = (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* Search + New */}
+      {/* Search + New + Digest */}
       <div
         style={{
           display: 'flex',
-          alignItems: 'center',
-          gap: 8,
-          padding: '12px 16px',
+          flexDirection: 'column',
+          gap: 0,
           borderBottom: '1px solid #f3f4f6',
           flexShrink: 0,
         }}
       >
-        <div style={{ position: 'relative', flex: 1 }}>
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search journal..."
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 16px 8px' }}>
+          <div style={{ position: 'relative', flex: 1 }}>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search journal..."
+              style={{
+                width: '100%',
+                padding: '8px 12px 8px 32px',
+                border: '1px solid #e5e7eb',
+                borderRadius: 8,
+                fontSize: 14,
+                background: '#f9fafb',
+                outline: 'none',
+                fontFamily: 'inherit',
+              }}
+            />
+            <svg
+              style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }}
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <path d="M21 21l-4.35-4.35" />
+            </svg>
+          </div>
+          <button
+            onClick={handleNew}
+            title="New entry"
             style={{
-              width: '100%',
-              padding: '8px 12px 8px 32px',
-              border: '1px solid #e5e7eb',
+              background: '#4f46e5',
+              color: '#fff',
+              border: 'none',
               borderRadius: 8,
-              fontSize: 14,
-              background: '#f9fafb',
-              outline: 'none',
-              fontFamily: 'inherit',
+              width: 34,
+              height: 34,
+              fontSize: 20,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
             }}
-          />
-          <svg
-            style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#9ca3af' }}
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
           >
-            <circle cx="11" cy="11" r="8" />
-            <path d="M21 21l-4.35-4.35" />
-          </svg>
+            +
+          </button>
         </div>
-        <button
-          onClick={handleNew}
-          title="New entry"
-          style={{
-            background: '#4f46e5',
-            color: '#fff',
-            border: 'none',
-            borderRadius: 8,
-            width: 34,
-            height: 34,
-            fontSize: 20,
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flexShrink: 0,
-          }}
-        >
-          +
-        </button>
+        {/* View toggle + Weekly Digest */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 16px 8px' }}>
+          <div style={{ display: 'flex', background: '#f3f4f6', borderRadius: 6, overflow: 'hidden' }}>
+            <button
+              onClick={() => { setListView('list'); setTimelineFilter(null); }}
+              style={{
+                fontSize: 12, padding: '3px 10px', border: 'none', cursor: 'pointer',
+                background: listView === 'list' ? '#4f46e5' : 'transparent',
+                color: listView === 'list' ? '#fff' : '#6b7280',
+                fontWeight: listView === 'list' ? 600 : 400,
+              }}
+            >
+              List
+            </button>
+            <button
+              onClick={() => setListView('timeline')}
+              style={{
+                fontSize: 12, padding: '3px 10px', border: 'none', cursor: 'pointer',
+                background: listView === 'timeline' ? '#4f46e5' : 'transparent',
+                color: listView === 'timeline' ? '#fff' : '#6b7280',
+                fontWeight: listView === 'timeline' ? 600 : 400,
+              }}
+            >
+              Timeline
+            </button>
+          </div>
+          <span style={{ flex: 1 }} />
+          <button
+            onClick={handleWeeklyDigest}
+            title="Weekly Digest"
+            style={{
+              fontSize: 12, padding: '3px 10px', borderRadius: 6,
+              border: '1px solid #e5e7eb', cursor: 'pointer',
+              background: showDigest ? '#eef2ff' : '#fff',
+              color: '#4f46e5', fontWeight: 500,
+            }}
+          >
+            {isLoadingDigest ? '...' : 'Weekly Digest'}
+          </button>
+        </div>
       </div>
 
-      {/* Entry list */}
+      {/* Weekly Digest panel */}
+      {showDigest && (
+        <div style={{ padding: '12px 16px', borderBottom: '1px solid #f3f4f6', background: '#fafbff', flexShrink: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: '#4f46e5' }}>Weekly Digest</span>
+            <button
+              onClick={() => setShowDigest(false)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 14, padding: 2 }}
+            >
+              ✕
+            </button>
+          </div>
+          {isLoadingDigest ? (
+            <div style={{ fontSize: 13, color: '#9ca3af', padding: '8px 0' }}>Generating digest...</div>
+          ) : weeklyDigest ? (
+            <div>
+              <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 6 }}>
+                {weeklyDigest.entryCount} {weeklyDigest.entryCount === 1 ? 'entry' : 'entries'} this week
+              </div>
+              <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
+                {weeklyDigest.summary}
+              </div>
+            </div>
+          ) : (
+            <div style={{ fontSize: 13, color: '#9ca3af' }}>No entries in the past 7 days.</div>
+          )}
+        </div>
+      )}
+
+      {/* Entry list / Timeline */}
       <div style={{ flex: 1, overflow: 'auto' }}>
-        {entries.length === 0 ? (
+        {/* Timeline view */}
+        {listView === 'timeline' && (
+          <div style={{ padding: '8px 16px' }}>
+            {timelineGroups.length === 0 ? (
+              <div style={{ color: '#9ca3af', fontSize: 13, textAlign: 'center', padding: 24 }}>No entries yet</div>
+            ) : (
+              <div style={{ position: 'relative', paddingLeft: 24 }}>
+                {/* Vertical timeline line */}
+                <div style={{ position: 'absolute', left: 8, top: 4, bottom: 4, width: 2, background: '#e5e7eb', borderRadius: 1 }} />
+                {timelineGroups.map(group => (
+                  <div key={group.date} style={{ marginBottom: 16, position: 'relative' }}>
+                    {/* Timeline dot */}
+                    <div style={{
+                      position: 'absolute', left: -20, top: 4,
+                      width: 10, height: 10, borderRadius: '50%',
+                      background: timelineFilter === group.date ? '#4f46e5' : '#9ca3af',
+                      border: '2px solid #fff',
+                      boxShadow: '0 0 0 1px #e5e7eb',
+                    }} />
+                    {/* Date label */}
+                    <button
+                      onClick={() => {
+                        setTimelineFilter(timelineFilter === group.date ? null : group.date);
+                        setListView('list');
+                      }}
+                      style={{
+                        display: 'block', background: 'none', border: 'none', cursor: 'pointer',
+                        fontSize: 13, fontWeight: 600, color: '#374151', padding: 0, marginBottom: 4,
+                        textAlign: 'left',
+                      }}
+                    >
+                      {group.label}
+                    </button>
+                    <div style={{ fontSize: 12, color: '#9ca3af' }}>
+                      {group.entries.length} {group.entries.length === 1 ? 'entry' : 'entries'}
+                    </div>
+                    {/* Entry previews */}
+                    {group.entries.slice(0, 3).map(entry => (
+                      <div
+                        key={entry.id}
+                        onClick={() => selectEntry(entry.id)}
+                        style={{
+                          fontSize: 12, color: '#6b7280', padding: '3px 0', cursor: 'pointer',
+                          whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
+                        }}
+                      >
+                        {entry.title || 'Untitled'}
+                      </div>
+                    ))}
+                    {group.entries.length > 3 && (
+                      <div style={{ fontSize: 11, color: '#9ca3af' }}>+{group.entries.length - 3} more</div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* List view */}
+        {listView === 'list' && filteredEntries.length === 0 ? (
           <div
             style={{
               display: 'flex',
@@ -263,8 +516,8 @@ const JournalView: React.FC<JournalViewProps> = ({
               Tap + to start writing your reflections
             </p>
           </div>
-        ) : (
-          entries.map((entry) => (
+        ) : listView === 'list' ? (
+          filteredEntries.map((entry) => (
             <div
               key={entry.id}
               onClick={() => selectEntry(entry.id)}
@@ -404,6 +657,20 @@ const JournalView: React.FC<JournalViewProps> = ({
               )}
             </div>
           ))
+        ) : null}
+        {/* Timeline filter indicator */}
+        {listView === 'list' && timelineFilter && (
+          <div style={{ padding: '6px 16px', borderBottom: '1px solid #f3f4f6', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontSize: 12, color: '#6b7280' }}>
+              Showing entries from {new Date(timelineFilter + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+            </span>
+            <button
+              onClick={() => setTimelineFilter(null)}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 12, padding: 2 }}
+            >
+              Clear
+            </button>
+          </div>
         )}
       </div>
     </div>
@@ -689,34 +956,124 @@ const JournalView: React.FC<JournalViewProps> = ({
       )}
 
       {/* Editor / Canvas area */}
-      <div style={{ flex: 1, overflow: 'auto', position: 'relative' }}>
-        {noteMode === 'text' && (
-          <div ref={editorRef} contentEditable onInput={handleContentEditableInput}
-            data-placeholder="Write your thoughts, reflections, prayers..."
-            style={{ minHeight: '100%', padding: '16px 20px', outline: 'none', fontSize: 16, lineHeight: 1.7, color: '#1f2937', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }} />
-        )}
+      <div style={{ flex: 1, overflow: 'auto', position: 'relative', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ flex: 1, position: 'relative', minHeight: noteMode === 'text' ? 'auto' : '400px' }}>
+          {noteMode === 'text' && (
+            <div ref={editorRef} contentEditable onInput={handleContentEditableInput}
+              data-placeholder="Write your thoughts, reflections, prayers..."
+              style={{ minHeight: '200px', padding: '16px 20px', outline: 'none', fontSize: 16, lineHeight: 1.7, color: '#1f2937', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }} />
+          )}
 
-        {noteMode === 'draw' && (
-          <div style={{ position: 'relative', minHeight: '400px', height: '100%', background: '#f8f8f8' }}>
-            <SimpleDrawingCanvas key={`draw-${selectedId}`} ref={canvasRef} onChange={handleDrawingChange} initialData={drawingData} overlayMode={false} isWritingMode={true} paperType={paperType} />
+          {noteMode === 'draw' && (
+            <div style={{ position: 'relative', minHeight: '400px', height: '100%', background: '#f8f8f8' }}>
+              <SimpleDrawingCanvas key={`draw-${selectedId}`} ref={canvasRef} onChange={handleDrawingChange} initialData={drawingData} overlayMode={false} isWritingMode={true} paperType={paperType} />
+            </div>
+          )}
+
+          {noteMode === 'overlay' && (
+            <div style={{ position: 'relative', minHeight: '400px', height: '100%' }}>
+              <div ref={editorRef} contentEditable={!isWritingMode} onInput={handleContentEditableInput}
+                data-placeholder="Write and draw..."
+                style={{ minHeight: '100%', padding: '16px 20px', outline: 'none', fontSize: 16, lineHeight: 1.7, color: '#1f2937', pointerEvents: isWritingMode ? 'none' : 'auto' }} />
+              <div style={{ position: 'absolute', inset: 0, zIndex: 10, pointerEvents: isWritingMode ? 'auto' : 'none' }}>
+                <SimpleDrawingCanvas key={`overlay-${selectedId}`} ref={canvasRef} onChange={handleDrawingChange} initialData={drawingData} overlayMode={true} isWritingMode={isWritingMode} paperType={paperType} />
+              </div>
+              <div style={{ position: 'absolute', bottom: 8, right: 8, zIndex: 20 }}>
+                <button onClick={() => setIsWritingMode(!isWritingMode)}
+                  style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                    background: isWritingMode ? '#e0e7ff' : '#f3f4f6', color: isWritingMode ? '#4f46e5' : '#6b7280' }}>
+                  {isWritingMode ? '✏️ Drawing' : '📝 Typing'}
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Tags ────────────────────────────────────────────────── */}
+        {selectedEntry && (selectedEntry.tags.length > 0 || suggestedTags.length > 0 || isLoadingTags) && (
+          <div style={{ padding: '8px 16px', borderTop: '1px solid #f3f4f6', flexShrink: 0 }}>
+            {/* Existing tags */}
+            {selectedEntry.tags.length > 0 && (
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginBottom: suggestedTags.length > 0 ? 6 : 0 }}>
+                {selectedEntry.tags.map(tag => (
+                  <span key={tag} style={{
+                    display: 'inline-flex', alignItems: 'center', gap: 3,
+                    fontSize: 12, padding: '2px 8px', borderRadius: 12,
+                    background: '#eef2ff', color: '#4f46e5',
+                  }}>
+                    {tag}
+                    <button onClick={() => removeTag(tag)}
+                      style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a5b4fc', fontSize: 11, padding: 0, lineHeight: 1 }}>
+                      x
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            {/* Suggested tags */}
+            {isLoadingTags && suggestedTags.length === 0 && (
+              <div style={{ fontSize: 12, color: '#9ca3af' }}>Analyzing for tags...</div>
+            )}
+            {suggestedTags.length > 0 && (
+              <div>
+                <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 4 }}>Suggested tags:</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                  {suggestedTags.map(tag => (
+                    <span key={tag} style={{
+                      display: 'inline-flex', alignItems: 'center', gap: 3,
+                      fontSize: 12, padding: '2px 8px', borderRadius: 12,
+                      background: '#f3f4f6', color: '#6b7280', border: '1px dashed #d1d5db',
+                    }}>
+                      {tag}
+                      <button onClick={() => acceptTag(tag)} title="Accept"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#22c55e', fontSize: 13, padding: 0, lineHeight: 1 }}>
+                        +
+                      </button>
+                      <button onClick={() => dismissTag(tag)} title="Dismiss"
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#d1d5db', fontSize: 11, padding: 0, lineHeight: 1 }}>
+                        x
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
-        {noteMode === 'overlay' && (
-          <div style={{ position: 'relative', minHeight: '400px', height: '100%' }}>
-            <div ref={editorRef} contentEditable={!isWritingMode} onInput={handleContentEditableInput}
-              data-placeholder="Write and draw..."
-              style={{ minHeight: '100%', padding: '16px 20px', outline: 'none', fontSize: 16, lineHeight: 1.7, color: '#1f2937', pointerEvents: isWritingMode ? 'none' : 'auto' }} />
-            <div style={{ position: 'absolute', inset: 0, zIndex: 10, pointerEvents: isWritingMode ? 'auto' : 'none' }}>
-              <SimpleDrawingCanvas key={`overlay-${selectedId}`} ref={canvasRef} onChange={handleDrawingChange} initialData={drawingData} overlayMode={true} isWritingMode={isWritingMode} paperType={paperType} />
-            </div>
-            <div style={{ position: 'absolute', bottom: 8, right: 8, zIndex: 20 }}>
-              <button onClick={() => setIsWritingMode(!isWritingMode)}
-                style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
-                  background: isWritingMode ? '#e0e7ff' : '#f3f4f6', color: isWritingMode ? '#4f46e5' : '#6b7280' }}>
-                {isWritingMode ? '✏️ Drawing' : '📝 Typing'}
-              </button>
-            </div>
+        {/* ── Related entries ─────────────────────────────────────── */}
+        {selectedEntry && (relatedEntries.length > 0 || isLoadingRelated) && (
+          <div style={{ padding: '8px 16px', borderTop: '1px solid #f3f4f6', flexShrink: 0 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: '#6b7280', marginBottom: 6 }}>Related Entries</div>
+            {isLoadingRelated ? (
+              <div style={{ fontSize: 12, color: '#9ca3af' }}>Finding related entries...</div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                {relatedEntries.map(related => (
+                  <div
+                    key={related.id}
+                    onClick={() => selectEntry(related.id)}
+                    style={{
+                      padding: '6px 10px', borderRadius: 6, background: '#f9fafb',
+                      cursor: 'pointer', border: '1px solid #f3f4f6',
+                      transition: 'background 0.15s',
+                    }}
+                    onMouseOver={e => (e.currentTarget.style.background = '#eef2ff')}
+                    onMouseOut={e => (e.currentTarget.style.background = '#f9fafb')}
+                  >
+                    <div style={{ fontSize: 13, fontWeight: 500, color: '#374151' }}>
+                      {related.title}
+                    </div>
+                    <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>
+                      {new Date(related.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                    </div>
+                    <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2, lineHeight: 1.4 }}>
+                      {related.snippet}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
