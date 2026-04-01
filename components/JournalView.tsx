@@ -418,33 +418,37 @@ const JournalView: React.FC<JournalViewProps> = ({
     }
   };
 
-  // Proactive suggestion when no entry is selected
+  // Proactive suggestion when no entry is selected (delayed to avoid spamming AI on load)
   useEffect(() => {
     if (selectedId) {
       setProactiveSuggestion(null);
       return;
     }
+    // Don't fire on initial load — wait 3s after entries are loaded and no entry is selected
+    if (entries.length === 0) return;
     let cancelled = false;
-    setIsLoadingProactive(true);
-    (async () => {
-      try {
-        const memItems = await getMemoryContext();
-        const lastEntry = entries.length > 0 ? entries[0] : null;
-        const suggestion = await generateProactiveSuggestion(
-          memItems,
-          lastEntry,
-          { bookId, chapter, bookName }
-        );
-        if (!cancelled && suggestion) {
-          setProactiveSuggestion(suggestion);
-        }
-      } catch {
-        // silent
-      } finally {
-        if (!cancelled) setIsLoadingProactive(false);
+    const timer = setTimeout(() => {
+      setIsLoadingProactive(true);
+      (async () => {
+        try {
+          const memItems = await getMemoryContext();
+          const lastEntry = entries.length > 0 ? entries[0] : null;
+          const suggestion = await generateProactiveSuggestion(
+            memItems,
+            lastEntry,
+            { bookId, chapter, bookName }
+          );
+          if (!cancelled && suggestion) {
+            setProactiveSuggestion(suggestion);
+          }
+        } catch {
+          // silent — don't show errors for proactive features
+        } finally {
+          if (!cancelled) setIsLoadingProactive(false);
       }
-    })();
-    return () => { cancelled = true; };
+      })();
+    }, 3000); // 3s delay to avoid firing on initial page load
+    return () => { cancelled = true; clearTimeout(timer); };
   }, [selectedId, entries.length]);
 
   // Clear AI results when switching entries
