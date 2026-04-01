@@ -33,6 +33,7 @@ export const STORAGE_KEYS = {
   ZAI_API_KEY: 'zai_api_key',
   R9S_API_KEY: 'r9s_api_key',
   MOONSHOT_API_KEY: 'moonshot_api_key',
+  PERPLEXITY_API_KEY: 'perplexity_api_key',
   AI_PROVIDER: 'ai_provider',
   AI_MODEL: 'ai_model',
 

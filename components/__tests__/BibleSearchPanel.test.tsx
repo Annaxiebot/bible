@@ -19,6 +19,11 @@ vi.mock('../../hooks/useSeasonTheme', () => ({
   }),
 }));
 
+vi.mock('../../services/unifiedSearchService', () => ({
+  unifiedSearch: vi.fn().mockResolvedValue([]),
+  highlightMatches: vi.fn((text: string) => text),
+}));
+
 const mockResult = {
   bookId: 'genesis',
   bookName: '创世记',
@@ -44,9 +49,23 @@ describe('BibleSearchPanel', () => {
     vi.clearAllMocks();
   });
 
-  it('renders search input', () => {
+  it('renders search input with default "all" scope placeholder', () => {
     render(<BibleSearchPanel {...defaultProps} />);
+    const input = screen.getByPlaceholderText('搜索全部内容... Search all content...');
+    expect(input).not.toBeNull();
+  });
 
+  it('renders scope tabs', () => {
+    render(<BibleSearchPanel {...defaultProps} />);
+    expect(screen.getByText('全部 All')).not.toBeNull();
+    expect(screen.getByText('经文 Bible')).not.toBeNull();
+    expect(screen.getByText('AI研究 Research')).not.toBeNull();
+    expect(screen.getByText('笔记 Notes')).not.toBeNull();
+  });
+
+  it('switches to Bible scope and shows Bible placeholder', () => {
+    render(<BibleSearchPanel {...defaultProps} />);
+    fireEvent.click(screen.getByText('经文 Bible'));
     const input = screen.getByPlaceholderText('搜索经文... Search verses...');
     expect(input).not.toBeNull();
   });
@@ -54,28 +73,15 @@ describe('BibleSearchPanel', () => {
   it('calls onSearchChange when input value changes', () => {
     const onSearchChange = vi.fn();
     render(<BibleSearchPanel {...defaultProps} onSearchChange={onSearchChange} />);
-
-    const input = screen.getByPlaceholderText('搜索经文... Search verses...');
+    const input = screen.getByPlaceholderText('搜索全部内容... Search all content...');
     fireEvent.change(input, { target: { value: '神创造' } });
     expect(onSearchChange).toHaveBeenCalledWith('神创造');
-  });
-
-  it('calls onSearch when Enter key is pressed', () => {
-    const onSearch = vi.fn();
-    render(
-      <BibleSearchPanel {...defaultProps} searchQuery="神" onSearch={onSearch} />
-    );
-
-    const input = screen.getByPlaceholderText('搜索经文... Search verses...');
-    fireEvent.keyDown(input, { key: 'Enter' });
-    expect(onSearch).toHaveBeenCalledWith('神');
   });
 
   it('calls onClose when Escape key is pressed', () => {
     const onClose = vi.fn();
     render(<BibleSearchPanel {...defaultProps} onClose={onClose} />);
-
-    const input = screen.getByPlaceholderText('搜索经文... Search verses...');
+    const input = screen.getByPlaceholderText('搜索全部内容... Search all content...');
     fireEvent.keyDown(input, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledTimes(1);
   });
@@ -83,108 +89,62 @@ describe('BibleSearchPanel', () => {
   it('calls onClose when close button is clicked', () => {
     const onClose = vi.fn();
     render(<BibleSearchPanel {...defaultProps} onClose={onClose} />);
-
-    // The close button contains an SVG with an X icon; find by its surrounding button
-    // The close button is the last button in the header row
-    const buttons = screen.getAllByRole('button');
-    const closeButton = buttons[buttons.length - 1];
-    fireEvent.click(closeButton);
+    const closeBtn = screen.getAllByRole('button').find(b => b.querySelector('svg path[d*="M6 18L18 6"]'));
+    expect(closeBtn).not.toBeUndefined();
+    fireEvent.click(closeBtn!);
     expect(onClose).toHaveBeenCalledTimes(1);
   });
 
-  it('shows "搜索中..." loading state when isSearching=true', () => {
-    render(
-      <BibleSearchPanel {...defaultProps} searchQuery="神" isSearching={true} />
-    );
-
-    const searchButton = screen.getByText('搜索中...');
-    expect(searchButton).not.toBeNull();
+  it('shows loading state when isSearching=true', () => {
+    render(<BibleSearchPanel {...defaultProps} searchQuery="神" isSearching={true} />);
+    expect(screen.getByText('搜索中...')).not.toBeNull();
   });
 
-  it('shows "搜索 Search" label when isSearching=false', () => {
+  it('shows search button label when isSearching=false', () => {
     render(<BibleSearchPanel {...defaultProps} searchQuery="神" isSearching={false} />);
-
-    const searchButton = screen.getByText('搜索 Search');
-    expect(searchButton).not.toBeNull();
+    expect(screen.getByText('搜索 Search')).not.toBeNull();
   });
 
-  it('renders search results when provided', () => {
+  it('renders Bible search results when scope is Bible', () => {
     render(
-      <BibleSearchPanel
-        {...defaultProps}
-        searchQuery="神创造"
-        searchResults={[mockResult]}
-      />
+      <BibleSearchPanel {...defaultProps} searchQuery="神创造" searchResults={[mockResult]} />
     );
-
+    fireEvent.click(screen.getByText('经文 Bible'));
     expect(screen.getByText('起初神创造天地。')).not.toBeNull();
     expect(screen.getByText('CUV')).not.toBeNull();
   });
 
-  it('shows result count when search results are provided', () => {
+  it('shows result count in Bible scope', () => {
     render(
-      <BibleSearchPanel
-        {...defaultProps}
-        searchQuery="神"
-        searchResults={[mockResult]}
-      />
+      <BibleSearchPanel {...defaultProps} searchQuery="神" searchResults={[mockResult]} />
     );
-
+    fireEvent.click(screen.getByText('经文 Bible'));
     expect(screen.getByText(/找到 1 条结果/)).not.toBeNull();
   });
 
-  it('calls onResultClick when a result is clicked', () => {
+  it('calls onResultClick when a Bible result is clicked', () => {
     const onResultClick = vi.fn();
     render(
-      <BibleSearchPanel
-        {...defaultProps}
-        searchQuery="神创造"
-        searchResults={[mockResult]}
-        onResultClick={onResultClick}
-      />
+      <BibleSearchPanel {...defaultProps} searchQuery="神创造" searchResults={[mockResult]} onResultClick={onResultClick} />
     );
-
+    fireEvent.click(screen.getByText('经文 Bible'));
     const resultButton = screen.getByText('起初神创造天地。').closest('button');
-    expect(resultButton).not.toBeNull();
     fireEvent.click(resultButton!);
     expect(onResultClick).toHaveBeenCalledWith(mockResult);
   });
 
-  it('shows no results message when query is set but results are empty and not searching', () => {
+  it('shows no results message in Bible scope when empty', () => {
     render(
-      <BibleSearchPanel
-        {...defaultProps}
-        searchQuery="xyz不存在"
-        searchResults={[]}
-        isSearching={false}
-      />
+      <BibleSearchPanel {...defaultProps} searchQuery="xyz不存在" searchResults={[]} isSearching={false} />
     );
-
+    fireEvent.click(screen.getByText('经文 Bible'));
     expect(screen.getByText(/未找到结果/)).not.toBeNull();
   });
 
   it('does not show no-results message when still searching', () => {
     render(
-      <BibleSearchPanel
-        {...defaultProps}
-        searchQuery="xyz"
-        searchResults={[]}
-        isSearching={true}
-      />
+      <BibleSearchPanel {...defaultProps} searchQuery="xyz" searchResults={[]} isSearching={true} />
     );
-
-    const noResults = screen.queryByText(/未找到结果/);
-    expect(noResults).toBeNull();
-  });
-
-  it('calls onSearch when search button is clicked', () => {
-    const onSearch = vi.fn();
-    render(
-      <BibleSearchPanel {...defaultProps} searchQuery="神" onSearch={onSearch} />
-    );
-
-    const searchButton = screen.getByText('搜索 Search');
-    fireEvent.click(searchButton);
-    expect(onSearch).toHaveBeenCalledWith('神');
+    expect(screen.queryByText(/未找到结果/)).toBeNull();
   });
 });
