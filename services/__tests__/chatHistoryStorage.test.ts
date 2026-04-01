@@ -87,8 +87,11 @@ describe('chatHistoryStorage', () => {
     it('returns threads sorted by lastModified descending', async () => {
       const t1 = await createThread();
       const t2 = await createThread();
-      // Save to t2 so it gets a newer lastModified
+      // Force distinct timestamps
+      const origNow = Date.now;
+      Date.now = () => origNow() + 1000;
       await saveThreadMessages(t2.id, [makeMsg('user', 'newer')]);
+      Date.now = origNow;
       const all = await getAllThreads();
       expect(all[0].id).toBe(t2.id);
       expect(all[1].id).toBe(t1.id);
