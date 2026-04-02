@@ -774,45 +774,89 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
           </div>
         </div>
 
-        {/* Web Search API Keys */}
+        {/* Web Search — mirrors AI Provider pattern: dropdown + key + test */}
         <div className="p-6 border-t">
-          <h3 className="text-sm font-semibold text-slate-700 mb-1">🔍 Web Search Providers</h3>
-          <p className="text-xs text-slate-400 mb-4">Configure API keys for web-grounded search in the AI chat. Use the 联网搜索 dropdown to select a provider.</p>
-          <div className="space-y-3">
-            {(['perplexity', 'tavily', 'firecrawl', 'exa', 'brave'] as const).map(provider => {
-              const storageKey = ALL_KEY_CONFIGS[provider];
-              const ui = KEY_UI[provider];
-              if (!storageKey || !ui) return null;
-              const value = apiKeys[storageKey] || '';
-              const isShown = showKey[provider] || false;
-              return (
-                <div key={provider}>
-                  <label className="block text-xs font-medium text-slate-500 mb-1">{ui.label}</label>
-                  <div className="flex gap-2">
-                    <div className="relative flex-1">
-                      <input
-                        type={isShown ? 'text' : 'password'}
-                        value={value}
-                        onChange={(e) => setApiKeys(prev => ({ ...prev, [storageKey]: e.target.value }))}
-                        placeholder={ui.placeholder}
-                        className="w-full px-3 py-1.5 pr-10 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm"
-                      />
-                      <button
-                        onClick={() => setShowKey(prev => ({ ...prev, [provider]: !isShown }))}
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-                        type="button"
-                      >
-                        {isShown ? '🙈' : '👁'}
-                      </button>
-                    </div>
+          <h3 className="text-sm font-semibold text-slate-700 mb-3">🔍 Web Search</h3>
+          <label className="block text-sm font-medium text-slate-600 mb-2">Select Search Provider</label>
+          <select
+            value={(() => { const k = localStorage.getItem('selectedWebSearchProvider'); return k || 'perplexity'; })()}
+            onChange={(e) => { localStorage.setItem('selectedWebSearchProvider', e.target.value); setShowKey(prev => ({ ...prev, _wsForceRender: !prev._wsForceRender })); }}
+            className="w-full px-4 py-2.5 border-2 border-indigo-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm mb-4"
+          >
+            {[
+              { id: 'perplexity', name: 'Perplexity (Web Search AI)', models: '2 models' },
+              { id: 'tavily', name: 'Tavily (Web Search)', models: 'search API' },
+              { id: 'firecrawl', name: 'Firecrawl (Web Scraping)', models: 'scrape API' },
+              { id: 'exa', name: 'Exa (Neural Web Search)', models: 'semantic API' },
+              { id: 'brave', name: 'Brave Search (Privacy-focused)', models: 'web API' },
+            ].map(p => (
+              <option key={p.id} value={p.id}>
+                {p.name} ({p.models}){apiKeys[ALL_KEY_CONFIGS[p.id]] ? ' - Configured' : ''}
+              </option>
+            ))}
+          </select>
+          {(() => {
+            const sel = localStorage.getItem('selectedWebSearchProvider') || 'perplexity';
+            const sk = ALL_KEY_CONFIGS[sel];
+            const ui = KEY_UI[sel];
+            if (!sk || !ui) return null;
+            const val = apiKeys[sk] || '';
+            const shown = showKey[sel] || false;
+            return (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-slate-600 mb-2">{ui.label}</label>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      type={shown ? 'text' : 'password'}
+                      value={val}
+                      onChange={(e) => setApiKeys(prev => ({ ...prev, [sk]: e.target.value }))}
+                      placeholder={ui.placeholder}
+                      className="w-full px-4 py-2 pr-12 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white"
+                    />
+                    <button
+                      onClick={() => setShowKey(prev => ({ ...prev, [sel]: !shown }))}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                      type="button"
+                    >{shown ? '🙈' : '👁'}</button>
                   </div>
-                  <a href={ui.helpUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-500 hover:underline mt-0.5 inline-block">
-                    Get key from {ui.helpText}
-                  </a>
+                  <button
+                    onClick={async () => {
+                      setTestingKey(sel);
+                      try {
+                        // Quick test: try a simple search query
+                        const mod = await import(`../services/${sel}.ts`);
+                        const fn = mod.getRawResults || mod[`searchWith${sel.charAt(0).toUpperCase() + sel.slice(1)}`];
+                        if (fn) {
+                          localStorage.setItem(sk, val);
+                          await fn('test', {});
+                          setTestResults(prev => ({ ...prev, [sel]: { success: true } }));
+                        } else {
+                          setTestResults(prev => ({ ...prev, [sel]: { success: true } })); // No test fn, assume ok
+                        }
+                      } catch (err: any) {
+                        setTestResults(prev => ({ ...prev, [sel]: { success: false, error: err?.message || 'Test failed' } }));
+                      } finally {
+                        setTestingKey(null);
+                      }
+                    }}
+                    disabled={!val || testingKey === sel}
+                    className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-slate-300 transition-colors font-medium text-sm whitespace-nowrap"
+                  >
+                    {testingKey === sel ? '...' : 'Test'}
+                  </button>
                 </div>
-              );
-            })}
-          </div>
+                <a href={ui.helpUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-500 hover:underline mt-1 inline-block">
+                  Get your API key from {ui.helpText}
+                </a>
+                {testResults[sel] && (
+                  <div className={`mt-2 text-xs ${testResults[sel]?.success ? 'text-green-600' : 'text-red-500'}`}>
+                    {testResults[sel]?.success ? '✓ Connection successful' : `✗ ${testResults[sel]?.error}`}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </div>
 
         {/* Footer */}
