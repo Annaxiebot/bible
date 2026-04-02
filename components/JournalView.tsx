@@ -1368,10 +1368,12 @@ const JournalView: React.FC<JournalViewProps> = ({
                 {extendResult && (
                   <button onClick={async () => {
                     if (!selectedId || !extendResult) return;
-                    const separator = '\n\n---\n\n**🔭 Extended Thinking:**\n\n';
-                    const newContent = (selectedEntry?.content || '') + separator + extendResult;
+                    const separator = '<hr style="margin:16px 0;border:none;border-top:1px solid #d1d5db"><h4 style="color:#16a34a;margin:8px 0">🔭 Extended Thinking</h4>';
+                    const htmlContent = extendResult.replace(/\n/g, '<br>');
+                    const newContent = (selectedEntry?.content || '') + separator + '<div>' + htmlContent + '</div>';
                     await journalStorage.updateEntry(selectedId, { content: newContent });
                     setEntries(prev => prev.map(e => e.id === selectedId ? { ...e, content: newContent } : e));
+                    if (editorRef.current) editorRef.current.innerHTML = newContent;
                     setExtendResult(null);
                   }} style={{ background: 'none', border: '1px solid #86efac', borderRadius: 4, cursor: 'pointer', color: '#16a34a', fontSize: 11, padding: '2px 8px' }}>
                     📌 Save to note
@@ -1406,10 +1408,12 @@ const JournalView: React.FC<JournalViewProps> = ({
                 {summaryResult && (
                   <button onClick={async () => {
                     if (!selectedId || !summaryResult) return;
-                    const separator = '\n\n---\n\n**📋 Summary:**\n\n';
-                    const newContent = (selectedEntry?.content || '') + separator + summaryResult;
+                    const separator = '<hr style="margin:16px 0;border:none;border-top:1px solid #d1d5db"><h4 style="color:#ca8a04;margin:8px 0">📋 Summary</h4>';
+                    const htmlContent = summaryResult.replace(/\n/g, '<br>');
+                    const newContent = (selectedEntry?.content || '') + separator + '<div>' + htmlContent + '</div>';
                     await journalStorage.updateEntry(selectedId, { content: newContent });
                     setEntries(prev => prev.map(e => e.id === selectedId ? { ...e, content: newContent } : e));
+                    if (editorRef.current) editorRef.current.innerHTML = newContent;
                     setSummaryResult(null);
                   }} style={{ background: 'none', border: '1px solid #fcd34d', borderRadius: 4, cursor: 'pointer', color: '#ca8a04', fontSize: 11, padding: '2px 8px' }}>
                     📌 Save to note
@@ -1444,11 +1448,12 @@ const JournalView: React.FC<JournalViewProps> = ({
                 {scriptureSuggestions.length > 0 && (
                   <button onClick={async () => {
                     if (!selectedId) return;
-                    const refs = scriptureSuggestions.map(s => `**${s.reference}** — ${s.reason}`).join('\n\n');
-                    const separator = '\n\n---\n\n**📖 Related Scripture:**\n\n';
+                    const refs = scriptureSuggestions.map(s => `<div style="margin:4px 0"><strong style="color:#2563eb">${s.reference}</strong> — ${s.reason}</div>`).join('');
+                    const separator = '<hr style="margin:16px 0;border:none;border-top:1px solid #d1d5db"><h4 style="color:#2563eb;margin:8px 0">📖 Related Scripture</h4>';
                     const newContent = (selectedEntry?.content || '') + separator + refs;
                     await journalStorage.updateEntry(selectedId, { content: newContent });
                     setEntries(prev => prev.map(e => e.id === selectedId ? { ...e, content: newContent } : e));
+                    if (editorRef.current) editorRef.current.innerHTML = newContent;
                     setScriptureSuggestions([]);
                   }} style={{ background: 'none', border: '1px solid #93c5fd', borderRadius: 4, cursor: 'pointer', color: '#2563eb', fontSize: 11, padding: '2px 8px' }}>
                     📌 Save to note
