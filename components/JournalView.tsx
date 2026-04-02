@@ -50,14 +50,17 @@ function formatDate(iso: string, includeTime = false): string {
 /** Reverse-geocode lat/lng to a human-readable location name */
 async function reverseGeocode(lat: number, lng: number): Promise<string> {
   try {
-    const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=10`, {
+    const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18&addressdetails=1`, {
       headers: { 'User-Agent': 'BibleStudyApp/1.0' },
     });
     const data = await resp.json();
-    // Build a short location: city, state or country
     const addr = data.address || {};
-    const parts = [addr.city || addr.town || addr.village || addr.county, addr.state || addr.country].filter(Boolean);
-    return parts.length > 0 ? parts.join(', ') : data.display_name?.split(',').slice(0, 2).join(',') || '';
+    // Build detailed location: road/neighbourhood, city, state
+    const street = addr.road || addr.pedestrian || addr.neighbourhood || addr.suburb || '';
+    const area = addr.city || addr.town || addr.village || addr.county || '';
+    const state = addr.state || addr.country || '';
+    const parts = [street, area, state].filter(Boolean);
+    return parts.length > 0 ? parts.join(', ') : data.display_name?.split(',').slice(0, 3).join(',').trim() || '';
   } catch {
     return '';
   }
