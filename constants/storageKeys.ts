@@ -34,6 +34,10 @@ export const STORAGE_KEYS = {
   R9S_API_KEY: 'r9s_api_key',
   MOONSHOT_API_KEY: 'moonshot_api_key',
   PERPLEXITY_API_KEY: 'perplexity_api_key',
+  TAVILY_API_KEY: 'tavily_api_key',
+  FIRECRAWL_API_KEY: 'firecrawl_api_key',
+  EXA_API_KEY: 'exa_api_key',
+  BRAVE_API_KEY: 'brave_api_key',
   AI_PROVIDER: 'ai_provider',
   AI_MODEL: 'ai_model',
 
