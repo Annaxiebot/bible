@@ -15,10 +15,51 @@
  * 11. Proactive suggestions — personalized prompts based on context
  */
 
-import { chatWithAI } from './aiProvider';
+import { chatWithAI, streamViaEdgeFunction, getCurrentModel, getCurrentProvider } from './aiProvider';
 import { journalStorage } from './journalStorage';
 import { JournalEntry, SpiritualMemoryItem } from './idbService';
 import { spiritualMemory } from './spiritualMemory';
+
+// ─── Streaming AI helper ─────────────────────────────────────────────────
+
+export interface StreamResult {
+  model?: string;
+  provider?: string;
+  timestamp: string;
+}
+
+/**
+ * Stream an AI prompt, calling onChunk for each token.
+ * Returns metadata (model, provider, timestamp) when done.
+ */
+export async function streamAI(
+  prompt: string,
+  onChunk: (text: string) => void,
+): Promise<StreamResult> {
+  const timestamp = new Date().toISOString();
+  let model: string | undefined;
+  let provider: string | undefined;
+
+  const useServer = localStorage.getItem('useServerAI') !== 'false';
+
+  if (useServer && streamViaEdgeFunction) {
+    await streamViaEdgeFunction(
+      prompt, [], { fast: true },
+      onChunk,
+      (m, p) => { model = m; provider = p; },
+      (err) => { throw err; },
+    );
+  } else {
+    // Fallback to non-streaming
+    const result = await chatWithAI(prompt, [], { fast: true });
+    const text = typeof result === 'string' ? result : result.text;
+    model = typeof result === 'string' ? undefined : result.model;
+    provider = typeof result === 'string' ? undefined : (result as any).provider;
+    onChunk(text);
+  }
+
+  return { model: model || getCurrentModel() || getCurrentProvider(), provider, timestamp };
+}
 
 // ─── Stop words for keyword extraction ─────────────────────────────────────
 const STOP_WORDS = new Set([
