@@ -693,29 +693,59 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
 
       const history = messages.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content }));
       const requestStartTime = Date.now();
-      // Web search mode routes to the selected provider (non-streaming)
+      // Web search mode — streaming: search results fetched, then AI synthesis streams
       if (webSearchEnabled) {
-        const response = await aiService.webSearch(
+        let streamedText = '';
+        let searchModel: string | undefined;
+        let searchProvider: string | undefined;
+
+        // Add placeholder
+        const placeholderMsg: ChatMessage = { role: 'assistant', content: '🔍 Searching...', timestamp: new Date() };
+        setMessages(prev => [...prev, placeholderMsg]);
+
+        await aiService.streamWebSearch(
           currentInput,
           webSearchProvider as aiService.WebSearchProvider,
           history,
           { thinking: isThinking, fast: !isThinking },
+          // onChunk
+          (chunk: string) => {
+            streamedText += chunk;
+            setMessages(prev => {
+              const updated = [...prev];
+              const last = updated[updated.length - 1];
+              if (last?.role === 'assistant') {
+                updated[updated.length - 1] = { ...last, content: streamedText };
+              }
+              return updated;
+            });
+          },
+          // onDone
+          (model?: string, provider?: string) => {
+            searchModel = model;
+            searchProvider = provider;
+          },
+          // onError
+          (error: Error) => { throw error; },
         );
-        const searchModelLabel = response.model || webSearchProvider;
-        const assistantMsg: ChatMessage = {
+
+        const providerLabel = searchProvider || webSearchProvider;
+        assistantMessage = {
           role: 'assistant',
-          content: response.text || "我无法生成回应。",
-          model: `${response.provider || webSearchProvider} · web search`,
+          content: streamedText || "我无法生成回应。",
+          model: `${providerLabel} · web search`,
           timestamp: new Date(),
           responseTime: Date.now() - requestStartTime,
         };
-        setMessages(prev => [...prev, assistantMsg]);
-        localStorage.setItem('lastUsedModel', searchModelLabel);
-        setActiveProviderLabel(`${response.provider || webSearchProvider} · web search`);
+        setMessages(prev => {
+          const updated = [...prev];
+          updated[updated.length - 1] = assistantMessage!;
+          return updated;
+        });
+        localStorage.setItem('lastUsedModel', searchModel || webSearchProvider);
+        setActiveProviderLabel(`${providerLabel} · web search`);
         setIsTyping(false);
         abortControllerRef.current = null;
-        // Skip to auto-save below
-        assistantMessage = assistantMsg;
       } else {
 
       // Try streaming for faster perceived response (both single and race mode, no image)

@@ -756,6 +756,78 @@ function formatCitationsInline(citations: string[]): string {
   return section;
 }
 
+/**
+ * Streaming web search: fetches results, then streams AI synthesis.
+ * For Perplexity, streams directly. For others, search → stream synthesis.
+ */
+export const streamWebSearch = async (
+  query: string,
+  provider: WebSearchProvider,
+  history: { role: string; content: string }[],
+  options: { thinking?: boolean; fast?: boolean },
+  onChunk: (text: string) => void,
+  onDone: (model?: string, provider?: string, racePool?: any[]) => void,
+  onError: (error: Error) => void,
+): Promise<void> => {
+  // Perplexity: stream directly through edge function
+  if (provider === 'perplexity') {
+    const useServer = localStorage.getItem('useServerAI') !== 'false';
+    if (useServer && streamViaEdgeFunction) {
+      // Route through edge function with perplexity as the provider
+      // For now, fall back to non-streaming perplexity
+    }
+    try {
+      const result = await chatWithPerplexity(query, history, options);
+      onChunk(result.text);
+      onDone(result.model, 'Perplexity');
+    } catch (err: any) { onError(err); }
+    return;
+  }
+
+  // Non-Perplexity: fetch raw results first (not streamable), then stream synthesis
+  let rawResults: Array<{ title: string; content: string; url: string }>;
+  let citations: string[];
+  let providerName: string;
+
+  try {
+    switch (provider) {
+      case 'tavily': { const raw = await tavily.getRawResults(query); rawResults = raw.results; citations = rawResults.map(r => r.url).filter(Boolean); providerName = 'Tavily'; if (raw.answer) { onChunk(raw.answer + formatCitationsInline(citations)); onDone(undefined, providerName); return; } break; }
+      case 'firecrawl': { const raw = await firecrawl.getRawResults(query); rawResults = raw.results; citations = rawResults.map(r => r.url).filter(Boolean); providerName = 'Firecrawl'; break; }
+      case 'exa': { const raw = await exa.getRawResults(query); rawResults = raw.results; citations = rawResults.map(r => r.url).filter(Boolean); providerName = 'Exa'; break; }
+      case 'brave': { const raw = await brave.getRawResults(query); rawResults = raw.results; citations = rawResults.map(r => r.url).filter(Boolean); providerName = 'Brave'; break; }
+      default: onError(new Error(`Unknown provider: ${provider}`)); return;
+    }
+  } catch (err: any) { onError(err); return; }
+
+  if (rawResults!.length === 0) { onChunk('No search results found.'); onDone(undefined, providerName!); return; }
+
+  // Stream the AI synthesis step
+  const context = rawResults!.map((r, i) => `[${i + 1}] ${r.title}\n${r.content}\nSource: ${r.url}`).join('\n\n');
+  const synthesisPrompt = `Based on the following web search results, provide a comprehensive answer to the question: "${query}"\n\nSEARCH RESULTS:\n${context}\n\nINSTRUCTIONS:\n- Synthesize the information into a clear, coherent answer\n- Cite sources by number [1], [2], etc.\n- Respond in both Chinese and English, separated by [SPLIT]\n- Be concise but thorough`;
+
+  const useServer = localStorage.getItem('useServerAI') !== 'false';
+  if (useServer && streamViaEdgeFunction) {
+    let citationsAppended = false;
+    await streamViaEdgeFunction(
+      synthesisPrompt, history, { ...options, search: false },
+      (chunk) => { onChunk(chunk); },
+      (model, prov) => {
+        if (!citationsAppended) { citationsAppended = true; onChunk(formatCitationsInline(citations!)); }
+        onDone(model, providerName!);
+      },
+      onError,
+    );
+  } else {
+    // Fallback non-streaming
+    try {
+      const result = await chatWithAI(synthesisPrompt, history, { ...options, search: false });
+      const text = typeof result === 'string' ? result : result.text;
+      onChunk(text + formatCitationsInline(citations!));
+      onDone(typeof result === 'string' ? undefined : result.model, providerName!);
+    } catch (err: any) { onError(err); }
+  }
+};
+
 // Re-export other services from gemini (image, video, TTS, etc.)
 // These remain Gemini-only for now
 export {
