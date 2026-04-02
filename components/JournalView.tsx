@@ -1378,9 +1378,9 @@ const JournalView: React.FC<JournalViewProps> = ({
                 {extendResult && (
                   <button onClick={async () => {
                     if (!selectedId || !extendResult) return;
-                    const separator = '<hr style="margin:16px 0;border:none;border-top:1px solid #d1d5db"><h4 style="color:#16a34a;margin:8px 0">🔭 Extended Thinking</h4>';
                     const htmlContent = extendResult.replace(/\n/g, '<br>');
-                    const newContent = (selectedEntry?.content || '') + separator + '<div>' + htmlContent + '</div>';
+                    const card = '<div style="margin:16px 0;padding:12px 16px;border-radius:10px;background:linear-gradient(135deg,#f0fdf4 0%,#dcfce7 100%);border:1px solid #bbf7d0"><div style="font-size:12px;font-weight:600;color:#16a34a;margin-bottom:6px">🔭 Extended Thinking</div><div style="font-size:14px;color:#374151;line-height:1.6">' + htmlContent + '</div></div>';
+                    const newContent = (selectedEntry?.content || '') + card;
                     await journalStorage.updateEntry(selectedId, { content: newContent });
                     setEntries(prev => prev.map(e => e.id === selectedId ? { ...e, content: newContent } : e));
                     if (editorRef.current) editorRef.current.innerHTML = newContent;
@@ -1418,9 +1418,9 @@ const JournalView: React.FC<JournalViewProps> = ({
                 {summaryResult && (
                   <button onClick={async () => {
                     if (!selectedId || !summaryResult) return;
-                    const separator = '<hr style="margin:16px 0;border:none;border-top:1px solid #d1d5db"><h4 style="color:#ca8a04;margin:8px 0">📋 Summary</h4>';
                     const htmlContent = summaryResult.replace(/\n/g, '<br>');
-                    const newContent = (selectedEntry?.content || '') + separator + '<div>' + htmlContent + '</div>';
+                    const card = '<div style="margin:16px 0;padding:12px 16px;border-radius:10px;background:linear-gradient(135deg,#fefce8 0%,#fef9c3 100%);border:1px solid #fde68a"><div style="font-size:12px;font-weight:600;color:#ca8a04;margin-bottom:6px">📋 Summary</div><div style="font-size:14px;color:#374151;line-height:1.6">' + htmlContent + '</div></div>';
+                    const newContent = (selectedEntry?.content || '') + card;
                     await journalStorage.updateEntry(selectedId, { content: newContent });
                     setEntries(prev => prev.map(e => e.id === selectedId ? { ...e, content: newContent } : e));
                     if (editorRef.current) editorRef.current.innerHTML = newContent;
@@ -1458,9 +1458,9 @@ const JournalView: React.FC<JournalViewProps> = ({
                 {scriptureSuggestions.length > 0 && (
                   <button onClick={async () => {
                     if (!selectedId) return;
-                    const refs = scriptureSuggestions.map(s => `<div style="margin:4px 0"><strong style="color:#2563eb">${s.reference}</strong> — ${s.reason}</div>`).join('');
-                    const separator = '<hr style="margin:16px 0;border:none;border-top:1px solid #d1d5db"><h4 style="color:#2563eb;margin:8px 0">📖 Related Scripture</h4>';
-                    const newContent = (selectedEntry?.content || '') + separator + refs;
+                    const refs = scriptureSuggestions.map(s => `<div style="margin:4px 0;padding:6px 10px;border-radius:6px;background:rgba(255,255,255,0.6);border:1px solid #dbeafe"><strong style="color:#2563eb">${s.reference}</strong><div style="font-size:12px;color:#6b7280;margin-top:2px">${s.reason}</div></div>`).join('');
+                    const card = '<div style="margin:16px 0;padding:12px 16px;border-radius:10px;background:linear-gradient(135deg,#eff6ff 0%,#dbeafe 100%);border:1px solid #bfdbfe"><div style="font-size:12px;font-weight:600;color:#2563eb;margin-bottom:6px">📖 Related Scripture</div>' + refs + '</div>';
+                    const newContent = (selectedEntry?.content || '') + card;
                     await journalStorage.updateEntry(selectedId, { content: newContent });
                     setEntries(prev => prev.map(e => e.id === selectedId ? { ...e, content: newContent } : e));
                     if (editorRef.current) editorRef.current.innerHTML = newContent;
