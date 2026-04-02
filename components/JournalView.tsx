@@ -22,6 +22,8 @@ import {
   getMemoryContext,
   generateSpiritualProfile,
   generateProactiveSuggestion,
+  streamAI,
+  type StreamResult,
   RelatedEntry,
   WeeklyDigest,
   TimelineGroup,
@@ -111,6 +113,7 @@ const JournalView: React.FC<JournalViewProps> = ({
   const [isLoadingSummary, setIsLoadingSummary] = useState(false);
   const [scriptureSuggestions, setScriptureSuggestions] = useState<ScriptureSuggestion[]>([]);
   const [savedCards, setSavedCards] = useState<Record<string, boolean>>({});
+  const [aiMeta, setAiMeta] = useState<Record<string, StreamResult>>({});
   const [isLoadingScripture, setIsLoadingScripture] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [chatInput, setChatInput] = useState('');
@@ -331,16 +334,19 @@ const JournalView: React.FC<JournalViewProps> = ({
   const handleExtend = async () => {
     if (!selectedEntry) return;
     setIsLoadingExtend(true);
-    setExtendResult(null);
+    setExtendResult('');
     try {
-      // Check for text selection in the editor
       const selection = window.getSelection();
       const selectedText = selection && selection.toString().trim()
         ? selection.toString().trim()
         : selectedEntry.plainText || '';
       if (!selectedText) { setIsLoadingExtend(false); return; }
-      const result = await extendThinking(selectedText, { bookId, chapter, bookName });
-      setExtendResult(result);
+      let prompt = `The user wrote this spiritual reflection. Gently extend their thinking — what deeper meaning might this have? How does it connect to broader spiritual themes? Keep the same tone and language. Write 2-3 short paragraphs.\n\nUser's writing:\n${selectedText.slice(0, 2000)}`;
+      if (bookName && chapter) prompt += `\n\nThey are currently reading: ${bookName} ${chapter}`;
+      const meta = await streamAI(prompt, (chunk) => {
+        setExtendResult(prev => (prev || '') + chunk);
+      });
+      setAiMeta(prev => ({ ...prev, extend: meta }));
     } catch {
       setExtendResult(null);
     } finally {
@@ -351,10 +357,13 @@ const JournalView: React.FC<JournalViewProps> = ({
   const handleSummarize = async () => {
     if (!selectedEntry?.plainText) return;
     setIsLoadingSummary(true);
-    setSummaryResult(null);
+    setSummaryResult('');
     try {
-      const result = await summarizeEntry(selectedEntry.plainText);
-      setSummaryResult(result);
+      const prompt = `Summarize this journal entry into 2-3 key insights or takeaways. Use bullet points (markdown). Be concise — each point should be 1 sentence. Capture the spiritual/emotional essence.\n\nJournal entry:\n${selectedEntry.plainText.slice(0, 3000)}`;
+      const meta = await streamAI(prompt, (chunk) => {
+        setSummaryResult(prev => (prev || '') + chunk);
+      });
+      setAiMeta(prev => ({ ...prev, summary: meta }));
     } catch {
       setSummaryResult(null);
     } finally {
@@ -1373,9 +1382,16 @@ const JournalView: React.FC<JournalViewProps> = ({
             border: '1px solid #bbf7d0', flexShrink: 0,
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#16a34a' }}>{'\uD83D\uDD2D'} Extended Thinking</span>
+              <div>
+                <span style={{ fontSize: 12, fontWeight: 600, color: '#16a34a' }}>{'\uD83D\uDD2D'} Extended Thinking</span>
+                {aiMeta.extend && (
+                  <div style={{ fontSize: 10, color: '#86efac', marginTop: 2 }}>
+                    {aiMeta.extend.model} · {new Date(aiMeta.extend.timestamp).toLocaleString()}
+                  </div>
+                )}
+              </div>
               <div style={{ display: 'flex', gap: 4 }}>
-                {extendResult && (
+                {extendResult && !isLoadingExtend && (
                   <button onClick={async () => {
                     if (!selectedId || !extendResult) return;
                     const htmlContent = extendResult.replace(/\n/g, '<br>');
@@ -1413,9 +1429,16 @@ const JournalView: React.FC<JournalViewProps> = ({
             border: '1px solid #fde68a', flexShrink: 0,
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#ca8a04' }}>{'\uD83D\uDCCB'} Summary</span>
+              <div>
+                <span style={{ fontSize: 12, fontWeight: 600, color: '#ca8a04' }}>{'\uD83D\uDCCB'} Summary</span>
+                {aiMeta.summary && (
+                  <div style={{ fontSize: 10, color: '#fbbf24', marginTop: 2 }}>
+                    {aiMeta.summary.model} · {new Date(aiMeta.summary.timestamp).toLocaleString()}
+                  </div>
+                )}
+              </div>
               <div style={{ display: 'flex', gap: 4 }}>
-                {summaryResult && (
+                {summaryResult && !isLoadingSummary && (
                   <button onClick={async () => {
                     if (!selectedId || !summaryResult) return;
                     const htmlContent = summaryResult.replace(/\n/g, '<br>');
