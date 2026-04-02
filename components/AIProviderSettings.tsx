@@ -774,6 +774,47 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
           </div>
         </div>
 
+        {/* Web Search API Keys */}
+        <div className="p-6 border-t">
+          <h3 className="text-sm font-semibold text-slate-700 mb-1">🔍 Web Search Providers</h3>
+          <p className="text-xs text-slate-400 mb-4">Configure API keys for web-grounded search in the AI chat. Use the 联网搜索 dropdown to select a provider.</p>
+          <div className="space-y-3">
+            {(['perplexity', 'tavily', 'firecrawl', 'exa', 'brave'] as const).map(provider => {
+              const storageKey = ALL_KEY_CONFIGS[provider];
+              const ui = KEY_UI[provider];
+              if (!storageKey || !ui) return null;
+              const value = apiKeys[storageKey] || '';
+              const isShown = showKey[provider] || false;
+              return (
+                <div key={provider}>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">{ui.label}</label>
+                  <div className="flex gap-2">
+                    <div className="relative flex-1">
+                      <input
+                        type={isShown ? 'text' : 'password'}
+                        value={value}
+                        onChange={(e) => setApiKeys(prev => ({ ...prev, [storageKey]: e.target.value }))}
+                        placeholder={ui.placeholder}
+                        className="w-full px-3 py-1.5 pr-10 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-sm"
+                      />
+                      <button
+                        onClick={() => setShowKey(prev => ({ ...prev, [provider]: !isShown }))}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        type="button"
+                      >
+                        {isShown ? '🙈' : '👁'}
+                      </button>
+                    </div>
+                  </div>
+                  <a href={ui.helpUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-indigo-500 hover:underline mt-0.5 inline-block">
+                    Get key from {ui.helpText}
+                  </a>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Footer */}
         <div className="p-6 border-t bg-slate-50 flex gap-3 justify-end flex-shrink-0">
           <button
