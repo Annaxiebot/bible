@@ -792,13 +792,24 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
                     <button
                       onClick={async () => {
                         setTestingKey(sel);
+                        // Save key to localStorage first so the service can read it
+                        localStorage.setItem(sk, val);
                         try {
-                          const mod = await import(`../services/${sel}.ts`);
-                          const fn = mod.getRawResults || mod[`searchWith${sel.charAt(0).toUpperCase() + sel.slice(1)}`];
-                          if (fn) { localStorage.setItem(sk, val); await fn('test', {}); setTestResults(prev => ({ ...prev, [sel]: { success: true } })); }
-                          else { setTestResults(prev => ({ ...prev, [sel]: { success: true } })); }
-                        } catch (err: any) { setTestResults(prev => ({ ...prev, [sel]: { success: false, error: err?.message || 'Test failed' } })); }
-                        finally { setTestingKey(null); }
+                          // Import the specific service module
+                          let testFn: (q: string) => Promise<any>;
+                          switch (sel) {
+                            case 'perplexity': { const m = await import('../services/perplexity'); testFn = (q) => m.chatWithAI(q, []); break; }
+                            case 'tavily': { const m = await import('../services/tavily'); testFn = m.getRawResults; break; }
+                            case 'firecrawl': { const m = await import('../services/firecrawl'); testFn = m.getRawResults; break; }
+                            case 'exa': { const m = await import('../services/exa'); testFn = m.getRawResults; break; }
+                            case 'brave': { const m = await import('../services/brave'); testFn = m.getRawResults; break; }
+                            default: testFn = async () => {}; break;
+                          }
+                          await testFn('test');
+                          setTestResults(prev => ({ ...prev, [sel]: { success: true } }));
+                        } catch (err: any) {
+                          setTestResults(prev => ({ ...prev, [sel]: { success: false, error: err?.message || 'Test failed' } }));
+                        } finally { setTestingKey(null); }
                       }}
                       disabled={!val || testingKey === sel}
                       className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 disabled:bg-slate-300 transition-colors font-medium text-sm whitespace-nowrap"
