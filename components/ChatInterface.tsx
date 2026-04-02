@@ -701,16 +701,17 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
           history,
           { thinking: isThinking, fast: !isThinking },
         );
+        const searchModelLabel = response.model || webSearchProvider;
         const assistantMsg: ChatMessage = {
           role: 'assistant',
           content: response.text || "我无法生成回应。",
-          model: response.model,
+          model: `${response.provider || webSearchProvider} · web search`,
           timestamp: new Date(),
           responseTime: Date.now() - requestStartTime,
         };
         setMessages(prev => [...prev, assistantMsg]);
-        if (response.model) localStorage.setItem('lastUsedModel', response.model);
-        if (response.provider) setActiveProviderLabel(response.model ? `${response.provider} · ${response.model}` : response.provider);
+        localStorage.setItem('lastUsedModel', searchModelLabel);
+        setActiveProviderLabel(`${response.provider || webSearchProvider} · web search`);
         setIsTyping(false);
         abortControllerRef.current = null;
         // Skip to auto-save below
