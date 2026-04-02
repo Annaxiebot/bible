@@ -366,7 +366,10 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
   const [userQuestion, setUserQuestion] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [isThinking, setIsThinking] = useState(false);
-  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const [webSearchProvider, setWebSearchProvider] = useState<string>(() => {
+    return localStorage.getItem('webSearchProvider') || 'off';
+  });
+  const webSearchEnabled = webSearchProvider !== 'off';
 
   // Toast notifications
   const toast = useToast();
@@ -690,12 +693,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
 
       const history = messages.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content }));
       const requestStartTime = Date.now();
-      // Web search mode uses Perplexity directly (non-streaming)
+      // Web search mode routes to the selected provider (non-streaming)
       if (webSearchEnabled) {
-        const response = await aiService.chatWithPerplexity(currentInput, history, {
-          thinking: isThinking,
-          fast: !isThinking,
-        });
+        const response = await aiService.webSearch(
+          currentInput,
+          webSearchProvider as aiService.WebSearchProvider,
+          history,
+          { thinking: isThinking, fast: !isThinking },
+        );
         const assistantMsg: ChatMessage = {
           role: 'assistant',
           content: response.text || "我无法生成回应。",
@@ -1344,22 +1349,36 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
               </svg>
               {isThinking ? '深度思考 On' : '深度思考 Off'}
             </button>
-            <button
-              onClick={() => setWebSearchEnabled(!webSearchEnabled)}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
-                webSearchEnabled
-                  ? 'bg-emerald-100 text-emerald-700 border border-emerald-300'
-                  : 'bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200'
-              }`}
-              title={webSearchEnabled ? 'Web search enabled (Perplexity)' : 'Enable web search for real-time results'}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="flex items-center gap-1.5">
+              <svg className={`w-3.5 h-3.5 ${webSearchEnabled ? 'text-emerald-600' : 'text-slate-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
               </svg>
-              {webSearchEnabled ? '联网搜索 On' : '联网搜索 Off'}
-            </button>
+              <select
+                value={webSearchProvider}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setWebSearchProvider(val);
+                  localStorage.setItem('webSearchProvider', val);
+                }}
+                className={`text-xs font-medium rounded-lg px-2 py-1 border transition-all appearance-none cursor-pointer ${
+                  webSearchEnabled
+                    ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
+                    : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
+                }`}
+                title="Select web search provider"
+              >
+                <option value="off">联网搜索 Off</option>
+                {aiService.isWebSearchProviderConfigured('perplexity') && <option value="perplexity">Perplexity</option>}
+                {aiService.isWebSearchProviderConfigured('tavily') && <option value="tavily">Tavily</option>}
+                {aiService.isWebSearchProviderConfigured('firecrawl') && <option value="firecrawl">Firecrawl</option>}
+                {aiService.isWebSearchProviderConfigured('exa') && <option value="exa">Exa</option>}
+                {aiService.isWebSearchProviderConfigured('brave') && <option value="brave">Brave</option>}
+              </select>
+            </div>
             <span className="text-[10px] text-slate-400">
-              {webSearchEnabled ? 'Perplexity · web-grounded answers with citations' : isThinking ? 'Sonnet · slower, deeper analysis' : 'Haiku · fast responses'}
+              {webSearchEnabled
+                ? `${webSearchProvider.charAt(0).toUpperCase() + webSearchProvider.slice(1)} · web search with citations`
+                : isThinking ? 'Sonnet · slower, deeper analysis' : 'Haiku · fast responses'}
             </span>
           </div>
         </div>
