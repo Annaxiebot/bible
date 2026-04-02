@@ -5,6 +5,7 @@ import JournalEditor from './JournalEditor';
 import SimpleDrawingCanvas, { SimpleDrawingCanvasHandle } from './SimpleDrawingCanvas';
 import { compressImage, compressImageFromUrl } from '../services/imageCompressionService';
 import { usePaperType } from '../hooks/usePaperType';
+import LazyMarkdown from './LazyMarkdown';
 import type { PaperType } from '../services/strokeNormalizer';
 import {
   suggestTags,
@@ -1218,7 +1219,7 @@ const JournalView: React.FC<JournalViewProps> = ({
             <div style={{ fontSize: 13, color: '#8b5cf6' }}>Generating prompt...</div>
           ) : (
             <div style={{ fontSize: 14, color: '#374151', lineHeight: 1.6, fontStyle: 'italic' }}>
-              {reflectionPrompt}
+              <LazyMarkdown>{reflectionPrompt || ''}</LazyMarkdown>
             </div>
           )}
         </div>
@@ -1238,7 +1239,7 @@ const JournalView: React.FC<JournalViewProps> = ({
               {'\u2715'}
             </button>
           </div>
-          <div style={{ fontSize: 14, color: '#374151', lineHeight: 1.6 }}>{proactiveSuggestion}</div>
+          <div style={{ fontSize: 14, color: '#374151', lineHeight: 1.6 }}><LazyMarkdown>{proactiveSuggestion || ''}</LazyMarkdown></div>
         </div>
       )}
 
@@ -1370,8 +1371,8 @@ const JournalView: React.FC<JournalViewProps> = ({
             {isLoadingExtend ? (
               <div style={{ fontSize: 13, color: '#22c55e' }}>Extending your thoughts...</div>
             ) : (
-              <div style={{ fontSize: 14, color: '#374151', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-                {extendResult}
+              <div style={{ fontSize: 14, color: '#374151', lineHeight: 1.6 }}>
+                <LazyMarkdown>{extendResult || ''}</LazyMarkdown>
               </div>
             )}
           </div>
@@ -1394,8 +1395,8 @@ const JournalView: React.FC<JournalViewProps> = ({
             {isLoadingSummary ? (
               <div style={{ fontSize: 13, color: '#ca8a04' }}>Summarizing...</div>
             ) : (
-              <div style={{ fontSize: 14, color: '#374151', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-                {summaryResult}
+              <div style={{ fontSize: 14, color: '#374151', lineHeight: 1.6 }}>
+                <LazyMarkdown>{summaryResult || ''}</LazyMarkdown>
               </div>
             )}
           </div>
@@ -1469,9 +1470,8 @@ const JournalView: React.FC<JournalViewProps> = ({
                   background: msg.role === 'user' ? '#eef2ff' : '#fff',
                   color: '#374151', alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
                   maxWidth: '85%', border: msg.role === 'assistant' ? '1px solid #e5e7eb' : 'none',
-                  whiteSpace: 'pre-wrap',
                 }}>
-                  {msg.text}
+                  {msg.role === 'assistant' ? <LazyMarkdown>{msg.text}</LazyMarkdown> : msg.text}
                 </div>
               ))}
               {isLoadingChat && (
@@ -1604,7 +1604,7 @@ const JournalView: React.FC<JournalViewProps> = ({
           border: '1px solid #ddd6fe', textAlign: 'left',
         }}>
           <div style={{ fontSize: 12, fontWeight: 600, color: '#7c3aed', marginBottom: 6 }}>{'\u2728'} Suggestion for today</div>
-          <div style={{ fontSize: 14, color: '#374151', lineHeight: 1.6 }}>{proactiveSuggestion}</div>
+          <div style={{ fontSize: 14, color: '#374151', lineHeight: 1.6 }}><LazyMarkdown>{proactiveSuggestion || ''}</LazyMarkdown></div>
         </div>
       )}
       {isLoadingProactive && (
