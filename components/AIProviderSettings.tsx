@@ -43,6 +43,10 @@ const ALL_KEY_CONFIGS: Record<string, string> = {
   r9s: STORAGE_KEYS.R9S_API_KEY,
   moonshot: STORAGE_KEYS.MOONSHOT_API_KEY,
   perplexity: STORAGE_KEYS.PERPLEXITY_API_KEY,
+  tavily: STORAGE_KEYS.TAVILY_API_KEY,
+  firecrawl: STORAGE_KEYS.FIRECRAWL_API_KEY,
+  exa: STORAGE_KEYS.EXA_API_KEY,
+  brave: STORAGE_KEYS.BRAVE_API_KEY,
 };
 
 const KEY_UI: Record<string, { label: string; placeholder: string; helpUrl: string; helpText: string }> = {
@@ -61,6 +65,10 @@ const KEY_UI: Record<string, { label: string; placeholder: string; helpUrl: stri
   r9s: { label: 'R9S.AI API Key', placeholder: 'Enter your R9S API key', helpUrl: 'https://r9s.ai/', helpText: 'R9S.AI' },
   moonshot: { label: 'Moonshot v2 API Key', placeholder: 'Enter your Moonshot API key', helpUrl: 'https://platform.moonshot.ai/', helpText: 'Moonshot AI Platform' },
   perplexity: { label: 'Perplexity API Key', placeholder: 'Enter your Perplexity API key', helpUrl: 'https://www.perplexity.ai/settings/api', helpText: 'Perplexity (Web Search AI)' },
+  tavily: { label: 'Tavily API Key', placeholder: 'Enter your Tavily API key', helpUrl: 'https://app.tavily.com/home', helpText: 'Tavily (Web Search)' },
+  firecrawl: { label: 'Firecrawl API Key', placeholder: 'Enter your Firecrawl API key', helpUrl: 'https://www.firecrawl.dev/app/api-keys', helpText: 'Firecrawl (Web Search & Scraping)' },
+  exa: { label: 'Exa API Key', placeholder: 'Enter your Exa API key', helpUrl: 'https://dashboard.exa.ai/api-keys', helpText: 'Exa (Neural Web Search)' },
+  brave: { label: 'Brave Search API Key', placeholder: 'Enter your Brave Search API key', helpUrl: 'https://brave.com/search/api/', helpText: 'Brave Search (Privacy-focused)' },
 };
 
 interface AIProviderSettingsProps {

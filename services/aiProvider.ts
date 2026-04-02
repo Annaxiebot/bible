@@ -11,6 +11,10 @@ import * as kimi from './kimi';
 import * as openai from './openai';
 import * as openrouter from './openrouter';
 import * as perplexity from './perplexity';
+import * as tavily from './tavily';
+import * as firecrawl from './firecrawl';
+import * as exa from './exa';
+import * as brave from './brave';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 
 export type AIProvider = 'openrouter' | 'gemini' | 'claude' | 'openai' | 'kimi' | 'nvidia' | 'deepseek' | 'groq' | 'dashscope' | 'minimax' | 'zhipu' | 'zai' | 'r9s' | 'moonshot' | 'perplexity';
@@ -563,13 +567,202 @@ export const chatWithPerplexity = async (
   return { text: result.text, model: options.model || 'sonar', provider: 'Perplexity', citations: result.citations };
 };
 
+/**
+ * Web search provider type
+ */
+export type WebSearchProvider = 'perplexity' | 'tavily' | 'firecrawl' | 'exa' | 'brave';
+
+const WEB_SEARCH_KEY_MAP: Record<WebSearchProvider, string> = {
+  perplexity: STORAGE_KEYS.PERPLEXITY_API_KEY,
+  tavily: STORAGE_KEYS.TAVILY_API_KEY,
+  firecrawl: STORAGE_KEYS.FIRECRAWL_API_KEY,
+  exa: STORAGE_KEYS.EXA_API_KEY,
+  brave: STORAGE_KEYS.BRAVE_API_KEY,
+};
+
+/**
+ * Check if a web search provider has an API key configured
+ */
+export const isWebSearchProviderConfigured = (provider: WebSearchProvider): boolean => {
+  const key = WEB_SEARCH_KEY_MAP[provider];
+  return key ? !!localStorage.getItem(key) : false;
+};
+
+/**
+ * Get list of configured web search providers
+ */
+export const getConfiguredWebSearchProviders = (): WebSearchProvider[] => {
+  return (['perplexity', 'tavily', 'firecrawl', 'exa', 'brave'] as WebSearchProvider[])
+    .filter(p => isWebSearchProviderConfigured(p));
+};
+
+/**
+ * Search with Tavily
+ */
+export const searchWithTavily = async (
+  query: string,
+  options: { thinking?: boolean; fast?: boolean } = {}
+): Promise<{ text: string; provider: string; citations?: string[] }> => {
+  const result = await tavily.searchWithTavily(query, options);
+  return { text: result.text, provider: 'Tavily', citations: result.citations };
+};
+
+/**
+ * Search with Firecrawl
+ */
+export const searchWithFirecrawl = async (
+  query: string,
+  options: { thinking?: boolean; fast?: boolean } = {}
+): Promise<{ text: string; provider: string; citations?: string[] }> => {
+  const result = await firecrawl.searchWithFirecrawl(query, options);
+  return { text: result.text, provider: 'Firecrawl', citations: result.citations };
+};
+
+/**
+ * Search with Exa
+ */
+export const searchWithExa = async (
+  query: string,
+  options: { thinking?: boolean; fast?: boolean } = {}
+): Promise<{ text: string; provider: string; citations?: string[] }> => {
+  const result = await exa.searchWithExa(query, options);
+  return { text: result.text, provider: 'Exa', citations: result.citations };
+};
+
+/**
+ * Search with Brave
+ */
+export const searchWithBrave = async (
+  query: string,
+  options: { thinking?: boolean; fast?: boolean } = {}
+): Promise<{ text: string; provider: string; citations?: string[] }> => {
+  const result = await brave.searchWithBrave(query, options);
+  return { text: result.text, provider: 'Brave', citations: result.citations };
+};
+
+/**
+ * Synthesize search results through the user's primary AI provider.
+ * For non-Perplexity search providers, the raw results are sent to the AI
+ * to generate a coherent, contextual answer.
+ */
+const synthesizeWithAI = async (
+  query: string,
+  searchResults: Array<{ title: string; content: string; url: string }>,
+  history: { role: string; content: string }[],
+  options: { thinking?: boolean; fast?: boolean } = {}
+): Promise<string> => {
+  const context = searchResults
+    .map((r, i) => `[${i + 1}] ${r.title}\n${r.content}\nSource: ${r.url}`)
+    .join('\n\n');
+
+  const synthesisPrompt = `Based on the following web search results, provide a comprehensive answer to the question: "${query}"
+
+SEARCH RESULTS:
+${context}
+
+INSTRUCTIONS:
+- Synthesize the information from the search results into a clear, coherent answer
+- Cite sources by number [1], [2], etc. when referencing specific information
+- Respond in both Chinese and English, separated by [SPLIT]
+- Be concise but thorough`;
+
+  const result = await chatWithAI(synthesisPrompt, history, { ...options, search: false });
+  const text = typeof result === 'string' ? result : result.text;
+  return text;
+};
+
+/**
+ * Unified web search function that routes to the appropriate provider.
+ * For Perplexity, uses its built-in LLM answer.
+ * For others, fetches raw results and synthesizes through the user's primary AI provider.
+ */
+export const webSearch = async (
+  query: string,
+  provider: WebSearchProvider,
+  history: { role: string; content: string }[] = [],
+  options: { thinking?: boolean; fast?: boolean; model?: string } = {}
+): Promise<{ text: string; model?: string; provider: string; citations?: string[] }> => {
+  if (provider === 'perplexity') {
+    return chatWithPerplexity(query, history, options);
+  }
+
+  // For non-Perplexity providers: fetch raw results, then synthesize with AI
+  let rawResults: Array<{ title: string; content: string; url: string }>;
+  let citations: string[];
+  let providerName: string;
+
+  switch (provider) {
+    case 'tavily': {
+      const raw = await tavily.getRawResults(query);
+      rawResults = raw.results;
+      citations = rawResults.map(r => r.url).filter(Boolean);
+      providerName = 'Tavily';
+      // If Tavily returned its own answer, use it directly
+      if (raw.answer) {
+        const formatted = raw.answer + formatCitationsInline(citations);
+        return { text: formatted, provider: providerName, citations };
+      }
+      break;
+    }
+    case 'firecrawl': {
+      const raw = await firecrawl.getRawResults(query);
+      rawResults = raw.results;
+      citations = rawResults.map(r => r.url).filter(Boolean);
+      providerName = 'Firecrawl';
+      break;
+    }
+    case 'exa': {
+      const raw = await exa.getRawResults(query);
+      rawResults = raw.results;
+      citations = rawResults.map(r => r.url).filter(Boolean);
+      providerName = 'Exa';
+      break;
+    }
+    case 'brave': {
+      const raw = await brave.getRawResults(query);
+      rawResults = raw.results;
+      citations = rawResults.map(r => r.url).filter(Boolean);
+      providerName = 'Brave';
+      break;
+    }
+    default:
+      throw new Error(`Unknown web search provider: ${provider}`);
+  }
+
+  if (rawResults.length === 0) {
+    return { text: 'No search results found.', provider: providerName, citations: [] };
+  }
+
+  // Synthesize the raw results through the user's primary AI
+  const synthesized = await synthesizeWithAI(query, rawResults, history, options);
+  const text = synthesized + formatCitationsInline(citations);
+
+  return { text, provider: providerName, citations };
+};
+
+/**
+ * Format citations inline for appending to synthesized text
+ */
+function formatCitationsInline(citations: string[]): string {
+  if (!citations || citations.length === 0) return '';
+  let section = '\n\n---\n**Sources / 参考来源:**\n';
+  citations.forEach((url, i) => {
+    let domain = url;
+    try {
+      domain = new URL(url).hostname.replace('www.', '');
+    } catch { /* keep original */ }
+    section += `${i + 1}. [${domain}](${url})\n`;
+  });
+  return section;
+}
+
 // Re-export other services from gemini (image, video, TTS, etc.)
 // These remain Gemini-only for now
-export { 
-  generateImage, 
-  editImage, 
-  generateVideo, 
-  speak, 
-  stopSpeech, 
-  analyzeMedia 
+export {
+  generateImage,
+  editImage,
+  generateVideo,
+  speak,
+  stopSpeech,
+  analyzeMedia
 } from './gemini';
