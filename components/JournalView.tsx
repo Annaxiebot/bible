@@ -746,6 +746,9 @@ const JournalView: React.FC<JournalViewProps> = ({
                   </div>
                   <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>
                     {formatDate(entry.createdAt, true)}
+                    {entry.updatedAt !== entry.createdAt && (
+                      <span style={{ color: '#c4b5fd' }}> · edited {formatDate(entry.updatedAt, true)}</span>
+                    )}
                   </div>
                   {entry.locationName && (
                     <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1, display: 'flex', alignItems: 'center', gap: 3 }}>
@@ -1022,7 +1025,12 @@ const JournalView: React.FC<JournalViewProps> = ({
           </button>
         )}
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 12, color: '#9ca3af' }}>{formatDate(selectedEntry.createdAt, true)}</div>
+          <div style={{ fontSize: 12, color: '#9ca3af' }}>
+            Created {formatDate(selectedEntry.createdAt, true)}
+            {selectedEntry.updatedAt !== selectedEntry.createdAt && (
+              <span> · Modified {formatDate(selectedEntry.updatedAt, true)}</span>
+            )}
+          </div>
           {selectedEntry.locationName && (
             <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1, display: 'flex', alignItems: 'center', gap: 3 }}>
               <span>📍</span>{selectedEntry.locationName}
