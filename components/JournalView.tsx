@@ -81,6 +81,7 @@ const JournalView: React.FC<JournalViewProps> = ({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [showMap, setShowMap] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
 
@@ -1023,9 +1024,17 @@ const JournalView: React.FC<JournalViewProps> = ({
           {selectedEntry.locationName && (
             <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1, display: 'flex', alignItems: 'center', gap: 3 }}>
               <span>📍</span>{selectedEntry.locationName}
+              {selectedEntry.latitude != null && (
+                <button onClick={() => setShowMap(v => !v)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: showMap ? '#6366f1' : '#d1d5db', fontSize: 10, padding: '0 3px' }}
+                  title={showMap ? 'Hide map' : 'Show map'}>
+                  {showMap ? '🗺️' : '🗺️'}
+                </button>
+              )}
               <button onClick={async () => {
                 await journalStorage.updateEntry(selectedEntry.id, { latitude: undefined, longitude: undefined, locationName: undefined });
                 setEntries(prev => prev.map(e => e.id === selectedEntry.id ? { ...e, latitude: undefined, longitude: undefined, locationName: undefined } : e));
+                setShowMap(false);
               }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#d1d5db', fontSize: 10, padding: '0 2px' }} title="Remove location">✕</button>
             </div>
           )}
@@ -1038,8 +1047,8 @@ const JournalView: React.FC<JournalViewProps> = ({
         </div>
       </div>
 
-      {/* Map embed */}
-      {selectedEntry.latitude != null && selectedEntry.longitude != null && (
+      {/* Map embed — toggle with map button next to location */}
+      {showMap && selectedEntry.latitude != null && selectedEntry.longitude != null && (
         <div style={{ padding: '0 16px 8px', flexShrink: 0, position: 'relative' }}>
           <iframe
             src={`https://www.openstreetmap.org/export/embed.html?bbox=${selectedEntry.longitude - 0.02},${selectedEntry.latitude - 0.01},${selectedEntry.longitude + 0.02},${selectedEntry.latitude + 0.01}&layer=mapnik&marker=${selectedEntry.latitude},${selectedEntry.longitude}`}
