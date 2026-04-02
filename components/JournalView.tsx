@@ -1035,36 +1035,24 @@ const JournalView: React.FC<JournalViewProps> = ({
         </div>
       </div>
 
-      {/* Google Maps embed */}
+      {/* Map embed */}
       {selectedEntry.latitude != null && selectedEntry.longitude != null && (
-        <div style={{ padding: '0 16px 8px', flexShrink: 0 }}>
+        <div style={{ padding: '0 16px 8px', flexShrink: 0, position: 'relative' }}>
           <iframe
-            src={`https://www.google.com/maps/embed/v1/place?key=&q=${selectedEntry.latitude},${selectedEntry.longitude}&zoom=13`}
+            src={`https://www.openstreetmap.org/export/embed.html?bbox=${selectedEntry.longitude - 0.02},${selectedEntry.latitude - 0.01},${selectedEntry.longitude + 0.02},${selectedEntry.latitude + 0.01}&layer=mapnik&marker=${selectedEntry.latitude},${selectedEntry.longitude}`}
             width="100%"
             height="120"
-            style={{ border: 0, borderRadius: 8, display: 'none' }}
+            style={{ border: 0, borderRadius: 8 }}
             loading="lazy"
-            referrerPolicy="no-referrer-when-downgrade"
             title="Entry location"
           />
           <a
             href={`https://www.google.com/maps?q=${selectedEntry.latitude},${selectedEntry.longitude}`}
             target="_blank"
             rel="noopener noreferrer"
-            style={{ display: 'block', borderRadius: 8, overflow: 'hidden', position: 'relative', height: 120, background: '#f0f4ff', textDecoration: 'none' }}
+            style={{ position: 'absolute', bottom: 12, right: 24, fontSize: 10, color: '#6366f1', background: 'rgba(255,255,255,0.9)', padding: '1px 6px', borderRadius: 4, textDecoration: 'none' }}
           >
-            <img
-              src={`https://maps.googleapis.com/maps/api/staticmap?center=${selectedEntry.latitude},${selectedEntry.longitude}&zoom=13&size=600x120&scale=2&markers=color:red%7C${selectedEntry.latitude},${selectedEntry.longitude}&style=feature:all%7Csaturation:-20`}
-              alt="Map"
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-              onError={(e) => {
-                // Fallback: show OpenStreetMap tile if Google Static Maps fails (no API key)
-                (e.target as HTMLImageElement).src = `https://staticmap.openstreetmap.de/staticmap.php?center=${selectedEntry.latitude},${selectedEntry.longitude}&zoom=13&size=600x120&markers=${selectedEntry.latitude},${selectedEntry.longitude},red-pushpin`;
-              }}
-            />
-            <div style={{ position: 'absolute', bottom: 4, right: 8, fontSize: 10, color: '#6366f1', background: 'rgba(255,255,255,0.9)', padding: '1px 6px', borderRadius: 4 }}>
-              Open in Maps
-            </div>
+            Open in Google Maps
           </a>
         </div>
       )}
