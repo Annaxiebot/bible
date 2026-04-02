@@ -315,15 +315,18 @@ const JournalView: React.FC<JournalViewProps> = ({
 
   const handleReflect = async () => {
     setIsLoadingReflection(true);
-    setReflectionPrompt(null);
+    setReflectionPrompt('');
     try {
       const recentEntries = entries.slice(0, 3);
-      const prompt = await generateReflectionPrompt(
-        selectedEntry,
-        { bookId, chapter, bookName },
-        recentEntries
-      );
-      setReflectionPrompt(prompt);
+      const recentContext = recentEntries.map(e => e.plainText.slice(0, 300)).join('\n---\n');
+      let prompt = 'Generate a thoughtful, personal spiritual reflection prompt for the user. Be warm, gentle, and thought-provoking. One paragraph.';
+      if (selectedEntry?.plainText) prompt += `\n\nTheir current journal entry:\n${selectedEntry.plainText.slice(0, 500)}`;
+      if (bookName && chapter) prompt += `\n\nCurrently reading: ${bookName} ${chapter}`;
+      if (recentContext) prompt += `\n\nRecent journal themes:\n${recentContext}`;
+      const meta = await streamAI(prompt, (chunk) => {
+        setReflectionPrompt(prev => (prev || '') + chunk);
+      });
+      setAiMeta(prev => ({ ...prev, reflect: meta }));
     } catch {
       setReflectionPrompt(null);
     } finally {
@@ -390,17 +393,32 @@ const JournalView: React.FC<JournalViewProps> = ({
     const question = chatInput.trim();
     setChatInput('');
     setChatMessages(prev => [...prev, { role: 'user', text: question }]);
+    setChatMessages(prev => [...prev, { role: 'assistant', text: '' }]);
     setIsLoadingChat(true);
     try {
       const recentEntries = entries.slice(0, 3);
-      const answer = await chatAboutEntry(
-        question,
-        selectedEntry?.plainText || '',
-        recentEntries
-      );
-      setChatMessages(prev => [...prev, { role: 'assistant', text: answer }]);
+      const recentContext = recentEntries.map(e => e.plainText.slice(0, 300)).join('\n---\n');
+      let prompt = `The user is asking about their journal entry. Answer helpfully based on the context.\n\nQuestion: ${question}\n\nJournal entry:\n${(selectedEntry?.plainText || '').slice(0, 2000)}`;
+      if (recentContext) prompt += `\n\nRecent entries:\n${recentContext}`;
+      await streamAI(prompt, (chunk) => {
+        setChatMessages(prev => {
+          const updated = [...prev];
+          const last = updated[updated.length - 1];
+          if (last?.role === 'assistant') {
+            updated[updated.length - 1] = { ...last, text: (last.text || '') + chunk };
+          }
+          return updated;
+        });
+      });
     } catch {
-      setChatMessages(prev => [...prev, { role: 'assistant', text: 'Sorry, something went wrong.' }]);
+      setChatMessages(prev => {
+        const updated = [...prev];
+        const last = updated[updated.length - 1];
+        if (last?.role === 'assistant' && !last.text) {
+          updated[updated.length - 1] = { ...last, text: 'Sorry, something went wrong.' };
+        }
+        return updated;
+      });
     } finally {
       setIsLoadingChat(false);
     }
@@ -1229,19 +1247,25 @@ const JournalView: React.FC<JournalViewProps> = ({
           border: '1px solid #ddd6fe',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-            <span style={{ fontSize: 12, fontWeight: 600, color: '#7c3aed' }}>{'\uD83D\uDCAD'} Reflection Prompt</span>
+            <div>
+              <span style={{ fontSize: 12, fontWeight: 600, color: '#7c3aed' }}>{'\uD83D\uDCAD'} Reflection Prompt</span>
+              {aiMeta.reflect && (
+                <div style={{ fontSize: 10, color: '#a78bfa', marginTop: 2 }}>
+                  {aiMeta.reflect.model} · {new Date(aiMeta.reflect.timestamp).toLocaleString()}
+                </div>
+              )}
+            </div>
             <button onClick={() => setReflectionPrompt(null)}
               style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a78bfa', fontSize: 14, padding: 2 }}>
               {'\u2715'}
             </button>
           </div>
-          {isLoadingReflection ? (
-            <div style={{ fontSize: 13, color: '#8b5cf6' }}>Generating prompt...</div>
-          ) : (
-            <div style={{ fontSize: 14, color: '#374151', lineHeight: 1.6, fontStyle: 'italic' }}>
-              <LazyMarkdown>{reflectionPrompt || ''}</LazyMarkdown>
-            </div>
-          )}
+          <div style={{ fontSize: 14, color: '#374151', lineHeight: 1.6, fontStyle: 'italic' }}>
+            <LazyMarkdown>{reflectionPrompt || ''}</LazyMarkdown>
+            {isLoadingReflection && !reflectionPrompt && (
+              <span style={{ fontSize: 13, color: '#8b5cf6' }}>Reflecting...</span>
+            )}
+          </div>
         </div>
       )}
 
