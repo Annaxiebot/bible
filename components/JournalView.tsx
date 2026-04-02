@@ -4,6 +4,7 @@ import { journalStorage } from '../services/journalStorage';
 import JournalEditor from './JournalEditor';
 import SimpleDrawingCanvas, { SimpleDrawingCanvasHandle } from './SimpleDrawingCanvas';
 import { compressImage, compressImageFromUrl } from '../services/imageCompressionService';
+import { BIBLE_BOOKS } from '../constants';
 import { usePaperType } from '../hooks/usePaperType';
 import LazyMarkdown from './LazyMarkdown';
 import type { PaperType } from '../services/strokeNormalizer';
@@ -1363,10 +1364,24 @@ const JournalView: React.FC<JournalViewProps> = ({
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
               <span style={{ fontSize: 12, fontWeight: 600, color: '#16a34a' }}>{'\uD83D\uDD2D'} Extended Thinking</span>
-              <button onClick={() => setExtendResult(null)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#86efac', fontSize: 14, padding: 2 }}>
-                {'\u2715'}
-              </button>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {extendResult && (
+                  <button onClick={async () => {
+                    if (!selectedId || !extendResult) return;
+                    const separator = '\n\n---\n\n**🔭 Extended Thinking:**\n\n';
+                    const newContent = (selectedEntry?.content || '') + separator + extendResult;
+                    await journalStorage.updateEntry(selectedId, { content: newContent });
+                    setEntries(prev => prev.map(e => e.id === selectedId ? { ...e, content: newContent } : e));
+                    setExtendResult(null);
+                  }} style={{ background: 'none', border: '1px solid #86efac', borderRadius: 4, cursor: 'pointer', color: '#16a34a', fontSize: 11, padding: '2px 8px' }}>
+                    📌 Save to note
+                  </button>
+                )}
+                <button onClick={() => setExtendResult(null)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#86efac', fontSize: 14, padding: 2 }}>
+                  {'\u2715'}
+                </button>
+              </div>
             </div>
             {isLoadingExtend ? (
               <div style={{ fontSize: 13, color: '#22c55e' }}>Extending your thoughts...</div>
@@ -1387,10 +1402,24 @@ const JournalView: React.FC<JournalViewProps> = ({
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
               <span style={{ fontSize: 12, fontWeight: 600, color: '#ca8a04' }}>{'\uD83D\uDCCB'} Summary</span>
-              <button onClick={() => setSummaryResult(null)}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#fcd34d', fontSize: 14, padding: 2 }}>
-                {'\u2715'}
-              </button>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {summaryResult && (
+                  <button onClick={async () => {
+                    if (!selectedId || !summaryResult) return;
+                    const separator = '\n\n---\n\n**📋 Summary:**\n\n';
+                    const newContent = (selectedEntry?.content || '') + separator + summaryResult;
+                    await journalStorage.updateEntry(selectedId, { content: newContent });
+                    setEntries(prev => prev.map(e => e.id === selectedId ? { ...e, content: newContent } : e));
+                    setSummaryResult(null);
+                  }} style={{ background: 'none', border: '1px solid #fcd34d', borderRadius: 4, cursor: 'pointer', color: '#ca8a04', fontSize: 11, padding: '2px 8px' }}>
+                    📌 Save to note
+                  </button>
+                )}
+                <button onClick={() => setSummaryResult(null)}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#fcd34d', fontSize: 14, padding: 2 }}>
+                  {'\u2715'}
+                </button>
+              </div>
             </div>
             {isLoadingSummary ? (
               <div style={{ fontSize: 13, color: '#ca8a04' }}>Summarizing...</div>
@@ -1411,10 +1440,25 @@ const JournalView: React.FC<JournalViewProps> = ({
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
               <span style={{ fontSize: 12, fontWeight: 600, color: '#2563eb' }}>{'\uD83D\uDCD6'} Related Scripture</span>
-              <button onClick={() => setScriptureSuggestions([])}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#93c5fd', fontSize: 14, padding: 2 }}>
-                {'\u2715'}
-              </button>
+              <div style={{ display: 'flex', gap: 4 }}>
+                {scriptureSuggestions.length > 0 && (
+                  <button onClick={async () => {
+                    if (!selectedId) return;
+                    const refs = scriptureSuggestions.map(s => `**${s.reference}** — ${s.reason}`).join('\n\n');
+                    const separator = '\n\n---\n\n**📖 Related Scripture:**\n\n';
+                    const newContent = (selectedEntry?.content || '') + separator + refs;
+                    await journalStorage.updateEntry(selectedId, { content: newContent });
+                    setEntries(prev => prev.map(e => e.id === selectedId ? { ...e, content: newContent } : e));
+                    setScriptureSuggestions([]);
+                  }} style={{ background: 'none', border: '1px solid #93c5fd', borderRadius: 4, cursor: 'pointer', color: '#2563eb', fontSize: 11, padding: '2px 8px' }}>
+                    📌 Save to note
+                  </button>
+                )}
+                <button onClick={() => setScriptureSuggestions([])}
+                  style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#93c5fd', fontSize: 14, padding: 2 }}>
+                  {'\u2715'}
+                </button>
+              </div>
             </div>
             {isLoadingScripture ? (
               <div style={{ fontSize: 13, color: '#3b82f6' }}>Finding relevant verses...</div>
@@ -1425,17 +1469,24 @@ const JournalView: React.FC<JournalViewProps> = ({
                     padding: '6px 10px', borderRadius: 6, background: 'rgba(255,255,255,0.6)',
                     cursor: 'pointer', border: '1px solid #dbeafe',
                   }} onClick={() => {
-                    // Try to navigate to the verse
                     if (onNavigate) {
-                      // Simple parse: try to extract book and chapter from reference
-                      const match = s.reference.match(/^(\d?\s*\w+)\s+(\d+)/);
+                      // Parse reference like "Genesis 2:2-3" or "Hebrews 4:9-10"
+                      const match = s.reference.match(/^(\d?\s*[A-Za-z]+)\s+(\d+)/);
                       if (match) {
-                        // Note: this is best-effort; full book-id resolution would need bibleBookData
-                        // For now we just trigger navigation with the reference text
+                        const bookName = match[1].trim();
+                        const chapter = parseInt(match[2]);
+                        // Look up book ID from BIBLE_BOOKS
+                        const book = BIBLE_BOOKS.find((b: any) =>
+                          b.name.toLowerCase().includes(bookName.toLowerCase()) ||
+                          bookName.toLowerCase().includes(b.name.split(' ').pop()?.toLowerCase() || '')
+                        );
+                        if (book) {
+                          onNavigate(book.id, chapter);
+                        }
                       }
                     }
                   }}>
-                    <div style={{ fontSize: 13, fontWeight: 600, color: '#2563eb' }}>{s.reference}</div>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: '#2563eb', textDecoration: 'underline' }}>{s.reference}</div>
                     <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>{s.reason}</div>
                   </div>
                 ))}
