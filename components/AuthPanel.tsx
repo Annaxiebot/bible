@@ -84,8 +84,18 @@ export function AuthPanel() {
       {authState.isAuthenticated ? (
         <div className="auth-signed-in">
           <div className="auth-user-info">
-            <div className="auth-email">
-              <strong>📧</strong> {authState.user?.email}
+            <div className="auth-email" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              {authState.user?.user_metadata?.avatar_url ? (
+                <img src={authState.user.user_metadata.avatar_url} alt="" style={{ width: 24, height: 24, borderRadius: '50%' }} />
+              ) : (
+                <strong>📧</strong>
+              )}
+              <div>
+                {authState.user?.user_metadata?.full_name && (
+                  <div style={{ fontSize: 13, fontWeight: 600 }}>{authState.user.user_metadata.full_name}</div>
+                )}
+                <div style={{ fontSize: 12, opacity: 0.8 }}>{authState.user?.email}</div>
+              </div>
             </div>
             <div className="auth-sync-status">
               <span className="sync-icon">{getSyncStatusIcon()}</span>

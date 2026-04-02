@@ -156,7 +156,11 @@ class AuthManager {
     }
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: window.location.origin + window.location.pathname }
+      options: {
+        redirectTo: window.location.origin + window.location.pathname,
+        scopes: 'openid email profile',
+        queryParams: { prompt: 'consent' },
+      }
     });
     return { error };
   }
@@ -177,6 +181,14 @@ class AuthManager {
 
   getEmail(): string | null {
     return this.state.user?.email || null;
+  }
+
+  getFullName(): string | null {
+    return this.state.user?.user_metadata?.full_name || this.state.user?.user_metadata?.name || null;
+  }
+
+  getAvatarUrl(): string | null {
+    return this.state.user?.user_metadata?.avatar_url || this.state.user?.user_metadata?.picture || null;
   }
 }
 
