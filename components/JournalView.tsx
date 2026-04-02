@@ -110,6 +110,7 @@ const JournalView: React.FC<JournalViewProps> = ({
   const [summaryResult, setSummaryResult] = useState<string | null>(null);
   const [isLoadingSummary, setIsLoadingSummary] = useState(false);
   const [scriptureSuggestions, setScriptureSuggestions] = useState<ScriptureSuggestion[]>([]);
+  const [savedCards, setSavedCards] = useState<Record<string, boolean>>({});
   const [isLoadingScripture, setIsLoadingScripture] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [chatInput, setChatInput] = useState('');
@@ -463,6 +464,7 @@ const JournalView: React.FC<JournalViewProps> = ({
     setExtendResult(null);
     setSummaryResult(null);
     setScriptureSuggestions([]);
+    setSavedCards({});
     setShowChat(false);
     setChatMessages([]);
     setChatInput('');
@@ -1382,9 +1384,9 @@ const JournalView: React.FC<JournalViewProps> = ({
                     await journalStorage.updateEntry(selectedId, { content: newContent });
                     setEntries(prev => prev.map(e => e.id === selectedId ? { ...e, content: newContent } : e));
                     if (editorRef.current) editorRef.current.innerHTML = newContent;
-                    setExtendResult(null);
-                  }} style={{ background: 'none', border: '1px solid #86efac', borderRadius: 4, cursor: 'pointer', color: '#16a34a', fontSize: 11, padding: '2px 8px' }}>
-                    📌 Save to note
+                    setSavedCards(prev => ({ ...prev, extend: true }));
+                  }} disabled={savedCards.extend} style={{ background: savedCards.extend ? '#dcfce7' : 'none', border: '1px solid #86efac', borderRadius: 4, cursor: savedCards.extend ? 'default' : 'pointer', color: '#16a34a', fontSize: 11, padding: '2px 8px' }}>
+                    {savedCards.extend ? '✓ Saved' : '📌 Save to note'}
                   </button>
                 )}
                 <button onClick={() => setExtendResult(null)}
@@ -1422,9 +1424,9 @@ const JournalView: React.FC<JournalViewProps> = ({
                     await journalStorage.updateEntry(selectedId, { content: newContent });
                     setEntries(prev => prev.map(e => e.id === selectedId ? { ...e, content: newContent } : e));
                     if (editorRef.current) editorRef.current.innerHTML = newContent;
-                    setSummaryResult(null);
-                  }} style={{ background: 'none', border: '1px solid #fcd34d', borderRadius: 4, cursor: 'pointer', color: '#ca8a04', fontSize: 11, padding: '2px 8px' }}>
-                    📌 Save to note
+                    setSavedCards(prev => ({ ...prev, summary: true }));
+                  }} disabled={savedCards.summary} style={{ background: savedCards.summary ? '#fef9c3' : 'none', border: '1px solid #fcd34d', borderRadius: 4, cursor: savedCards.summary ? 'default' : 'pointer', color: '#ca8a04', fontSize: 11, padding: '2px 8px' }}>
+                    {savedCards.summary ? '✓ Saved' : '📌 Save to note'}
                   </button>
                 )}
                 <button onClick={() => setSummaryResult(null)}
@@ -1462,9 +1464,9 @@ const JournalView: React.FC<JournalViewProps> = ({
                     await journalStorage.updateEntry(selectedId, { content: newContent });
                     setEntries(prev => prev.map(e => e.id === selectedId ? { ...e, content: newContent } : e));
                     if (editorRef.current) editorRef.current.innerHTML = newContent;
-                    setScriptureSuggestions([]);
-                  }} style={{ background: 'none', border: '1px solid #93c5fd', borderRadius: 4, cursor: 'pointer', color: '#2563eb', fontSize: 11, padding: '2px 8px' }}>
-                    📌 Save to note
+                    setSavedCards(prev => ({ ...prev, scripture: true }));
+                  }} disabled={savedCards.scripture} style={{ background: savedCards.scripture ? '#dbeafe' : 'none', border: '1px solid #93c5fd', borderRadius: 4, cursor: savedCards.scripture ? 'default' : 'pointer', color: '#2563eb', fontSize: 11, padding: '2px 8px' }}>
+                    {savedCards.scripture ? '✓ Saved' : '📌 Save to note'}
                   </button>
                 )}
                 <button onClick={() => setScriptureSuggestions([])}
