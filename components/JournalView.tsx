@@ -1039,14 +1039,33 @@ const JournalView: React.FC<JournalViewProps> = ({
       {selectedEntry.latitude != null && selectedEntry.longitude != null && (
         <div style={{ padding: '0 16px 8px', flexShrink: 0 }}>
           <iframe
-            src={`https://www.google.com/maps/embed?pb=!1m14!1m12!1m3!1d5000!2d${selectedEntry.longitude}!3d${selectedEntry.latitude}!2m3!1f0!2f0!3f0!3m2!1i1024!2i768!4f13.1`}
+            src={`https://www.google.com/maps/embed/v1/place?key=&q=${selectedEntry.latitude},${selectedEntry.longitude}&zoom=13`}
             width="100%"
             height="120"
-            style={{ border: 0, borderRadius: 8 }}
+            style={{ border: 0, borderRadius: 8, display: 'none' }}
             loading="lazy"
             referrerPolicy="no-referrer-when-downgrade"
             title="Entry location"
           />
+          <a
+            href={`https://www.google.com/maps?q=${selectedEntry.latitude},${selectedEntry.longitude}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ display: 'block', borderRadius: 8, overflow: 'hidden', position: 'relative', height: 120, background: '#f0f4ff', textDecoration: 'none' }}
+          >
+            <img
+              src={`https://maps.googleapis.com/maps/api/staticmap?center=${selectedEntry.latitude},${selectedEntry.longitude}&zoom=13&size=600x120&scale=2&markers=color:red%7C${selectedEntry.latitude},${selectedEntry.longitude}&style=feature:all%7Csaturation:-20`}
+              alt="Map"
+              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              onError={(e) => {
+                // Fallback: show OpenStreetMap tile if Google Static Maps fails (no API key)
+                (e.target as HTMLImageElement).src = `https://staticmap.openstreetmap.de/staticmap.php?center=${selectedEntry.latitude},${selectedEntry.longitude}&zoom=13&size=600x120&markers=${selectedEntry.latitude},${selectedEntry.longitude},red-pushpin`;
+              }}
+            />
+            <div style={{ position: 'absolute', bottom: 4, right: 8, fontSize: 10, color: '#6366f1', background: 'rgba(255,255,255,0.9)', padding: '1px 6px', borderRadius: 4 }}>
+              Open in Maps
+            </div>
+          </a>
         </div>
       )}
 
