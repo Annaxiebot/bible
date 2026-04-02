@@ -1419,14 +1419,15 @@ const JournalView: React.FC<JournalViewProps> = ({
                   <button onClick={async () => {
                     if (!selectedId || !extendResult) return;
                     const htmlContent = extendResult.replace(/\n/g, '<br>');
-                    const card = '<div style="margin:16px 0;padding:12px 16px;border-radius:10px;background:linear-gradient(135deg,#f0fdf4 0%,#dcfce7 100%);border:1px solid #bbf7d0"><div style="font-size:12px;font-weight:600;color:#16a34a;margin-bottom:6px">🔭 Extended Thinking</div><div style="font-size:14px;color:#374151;line-height:1.6">' + htmlContent + '</div></div>';
+                    const metaLine = aiMeta.extend ? `<div style="font-size:10px;color:#86efac;margin-top:2px">${aiMeta.extend.model || ''} · ${new Date(aiMeta.extend.timestamp).toLocaleString()}</div>` : '';
+                    const card = `<div style="margin:16px 0;padding:12px 16px;border-radius:10px;background:linear-gradient(135deg,#f0fdf4 0%,#dcfce7 100%);border:1px solid #bbf7d0"><div style="font-size:12px;font-weight:600;color:#16a34a;margin-bottom:2px">🔭 Extended Thinking</div>${metaLine}<div style="font-size:14px;color:#374151;line-height:1.6;margin-top:6px">${htmlContent}</div></div>`;
                     const newContent = (selectedEntry?.content || '') + card;
                     await journalStorage.updateEntry(selectedId, { content: newContent });
                     setEntries(prev => prev.map(e => e.id === selectedId ? { ...e, content: newContent } : e));
                     if (editorRef.current) editorRef.current.innerHTML = newContent;
-                    setSavedCards(prev => ({ ...prev, extend: true }));
-                  }} disabled={savedCards.extend} style={{ background: savedCards.extend ? '#dcfce7' : 'none', border: '1px solid #86efac', borderRadius: 4, cursor: savedCards.extend ? 'default' : 'pointer', color: '#16a34a', fontSize: 11, padding: '2px 8px' }}>
-                    {savedCards.extend ? '✓ Saved' : '📌 Save to note'}
+                    setExtendResult(null); // Dismiss card — content is now in the editor
+                  }} style={{ background: 'none', border: '1px solid #86efac', borderRadius: 4, cursor: 'pointer', color: '#16a34a', fontSize: 11, padding: '2px 8px' }}>
+                    📌 Save to note
                   </button>
                 )}
                 <button onClick={() => setExtendResult(null)}
@@ -1466,14 +1467,15 @@ const JournalView: React.FC<JournalViewProps> = ({
                   <button onClick={async () => {
                     if (!selectedId || !summaryResult) return;
                     const htmlContent = summaryResult.replace(/\n/g, '<br>');
-                    const card = '<div style="margin:16px 0;padding:12px 16px;border-radius:10px;background:linear-gradient(135deg,#fefce8 0%,#fef9c3 100%);border:1px solid #fde68a"><div style="font-size:12px;font-weight:600;color:#ca8a04;margin-bottom:6px">📋 Summary</div><div style="font-size:14px;color:#374151;line-height:1.6">' + htmlContent + '</div></div>';
+                    const metaLine = aiMeta.summary ? `<div style="font-size:10px;color:#fbbf24;margin-top:2px">${aiMeta.summary.model || ''} · ${new Date(aiMeta.summary.timestamp).toLocaleString()}</div>` : '';
+                    const card = `<div style="margin:16px 0;padding:12px 16px;border-radius:10px;background:linear-gradient(135deg,#fefce8 0%,#fef9c3 100%);border:1px solid #fde68a"><div style="font-size:12px;font-weight:600;color:#ca8a04;margin-bottom:2px">📋 Summary</div>${metaLine}<div style="font-size:14px;color:#374151;line-height:1.6;margin-top:6px">${htmlContent}</div></div>`;
                     const newContent = (selectedEntry?.content || '') + card;
                     await journalStorage.updateEntry(selectedId, { content: newContent });
                     setEntries(prev => prev.map(e => e.id === selectedId ? { ...e, content: newContent } : e));
                     if (editorRef.current) editorRef.current.innerHTML = newContent;
-                    setSavedCards(prev => ({ ...prev, summary: true }));
-                  }} disabled={savedCards.summary} style={{ background: savedCards.summary ? '#fef9c3' : 'none', border: '1px solid #fcd34d', borderRadius: 4, cursor: savedCards.summary ? 'default' : 'pointer', color: '#ca8a04', fontSize: 11, padding: '2px 8px' }}>
-                    {savedCards.summary ? '✓ Saved' : '📌 Save to note'}
+                    setSummaryResult(null);
+                  }} style={{ background: 'none', border: '1px solid #fcd34d', borderRadius: 4, cursor: 'pointer', color: '#ca8a04', fontSize: 11, padding: '2px 8px' }}>
+                    📌 Save to note
                   </button>
                 )}
                 <button onClick={() => setSummaryResult(null)}
@@ -1506,14 +1508,15 @@ const JournalView: React.FC<JournalViewProps> = ({
                   <button onClick={async () => {
                     if (!selectedId) return;
                     const refs = scriptureSuggestions.map(s => `<div style="margin:4px 0;padding:6px 10px;border-radius:6px;background:rgba(255,255,255,0.6);border:1px solid #dbeafe"><strong style="color:#2563eb">${s.reference}</strong><div style="font-size:12px;color:#6b7280;margin-top:2px">${s.reason}</div></div>`).join('');
-                    const card = '<div style="margin:16px 0;padding:12px 16px;border-radius:10px;background:linear-gradient(135deg,#eff6ff 0%,#dbeafe 100%);border:1px solid #bfdbfe"><div style="font-size:12px;font-weight:600;color:#2563eb;margin-bottom:6px">📖 Related Scripture</div>' + refs + '</div>';
+                    const metaLine = `<div style="font-size:10px;color:#93c5fd;margin-top:2px">${new Date().toLocaleString()}</div>`;
+                    const card = `<div style="margin:16px 0;padding:12px 16px;border-radius:10px;background:linear-gradient(135deg,#eff6ff 0%,#dbeafe 100%);border:1px solid #bfdbfe"><div style="font-size:12px;font-weight:600;color:#2563eb;margin-bottom:2px">📖 Related Scripture</div>${metaLine}<div style="margin-top:6px">${refs}</div></div>`;
                     const newContent = (selectedEntry?.content || '') + card;
                     await journalStorage.updateEntry(selectedId, { content: newContent });
                     setEntries(prev => prev.map(e => e.id === selectedId ? { ...e, content: newContent } : e));
                     if (editorRef.current) editorRef.current.innerHTML = newContent;
-                    setSavedCards(prev => ({ ...prev, scripture: true }));
-                  }} disabled={savedCards.scripture} style={{ background: savedCards.scripture ? '#dbeafe' : 'none', border: '1px solid #93c5fd', borderRadius: 4, cursor: savedCards.scripture ? 'default' : 'pointer', color: '#2563eb', fontSize: 11, padding: '2px 8px' }}>
-                    {savedCards.scripture ? '✓ Saved' : '📌 Save to note'}
+                    setScriptureSuggestions([]);
+                  }} style={{ background: 'none', border: '1px solid #93c5fd', borderRadius: 4, cursor: 'pointer', color: '#2563eb', fontSize: 11, padding: '2px 8px' }}>
+                    📌 Save to note
                   </button>
                 )}
                 <button onClick={() => setScriptureSuggestions([])}
