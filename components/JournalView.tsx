@@ -136,7 +136,7 @@ const JournalView: React.FC<JournalViewProps> = ({
   const [isLoadingScripture, setIsLoadingScripture] = useState(false);
   const [showChat, setShowChat] = useState(false);
   const [chatInput, setChatInput] = useState('');
-  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; text: string }[]>([]);
+  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; text: string; meta?: StreamResult }[]>([]);
   const [isLoadingChat, setIsLoadingChat] = useState(false);
 
   // ── Phase 4: Personal Agent state ─────────────────────────────────
@@ -452,7 +452,7 @@ const JournalView: React.FC<JournalViewProps> = ({
       const recentContext = recentEntries.map(e => e.plainText.slice(0, 300)).join('\n---\n');
       let prompt = `The user is asking about their journal entry. Answer helpfully based on the context.\n\nQuestion: ${question}\n\nJournal entry:\n${(selectedEntry?.plainText || '').slice(0, 2000)}`;
       if (recentContext) prompt += `\n\nRecent entries:\n${recentContext}`;
-      await streamAI(prompt, (chunk) => {
+      const meta = await streamAI(prompt, (chunk) => {
         setChatMessages(prev => {
           const updated = [...prev];
           const last = updated[updated.length - 1];
@@ -461,6 +461,15 @@ const JournalView: React.FC<JournalViewProps> = ({
           }
           return updated;
         });
+      });
+      // Attach model/race metadata to the assistant message
+      setChatMessages(prev => {
+        const updated = [...prev];
+        const last = updated[updated.length - 1];
+        if (last?.role === 'assistant') {
+          updated[updated.length - 1] = { ...last, meta };
+        }
+        return updated;
       });
     } catch {
       setChatMessages(prev => {
@@ -1712,6 +1721,16 @@ const JournalView: React.FC<JournalViewProps> = ({
                   maxWidth: '85%', border: msg.role === 'assistant' ? '1px solid #e5e7eb' : 'none',
                 }}>
                   {msg.role === 'assistant' ? <LazyMarkdown>{msg.text}</LazyMarkdown> : msg.text}
+                  {msg.role === 'assistant' && msg.meta?.model && (
+                    <div style={{ fontSize: 10, color: '#9ca3af', marginTop: 4 }}>
+                      {msg.meta.racePool && msg.meta.racePool.length > 0 && (
+                        <span title={msg.meta.racePool.map((r: any) => `${r.model} (${r.provider})`).join(', ')} style={{ background: '#fef3c7', color: '#92400e', borderRadius: 3, padding: '1px 4px', marginRight: 4, fontSize: 9, fontWeight: 600 }}>
+                          race {msg.meta.racePool.length}
+                        </span>
+                      )}
+                      {msg.meta.model}
+                    </div>
+                  )}
                 </div>
               ))}
               {isLoadingChat && (
