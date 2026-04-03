@@ -70,6 +70,24 @@ async function reverseGeocode(lat: number, lng: number): Promise<string> {
   }
 }
 
+/** Simple markdown to HTML for saving AI content to notes */
+function mdToHtml(md: string): string {
+  return md
+    .replace(/^### (.+)$/gm, '<h3 style="margin:8px 0 4px;font-size:15px;font-weight:600">$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2 style="margin:10px 0 4px;font-size:16px;font-weight:600">$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1 style="margin:12px 0 6px;font-size:18px;font-weight:700">$1</h1>')
+    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+    .replace(/\*(.+?)\*/g, '<em>$1</em>')
+    .replace(/^- (.+)$/gm, '<div style="padding-left:16px">• $1</div>')
+    .replace(/^\d+\. (.+)$/gm, (_, content, offset, str) => {
+      const lines = str.slice(0, offset).split('\n');
+      const num = lines.filter((l: string) => /^\d+\./.test(l)).length + 1;
+      return `<div style="padding-left:16px">${num}. ${content}</div>`;
+    })
+    .replace(/\n\n/g, '<br><br>')
+    .replace(/\n/g, '<br>');
+}
+
 function truncate(text: string, max: number): string {
   if (text.length <= max) return text;
   return text.slice(0, max).trimEnd() + '...';
@@ -1418,7 +1436,7 @@ const JournalView: React.FC<JournalViewProps> = ({
                 {extendResult && !isLoadingExtend && (
                   <button onClick={async () => {
                     if (!selectedId || !extendResult) return;
-                    const htmlContent = extendResult.replace(/\n/g, '<br>');
+                    const htmlContent = mdToHtml(extendResult);
                     const metaLine = aiMeta.extend ? `<div style="font-size:10px;color:#86efac;margin-top:2px">${aiMeta.extend.model || ''} · ${new Date(aiMeta.extend.timestamp).toLocaleString()}</div>` : '';
                     const card = `<div style="margin:16px 0;padding:12px 16px;border-radius:10px;background:linear-gradient(135deg,#f0fdf4 0%,#dcfce7 100%);border:1px solid #bbf7d0"><div style="font-size:12px;font-weight:600;color:#16a34a;margin-bottom:2px">🔭 Extended Thinking</div>${metaLine}<div style="font-size:14px;color:#374151;line-height:1.6;margin-top:6px">${htmlContent}</div></div>`;
                     const newContent = (selectedEntry?.content || '') + card;
@@ -1466,7 +1484,7 @@ const JournalView: React.FC<JournalViewProps> = ({
                 {summaryResult && !isLoadingSummary && (
                   <button onClick={async () => {
                     if (!selectedId || !summaryResult) return;
-                    const htmlContent = summaryResult.replace(/\n/g, '<br>');
+                    const htmlContent = mdToHtml(summaryResult);
                     const metaLine = aiMeta.summary ? `<div style="font-size:10px;color:#fbbf24;margin-top:2px">${aiMeta.summary.model || ''} · ${new Date(aiMeta.summary.timestamp).toLocaleString()}</div>` : '';
                     const card = `<div style="margin:16px 0;padding:12px 16px;border-radius:10px;background:linear-gradient(135deg,#fefce8 0%,#fef9c3 100%);border:1px solid #fde68a"><div style="font-size:12px;font-weight:600;color:#ca8a04;margin-bottom:2px">📋 Summary</div>${metaLine}<div style="font-size:14px;color:#374151;line-height:1.6;margin-top:6px">${htmlContent}</div></div>`;
                     const newContent = (selectedEntry?.content || '') + card;
