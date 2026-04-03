@@ -721,16 +721,39 @@ async function syncJournal(): Promise<void> {
   const { journalStorage } = await import('./journalStorage');
 
   const syncState = getSyncState();
-  const { data: remoteEntries, error } = await supabase
-    .from('journal')
-    .select('*')
-    .eq('user_id', userId)
-    .gte('updated_at', new Date(syncState.lastJournalSync).toISOString());
+  const lastSyncISO = new Date(syncState.lastJournalSync).toISOString();
 
-  if (error) throw error;
+  // Quick check: count remote changes before fetching full rows
+  const { count: remoteCount } = await supabase
+    .from('journal')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .gte('updated_at', lastSyncISO);
+
+  // Check if any local entries were modified since last sync
+  const allLocal = await journalStorage.getAllEntries();
+  const localChanged = allLocal.filter(e => new Date(e.updatedAt).getTime() > syncState.lastJournalSync);
+
+  // Nothing to sync — early exit
+  if (!remoteCount && localChanged.length === 0) {
+    setSyncState({ lastJournalSync: Date.now() });
+    return;
+  }
+
+  // Fetch full remote rows only if there are changes
+  let remoteEntries: any[] = [];
+  if (remoteCount && remoteCount > 0) {
+    const { data, error } = await supabase
+      .from('journal')
+      .select('*')
+      .eq('user_id', userId)
+      .gte('updated_at', lastSyncISO);
+    if (error) throw error;
+    remoteEntries = data || [];
+  }
 
   // Merge remote into local (remote wins on conflict)
-  for (const remote of remoteEntries || []) {
+  for (const remote of remoteEntries) {
     const local = await journalStorage.getEntry(remote.id);
     if (!local || new Date(remote.updated_at).getTime() > new Date(local.updatedAt).getTime()) {
       if (local) {
@@ -770,10 +793,8 @@ async function syncJournal(): Promise<void> {
   }
 
   // Upload local entries modified since last sync
-  const allLocal = await journalStorage.getAllEntries();
-  const lastSync = syncState.lastJournalSync;
-  const toUpload = allLocal.filter(local =>
-    new Date(local.updatedAt).getTime() > lastSync
+  const toUpload = localChanged.filter(local =>
+    new Date(local.updatedAt).getTime() > syncState.lastJournalSync
   );
 
   if (toUpload.length > 0) {
