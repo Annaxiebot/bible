@@ -21,12 +21,37 @@ import { spiritualMemory } from '../spiritualMemory';
 import type { JournalEntry, SpiritualMemoryItem } from '../idbService';
 
 // Mock the AI provider
+const { mockStreamViaEdgeFn } = vi.hoisted(() => ({
+  mockStreamViaEdgeFn: vi.fn(),
+}));
+
 vi.mock('../aiProvider', () => ({
   chatWithAI: vi.fn(),
+  streamViaEdgeFunction: mockStreamViaEdgeFn,
+  getCurrentModel: vi.fn(() => 'test-model'),
+  getCurrentProvider: vi.fn(() => 'test'),
 }));
 
 import { chatWithAI } from '../aiProvider';
 const mockChatWithAI = vi.mocked(chatWithAI);
+
+/** Helper: mock streamViaEdgeFunction to emit text and call onDone */
+function mockStreamResponse(text: string) {
+  mockStreamViaEdgeFn.mockImplementationOnce(
+    async (_prompt: string, _history: any[], _options: any, onChunk: (t: string) => void, onDone: (m?: string, p?: string) => void) => {
+      onChunk(text);
+      onDone('test-model', 'test');
+    }
+  );
+}
+
+function mockStreamError(error: Error) {
+  mockStreamViaEdgeFn.mockImplementationOnce(
+    async (_prompt: string, _history: any[], _options: any, _onChunk: any, _onDone: any, onError: (e: Error) => void) => {
+      onError(error);
+    }
+  );
+}
 
 function makeEntry(overrides: Partial<JournalEntry> = {}): JournalEntry {
   return {
@@ -400,48 +425,47 @@ describe('journalAIService', () => {
 
   describe('findRelatedScripture', () => {
     it('should return scripture suggestions', async () => {
-      mockChatWithAI.mockResolvedValueOnce({
-        text: '[{"reference":"Philippians 4:6-7","reason":"About finding peace through prayer."},{"reference":"Psalm 23:1","reason":"God as shepherd and provider."}]',
-        provider: 'test',
-      });
+      mockStreamResponse('[{"reference":"Philippians 4:6-7","reason":"About finding peace through prayer."},{"reference":"Psalm 23:1","reason":"God as shepherd and provider."}]');
 
-      const results = await findRelatedScripture('I prayed for peace today and felt God providing.');
+      const { results } = await findRelatedScripture('I prayed for peace today and felt God providing.');
       expect(results).toHaveLength(2);
       expect(results[0].reference).toBe('Philippians 4:6-7');
       expect(results[0].reason).toContain('peace');
     });
 
     it('should return empty for short text', async () => {
-      const results = await findRelatedScripture('Hi');
+      const { results } = await findRelatedScripture('Hi');
       expect(results).toEqual([]);
     });
 
-    it('should handle malformed AI response', async () => {
-      mockChatWithAI.mockResolvedValueOnce({
-        text: 'Here are some verses: Psalm 23, Romans 8',
-        provider: 'test',
-      });
+    it('should handle malformed AI response with regex fallback', async () => {
+      mockStreamResponse('Here are some verses: Psalm 23:1, Romans 8:28 are relevant.');
 
-      const results = await findRelatedScripture('I need guidance and peace today in my spiritual walk.');
-      expect(results).toEqual([]);
+      const { results } = await findRelatedScripture('I need guidance and peace today in my spiritual walk.');
+      expect(results.length).toBeGreaterThanOrEqual(1);
+      expect(results[0].reference).toMatch(/Psalm 23:1|Romans 8:28/);
     });
 
-    it('should return empty on failure', async () => {
-      mockChatWithAI.mockRejectedValueOnce(new Error('API error'));
-      const results = await findRelatedScripture('Looking for peace and comfort today.');
-      expect(results).toEqual([]);
+    it('should throw on failure', async () => {
+      mockStreamError(new Error('API error'));
+      await expect(findRelatedScripture('Looking for peace and comfort today.')).rejects.toThrow();
     });
 
     it('should limit to 5 results', async () => {
-      mockChatWithAI.mockResolvedValueOnce({
-        text: JSON.stringify(
-          Array.from({ length: 8 }, (_, i) => ({ reference: `Verse ${i}`, reason: `Reason ${i}` }))
-        ),
-        provider: 'test',
-      });
+      mockStreamResponse(JSON.stringify(
+        Array.from({ length: 8 }, (_, i) => ({ reference: `Verse ${i}`, reason: `Reason ${i}` }))
+      ));
 
-      const results = await findRelatedScripture('A rich journal entry with many themes and ideas to explore.');
+      const { results } = await findRelatedScripture('A rich journal entry with many themes and ideas to explore.');
       expect(results.length).toBeLessThanOrEqual(5);
+    });
+
+    it('should return meta with model and timestamp', async () => {
+      mockStreamResponse('[{"reference":"John 3:16","reason":"God\'s love."}]');
+
+      const { meta } = await findRelatedScripture('God loved the world so much today I felt grateful.');
+      expect(meta.model).toBe('test-model');
+      expect(meta.timestamp).toBeDefined();
     });
   });
 

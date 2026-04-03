@@ -397,10 +397,16 @@ const JournalView: React.FC<JournalViewProps> = ({
     setIsLoadingScripture(true);
     setScriptureSuggestions([]);
     try {
-      const results = await findRelatedScripture(selectedEntry.plainText);
-      setScriptureSuggestions(results);
-    } catch {
-      setScriptureSuggestions([]);
+      const { results, meta } = await findRelatedScripture(selectedEntry.plainText);
+      setAiMeta(prev => ({ ...prev, scripture: meta }));
+      if (results.length === 0) {
+        setScriptureSuggestions([{ reference: '', reason: 'No scripture suggestions found. Try adding more detail to your entry.' }]);
+      } else {
+        setScriptureSuggestions(results);
+      }
+    } catch (err) {
+      console.warn('[Scripture] Failed:', err);
+      setScriptureSuggestions([{ reference: '', reason: 'Could not find scripture. Please try again.' }]);
     } finally {
       setIsLoadingScripture(false);
     }
@@ -1537,7 +1543,14 @@ const JournalView: React.FC<JournalViewProps> = ({
             border: '1px solid #bfdbfe', flexShrink: 0,
           }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ fontSize: 12, fontWeight: 600, color: '#2563eb' }}>{'\uD83D\uDCD6'} Related Scripture</span>
+              <div>
+                <span style={{ fontSize: 12, fontWeight: 600, color: '#2563eb' }}>{'\uD83D\uDCD6'} Related Scripture</span>
+                {aiMeta.scripture && (
+                  <div style={{ fontSize: 10, color: '#93c5fd', marginTop: 2 }}>
+                    {aiMeta.scripture.model} · {new Date(aiMeta.scripture.timestamp).toLocaleString()}
+                  </div>
+                )}
+              </div>
               <div style={{ display: 'flex', gap: 4 }}>
                 {scriptureSuggestions.length > 0 && (
                   <button onClick={async () => {
@@ -1547,7 +1560,7 @@ const JournalView: React.FC<JournalViewProps> = ({
                       const searchUrl = `https://www.biblegateway.com/passage/?search=${encodeURIComponent(s.reference)}&version=CUVS`;
                       return `<div style="margin:4px 0;padding:6px 10px;border-radius:6px;background:rgba(255,255,255,0.6);border:1px solid #dbeafe"><a href="${searchUrl}" target="_blank" rel="noopener noreferrer" style="font-size:13px;font-weight:600;color:#2563eb;text-decoration:underline;cursor:pointer">${s.reference}</a><div style="font-size:12px;color:#6b7280;margin-top:2px">${s.reason}</div></div>`;
                     }).join('');
-                    const metaLine = `<div style="font-size:10px;color:#93c5fd;margin-top:2px">${new Date().toLocaleString()}</div>`;
+                    const metaLine = aiMeta.scripture ? `<div style="font-size:10px;color:#93c5fd;margin-top:2px">${aiMeta.scripture.model || ''} · ${new Date(aiMeta.scripture.timestamp).toLocaleString()}</div>` : '';
                     const card = `<div style="margin:16px 0;padding:12px 16px;border-radius:10px;background:linear-gradient(135deg,#eff6ff 0%,#dbeafe 100%);border:1px solid #bfdbfe"><div style="font-size:12px;font-weight:600;color:#2563eb;margin-bottom:2px">📖 Related Scripture</div>${metaLine}<div style="margin-top:6px">${refs}</div></div>`;
                     const newContent = (selectedEntry?.content || '') + card;
                     await journalStorage.updateEntry(selectedId, { content: newContent });
