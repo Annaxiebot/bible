@@ -41,6 +41,7 @@ class JournalStorageService {
       updatedAt: now,
     };
     await idbService.put('journal', entry);
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('journal-updated'));
     return entry;
   }
 
@@ -58,11 +59,13 @@ class JournalStorageService {
       updatedAt: new Date().toISOString(),
     };
     await idbService.put('journal', updated);
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('journal-updated'));
     return updated;
   }
 
   async deleteEntry(id: string): Promise<void> {
     await idbService.delete('journal', id);
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('journal-updated'));
   }
 
   async getEntry(id: string): Promise<JournalEntry | null> {

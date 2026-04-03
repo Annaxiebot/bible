@@ -10,8 +10,8 @@ class NotesStorageService {
         data,
         lastModified: Date.now()
       }, reference);
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('notes-updated'));
     } catch (error) {
-      // TODO: use error reporting service
       throw error;
     }
   }
@@ -47,8 +47,8 @@ class NotesStorageService {
   async deleteNote(reference: string): Promise<void> {
     try {
       await idbService.delete('notes', reference);
+      if (typeof window !== 'undefined') window.dispatchEvent(new Event('notes-updated'));
     } catch (error) {
-      // TODO: use error reporting service
       throw error;
     }
   }

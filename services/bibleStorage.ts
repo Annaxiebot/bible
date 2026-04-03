@@ -20,6 +20,7 @@ class BibleStorageService {
       data
     };
     await idbService.put('bibleChapters', chapterData);
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('bible-cache-updated'));
   }
 
   async getChapter(bookId: string, chapter: number, translation: BibleTranslation): Promise<ChapterStorageData | null> {
