@@ -1273,10 +1273,27 @@ const JournalView: React.FC<JournalViewProps> = ({
                 </div>
               )}
             </div>
-            <button onClick={() => setReflectionPrompt(null)}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a78bfa', fontSize: 14, padding: 2 }}>
-              {'\u2715'}
-            </button>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {reflectionPrompt && !isLoadingReflection && (
+                <button onClick={async () => {
+                  if (!selectedId || !reflectionPrompt) return;
+                  const htmlContent = mdToHtml(reflectionPrompt);
+                  const metaLine = aiMeta.reflect ? `<div style="font-size:10px;color:#a78bfa;margin-top:2px">${aiMeta.reflect.model || ''} · ${new Date(aiMeta.reflect.timestamp).toLocaleString()}</div>` : '';
+                  const card = `<div style="margin:16px 0;padding:12px 16px;border-radius:10px;background:linear-gradient(135deg,#f5f3ff 0%,#ede9fe 100%);border:1px solid #ddd6fe"><div style="font-size:12px;font-weight:600;color:#7c3aed;margin-bottom:2px">💭 Reflection Prompt</div>${metaLine}<div style="font-size:14px;color:#374151;line-height:1.6;font-style:italic;margin-top:6px">${htmlContent}</div></div>`;
+                  const newContent = (selectedEntry?.content || '') + card;
+                  await journalStorage.updateEntry(selectedId, { content: newContent });
+                  setEntries(prev => prev.map(e => e.id === selectedId ? { ...e, content: newContent } : e));
+                  if (editorRef.current) editorRef.current.innerHTML = newContent;
+                  setReflectionPrompt(null);
+                }} style={{ background: 'none', border: '1px solid #c4b5fd', borderRadius: 4, cursor: 'pointer', color: '#7c3aed', fontSize: 11, padding: '2px 8px' }}>
+                  📌 Save to note
+                </button>
+              )}
+              <button onClick={() => setReflectionPrompt(null)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a78bfa', fontSize: 14, padding: 2 }}>
+                {'\u2715'}
+              </button>
+            </div>
           </div>
           <div style={{ fontSize: 14, color: '#374151', lineHeight: 1.6, fontStyle: 'italic' }}>
             <LazyMarkdown>{reflectionPrompt || ''}</LazyMarkdown>
@@ -1525,7 +1542,11 @@ const JournalView: React.FC<JournalViewProps> = ({
                 {scriptureSuggestions.length > 0 && (
                   <button onClick={async () => {
                     if (!selectedId) return;
-                    const refs = scriptureSuggestions.map(s => `<div style="margin:4px 0;padding:6px 10px;border-radius:6px;background:rgba(255,255,255,0.6);border:1px solid #dbeafe"><strong style="color:#2563eb">${s.reference}</strong><div style="font-size:12px;color:#6b7280;margin-top:2px">${s.reason}</div></div>`).join('');
+                    const refs = scriptureSuggestions.map(s => {
+                      // Build a search URL for the verse reference
+                      const searchUrl = `https://www.biblegateway.com/passage/?search=${encodeURIComponent(s.reference)}&version=CUVS`;
+                      return `<div style="margin:4px 0;padding:6px 10px;border-radius:6px;background:rgba(255,255,255,0.6);border:1px solid #dbeafe"><a href="${searchUrl}" target="_blank" rel="noopener noreferrer" style="font-size:13px;font-weight:600;color:#2563eb;text-decoration:underline;cursor:pointer">${s.reference}</a><div style="font-size:12px;color:#6b7280;margin-top:2px">${s.reason}</div></div>`;
+                    }).join('');
                     const metaLine = `<div style="font-size:10px;color:#93c5fd;margin-top:2px">${new Date().toLocaleString()}</div>`;
                     const card = `<div style="margin:16px 0;padding:12px 16px;border-radius:10px;background:linear-gradient(135deg,#eff6ff 0%,#dbeafe 100%);border:1px solid #bfdbfe"><div style="font-size:12px;font-weight:600;color:#2563eb;margin-bottom:2px">📖 Related Scripture</div>${metaLine}<div style="margin-top:6px">${refs}</div></div>`;
                     const newContent = (selectedEntry?.content || '') + card;
