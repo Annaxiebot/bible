@@ -10,10 +10,12 @@ class BookmarkStorageService {
       ...bookmark,
       createdAt: Date.now(),
     });
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('bookmark-updated'));
   }
 
   async removeBookmark(id: string): Promise<void> {
     await idbService.delete('bookmarks', id);
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('bookmark-updated'));
   }
 
   async isBookmarked(id: string): Promise<boolean> {
