@@ -11,11 +11,14 @@ permissions:
   contents: write
   pull-requests: write
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   preview:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Compute safe branch name
         id: branch
@@ -25,7 +28,7 @@ jobs:
           echo "name=$SAFE" >> $GITHUB_OUTPUT
           echo "url=https://annaxiebot.github.io/bible/preview/$SAFE/" >> $GITHUB_OUTPUT
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: '20'
           cache: 'npm'
