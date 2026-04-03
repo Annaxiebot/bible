@@ -484,10 +484,9 @@ async function syncVerseData(): Promise<void> {
     await verseDataStorage.importData([remoteVerseData], 'merge');
   }
 
-  // Upload local verse data that is newer or doesn't exist remotely
-  const remoteIds = new Set((remoteRows || []).map((r: { verse_id: string }) => r.verse_id));
+  // Upload local verse data modified since last sync
   const dataToUpload = localData
-    .filter(local => !remoteIds.has(local.id))
+    .filter(local => new Date((local as any).updatedAt || 0).getTime() > syncState.lastVerseDataSync)
     .map(local => ({
       user_id: userId,
       verse_id: local.id,
@@ -570,10 +569,10 @@ async function syncBookmarks(): Promise<void> {
     }
   }
 
-  // Upload local bookmarks to remote — batch upsert
+  // Upload local bookmarks created since last sync or missing remotely
   const remoteIds = new Set((remoteBookmarks || []).map((r: { bookmark_id: string }) => r.bookmark_id));
   const bookmarksToUpload = localBookmarks
-    .filter(local => !remoteIds.has(local.id))
+    .filter(local => !remoteIds.has(local.id) && new Date(local.createdAt).getTime() > (getSyncState().lastBookmarksSync || 0))
     .map(local => ({
       user_id: userId,
       bookmark_id: local.id,
@@ -770,14 +769,12 @@ async function syncJournal(): Promise<void> {
     }
   }
 
-  // Upload local entries to remote
+  // Upload local entries modified since last sync
   const allLocal = await journalStorage.getAllEntries();
-  const remoteIds = new Set((remoteEntries || []).map((r: any) => r.id));
-  const toUpload = allLocal.filter(local => {
-    if (!remoteIds.has(local.id)) return true;
-    const remote = (remoteEntries || []).find((r: any) => r.id === local.id);
-    return remote && new Date(local.updatedAt).getTime() > new Date(remote.updated_at).getTime();
-  });
+  const lastSync = syncState.lastJournalSync;
+  const toUpload = allLocal.filter(local =>
+    new Date(local.updatedAt).getTime() > lastSync
+  );
 
   if (toUpload.length > 0) {
     const rows = toUpload.map(e => {
@@ -862,14 +859,11 @@ async function syncChatHistory(): Promise<void> {
     }
   }
 
-  // Upload local records that are newer or missing remotely
+  // Upload local records modified since last sync
   const allLocal = await idbService.getAll('chatHistory');
-  const remoteIds = new Set((remoteRecords || []).map((r: any) => r.id));
-  const toUpload = allLocal.filter(local => {
-    if (!remoteIds.has(local.id)) return true;
-    const remote = (remoteRecords || []).find((r: any) => r.id === local.id);
-    return remote && local.lastModified > remote.last_modified;
-  });
+  const toUpload = allLocal.filter(local =>
+    (local.lastModified || 0) > syncState.lastChatHistorySync
+  );
 
   if (toUpload.length > 0) {
     const rows = toUpload.map(e => ({
