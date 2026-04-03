@@ -1017,7 +1017,7 @@ export async function performIncrementalSync(): Promise<void> {
 authManager.subscribe(async (state) => {
   if (state.isAuthenticated && !state.isLoading) {
     try {
-      await performFullSync();
+      await performIncrementalSync();
     } catch {
       // silently handle
     }
