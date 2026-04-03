@@ -160,16 +160,25 @@ const JournalView: React.FC<JournalViewProps> = ({
     loadEntries();
   }, [loadEntries]);
 
-  // Manual sync: flush pending saves, push, pull, reload
+  // Manual sync: flush pending saves, pull from server, reload entries + editor
   const handleSync = async () => {
     if (isSyncing) return;
     setIsSyncing(true);
     try {
       await flushPendingSave();
       if (syncService.canSync()) {
-        await syncService.syncJournal();
+        await syncService.performIncrementalSync();
       }
-      await loadEntries();
+      // Reload entries from IndexedDB (now updated by sync)
+      const data = await journalStorage.getAllEntries();
+      setEntries(data);
+      // Update the editor content if the selected entry was updated
+      if (selectedId && editorRef.current) {
+        const updated = data.find(e => e.id === selectedId);
+        if (updated) {
+          editorRef.current.innerHTML = updated.content;
+        }
+      }
     } catch (err) {
       console.warn('[Journal] Sync failed:', err);
     } finally {
