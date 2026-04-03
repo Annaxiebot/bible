@@ -8,6 +8,7 @@ import { BIBLE_BOOKS } from '../constants';
 import { usePaperType } from '../hooks/usePaperType';
 import LazyMarkdown from './LazyMarkdown';
 import type { PaperType } from '../services/strokeNormalizer';
+import { syncService } from '../services/syncService';
 import {
   suggestTags,
   findRelatedEntries,
@@ -145,6 +146,7 @@ const JournalView: React.FC<JournalViewProps> = ({
   const [proactiveSuggestion, setProactiveSuggestion] = useState<string | null>(null);
   const [isLoadingProactive, setIsLoadingProactive] = useState(false);
   const memorySaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   // Load entries
   const loadEntries = useCallback(async () => {
@@ -157,6 +159,23 @@ const JournalView: React.FC<JournalViewProps> = ({
   useEffect(() => {
     loadEntries();
   }, [loadEntries]);
+
+  // Manual sync: flush pending saves, push, pull, reload
+  const handleSync = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    try {
+      await flushPendingSave();
+      if (syncService.canSync()) {
+        await syncService.syncJournal();
+      }
+      await loadEntries();
+    } catch (err) {
+      console.warn('[Journal] Sync failed:', err);
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   // Create new entry with auto-location
   const handleNew = async () => {
@@ -538,7 +557,25 @@ const JournalView: React.FC<JournalViewProps> = ({
   // ---------------------------------------------------------------
   const [mobileShowEditor, setMobileShowEditor] = useState(false);
 
-  const selectEntry = (id: string) => {
+  // Flush any pending auto-save before switching notes
+  const flushPendingSave = useCallback(async () => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+      // Save the current entry's state from the editor
+      if (selectedId && editorRef.current) {
+        const html = editorRef.current.innerHTML;
+        const plainText = editorRef.current.innerText || '';
+        const firstLine = plainText.split('\n').find((l) => l.trim()) || '';
+        const title = truncate(firstLine, 80);
+        await journalStorage.updateEntry(selectedId, { content: html, plainText, title });
+        window.dispatchEvent(new Event('journal-updated-now'));
+      }
+    }
+  }, [selectedId]);
+
+  const selectEntry = async (id: string) => {
+    await flushPendingSave();
     setSelectedId(id);
     if (isMobile) setMobileShowEditor(true);
   };
@@ -594,6 +631,28 @@ const JournalView: React.FC<JournalViewProps> = ({
               <path d="M21 21l-4.35-4.35" />
             </svg>
           </div>
+          <button
+            onClick={handleSync}
+            disabled={isSyncing}
+            title="Sync journal"
+            style={{
+              background: isSyncing ? '#e5e7eb' : '#f3f4f6',
+              color: '#6b7280',
+              border: 'none',
+              borderRadius: 8,
+              width: 34,
+              height: 34,
+              fontSize: 16,
+              cursor: isSyncing ? 'default' : 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+              animation: isSyncing ? 'spin 1s linear infinite' : 'none',
+            }}
+          >
+            {'\u21BB'}
+          </button>
           <button
             onClick={handleNew}
             title="New entry"
@@ -1288,6 +1347,7 @@ const JournalView: React.FC<JournalViewProps> = ({
                   const card = `<div style="margin:16px 0;padding:12px 16px;border-radius:10px;background:linear-gradient(135deg,#f5f3ff 0%,#ede9fe 100%);border:1px solid #ddd6fe"><div style="font-size:12px;font-weight:600;color:#7c3aed;margin-bottom:2px">💭 Reflection Prompt</div>${metaLine}<div style="font-size:14px;color:#374151;line-height:1.6;font-style:italic;margin-top:6px">${htmlContent}</div></div>`;
                   const newContent = (selectedEntry?.content || '') + card;
                   await journalStorage.updateEntry(selectedId, { content: newContent });
+                  window.dispatchEvent(new Event('journal-updated-now'));
                   setEntries(prev => prev.map(e => e.id === selectedId ? { ...e, content: newContent } : e));
                   if (editorRef.current) editorRef.current.innerHTML = newContent;
                   setReflectionPrompt(null);
@@ -1464,6 +1524,7 @@ const JournalView: React.FC<JournalViewProps> = ({
                     const card = `<div style="margin:16px 0;padding:12px 16px;border-radius:10px;background:linear-gradient(135deg,#f0fdf4 0%,#dcfce7 100%);border:1px solid #bbf7d0"><div style="font-size:12px;font-weight:600;color:#16a34a;margin-bottom:2px">🔭 Extended Thinking</div>${metaLine}<div style="font-size:14px;color:#374151;line-height:1.6;margin-top:6px">${htmlContent}</div></div>`;
                     const newContent = (selectedEntry?.content || '') + card;
                     await journalStorage.updateEntry(selectedId, { content: newContent });
+                    window.dispatchEvent(new Event('journal-updated-now'));
                     setEntries(prev => prev.map(e => e.id === selectedId ? { ...e, content: newContent } : e));
                     if (editorRef.current) editorRef.current.innerHTML = newContent;
                     setExtendResult(null); // Dismiss card — content is now in the editor
@@ -1512,6 +1573,7 @@ const JournalView: React.FC<JournalViewProps> = ({
                     const card = `<div style="margin:16px 0;padding:12px 16px;border-radius:10px;background:linear-gradient(135deg,#fefce8 0%,#fef9c3 100%);border:1px solid #fde68a"><div style="font-size:12px;font-weight:600;color:#ca8a04;margin-bottom:2px">📋 Summary</div>${metaLine}<div style="font-size:14px;color:#374151;line-height:1.6;margin-top:6px">${htmlContent}</div></div>`;
                     const newContent = (selectedEntry?.content || '') + card;
                     await journalStorage.updateEntry(selectedId, { content: newContent });
+                    window.dispatchEvent(new Event('journal-updated-now'));
                     setEntries(prev => prev.map(e => e.id === selectedId ? { ...e, content: newContent } : e));
                     if (editorRef.current) editorRef.current.innerHTML = newContent;
                     setSummaryResult(null);
@@ -1564,6 +1626,7 @@ const JournalView: React.FC<JournalViewProps> = ({
                     const card = `<div style="margin:16px 0;padding:12px 16px;border-radius:10px;background:linear-gradient(135deg,#eff6ff 0%,#dbeafe 100%);border:1px solid #bfdbfe"><div style="font-size:12px;font-weight:600;color:#2563eb;margin-bottom:2px">📖 Related Scripture</div>${metaLine}<div style="margin-top:6px">${refs}</div></div>`;
                     const newContent = (selectedEntry?.content || '') + card;
                     await journalStorage.updateEntry(selectedId, { content: newContent });
+                    window.dispatchEvent(new Event('journal-updated-now'));
                     setEntries(prev => prev.map(e => e.id === selectedId ? { ...e, content: newContent } : e));
                     if (editorRef.current) editorRef.current.innerHTML = newContent;
                     setScriptureSuggestions([]);
