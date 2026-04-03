@@ -347,6 +347,9 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
       }
     }).catch(() => {});
 
+    // Mark settings dirty for incremental sync
+    import('../services/syncService').then(({ notifySettingsChanged }) => notifySettingsChanged()).catch(() => {});
+
     onClose();
   };
 

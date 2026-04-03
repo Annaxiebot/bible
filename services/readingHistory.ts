@@ -93,6 +93,7 @@ class ReadingHistory {
     const trimmedHistory = filteredHistory.slice(0, this.MAX_HISTORY_ITEMS);
 
     safeSetJSON(this.HISTORY_KEY, trimmedHistory);
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('readinghistory-updated'));
   }
 
   // Get reading history

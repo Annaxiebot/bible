@@ -73,6 +73,72 @@ function setSyncState(state: Partial<SyncState>) {
 }
 
 // =====================================================
+// MODULE TIMESTAMPS (per-module last-modified tracking)
+// =====================================================
+
+type SyncModule =
+  | 'notes' | 'annotations' | 'readingHistory' | 'settings'
+  | 'verseData' | 'bookmarks' | 'bibleCache' | 'journal' | 'chatHistory';
+
+const ALL_MODULES: SyncModule[] = [
+  'notes', 'annotations', 'readingHistory', 'settings',
+  'verseData', 'bookmarks', 'bibleCache', 'journal', 'chatHistory',
+];
+
+const MODULE_TS_KEY = 'bible_sync_module_timestamps';
+
+function getLocalTimestamps(): Record<SyncModule, number> {
+  try {
+    const data = localStorage.getItem(MODULE_TS_KEY);
+    const parsed = data ? JSON.parse(data) : {};
+    const result: Record<string, number> = {};
+    for (const m of ALL_MODULES) result[m] = parsed[m] || 0;
+    return result as Record<SyncModule, number>;
+  } catch { return Object.fromEntries(ALL_MODULES.map(m => [m, 0])) as Record<SyncModule, number>; }
+}
+
+function setLocalTimestamp(module: SyncModule, ts: number): void {
+  const current = getLocalTimestamps();
+  current[module] = ts;
+  localStorage.setItem(MODULE_TS_KEY, JSON.stringify(current));
+}
+
+async function updateServerTimestamp(module: SyncModule, ts: number): Promise<void> {
+  if (!supabase || !canSync()) return;
+  const userId = authManager.getUserId();
+  if (!userId) return;
+  try {
+    await supabase.from('sync_metadata').upsert(
+      { user_id: userId, module, last_modified: ts, updated_at: new Date(ts).toISOString() },
+      { onConflict: 'user_id,module' }
+    );
+  } catch { /* fire-and-forget */ }
+}
+
+async function fetchServerTimestamps(): Promise<Record<string, number>> {
+  if (!supabase || !canSync()) return {};
+  const userId = authManager.getUserId();
+  if (!userId) return {};
+  const { data } = await supabase
+    .from('sync_metadata')
+    .select('module, last_modified')
+    .eq('user_id', userId);
+  const result: Record<string, number> = {};
+  for (const row of data || []) result[row.module] = row.last_modified;
+  return result;
+}
+
+function stampModule(module: SyncModule): void {
+  const ts = Date.now();
+  setLocalTimestamp(module, ts);
+  updateServerTimestamp(module, ts); // fire-and-forget
+}
+
+export function notifySettingsChanged(): void {
+  if (typeof window !== 'undefined') window.dispatchEvent(new Event('settings-updated'));
+}
+
+// =====================================================
 // NOTES SYNC
 // =====================================================
 
@@ -866,75 +932,157 @@ export async function performFullSync(): Promise<void> {
       syncManager.stepDone(step.name);
     }
 
+    // Update all module timestamps after full sync
+    const ts = Date.now();
+    for (const m of ALL_MODULES) setLocalTimestamp(m, ts);
+    if (supabase && canSync()) {
+      const userId = authManager.getUserId();
+      if (userId) {
+        const rows = ALL_MODULES.map(m => ({
+          user_id: userId, module: m, last_modified: ts, updated_at: new Date(ts).toISOString(),
+        }));
+        try { await supabase.from('sync_metadata').upsert(rows, { onConflict: 'user_id,module' }); } catch {}
+      }
+    }
+
     syncManager.setStatus('idle');
   } catch (error) {
-    // TODO: use error reporting service
     syncManager.setStatus('error', error instanceof Error ? error.message : 'Sync failed');
     throw error;
   }
 }
 
 // =====================================================
-// AUTO SYNC ON AUTH STATE CHANGE
+// INCREMENTAL SYNC (timestamp-based, only changed modules)
+// =====================================================
+
+const MODULE_SYNC_MAP: Record<SyncModule, { name: string; fn: () => Promise<void> }> = {
+  notes:          { name: 'Notes', fn: syncNotes },
+  annotations:    { name: 'Annotations', fn: syncAnnotations },
+  readingHistory: { name: 'Reading History', fn: syncReadingHistory },
+  settings:       { name: 'Settings', fn: syncSettings },
+  verseData:      { name: 'Verse Data', fn: syncVerseData },
+  bookmarks:      { name: 'Bookmarks', fn: syncBookmarks },
+  bibleCache:     { name: 'Bible Cache', fn: syncBibleCache },
+  journal:        { name: 'Journal', fn: syncJournal },
+  chatHistory:    { name: 'Chat History', fn: syncChatHistory },
+};
+
+export async function performIncrementalSync(): Promise<void> {
+  if (!canSync()) return;
+
+  try {
+    // Fetch server timestamps (one lightweight query)
+    const serverTs = await fetchServerTimestamps();
+    const localTs = getLocalTimestamps();
+
+    // Find modules where server is newer than local
+    const stale: SyncModule[] = ALL_MODULES.filter(m =>
+      (serverTs[m] || 0) > (localTs[m] || 0)
+    );
+
+    if (stale.length === 0) return; // Nothing to sync
+
+    const steps = stale.map(m => ({ ...MODULE_SYNC_MAP[m], module: m }));
+
+    syncManager.resetCancelled();
+    syncManager.startSync(steps.length);
+
+    const withTimeout = (fn: () => Promise<void>, ms = 15000) =>
+      Promise.race([fn(), new Promise<void>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))]);
+
+    for (const step of steps) {
+      if (syncManager.isCancelled() || !canSync()) break;
+      syncManager.stepStart(step.name);
+      try {
+        await withTimeout(step.fn);
+        // After successful download, update local timestamp to match server
+        setLocalTimestamp(step.module, serverTs[step.module] || Date.now());
+      } catch {
+        // Failed modules will retry on next cycle
+      }
+      syncManager.stepDone(step.name);
+    }
+
+    syncManager.setStatus('idle');
+  } catch (error) {
+    syncManager.setStatus('error', error instanceof Error ? error.message : 'Sync failed');
+  }
+}
+
+// =====================================================
+// AUTO SYNC ON AUTH STATE CHANGE (full sync on login)
 // =====================================================
 
 authManager.subscribe(async (state) => {
   if (state.isAuthenticated && !state.isLoading) {
     try {
       await performFullSync();
-    } catch (error) {
+    } catch {
       // silently handle
     }
   }
 });
 
 // =====================================================
-// PERIODIC SYNC (every 5 minutes when authenticated)
+// PERIODIC SYNC (every 5 minutes — incremental only)
 // =====================================================
 
 if (typeof window !== 'undefined') {
   setInterval(() => {
     if (canSync() && syncManager.getStatus() === 'idle') {
-      performFullSync().catch(() => {
-        // silently handle
-      });
+      performIncrementalSync().catch(() => {});
     }
-  }, 5 * 60 * 1000); // 5 minutes
+  }, 5 * 60 * 1000);
 }
 
 // =====================================================
-// SYNC ON TAB VISIBILITY (e.g. switch back to app)
+// SYNC ON TAB VISIBILITY (incremental — timestamp check)
 // =====================================================
 
 if (typeof window !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && canSync() && syncManager.getStatus() === 'idle') {
-      performFullSync().catch(() => {});
+      performIncrementalSync().catch(() => {});
     }
   });
 }
 
 // =====================================================
-// BACKGROUND SYNC ON LOCAL CHANGES
+// BACKGROUND PUSH ON LOCAL CHANGES (per-module, debounced)
 // =====================================================
 
-let bgSyncTimer: ReturnType<typeof setTimeout> | null = null;
+const pushTimers: Partial<Record<SyncModule, ReturnType<typeof setTimeout>>> = {};
 
-function scheduleBgSync() {
-  if (!canSync() || syncManager.getStatus() === 'syncing') return;
-  if (bgSyncTimer) clearTimeout(bgSyncTimer);
-  // Debounce 5 seconds so rapid changes don't flood the server
-  bgSyncTimer = setTimeout(() => {
-    performFullSync().catch(() => {});
+function schedulePush(module: SyncModule) {
+  if (!canSync()) return;
+  if (pushTimers[module]) clearTimeout(pushTimers[module]);
+  pushTimers[module] = setTimeout(async () => {
+    if (!canSync()) return;
+    try {
+      // Run the module's sync function (uploads local changes)
+      await MODULE_SYNC_MAP[module].fn();
+      // Stamp the module timestamp locally and on server
+      stampModule(module);
+    } catch { /* silently handle */ }
   }, 5000);
 }
 
 if (typeof window !== 'undefined') {
-  window.addEventListener('versedata-updated', scheduleBgSync);
-  window.addEventListener('annotation-updated', scheduleBgSync);
-  window.addEventListener('bookmark-updated', scheduleBgSync);
-  window.addEventListener('bible-cache-updated', scheduleBgSync);
-  window.addEventListener('chathistory-updated', scheduleBgSync);
+  const eventToModule: Record<string, SyncModule> = {
+    'versedata-updated': 'verseData',
+    'annotation-updated': 'annotations',
+    'chathistory-updated': 'chatHistory',
+    'bookmark-updated': 'bookmarks',
+    'bible-cache-updated': 'bibleCache',
+    'notes-updated': 'notes',
+    'journal-updated': 'journal',
+    'readinghistory-updated': 'readingHistory',
+    'settings-updated': 'settings',
+  };
+  for (const [event, module] of Object.entries(eventToModule)) {
+    window.addEventListener(event, () => schedulePush(module));
+  }
 }
 
 // =====================================================
@@ -943,6 +1091,8 @@ if (typeof window !== 'undefined') {
 
 export const syncService = {
   performFullSync,
+  performIncrementalSync,
+  notifySettingsChanged,
   syncNotes,
   syncAnnotations,
   syncReadingHistory,
