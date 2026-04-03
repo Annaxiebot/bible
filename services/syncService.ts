@@ -1025,7 +1025,7 @@ authManager.subscribe(async (state) => {
 });
 
 // =====================================================
-// PERIODIC SYNC (every 5 minutes — incremental only)
+// PERIODIC SYNC (every 1 minute — incremental only)
 // =====================================================
 
 if (typeof window !== 'undefined') {
@@ -1033,7 +1033,7 @@ if (typeof window !== 'undefined') {
     if (canSync() && syncManager.getStatus() === 'idle') {
       performIncrementalSync().catch(() => {});
     }
-  }, 5 * 60 * 1000);
+  }, 60 * 1000);
 }
 
 // =====================================================
@@ -1054,10 +1054,10 @@ if (typeof window !== 'undefined') {
 
 const pushTimers: Partial<Record<SyncModule, ReturnType<typeof setTimeout>>> = {};
 
-function schedulePush(module: SyncModule) {
+function schedulePush(module: SyncModule, immediate = false) {
   if (!canSync()) return;
   if (pushTimers[module]) clearTimeout(pushTimers[module]);
-  pushTimers[module] = setTimeout(async () => {
+  const run = async () => {
     if (!canSync()) return;
     try {
       // Run the module's sync function (uploads local changes)
@@ -1065,7 +1065,12 @@ function schedulePush(module: SyncModule) {
       // Stamp the module timestamp locally and on server
       stampModule(module);
     } catch { /* silently handle */ }
-  }, 5000);
+  };
+  if (immediate) {
+    run();
+  } else {
+    pushTimers[module] = setTimeout(run, 5000);
+  }
 }
 
 if (typeof window !== 'undefined') {
@@ -1082,6 +1087,10 @@ if (typeof window !== 'undefined') {
   };
   for (const [event, module] of Object.entries(eventToModule)) {
     window.addEventListener(event, () => schedulePush(module));
+  }
+  // Immediate sync events — bypass debounce for deliberate user actions (e.g. "Save to note")
+  for (const [event, module] of Object.entries(eventToModule)) {
+    window.addEventListener(`${event}-now`, () => schedulePush(module, true));
   }
 }
 
