@@ -26,6 +26,7 @@ export interface StreamResult {
   model?: string;
   provider?: string;
   timestamp: string;
+  racePool?: any[];
 }
 
 /**
@@ -39,6 +40,7 @@ export async function streamAI(
   const timestamp = new Date().toISOString();
   let model: string | undefined;
   let provider: string | undefined;
+  let racePool: any[] | undefined;
 
   const useServer = localStorage.getItem('useServerAI') !== 'false';
 
@@ -46,7 +48,7 @@ export async function streamAI(
     await streamViaEdgeFunction(
       prompt, [], { fast: true },
       onChunk,
-      (m, p) => { model = m; provider = p; },
+      (m, p, pool) => { model = m; provider = p; racePool = pool; },
       (err) => { throw err; },
     );
   } else {
@@ -58,7 +60,7 @@ export async function streamAI(
     onChunk(text);
   }
 
-  return { model: model || getCurrentModel() || getCurrentProvider(), provider, timestamp };
+  return { model: model || getCurrentModel() || getCurrentProvider(), provider, timestamp, racePool };
 }
 
 // ─── Stop words for keyword extraction ─────────────────────────────────────
