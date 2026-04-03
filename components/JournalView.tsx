@@ -167,7 +167,7 @@ const JournalView: React.FC<JournalViewProps> = ({
     try {
       await flushPendingSave();
       if (syncService.canSync()) {
-        await syncService.performIncrementalSync();
+        await syncService.syncJournal();
       }
       // Reload entries from IndexedDB (now updated by sync)
       const data = await journalStorage.getAllEntries();
