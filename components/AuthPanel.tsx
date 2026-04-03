@@ -43,7 +43,7 @@ export function AuthPanel() {
     setError('');
     setMessage('');
     try {
-      await syncService.performFullSync();
+      await syncService.performIncrementalSync();
       setMessage('Sync completed!');
     } catch (err) {
       setError('Sync failed: ' + (err instanceof Error ? err.message : 'Unknown error'));
