@@ -464,37 +464,90 @@ export interface ScriptureSuggestion {
 
 /**
  * Find Bible verses relevant to the journal entry text.
+ * Uses streaming (same path as Chat) for reliability, with JSON + regex fallback parsing.
  */
-export async function findRelatedScripture(text: string): Promise<ScriptureSuggestion[]> {
-  if (!text.trim() || text.trim().length < 10) return [];
+export async function findRelatedScripture(text: string): Promise<{ results: ScriptureSuggestion[]; meta: StreamResult }> {
+  if (!text.trim() || text.trim().length < 10) return { results: [], meta: { timestamp: new Date().toISOString() } };
 
-  try {
-    const result = await chatWithAI(
-      `${SCRIPTURE_PROMPT}\n\nJournal entry:\n${text.slice(0, 2000)}`,
-      [],
-      { fast: true }
-    );
-    const responseText = typeof result === 'string' ? result : result.text;
+  // Collect full response via streaming (same reliable path as Chat)
+  let responseText = '';
+  const meta = await streamAI(
+    `${SCRIPTURE_PROMPT}\n\nJournal entry:\n${text.slice(0, 2000)}`,
+    (chunk) => { responseText += chunk; },
+  );
 
-    const jsonMatch = responseText.match(/\[[\s\S]*?\]/);
-    if (!jsonMatch) return [];
-
-    const parsed = JSON.parse(jsonMatch[0]);
-    if (!Array.isArray(parsed)) return [];
-
-    return parsed
-      .filter(
-        (item: unknown): item is { reference: string; reason: string } =>
-          typeof item === 'object' &&
-          item !== null &&
-          typeof (item as any).reference === 'string' &&
-          typeof (item as any).reason === 'string'
-      )
-      .slice(0, 5);
-  } catch (err) {
-    console.warn('[JournalAI] Scripture finder failed:', err);
-    return [];
+  if (!responseText.trim()) {
+    throw new Error('No response from AI');
   }
+
+  // Try JSON parsing first
+  const jsonResults = parseScriptureJSON(responseText);
+  if (jsonResults.length > 0) return { results: jsonResults, meta };
+
+  // Fallback: extract Bible references from plain text response
+  const fallbackResults = parseScriptureFromText(responseText);
+  if (fallbackResults.length > 0) return { results: fallbackResults, meta };
+
+  throw new Error('Could not find scripture suggestions in AI response');
+}
+
+/** Parse structured JSON array from AI response */
+function parseScriptureJSON(responseText: string): ScriptureSuggestion[] {
+  // Strip markdown code fences if present
+  const cleaned = responseText.replace(/```(?:json)?\s*/gi, '').replace(/```/g, '').trim();
+
+  const jsonMatch = cleaned.match(/\[[\s\S]*\]/);
+  if (!jsonMatch) return [];
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonMatch[0]);
+  } catch {
+    try {
+      const fixed = jsonMatch[0].replace(/,\s*\]/g, ']').replace(/,\s*\}/g, '}');
+      parsed = JSON.parse(fixed);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(parsed)) return [];
+
+  return parsed
+    .filter(
+      (item: unknown): item is { reference: string; reason: string } =>
+        typeof item === 'object' &&
+        item !== null &&
+        typeof (item as any).reference === 'string' &&
+        typeof (item as any).reason === 'string'
+    )
+    .slice(0, 5);
+}
+
+/** Fallback: extract Bible verse references from plain text */
+function parseScriptureFromText(text: string): ScriptureSuggestion[] {
+  // Match patterns like "Genesis 1:1", "1 John 3:16-17", "Psalm 23:1-6"
+  const versePattern = /(\d?\s?[A-Z][a-z]+(?:\s[A-Z][a-z]+)?)\s+(\d+:\d+(?:-\d+)?)/g;
+  const results: ScriptureSuggestion[] = [];
+  const seen = new Set<string>();
+  let match;
+
+  while ((match = versePattern.exec(text)) !== null && results.length < 5) {
+    const reference = `${match[1].trim()} ${match[2]}`;
+    if (seen.has(reference)) continue;
+    seen.add(reference);
+
+    // Try to extract a reason from surrounding text (the sentence containing the reference)
+    const idx = match.index;
+    const before = text.lastIndexOf('.', idx);
+    const after = text.indexOf('.', idx + match[0].length);
+    const sentence = text.slice(before + 1, after > -1 ? after : undefined).trim();
+    // Remove the reference itself from the reason
+    const reason = sentence.replace(match[0], '').replace(/^[\s,\-:—]+|[\s,\-:—]+$/g, '').trim();
+
+    results.push({ reference, reason: reason || 'Related to your journal entry' });
+  }
+
+  return results;
 }
 
 // ─── 9. Inline chat about entry (Phase 3) ─────────────────────────────────
