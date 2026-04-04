@@ -896,3 +896,52 @@ export function printJournalEntries(entries: JournalEntry[]) {
     printWindow.onload = () => setTimeout(() => printWindow.print(), TIMING.PRINT_WINDOW_DELAY_MS);
   }
 }
+
+// =====================================================
+// Block-aware Journal Print (full fidelity)
+// =====================================================
+
+import { generateJournalBlockPrintHTML, type JournalPrintOptions } from '../utils/journalPrintRenderer';
+import { journalStorage } from './journalStorage';
+
+function openPrintWindow(html: string) {
+  const printWindow = window.open('', '_blank');
+  if (printWindow) {
+    printWindow.document.write(html);
+    printWindow.document.close();
+    printWindow.onload = () => setTimeout(() => printWindow.print(), TIMING.PRINT_WINDOW_DELAY_MS);
+  }
+}
+
+/** Print a single journal entry by ID */
+export async function printJournalEntry(entryId: string, options?: JournalPrintOptions) {
+  const entry = await journalStorage.getEntry(entryId);
+  if (!entry) { alert('Journal entry not found.'); return; }
+  const html = generateJournalBlockPrintHTML([entry], options);
+  openPrintWindow(html);
+}
+
+/** Print multiple journal entries by IDs */
+export async function printJournalEntriesByIds(entryIds: string[], options?: JournalPrintOptions) {
+  if (entryIds.length === 0) { alert('No journal entries to print.'); return; }
+  const allEntries = await journalStorage.getAllEntries();
+  const idSet = new Set(entryIds);
+  const entries = allEntries.filter(e => idSet.has(e.id));
+  if (entries.length === 0) { alert('No journal entries found.'); return; }
+  const html = generateJournalBlockPrintHTML(entries, options);
+  openPrintWindow(html);
+}
+
+/** Print journal entries within a date range */
+export async function printJournalDateRange(startDate: string, endDate: string, options?: JournalPrintOptions) {
+  const from = new Date(startDate).getTime();
+  const to = new Date(endDate + 'T23:59:59').getTime();
+  const allEntries = await journalStorage.getAllEntries();
+  const entries = allEntries.filter(e => {
+    const t = new Date(e.createdAt).getTime();
+    return t >= from && t <= to;
+  });
+  if (entries.length === 0) { alert('No journal entries in this date range.'); return; }
+  const html = generateJournalBlockPrintHTML(entries, options);
+  openPrintWindow(html);
+}
