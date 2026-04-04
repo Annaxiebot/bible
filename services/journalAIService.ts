@@ -63,6 +63,113 @@ export async function streamAI(
   return { model: model || getCurrentModel() || getCurrentProvider(), provider, timestamp, racePool };
 }
 
+// ─── Configurable AI Prompts ──────────────────────────────────────────────
+
+const PROMPT_STORAGE_KEY = 'bible_journal_ai_prompts';
+const IDENTITY_STORAGE_KEY = 'bible_journal_agent_identity';
+
+export interface AgentIdentity {
+  name: string;
+  personality: string;
+}
+
+export const DEFAULT_IDENTITY: AgentIdentity = {
+  name: '',
+  personality: '',
+};
+
+export function getAgentIdentity(): AgentIdentity {
+  try {
+    const stored = localStorage.getItem(IDENTITY_STORAGE_KEY);
+    if (stored) return { ...DEFAULT_IDENTITY, ...JSON.parse(stored) };
+  } catch {}
+  return { ...DEFAULT_IDENTITY };
+}
+
+export function setAgentIdentity(identity: Partial<AgentIdentity>): void {
+  const current = getAgentIdentity();
+  localStorage.setItem(IDENTITY_STORAGE_KEY, JSON.stringify({ ...current, ...identity }));
+}
+
+export function resetAgentIdentity(): void {
+  localStorage.removeItem(IDENTITY_STORAGE_KEY);
+}
+
+/** Build system context prefix from agent identity */
+function getIdentityPrefix(): string {
+  const { name, personality } = getAgentIdentity();
+  const parts: string[] = [];
+  if (name) parts.push(`Your name is ${name}.`);
+  if (personality) parts.push(personality);
+  return parts.length > 0 ? parts.join(' ') + '\n\n' : '';
+}
+
+/** Get prompt with agent identity prepended (for user-facing features) */
+function getPromptWithIdentity(key: keyof JournalPromptConfig): string {
+  return getIdentityPrefix() + getPrompt(key);
+}
+
+export interface JournalPromptConfig {
+  tag: string;
+  digest: string;
+  reflection: string;
+  extend: string;
+  summarize: string;
+  scripture: string;
+  memory: string;
+  profile: string;
+  proactive: string;
+  chat: string;
+}
+
+export const DEFAULT_PROMPTS: JournalPromptConfig = {
+  tag: `Analyze this journal entry and suggest 3-5 tags. Categories: themes (forgiveness, faith, doubt, gratitude, prayer, love, hope, patience, wisdom, trust), emotions (joy, peace, struggle, hope, anxiety, comfort), and any Bible references mentioned. Return ONLY a JSON array of lowercase strings, e.g. ["faith","gratitude","romans 8"]. No other text.`,
+  digest: `Summarize these journal reflections from the past week. Highlight recurring themes, emotional patterns, and spiritual growth areas. Keep it concise (3-5 bullet points). Use markdown bullet points.`,
+  reflection: `You are a thoughtful spiritual companion. Based on the context below, generate ONE reflective question or prompt that would help the writer go deeper in their spiritual reflection. Keep it warm, open-ended, and 1-2 sentences max. Do not use quotes around the prompt. Do not add a prefix like "Prompt:" — just the prompt itself.`,
+  extend: `The user wrote this spiritual reflection. Gently extend their thinking — what deeper meaning might this have? How does it connect to broader spiritual themes? Keep the same tone and language. Write 2-3 short paragraphs.`,
+  summarize: `Summarize this journal entry into 2-3 key insights or takeaways. Use bullet points (markdown). Be concise — each point should be 1 sentence. Capture the spiritual/emotional essence.`,
+  scripture: `Based on this journal entry, suggest 3-5 relevant Bible verses. For each, provide:\n1. The reference (e.g. "Philippians 4:6-7")\n2. A brief explanation (1 sentence) of why it's relevant\n\nReturn as a JSON array of objects with "reference" and "reason" fields. Example:\n[{"reference":"Philippians 4:6-7","reason":"Speaks to finding peace through prayer instead of anxiety."}]\nReturn ONLY the JSON array. No other text.`,
+  memory: `Analyze this journal entry and extract any items worth remembering about the user. Categories:\n- "theme": recurring spiritual themes (e.g. "forgiveness", "seeking God's will")\n- "prayer": specific prayer requests or answered prayers\n- "growth": areas of spiritual growth or goals\n- "question": open spiritual questions the user is wrestling with\n\nReturn a JSON array of objects with "category" and "content" fields. Only include genuinely meaningful items (not every detail). Return an empty array [] if nothing stands out.\nExample: [{"category":"prayer","content":"Praying for healing for their mother"},{"category":"theme","content":"Finding peace through surrender"}]\nReturn ONLY the JSON array.`,
+  profile: `Based on these memory items about a person's spiritual journey, generate a brief spiritual profile. Organize into sections:\n\n**Key Themes**: The recurring spiritual themes in their journey (2-3 items)\n**Active Prayer Requests**: Current prayers and petitions (list each)\n**Growth Areas**: Where they are growing or want to grow (2-3 items)\n**Open Questions**: Spiritual questions they are exploring (list each)\n\nIf a category has no items, write "None recorded yet." Be warm and encouraging. Use markdown formatting.`,
+  proactive: `You are a thoughtful spiritual companion. Based on the user's context below, generate a brief, encouraging suggestion for their journaling session today. Keep it to 2-3 sentences. Be warm and specific (reference their actual themes/prayers if available). Do not use generic platitudes.`,
+  chat: `You are a thoughtful spiritual companion. The user is asking about their journal entry. Answer warmly and concisely.`,
+};
+
+export function getPrompt(key: keyof JournalPromptConfig): string {
+  try {
+    const stored = localStorage.getItem(PROMPT_STORAGE_KEY);
+    if (stored) {
+      const config = JSON.parse(stored);
+      if (config[key]) return config[key];
+    }
+  } catch {}
+  return DEFAULT_PROMPTS[key];
+}
+
+export function setPrompt(key: keyof JournalPromptConfig, value: string): void {
+  try {
+    const stored = localStorage.getItem(PROMPT_STORAGE_KEY);
+    const config = stored ? JSON.parse(stored) : {};
+    config[key] = value;
+    localStorage.setItem(PROMPT_STORAGE_KEY, JSON.stringify(config));
+  } catch {}
+}
+
+export function resetPrompt(key: keyof JournalPromptConfig): void {
+  try {
+    const stored = localStorage.getItem(PROMPT_STORAGE_KEY);
+    if (stored) {
+      const config = JSON.parse(stored);
+      delete config[key];
+      localStorage.setItem(PROMPT_STORAGE_KEY, JSON.stringify(config));
+    }
+  } catch {}
+}
+
+export function resetAllPrompts(): void {
+  localStorage.removeItem(PROMPT_STORAGE_KEY);
+}
+
 // ─── Stop words for keyword extraction ─────────────────────────────────────
 const STOP_WORDS = new Set([
   'a', 'an', 'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
@@ -122,7 +229,7 @@ export function extractSnippet(text: string, keywords: string[], maxLen = 120): 
 
 // ─── 1. Auto-tagging ───────────────────────────────────────────────────────
 
-const TAG_PROMPT = `Analyze this journal entry and suggest 3-5 tags. Categories: themes (forgiveness, faith, doubt, gratitude, prayer, love, hope, patience, wisdom, trust), emotions (joy, peace, struggle, hope, anxiety, comfort), and any Bible references mentioned. Return ONLY a JSON array of lowercase strings, e.g. ["faith","gratitude","romans 8"]. No other text.`;
+// Prompts are now configurable — see getPrompt() / DEFAULT_PROMPTS
 
 /**
  * Suggest tags for a journal entry using AI.
@@ -135,7 +242,7 @@ export async function suggestTags(entry: JournalEntry): Promise<string[]> {
 
   try {
     const result = await chatWithAI(
-      `${TAG_PROMPT}\n\nJournal entry:\n${text.slice(0, 2000)}`,
+      `${getPrompt('tag')}\n\nJournal entry:\n${text.slice(0, 2000)}`,
       [],
       { fast: true }
     );
@@ -230,7 +337,7 @@ export async function findRelatedEntries(
 
 // ─── 3. Weekly digest ───────────────────────────────────────────────────────
 
-const DIGEST_PROMPT = `Summarize these journal reflections from the past week. Highlight recurring themes, emotional patterns, and spiritual growth areas. Keep it concise (3-5 bullet points). Use markdown bullet points.`;
+// DIGEST_PROMPT — see getPrompt('digest')
 
 /** Get ISO week string for cache key: "YYYY-WW" */
 function getWeekKey(date: Date): string {
@@ -286,7 +393,7 @@ export async function generateWeeklyDigest(force = false): Promise<WeeklyDigest 
 
   try {
     const result = await chatWithAI(
-      `${DIGEST_PROMPT}\n\n${entriesText}`,
+      `${getPrompt('digest')}\n\n${entriesText}`,
       [],
       { fast: true }
     );
@@ -351,7 +458,7 @@ export async function getTimelineGroups(): Promise<TimelineGroup[]> {
 
 // ─── 5. Reflection prompts (Phase 3) ──────────────────────────────────────
 
-const REFLECTION_PROMPT = `You are a thoughtful spiritual companion. Based on the context below, generate ONE reflective question or prompt that would help the writer go deeper in their spiritual reflection. Keep it warm, open-ended, and 1-2 sentences max. Do not use quotes around the prompt. Do not add a prefix like "Prompt:" — just the prompt itself.`;
+// REFLECTION_PROMPT — see getPrompt('reflection')
 
 /**
  * Generate a contextual reflection prompt based on current entry,
@@ -386,7 +493,7 @@ export async function generateReflectionPrompt(
 
   try {
     const result = await chatWithAI(
-      `${REFLECTION_PROMPT}\n\n${parts.join('\n\n')}`,
+      `${getPromptWithIdentity('reflection')}\n\n${parts.join('\n\n')}`,
       [],
       { fast: true }
     );
@@ -400,7 +507,7 @@ export async function generateReflectionPrompt(
 
 // ─── 6. Extend thinking (Phase 3) ─────────────────────────────────────────
 
-const EXTEND_PROMPT = `The user wrote this spiritual reflection. Gently extend their thinking — what deeper meaning might this have? How does it connect to broader spiritual themes? Keep the same tone and language. Write 2-3 short paragraphs.`;
+// EXTEND_PROMPT — see getPrompt('extend')
 
 /**
  * Extend the user's thinking on selected text or the full entry.
@@ -411,7 +518,7 @@ export async function extendThinking(
 ): Promise<string> {
   if (!text.trim()) return '';
 
-  let prompt = `${EXTEND_PROMPT}\n\nUser's writing:\n${text.slice(0, 2000)}`;
+  let prompt = `${getPromptWithIdentity('extend')}\n\nUser's writing:\n${text.slice(0, 2000)}`;
 
   if (bibleContext?.bookName && bibleContext?.chapter) {
     prompt += `\n\nThey are currently reading: ${bibleContext.bookName} ${bibleContext.chapter}`;
@@ -428,7 +535,7 @@ export async function extendThinking(
 
 // ─── 7. Summarize (Phase 3) ───────────────────────────────────────────────
 
-const SUMMARIZE_PROMPT = `Summarize this journal entry into 2-3 key insights or takeaways. Use bullet points (markdown). Be concise — each point should be 1 sentence. Capture the spiritual/emotional essence.`;
+// SUMMARIZE_PROMPT — see getPrompt('summarize')
 
 /**
  * Condense a journal entry into 2-3 key insights.
@@ -438,7 +545,7 @@ export async function summarizeEntry(text: string): Promise<string> {
 
   try {
     const result = await chatWithAI(
-      `${SUMMARIZE_PROMPT}\n\nJournal entry:\n${text.slice(0, 3000)}`,
+      `${getPromptWithIdentity('summarize')}\n\nJournal entry:\n${text.slice(0, 3000)}`,
       [],
       { fast: true }
     );
@@ -451,13 +558,7 @@ export async function summarizeEntry(text: string): Promise<string> {
 
 // ─── 8. Scripture finder (Phase 3) ────────────────────────────────────────
 
-const SCRIPTURE_PROMPT = `Based on this journal entry, suggest 3-5 relevant Bible verses. For each, provide:
-1. The reference (e.g. "Philippians 4:6-7")
-2. A brief explanation (1 sentence) of why it's relevant
-
-Return as a JSON array of objects with "reference" and "reason" fields. Example:
-[{"reference":"Philippians 4:6-7","reason":"Speaks to finding peace through prayer instead of anxiety."}]
-Return ONLY the JSON array. No other text.`;
+// SCRIPTURE_PROMPT — see getPrompt('scripture')
 
 export interface ScriptureSuggestion {
   reference: string;
@@ -474,7 +575,7 @@ export async function findRelatedScripture(text: string): Promise<{ results: Scr
   // Collect full response via streaming (same reliable path as Chat)
   let responseText = '';
   const meta = await streamAI(
-    `${SCRIPTURE_PROMPT}\n\nJournal entry:\n${text.slice(0, 2000)}`,
+    `${getPrompt('scripture')}\n\nJournal entry:\n${text.slice(0, 2000)}`,
     (chunk) => { responseText += chunk; },
   );
 
@@ -566,7 +667,7 @@ export async function chatAboutEntry(
   if (!question.trim()) return '';
 
   const context: string[] = [
-    'You are a thoughtful spiritual companion. The user is asking about their journal entry. Answer warmly and concisely.',
+    getPromptWithIdentity('chat'),
   ];
 
   if (entryContent.trim()) {
@@ -594,15 +695,7 @@ export async function chatAboutEntry(
 
 // ─── 10. Memory extraction (Phase 4) ──────────────────────────────────────
 
-const MEMORY_EXTRACT_PROMPT = `Analyze this journal entry and extract any items worth remembering about the user. Categories:
-- "theme": recurring spiritual themes (e.g. "forgiveness", "seeking God's will")
-- "prayer": specific prayer requests or answered prayers
-- "growth": areas of spiritual growth or goals
-- "question": open spiritual questions the user is wrestling with
-
-Return a JSON array of objects with "category" and "content" fields. Only include genuinely meaningful items (not every detail). Return an empty array [] if nothing stands out.
-Example: [{"category":"prayer","content":"Praying for healing for their mother"},{"category":"theme","content":"Finding peace through surrender"}]
-Return ONLY the JSON array.`;
+// MEMORY_EXTRACT_PROMPT — see getPrompt('memory')
 
 export interface MemoryItem {
   category: 'theme' | 'prayer' | 'growth' | 'question';
@@ -621,7 +714,7 @@ export async function extractMemoryItems(
 
   try {
     const result = await chatWithAI(
-      `${MEMORY_EXTRACT_PROMPT}\n\nJournal entry:\n${entryText.slice(0, 2000)}`,
+      `${getPrompt('memory')}\n\nJournal entry:\n${entryText.slice(0, 2000)}`,
       [],
       { fast: true }
     );
@@ -671,14 +764,7 @@ export async function getMemoryContext(): Promise<SpiritualMemoryItem[]> {
 
 // ─── 11. Spiritual profile (Phase 4) ──────────────────────────────────────
 
-const PROFILE_PROMPT = `Based on these memory items about a person's spiritual journey, generate a brief spiritual profile. Organize into sections:
-
-**Key Themes**: The recurring spiritual themes in their journey (2-3 items)
-**Active Prayer Requests**: Current prayers and petitions (list each)
-**Growth Areas**: Where they are growing or want to grow (2-3 items)
-**Open Questions**: Spiritual questions they are exploring (list each)
-
-If a category has no items, write "None recorded yet." Be warm and encouraging. Use markdown formatting.`;
+// PROFILE_PROMPT — see getPrompt('profile')
 
 /**
  * Generate a spiritual profile from memory items.
@@ -709,7 +795,7 @@ export async function generateSpiritualProfile(
 
   try {
     const result = await chatWithAI(
-      `${PROFILE_PROMPT}\n\nMemory items:\n${contextLines}`,
+      `${getPromptWithIdentity('profile')}\n\nMemory items:\n${contextLines}`,
       [],
       { fast: true }
     );
@@ -722,7 +808,7 @@ export async function generateSpiritualProfile(
 
 // ─── 12. Proactive suggestions (Phase 4) ──────────────────────────────────
 
-const PROACTIVE_PROMPT = `You are a thoughtful spiritual companion. Based on the user's context below, generate a brief, encouraging suggestion for their journaling session today. Keep it to 2-3 sentences. Be warm and specific (reference their actual themes/prayers if available). Do not use generic platitudes.`;
+// PROACTIVE_PROMPT — see getPrompt('proactive')
 
 /**
  * Generate a proactive suggestion when opening the journal.
@@ -768,7 +854,7 @@ export async function generateProactiveSuggestion(
 
   try {
     const result = await chatWithAI(
-      `${PROACTIVE_PROMPT}\n\n${parts.join('\n')}`,
+      `${getPromptWithIdentity('proactive')}\n\n${parts.join('\n')}`,
       [],
       { fast: true }
     );

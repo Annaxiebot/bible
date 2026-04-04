@@ -28,6 +28,7 @@ class SpiritualMemoryService {
       updatedAt: now,
     };
     await idbService.put('spiritualMemory', item);
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('spiritualmemory-updated'));
     return item;
   }
 
@@ -45,11 +46,13 @@ class SpiritualMemoryService {
       updatedAt: new Date().toISOString(),
     };
     await idbService.put('spiritualMemory', updated);
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('spiritualmemory-updated'));
     return updated;
   }
 
   async deleteItem(id: string): Promise<void> {
     await idbService.delete('spiritualMemory', id);
+    if (typeof window !== 'undefined') window.dispatchEvent(new Event('spiritualmemory-updated'));
   }
 
   async getItem(id: string): Promise<SpiritualMemoryItem | null> {
