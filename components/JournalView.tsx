@@ -12,6 +12,9 @@ import { syncService } from '../services/syncService';
 import { spiritualMemory } from '../services/spiritualMemory';
 import type { SpiritualMemoryItem } from '../services/idbService';
 import JournalBlockEditor, { useBlockHistory } from './JournalBlockEditor';
+import JournalPrintDialog from './JournalPrintDialog';
+import { printJournalEntriesByIds } from '../services/printService';
+import type { JournalPrintOptions } from '../utils/journalPrintRenderer';
 import { type JournalBlock, migrateToBlocks, flattenBlocks, createTextBlock, createImageBlock } from '../types/journalBlocks';
 import {
   getPrompt, setPrompt, resetPrompt, DEFAULT_PROMPTS, type JournalPromptConfig,
@@ -157,6 +160,8 @@ const JournalView: React.FC<JournalViewProps> = ({
   const [isLoadingProactive, setIsLoadingProactive] = useState(false);
   const memorySaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
+  const [showPrintDialog, setShowPrintDialog] = useState(false);
 
   // Load entries
   const loadEntries = useCallback(async () => {
@@ -168,8 +173,11 @@ const JournalView: React.FC<JournalViewProps> = ({
 
   useEffect(() => {
     loadEntries();
-    // Re-read from IDB when another device syncs journal data
-    const onSynced = () => loadEntries();
+    // Re-read from IDB when another device syncs journal data (via Realtime)
+    const onSynced = () => {
+      loadEntries();
+      setLastSyncedAt(Date.now());
+    };
     window.addEventListener('journal-synced', onSynced);
     return () => window.removeEventListener('journal-synced', onSynced);
   }, [loadEntries]);
@@ -193,6 +201,7 @@ const JournalView: React.FC<JournalViewProps> = ({
           editorRef.current.innerHTML = updated.content;
         }
       }
+      setLastSyncedAt(Date.now());
     } catch (err) {
       console.warn('[Journal] Sync failed:', err);
     } finally {
@@ -696,10 +705,10 @@ const JournalView: React.FC<JournalViewProps> = ({
           <button
             onClick={handleSync}
             disabled={isSyncing}
-            title="Sync journal"
+            title={lastSyncedAt ? `Sync journal\nLast synced: ${new Date(lastSyncedAt).toLocaleTimeString()}` : 'Sync journal'}
             style={{
-              background: isSyncing ? '#e5e7eb' : '#f3f4f6',
-              color: '#6b7280',
+              background: isSyncing ? '#e5e7eb' : lastSyncedAt && Date.now() - lastSyncedAt < 5000 ? '#dcfce7' : '#f3f4f6',
+              color: lastSyncedAt && Date.now() - lastSyncedAt < 5000 ? '#16a34a' : '#6b7280',
               border: 'none',
               borderRadius: 8,
               width: 34,
@@ -711,6 +720,7 @@ const JournalView: React.FC<JournalViewProps> = ({
               justifyContent: 'center',
               flexShrink: 0,
               animation: isSyncing ? 'spin 1s linear infinite' : 'none',
+              transition: 'background 0.3s, color 0.3s',
             }}
           >
             {'\u21BB'}
@@ -1209,47 +1219,13 @@ const JournalView: React.FC<JournalViewProps> = ({
   };
 
   const handlePrint = useCallback(() => {
-    if (!selectedEntry) return;
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
+    setShowPrintDialog(true);
+  }, []);
 
-    // Get drawing as image data URL
-    let drawingImgHtml = '';
-    const canvas = canvasRef.current?.getCanvasElement();
-    if (canvas && selectedEntry.drawing) {
-      try {
-        const dataUrl = canvas.toDataURL('image/png');
-        drawingImgHtml = `<div style="margin:16px 0"><img src="${dataUrl}" style="max-width:100%;border:1px solid #e5e7eb;border-radius:8px" /></div>`;
-      } catch { /* ignore tainted canvas */ }
-    }
-
-    const title = selectedEntry.title || 'Untitled';
-    const date = formatDate(selectedEntry.createdAt, true);
-    const location = selectedEntry.locationName ? `<div style="color:#6b7280;font-size:13px;margin-bottom:4px">📍 ${selectedEntry.locationName}</div>` : '';
-    const verseRef = selectedEntry.verseRef ? `<div style="color:#6366f1;font-size:13px;margin-bottom:8px">${selectedEntry.verseRef}</div>` : '';
-    const tags = selectedEntry.tags?.length ? `<div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">${selectedEntry.tags.map(t => `<span style="background:#f3f4f6;padding:2px 8px;border-radius:12px;font-size:12px;color:#6b7280">${t}</span>`).join('')}</div>` : '';
-
-    const textContent = selectedEntry.content || '';
-
-    printWindow.document.write(`<!DOCTYPE html><html><head><title>${title}</title><style>
-      @media print { body { margin: 0.5in; } }
-      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 700px; margin: 0 auto; padding: 24px; color: #1f2937; line-height: 1.7; font-size: 15px; }
-      h1 { font-size: 22px; margin: 0 0 4px; }
-      img { max-width: 100%; height: auto; }
-      .meta { color: #9ca3af; font-size: 12px; margin-bottom: 8px; }
-    </style></head><body>
-      <h1>${title}</h1>
-      <div class="meta">${date}</div>
-      ${location}${verseRef}
-      <hr style="border:none;border-top:1px solid #e5e7eb;margin:12px 0" />
-      <div>${textContent}</div>
-      ${drawingImgHtml}
-      ${tags}
-    </body></html>`);
-    printWindow.document.close();
-    printWindow.focus();
-    setTimeout(() => printWindow.print(), 300);
-  }, [selectedEntry]);
+  const handlePrintSubmit = useCallback(async (entryIds: string[], options: JournalPrintOptions) => {
+    setShowPrintDialog(false);
+    await printJournalEntriesByIds(entryIds, options);
+  }, []);
 
   const execCommand = (cmd: string, value?: string) => {
     document.execCommand(cmd, false, value);
@@ -2175,11 +2151,21 @@ const JournalView: React.FC<JournalViewProps> = ({
     </div>
   );
 
+  const printDialog = showPrintDialog ? (
+    <JournalPrintDialog
+      entries={entries}
+      selectedEntryId={selectedId}
+      onPrint={handlePrintSubmit}
+      onClose={() => setShowPrintDialog(false)}
+    />
+  ) : null;
+
   // Mobile layout: show list or editor
   if (isMobile) {
     return (
       <div style={{ height: '100%', background: '#fff', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
         {mobileShowEditor && selectedEntry ? editorContent : listContent}
+        {printDialog}
       </div>
     );
   }
@@ -2208,6 +2194,7 @@ const JournalView: React.FC<JournalViewProps> = ({
         {listContent}
       </div>
       <div style={{ flex: 1, overflow: 'hidden' }}>{editorContent}</div>
+      {printDialog}
     </div>
   );
 };
