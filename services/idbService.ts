@@ -17,6 +17,7 @@
 import { openDB, IDBPDatabase, DBSchema, StoreNames, IndexNames, IndexKey, StoreValue } from 'idb';
 import { BibleResponse } from '../types';
 import { VerseData } from '../types/verseData';
+import type { JournalBlock } from '../types/journalBlocks';
 
 // ---------------------------------------------------------------------------
 // Types for stores (defined here to avoid circular imports)
@@ -79,9 +80,10 @@ export interface AnnotationRecord {
 export interface JournalEntry {
   id: string;
   title: string;
-  content: string; // HTML
+  content: string; // HTML (legacy / flattened from blocks)
   plainText: string;
-  drawing?: string; // Canvas data (strokes or data URL)
+  drawing?: string; // Canvas data (legacy / first drawing block)
+  blocks?: JournalBlock[]; // Block-based content (new format)
   latitude?: number;
   longitude?: number;
   locationName?: string; // reverse-geocoded address, e.g. "Near San Jose, CA"
