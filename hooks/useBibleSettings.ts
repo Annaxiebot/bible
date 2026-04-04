@@ -11,6 +11,10 @@ export function useBibleSettings() {
     return simplified;
   });
 
+  const [chineseVersion, setChineseVersion] = useState(() => {
+    return localStorage.getItem(STORAGE_KEYS.CHINESE_VERSION) || 'cuv';
+  });
+
   const [englishVersion, setEnglishVersion] = useState(() => {
     return localStorage.getItem(STORAGE_KEYS.ENGLISH_VERSION) || 'web';
   });
@@ -21,22 +25,32 @@ export function useBibleSettings() {
   });
 
   useEffect(() => {
-    const handleVersionChange = () => {
+    const handleEnglishVersionChange = () => {
       const version = localStorage.getItem(STORAGE_KEYS.ENGLISH_VERSION) || 'web';
       setEnglishVersion(version);
+    };
+
+    const handleChineseVersionChange = () => {
+      const version = localStorage.getItem(STORAGE_KEYS.CHINESE_VERSION) || 'cuv';
+      setChineseVersion(version);
     };
 
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === STORAGE_KEYS.ENGLISH_VERSION) {
         setEnglishVersion(e.newValue || 'web');
       }
+      if (e.key === STORAGE_KEYS.CHINESE_VERSION) {
+        setChineseVersion(e.newValue || 'cuv');
+      }
     };
 
-    window.addEventListener('bibleEnglishVersionChanged', handleVersionChange);
+    window.addEventListener('bibleEnglishVersionChanged', handleEnglishVersionChange);
+    window.addEventListener('bibleChineseVersionChanged', handleChineseVersionChange);
     window.addEventListener('storage', handleStorageChange);
 
     return () => {
-      window.removeEventListener('bibleEnglishVersionChanged', handleVersionChange);
+      window.removeEventListener('bibleEnglishVersionChanged', handleEnglishVersionChange);
+      window.removeEventListener('bibleChineseVersionChanged', handleChineseVersionChange);
       window.removeEventListener('storage', handleStorageChange);
     };
   }, []);
@@ -44,6 +58,8 @@ export function useBibleSettings() {
   return {
     isSimplified,
     setIsSimplified,
+    chineseVersion,
+    setChineseVersion,
     englishVersion,
     setEnglishVersion,
     fontSize,

@@ -3,7 +3,7 @@ import { idbService, ChapterStorageData, ChapterRecord } from './idbService';
 
 export type { ChapterStorageData } from './idbService';
 
-export type BibleTranslation = 'cuv' | 'web' | 'kjv' | 'asv';
+export type BibleTranslation = 'cuv' | 'cunp' | 'web' | 'kjv' | 'asv' | 'bbe' | 'ylt';
 
 class BibleStorageService {
   /** No-op: retained for backward compatibility. DB is initialized by idbService. */

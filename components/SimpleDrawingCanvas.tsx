@@ -39,6 +39,7 @@ export interface SimpleDrawingCanvasHandle {
   setColor: (color: string) => void;
   setSize: (size: number) => void;
   setPaperType: (type: PaperType) => void;
+  getCanvasElement: () => HTMLCanvasElement | null;
 }
 
 const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingCanvasProps>(
@@ -510,6 +511,8 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
         // Persist the paper type change
         onChange(serializeCanvasData(strokeDataRef.current));
       },
+
+      getCanvasElement: () => canvasRef.current,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }), [onChange, redrawStrokes, redrawBackground, applyToolSettings]);
 

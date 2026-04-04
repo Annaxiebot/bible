@@ -6,6 +6,7 @@ export const STORAGE_KEYS = {
 
   // User preferences
   ENGLISH_VERSION: 'bibleEnglishVersion',
+  CHINESE_VERSION: 'bibleChineseVersion',
   CHINESE_MODE: 'bibleChineseMode',
   FONT_SIZE: 'bibleFontSize',
   VIEW_LAYOUT: 'bibleViewLayout',

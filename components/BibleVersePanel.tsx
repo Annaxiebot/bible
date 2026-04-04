@@ -35,6 +35,7 @@ interface BibleVersePanelProps {
   swipeOffset?: number;
   isPageFlipping?: boolean;
   vibeVerseClassName?: string;
+  chineseVersion?: string;
   englishVersion?: string;
   onVerseClick: (verseNum: number, e: React.MouseEvent) => void;
   onScroll: () => void;
@@ -68,6 +69,7 @@ const BibleVersePanel: React.FC<BibleVersePanelProps> = ({
   swipeOffset = 0,
   isPageFlipping = false,
   vibeVerseClassName,
+  chineseVersion,
   englishVersion,
   onVerseClick,
   onScroll,
@@ -140,8 +142,9 @@ const BibleVersePanel: React.FC<BibleVersePanelProps> = ({
       : {}),
   };
 
+  const chineseLabels: Record<string, string> = { cuv: '和合本 CUV', cunp: '新標點 CUNP' };
   const label = isChinese
-    ? '和合本 CUV'
+    ? (chineseLabels[chineseVersion || 'cuv'] || (chineseVersion || 'cuv').toUpperCase())
     : `English (${(englishVersion || 'web').toUpperCase()})`;
 
   const fontClass = isChinese ? 'overflow-y-auto p-4 md:p-6 space-y-0.5 font-serif-sc border-r border-slate-100' : 'overflow-y-auto p-4 md:p-6 space-y-0.5 font-sans';
