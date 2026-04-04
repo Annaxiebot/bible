@@ -694,27 +694,63 @@ async function syncBibleCache(): Promise<void> {
 // =====================================================
 // JOURNAL SYNC
 // =====================================================
-// Supabase table DDL (run via dashboard):
-// CREATE TABLE journal (
-//   id TEXT PRIMARY KEY,
-//   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-//   title TEXT DEFAULT '',
-//   content TEXT DEFAULT '',
-//   plain_text TEXT DEFAULT '',
-//   drawing TEXT DEFAULT '',
-//   latitude DOUBLE PRECISION,
-//   longitude DOUBLE PRECISION,
-//   location_name TEXT,
-//   book_id TEXT,
-//   chapter INT,
-//   verse_ref TEXT,
-//   tags TEXT[] DEFAULT '{}',
-//   created_at TIMESTAMPTZ DEFAULT now(),
-//   updated_at TIMESTAMPTZ DEFAULT now()
-// );
-// CREATE INDEX idx_journal_user ON journal(user_id);
-// ALTER TABLE journal ENABLE ROW LEVEL SECURITY;
-// CREATE POLICY "Users can manage own journal" ON journal FOR ALL USING (auth.uid() = user_id);
+// Supabase table DDL: see database/journal-schema-update.sql
+// Key fields: id, user_id, title, content, plain_text, drawing,
+//   blocks (JSONB), latitude, longitude, location_name, book_id,
+//   chapter, verse_ref, tags, created_at, updated_at
+// Realtime enabled: ALTER PUBLICATION supabase_realtime ADD TABLE journal;
+
+/**
+ * Map a remote journal row (snake_case) to a local JournalEntry (camelCase).
+ * Shared by syncJournal() and the direct Realtime listener.
+ */
+function remoteToLocalJournal(remote: any): import('./idbService').JournalEntry {
+  return {
+    id: remote.id,
+    title: remote.title || '',
+    content: remote.content || '',
+    plainText: remote.plain_text || '',
+    drawing: remote.drawing || '',
+    blocks: remote.blocks || undefined,
+    latitude: remote.latitude,
+    longitude: remote.longitude,
+    locationName: remote.location_name,
+    bookId: remote.book_id,
+    chapter: remote.chapter,
+    verseRef: remote.verse_ref,
+    tags: remote.tags || [],
+    createdAt: remote.created_at,
+    updatedAt: remote.updated_at,
+  };
+}
+
+/**
+ * Map a local JournalEntry to a Supabase row for upload.
+ * Image sync strategy: Option A — base64 data URLs stored directly in blocks JSONB.
+ * Future enhancement (Option B): upload large images to Supabase Storage bucket
+ * and store storage URLs in blocks instead of base64, using the journal_media table.
+ */
+function localToRemoteJournal(e: import('./idbService').JournalEntry, userId: string): Record<string, any> {
+  const drawing = (e as any).drawing || '';
+  return {
+    id: e.id,
+    user_id: userId,
+    title: e.title,
+    content: e.content,
+    plain_text: e.plainText,
+    drawing: drawing.length > 512000 ? '' : drawing,
+    blocks: e.blocks || [],
+    latitude: e.latitude || null,
+    longitude: e.longitude || null,
+    location_name: e.locationName || null,
+    book_id: e.bookId || null,
+    chapter: e.chapter || null,
+    verse_ref: e.verseRef || null,
+    tags: e.tags || [],
+    created_at: e.createdAt,
+    updated_at: e.updatedAt,
+  };
+}
 
 async function syncJournal(): Promise<void> {
   if (!supabase || !canSync()) return;
@@ -756,42 +792,29 @@ async function syncJournal(): Promise<void> {
     remoteEntries = data || [];
   }
 
-  // Merge remote into local (remote wins on conflict)
+  // Merge remote into local (last-write-wins: remote wins on conflict)
   for (const remote of remoteEntries) {
     const local = await journalStorage.getEntry(remote.id);
     if (!local || new Date(remote.updated_at).getTime() > new Date(local.updatedAt).getTime()) {
+      const mapped = remoteToLocalJournal(remote);
       if (local) {
         await journalStorage.updateEntry(remote.id, {
-          title: remote.title,
-          content: remote.content,
-          plainText: remote.plain_text,
-          drawing: remote.drawing,
-          latitude: remote.latitude,
-          longitude: remote.longitude,
-          locationName: remote.location_name,
-          bookId: remote.book_id,
-          chapter: remote.chapter,
-          verseRef: remote.verse_ref,
-          tags: remote.tags || [],
+          title: mapped.title,
+          content: mapped.content,
+          plainText: mapped.plainText,
+          drawing: mapped.drawing,
+          blocks: mapped.blocks,
+          latitude: mapped.latitude,
+          longitude: mapped.longitude,
+          locationName: mapped.locationName,
+          bookId: mapped.bookId,
+          chapter: mapped.chapter,
+          verseRef: mapped.verseRef,
+          tags: mapped.tags,
         });
       } else {
         const { idbService } = await import('./idbService');
-        await idbService.put('journal', {
-          id: remote.id,
-          title: remote.title || '',
-          content: remote.content || '',
-          plainText: remote.plain_text || '',
-          drawing: remote.drawing || '',
-          latitude: remote.latitude,
-          longitude: remote.longitude,
-          locationName: remote.location_name,
-          bookId: remote.book_id,
-          chapter: remote.chapter,
-          verseRef: remote.verse_ref,
-          tags: remote.tags || [],
-          createdAt: remote.created_at,
-          updatedAt: remote.updated_at,
-        });
+        await idbService.put('journal', mapped);
       }
     }
   }
@@ -802,27 +825,7 @@ async function syncJournal(): Promise<void> {
   );
 
   if (toUpload.length > 0) {
-    const rows = toUpload.map(e => {
-      // Cap drawing data to 500KB to avoid timeout on large canvases
-      const drawing = (e as any).drawing || '';
-      return {
-      id: e.id,
-      user_id: userId,
-      title: e.title,
-      content: e.content,
-      plain_text: e.plainText,
-      drawing: drawing.length > 512000 ? '' : drawing,
-      latitude: e.latitude || null,
-      longitude: e.longitude || null,
-      location_name: e.locationName || null,
-      book_id: e.bookId || null,
-      chapter: e.chapter || null,
-      verse_ref: e.verseRef || null,
-      tags: e.tags || [],
-      created_at: e.createdAt,
-      updated_at: e.updatedAt,
-    };
-    });
+    const rows = toUpload.map(e => localToRemoteJournal(e, userId));
 
     for (let i = 0; i < rows.length; i += 50) {
       if (!canSync()) break;
@@ -1242,20 +1245,109 @@ function setupRealtimeSync(): void {
     .subscribe();
 }
 
+// =====================================================
+// DIRECT REALTIME: journal table (instant cross-device block sync)
+// =====================================================
+// Listens directly on the journal table for INSERT/UPDATE events
+// from the current user. This gives sub-second updates for blocks
+// (text, drawing, image) without waiting for the sync_metadata round-trip.
+
+let journalRealtimeChannel: ReturnType<typeof supabase.channel> | null = null;
+
+function setupJournalRealtimeSync(): void {
+  if (!supabase || !canSync()) return;
+  const userId = authManager.getUserId();
+  if (!userId) return;
+
+  // Clean up existing subscription
+  if (journalRealtimeChannel) {
+    supabase.removeChannel(journalRealtimeChannel);
+    journalRealtimeChannel = null;
+  }
+
+  journalRealtimeChannel = supabase.channel('journal-realtime')
+    .on(
+      'postgres_changes' as any,
+      { event: 'INSERT', schema: 'public', table: 'journal', filter: `user_id=eq.${userId}` },
+      (payload: any) => handleJournalRealtimeChange(payload)
+    )
+    .on(
+      'postgres_changes' as any,
+      { event: 'UPDATE', schema: 'public', table: 'journal', filter: `user_id=eq.${userId}` },
+      (payload: any) => handleJournalRealtimeChange(payload)
+    )
+    .on(
+      'postgres_changes' as any,
+      { event: 'DELETE', schema: 'public', table: 'journal', filter: `user_id=eq.${userId}` },
+      async (payload: any) => {
+        const oldId = payload.old?.id;
+        if (!oldId) return;
+        try {
+          const { journalStorage } = await import('./journalStorage');
+          await journalStorage.deleteEntry(oldId);
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new Event('journal-synced'));
+          }
+        } catch {}
+      }
+    )
+    .subscribe();
+}
+
+async function handleJournalRealtimeChange(payload: any): Promise<void> {
+  const remote = payload.new;
+  if (!remote?.id) return;
+
+  try {
+    const { journalStorage } = await import('./journalStorage');
+    const { idbService } = await import('./idbService');
+    const local = await journalStorage.getEntry(remote.id);
+
+    // Last-write-wins: only apply if remote is newer
+    if (!local || new Date(remote.updated_at).getTime() > new Date(local.updatedAt).getTime()) {
+      const mapped = remoteToLocalJournal(remote);
+      if (local) {
+        // Use idbService.put directly to avoid dispatching journal-updated
+        // (which would trigger a push back to server — ping-pong loop)
+        await idbService.put('journal', { ...mapped, createdAt: local.createdAt });
+      } else {
+        await idbService.put('journal', mapped);
+      }
+
+      // Notify UI to refresh (distinct from journal-updated which triggers push)
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('journal-synced'));
+      }
+    }
+  } catch {}
+}
+
 // Set up Realtime when user logs in
 authManager.subscribe((state) => {
   if (state.isAuthenticated && !state.isLoading) {
     // Delay to let initial sync finish first
-    setTimeout(() => setupRealtimeSync(), 10000);
-  } else if (!state.isAuthenticated && realtimeChannel && supabase) {
-    supabase.removeChannel(realtimeChannel);
-    realtimeChannel = null;
+    setTimeout(() => {
+      setupRealtimeSync();
+      setupJournalRealtimeSync();
+    }, 10000);
+  } else if (!state.isAuthenticated && supabase) {
+    if (realtimeChannel) {
+      supabase.removeChannel(realtimeChannel);
+      realtimeChannel = null;
+    }
+    if (journalRealtimeChannel) {
+      supabase.removeChannel(journalRealtimeChannel);
+      journalRealtimeChannel = null;
+    }
   }
 });
 
 // =====================================================
 // EXPORT
 // =====================================================
+
+// Exported for testing
+export { remoteToLocalJournal, localToRemoteJournal, handleJournalRealtimeChange };
 
 export const syncService = {
   performFullSync,
