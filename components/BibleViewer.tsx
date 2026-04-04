@@ -83,7 +83,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   const [loading, setLoading] = useState(false);
   const [selectedVerses, setSelectedVerses] = useState<number[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const { isSimplified, setIsSimplified, englishVersion, setEnglishVersion, fontSize, setFontSize } = useBibleSettings();
+  const { isSimplified, setIsSimplified, chineseVersion, setChineseVersion, englishVersion, setEnglishVersion, fontSize, setFontSize } = useBibleSettings();
   const {
     isDownloading, setIsDownloading,
     downloadProgress, setDownloadProgress,
@@ -562,7 +562,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       false  // hasAIResearch - will be updated separately when AI features are implemented
     );
     return () => { ctrl.cancelled = true; };
-  }, [selectedBook, selectedChapter, notes, englishVersion]);
+  }, [selectedBook, selectedChapter, notes, chineseVersion, englishVersion]);
   
   // Handle clicking outside book dropdown and mobile menu
   useEffect(() => {
@@ -626,7 +626,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   const fetchChapterData = async (bookId: string, chapter: number) => {
     // Always check cache first to avoid unnecessary API calls
     try {
-      const cachedCuv = await bibleStorage.getChapter(bookId, chapter, 'cuv');
+      const cachedCuv = await bibleStorage.getChapter(bookId, chapter, chineseVersion as BibleTranslation);
       const cachedWeb = await bibleStorage.getChapter(bookId, chapter, englishVersion as BibleTranslation);
       if (cachedCuv && cachedWeb && cachedCuv.verses && cachedWeb.verses) {
         return {
@@ -648,7 +648,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     // First, try to load from cache for instant display
     let loadedFromCache = false;
     try {
-      const cachedCuv = await bibleStorage.getChapter(selectedBook.id, selectedChapter, 'cuv');
+      const cachedCuv = await bibleStorage.getChapter(selectedBook.id, selectedChapter, chineseVersion as BibleTranslation);
       const cachedWeb = await bibleStorage.getChapter(selectedBook.id, selectedChapter, englishVersion as BibleTranslation);
 
       if (ctrl.cancelled) return;
@@ -662,11 +662,11 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
 
         // Try to update from network in background (don't show loading)
         // Only save to cache, don't update state (avoids unnecessary re-renders)
-        fetch(buildChapterUrl(selectedBook.id, selectedChapter, 'cuv', selectedBook.totalVerses))
+        fetch(buildChapterUrl(selectedBook.id, selectedChapter, chineseVersion, selectedBook.totalVerses))
           .then(res => res.json())
           .then(data => {
             if (!ctrl.cancelled && data.verses) {
-              bibleStorage.saveChapter(selectedBook.id, selectedChapter, 'cuv', data).catch(() => {});
+              bibleStorage.saveChapter(selectedBook.id, selectedChapter, chineseVersion as BibleTranslation, data).catch(() => {});
             }
           })
           .catch(() => {});
@@ -688,7 +688,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     if (!loadedFromCache) {
       try {
         const [cuvRes, engRes] = await Promise.all([
-          fetch(buildChapterUrl(selectedBook.id, selectedChapter, 'cuv', selectedBook.totalVerses)),
+          fetch(buildChapterUrl(selectedBook.id, selectedChapter, chineseVersion, selectedBook.totalVerses)),
           fetch(buildChapterUrl(selectedBook.id, selectedChapter, englishVersion, selectedBook.totalVerses))
         ]);
 
@@ -706,7 +706,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
 
           // Save to IndexedDB in background (non-blocking)
           Promise.all([
-            bibleStorage.saveChapter(selectedBook.id, selectedChapter, 'cuv', cuvData),
+            bibleStorage.saveChapter(selectedBook.id, selectedChapter, chineseVersion as BibleTranslation, cuvData),
             bibleStorage.saveChapter(selectedBook.id, selectedChapter, englishVersion as BibleTranslation, engData)
           ]).then(() => {
             checkOfflineStatus();
@@ -716,7 +716,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         if (ctrl.cancelled) return;
         // If online fetch fails, try IndexedDB
         try {
-          const cachedCuv = await bibleStorage.getChapter(selectedBook.id, selectedChapter, 'cuv');
+          const cachedCuv = await bibleStorage.getChapter(selectedBook.id, selectedChapter, chineseVersion as BibleTranslation);
           const cachedWeb = await bibleStorage.getChapter(selectedBook.id, selectedChapter, englishVersion as BibleTranslation);
 
           if (ctrl.cancelled) return;
@@ -780,6 +780,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     selectedBookTotalVerses: selectedBook.totalVerses,
     selectedBookChapters: selectedBook.chapters,
     selectedChapter,
+    chineseVersion,
     englishVersion,
     isDownloading,
     setIsDownloading,
@@ -985,6 +986,18 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         sidebarOpen={sidebarOpen}
         showSidebarToggle={showSidebarToggle}
         onSidebarToggle={onSidebarToggle}
+        chineseVersion={chineseVersion}
+        englishVersion={englishVersion}
+        onChineseVersionChange={(v) => {
+          setChineseVersion(v);
+          localStorage.setItem(STORAGE_KEYS.CHINESE_VERSION, v);
+          window.dispatchEvent(new Event('bibleChineseVersionChanged'));
+        }}
+        onEnglishVersionChange={(v) => {
+          setEnglishVersion(v);
+          localStorage.setItem(STORAGE_KEYS.ENGLISH_VERSION, v);
+          window.dispatchEvent(new Event('bibleEnglishVersionChanged'));
+        }}
         allVersesSelected={allVersesSelected}
         selectedVersesCount={selectedVerses.length}
       />
@@ -1092,6 +1105,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           bookId={selectedBook.id}
           chapter={selectedChapter}
           vSplitOffset={vSplitOffset}
+          chineseVersion={chineseVersion}
           isSwiping={isSwiping}
           swipeOffset={swipeOffset}
           isPageFlipping={isPageFlipping}

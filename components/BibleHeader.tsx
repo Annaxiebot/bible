@@ -70,6 +70,12 @@ interface BibleHeaderProps {
   showSidebarToggle: boolean;
   onSidebarToggle?: () => void;
 
+  // Bible versions
+  chineseVersion: string;
+  englishVersion: string;
+  onChineseVersionChange: (version: string) => void;
+  onEnglishVersionChange: (version: string) => void;
+
   // Selection status
   allVersesSelected: boolean;
   selectedVersesCount: number;
@@ -119,6 +125,10 @@ const BibleHeader: React.FC<BibleHeaderProps> = ({
   sidebarOpen,
   showSidebarToggle,
   onSidebarToggle,
+  chineseVersion,
+  englishVersion,
+  onChineseVersionChange,
+  onEnglishVersionChange,
   allVersesSelected,
   selectedVersesCount,
 }) => {
@@ -222,6 +232,28 @@ const BibleHeader: React.FC<BibleHeaderProps> = ({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
           </svg>
         </button>
+        {!isIPhone && <div className="h-6 w-[1px] bg-slate-300"></div>}
+        <select
+          className={`p-1.5 rounded border bg-white text-sm focus:ring-2 focus:ring-indigo-500 font-medium ${isIPhone ? 'w-16' : 'w-auto'}`}
+          value={chineseVersion}
+          onChange={(e) => onChineseVersionChange(e.target.value)}
+          title="中文版本"
+        >
+          <option value="cuv">{isIPhone ? 'CUV' : '和合本 CUV'}</option>
+          <option value="cunp">{isIPhone ? 'CUNP' : '新標點 CUNP'}</option>
+        </select>
+        <select
+          className={`p-1.5 rounded border bg-white text-sm focus:ring-2 focus:ring-indigo-500 font-medium ${isIPhone ? 'w-16' : 'w-auto'}`}
+          value={englishVersion}
+          onChange={(e) => onEnglishVersionChange(e.target.value)}
+          title="English version"
+        >
+          <option value="web">{isIPhone ? 'WEB' : 'WEB'}</option>
+          <option value="kjv">{isIPhone ? 'KJV' : 'KJV'}</option>
+          <option value="asv">{isIPhone ? 'ASV' : 'ASV'}</option>
+          <option value="bbe">{isIPhone ? 'BBE' : 'BBE'}</option>
+          <option value="ylt">{isIPhone ? 'YLT' : 'YLT'}</option>
+        </select>
       </div>
       <div className={`flex items-center ${isIPhone ? 'gap-1' : 'gap-3'}`}>
         {/* Annotate Toggle Button */}

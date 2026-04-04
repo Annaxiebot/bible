@@ -11,6 +11,7 @@ interface UseBibleDownloadParams {
   selectedBookTotalVerses?: number;
   selectedBookChapters?: number;
   selectedChapter: number;
+  chineseVersion: string;
   englishVersion: string;
   isDownloading: boolean;
   setIsDownloading: (v: boolean) => void;
@@ -38,6 +39,7 @@ export function useBibleDownload({
   selectedBookTotalVerses,
   selectedBookChapters,
   selectedChapter,
+  chineseVersion,
   englishVersion,
   isDownloading,
   setIsDownloading,
@@ -103,11 +105,11 @@ export function useBibleDownload({
       let cuvSuccess = false;
       for (let retry = 0; retry < DOWNLOAD.MAX_RETRIES && !cuvSuccess; retry++) {
         try {
-          const cuvRes = await fetch(buildChapterUrl(selectedBookId, selectedChapter, 'cuv', selectedBookTotalVerses));
+          const cuvRes = await fetch(buildChapterUrl(selectedBookId, selectedChapter, chineseVersion, selectedBookTotalVerses));
           if (cuvRes.ok) {
             const cuvData = await cuvRes.json();
             if (cuvData?.verses) {
-              await bibleStorage.saveChapter(selectedBookId, selectedChapter, 'cuv', cuvData);
+              await bibleStorage.saveChapter(selectedBookId, selectedChapter, chineseVersion as any, cuvData);
               cuvSuccess = true;
             }
           }
@@ -148,7 +150,7 @@ export function useBibleDownload({
       setDownloadTimeRemaining('');
       setShowDownloadMenu(false);
     }
-  }, [selectedBookId, selectedBookName, selectedBookTotalVerses, selectedChapter, englishVersion]);
+  }, [selectedBookId, selectedBookName, selectedBookTotalVerses, selectedChapter, chineseVersion, englishVersion]);
 
   const handleDownloadCurrentBook = useCallback(async () => {
     setIsDownloading(true);
@@ -184,11 +186,11 @@ export function useBibleDownload({
 
         // Download CUV
         try {
-          const cuvRes = await fetch(buildChapterUrl(selectedBookId, chapter, 'cuv', selectedBookTotalVerses));
+          const cuvRes = await fetch(buildChapterUrl(selectedBookId, chapter, chineseVersion, selectedBookTotalVerses));
           if (cuvRes.ok) {
             const cuvData = await cuvRes.json();
             if (cuvData?.verses) {
-              await bibleStorage.saveChapter(selectedBookId, chapter, 'cuv', cuvData);
+              await bibleStorage.saveChapter(selectedBookId, chapter, chineseVersion as any, cuvData);
             }
           }
         } catch (e) {
@@ -228,7 +230,7 @@ export function useBibleDownload({
       setDownloadTimeRemaining('');
       setShowDownloadMenu(false);
     }
-  }, [selectedBookId, selectedBookName, selectedBookTotalVerses, selectedBookChapters, englishVersion]);
+  }, [selectedBookId, selectedBookName, selectedBookTotalVerses, selectedBookChapters, chineseVersion, englishVersion]);
 
   const downloadBibleInternal = async (startBookIndex = 0, startChapter = 0, startCompleted = 0, existingFailedChapters: string[] = [], saveProgress = true, isAuto = false) => {
     const books = BIBLE_BOOKS;
@@ -282,11 +284,11 @@ export function useBibleDownload({
           let cuvSuccess = false;
           for (let retry = 0; retry < DOWNLOAD.MAX_RETRIES && !cuvSuccess; retry++) {
             try {
-              const cuvRes = await fetch(buildChapterUrl(book.id, chapter, 'cuv', book.totalVerses));
+              const cuvRes = await fetch(buildChapterUrl(book.id, chapter, chineseVersion, book.totalVerses));
               if (cuvRes.ok) {
                 const cuvData = await cuvRes.json();
                 if (cuvData?.verses) {
-                  await bibleStorage.saveChapter(book.id, chapter, 'cuv', cuvData);
+                  await bibleStorage.saveChapter(book.id, chapter, chineseVersion as any, cuvData);
                   cuvSuccess = true;
                 }
               } else if (cuvRes.status === 429) {
