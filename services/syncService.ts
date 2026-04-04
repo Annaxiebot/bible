@@ -1110,6 +1110,57 @@ if (typeof window !== 'undefined') {
 }
 
 // =====================================================
+// REALTIME SYNC (instant cross-device updates)
+// =====================================================
+
+let realtimeChannel: ReturnType<typeof supabase.channel> | null = null;
+
+function setupRealtimeSync(): void {
+  if (!supabase || !canSync()) return;
+  const userId = authManager.getUserId();
+  if (!userId) return;
+
+  // Clean up existing subscription
+  if (realtimeChannel) {
+    supabase.removeChannel(realtimeChannel);
+    realtimeChannel = null;
+  }
+
+  realtimeChannel = supabase.channel('sync-realtime')
+    .on(
+      'postgres_changes' as any,
+      { event: '*', schema: 'public', table: 'sync_metadata', filter: `user_id=eq.${userId}` },
+      (payload: any) => {
+        const row = payload.new;
+        if (!row?.module) return;
+
+        const module = row.module as SyncModule;
+        const serverTs = row.last_modified || 0;
+        const localTs = getLocalTimestamps()[module] || 0;
+
+        // Only pull if server is newer than local (another device pushed)
+        if (serverTs > localTs && MODULE_SYNC_MAP[module]) {
+          MODULE_SYNC_MAP[module].fn()
+            .then(() => setLocalTimestamp(module, serverTs))
+            .catch(() => {});
+        }
+      }
+    )
+    .subscribe();
+}
+
+// Set up Realtime when user logs in
+authManager.subscribe((state) => {
+  if (state.isAuthenticated && !state.isLoading) {
+    // Delay to let initial sync finish first
+    setTimeout(() => setupRealtimeSync(), 10000);
+  } else if (!state.isAuthenticated && realtimeChannel && supabase) {
+    supabase.removeChannel(realtimeChannel);
+    realtimeChannel = null;
+  }
+});
+
+// =====================================================
 // EXPORT
 // =====================================================
 
