@@ -1059,12 +1059,13 @@ const JournalView: React.FC<JournalViewProps> = ({
 
   const DRAW_COLORS = ['#000000', '#ef4444', '#3b82f6', '#22c55e', '#f59e0b', '#8b5cf6', '#ec4899'];
 
-  // Load drawing data when entry changes
+  // Load drawing data when entry changes or synced from another device
+  const selectedDrawing = selectedEntry?.drawing;
   useEffect(() => {
     if (selectedEntry) {
-      setDrawingData((selectedEntry as any).drawing || '');
+      setDrawingData(selectedDrawing || '');
     }
-  }, [selectedId]);
+  }, [selectedId, selectedDrawing]);
 
   // Save drawing data
   const handleDrawingChange = useCallback((data: string) => {
@@ -1147,6 +1148,49 @@ const JournalView: React.FC<JournalViewProps> = ({
       handleEditorChange(html, text);
     }
   };
+
+  const handlePrint = useCallback(() => {
+    if (!selectedEntry) return;
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    // Get drawing as image data URL
+    let drawingImgHtml = '';
+    const canvas = canvasRef.current?.getCanvasElement();
+    if (canvas && selectedEntry.drawing) {
+      try {
+        const dataUrl = canvas.toDataURL('image/png');
+        drawingImgHtml = `<div style="margin:16px 0"><img src="${dataUrl}" style="max-width:100%;border:1px solid #e5e7eb;border-radius:8px" /></div>`;
+      } catch { /* ignore tainted canvas */ }
+    }
+
+    const title = selectedEntry.title || 'Untitled';
+    const date = formatDate(selectedEntry.createdAt, true);
+    const location = selectedEntry.locationName ? `<div style="color:#6b7280;font-size:13px;margin-bottom:4px">📍 ${selectedEntry.locationName}</div>` : '';
+    const verseRef = selectedEntry.verseRef ? `<div style="color:#6366f1;font-size:13px;margin-bottom:8px">${selectedEntry.verseRef}</div>` : '';
+    const tags = selectedEntry.tags?.length ? `<div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap">${selectedEntry.tags.map(t => `<span style="background:#f3f4f6;padding:2px 8px;border-radius:12px;font-size:12px;color:#6b7280">${t}</span>`).join('')}</div>` : '';
+
+    const textContent = selectedEntry.content || '';
+
+    printWindow.document.write(`<!DOCTYPE html><html><head><title>${title}</title><style>
+      @media print { body { margin: 0.5in; } }
+      body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; max-width: 700px; margin: 0 auto; padding: 24px; color: #1f2937; line-height: 1.7; font-size: 15px; }
+      h1 { font-size: 22px; margin: 0 0 4px; }
+      img { max-width: 100%; height: auto; }
+      .meta { color: #9ca3af; font-size: 12px; margin-bottom: 8px; }
+    </style></head><body>
+      <h1>${title}</h1>
+      <div class="meta">${date}</div>
+      ${location}${verseRef}
+      <hr style="border:none;border-top:1px solid #e5e7eb;margin:12px 0" />
+      <div>${textContent}</div>
+      ${drawingImgHtml}
+      ${tags}
+    </body></html>`);
+    printWindow.document.close();
+    printWindow.focus();
+    setTimeout(() => printWindow.print(), 300);
+  }, [selectedEntry]);
 
   const execCommand = (cmd: string, value?: string) => {
     document.execCommand(cmd, false, value);
@@ -1286,6 +1330,9 @@ const JournalView: React.FC<JournalViewProps> = ({
             )}
           </div>
         )}
+        <button onClick={handlePrint}
+          style={{ fontSize: 13, padding: '4px 8px', borderRadius: 6, border: 'none', cursor: 'pointer', background: '#f3f4f6', color: '#6b7280' }}
+          title="Print journal entry">🖨️</button>
       </div>
 
       {/* ── AI Toolbar (Phase 3 + 4) ──────────────────────────────── */}
@@ -1658,17 +1705,38 @@ const JournalView: React.FC<JournalViewProps> = ({
 
           {noteMode === 'overlay' && (
             <div style={{ position: 'relative', minHeight: '400px', height: '100%' }}>
+              {/* Text layer — base */}
               <div ref={editorRef} contentEditable={!isWritingMode} onInput={handleContentEditableInput}
-                data-placeholder="Write and draw..."
+                data-placeholder="Write and draw — use the toolbar below to switch modes..."
                 style={{ minHeight: '100%', padding: '16px 20px', outline: 'none', fontSize: 16, lineHeight: 1.7, color: '#1f2937', pointerEvents: isWritingMode ? 'none' : 'auto' }} />
+              {/* Drawing layer — overlay */}
               <div style={{ position: 'absolute', inset: 0, zIndex: 10, pointerEvents: isWritingMode ? 'auto' : 'none' }}>
                 <SimpleDrawingCanvas key={`overlay-${selectedId}`} ref={canvasRef} onChange={handleDrawingChange} initialData={drawingData} overlayMode={true} isWritingMode={isWritingMode} paperType={paperType} />
               </div>
-              <div style={{ position: 'absolute', bottom: 8, right: 8, zIndex: 20 }}>
-                <button onClick={() => setIsWritingMode(!isWritingMode)}
-                  style={{ fontSize: 12, padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
-                    background: isWritingMode ? '#e0e7ff' : '#f3f4f6', color: isWritingMode ? '#4f46e5' : '#6b7280' }}>
-                  {isWritingMode ? '✏️ Drawing' : '📝 Typing'}
+              {/* Floating unified toolbar — Type / Draw / Photo */}
+              <div style={{
+                position: 'absolute', bottom: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 20,
+                display: 'flex', gap: 2, background: 'rgba(255,255,255,0.95)', borderRadius: 12,
+                boxShadow: '0 2px 12px rgba(0,0,0,0.15)', padding: '4px 6px', backdropFilter: 'blur(8px)',
+                border: '1px solid rgba(0,0,0,0.08)',
+              }}>
+                <button onClick={() => setIsWritingMode(false)}
+                  style={{ fontSize: 13, padding: '6px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                    background: !isWritingMode ? '#4f46e5' : 'transparent', color: !isWritingMode ? '#fff' : '#6b7280',
+                    fontWeight: !isWritingMode ? 600 : 400, transition: 'all 0.15s' }}>
+                  📝 Type
+                </button>
+                <button onClick={() => setIsWritingMode(true)}
+                  style={{ fontSize: 13, padding: '6px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                    background: isWritingMode ? '#4f46e5' : 'transparent', color: isWritingMode ? '#fff' : '#6b7280',
+                    fontWeight: isWritingMode ? 600 : 400, transition: 'all 0.15s' }}>
+                  ✏️ Draw
+                </button>
+                <span style={{ width: 1, height: 20, background: '#e5e7eb', alignSelf: 'center', margin: '0 2px' }} />
+                <button onClick={() => isTouchDevice ? fileInputRef.current?.click() : setShowImageMenu(true)}
+                  style={{ fontSize: 13, padding: '6px 12px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                    background: 'transparent', color: '#6b7280', transition: 'all 0.15s' }}>
+                  📷 Photo
                 </button>
               </div>
             </div>
