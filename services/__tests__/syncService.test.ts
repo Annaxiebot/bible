@@ -208,6 +208,24 @@ describe('syncService', () => {
       await expect(syncService.performFullSync()).resolves.not.toThrow();
     });
   });
+
+  describe('performIncrementalSync', () => {
+    it('should complete without error when no modules are stale', async () => {
+      const { syncService } = await import('../syncService');
+      await expect(syncService.performIncrementalSync()).resolves.not.toThrow();
+    });
+  });
+
+  describe('notifySettingsChanged', () => {
+    it('should dispatch settings-updated event', async () => {
+      const { notifySettingsChanged } = await import('../syncService');
+      const handler = vi.fn();
+      window.addEventListener('settings-updated', handler);
+      notifySettingsChanged();
+      expect(handler).toHaveBeenCalled();
+      window.removeEventListener('settings-updated', handler);
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
