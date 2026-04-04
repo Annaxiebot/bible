@@ -1351,7 +1351,7 @@ const JournalView: React.FC<JournalViewProps> = ({
             <div>
               <span style={{ fontSize: 12, fontWeight: 600, color: '#7c3aed' }}>{'\uD83D\uDCAD'} Reflection Prompt</span>
               {aiMeta.reflect && (
-                <div style={{ fontSize: 10, color: '#a78bfa', marginTop: 2 }}>
+                <div style={{ fontSize: 10, color: '#8b5cf6', marginTop: 2 }}>
                   {aiMeta.reflect.model} · {new Date(aiMeta.reflect.timestamp).toLocaleString()}
                 </div>
               )}
@@ -1361,7 +1361,7 @@ const JournalView: React.FC<JournalViewProps> = ({
                 <button onClick={async () => {
                   if (!selectedId || !reflectionPrompt) return;
                   const htmlContent = mdToHtml(reflectionPrompt);
-                  const metaLine = aiMeta.reflect ? `<div style="font-size:10px;color:#a78bfa;margin-top:2px">${aiMeta.reflect.model || ''} · ${new Date(aiMeta.reflect.timestamp).toLocaleString()}</div>` : '';
+                  const metaLine = aiMeta.reflect ? `<div style="font-size:10px;color:#8b5cf6;margin-top:2px">${aiMeta.reflect.model || ''} · ${new Date(aiMeta.reflect.timestamp).toLocaleString()}</div>` : '';
                   const card = `<div style="margin:16px 0;padding:12px 16px;border-radius:10px;background:linear-gradient(135deg,#f5f3ff 0%,#ede9fe 100%);border:1px solid #ddd6fe"><div style="font-size:12px;font-weight:600;color:#7c3aed;margin-bottom:2px">💭 Reflection Prompt</div>${metaLine}<div style="font-size:14px;color:#374151;line-height:1.6;font-style:italic;margin-top:6px">${htmlContent}</div></div>`;
                   const newContent = (selectedEntry?.content || '') + card;
                   await journalStorage.updateEntry(selectedId, { content: newContent });
@@ -1528,7 +1528,7 @@ const JournalView: React.FC<JournalViewProps> = ({
               <div>
                 <span style={{ fontSize: 12, fontWeight: 600, color: '#16a34a' }}>{'\uD83D\uDD2D'} Extended Thinking</span>
                 {aiMeta.extend && (
-                  <div style={{ fontSize: 10, color: '#86efac', marginTop: 2 }}>
+                  <div style={{ fontSize: 10, color: '#4ade80', marginTop: 2 }}>
                     {aiMeta.extend.model} · {new Date(aiMeta.extend.timestamp).toLocaleString()}
                   </div>
                 )}
@@ -1538,7 +1538,7 @@ const JournalView: React.FC<JournalViewProps> = ({
                   <button onClick={async () => {
                     if (!selectedId || !extendResult) return;
                     const htmlContent = mdToHtml(extendResult);
-                    const metaLine = aiMeta.extend ? `<div style="font-size:10px;color:#86efac;margin-top:2px">${aiMeta.extend.model || ''} · ${new Date(aiMeta.extend.timestamp).toLocaleString()}</div>` : '';
+                    const metaLine = aiMeta.extend ? `<div style="font-size:10px;color:#4ade80;margin-top:2px">${aiMeta.extend.model || ''} · ${new Date(aiMeta.extend.timestamp).toLocaleString()}</div>` : '';
                     const card = `<div style="margin:16px 0;padding:12px 16px;border-radius:10px;background:linear-gradient(135deg,#f0fdf4 0%,#dcfce7 100%);border:1px solid #bbf7d0"><div style="font-size:12px;font-weight:600;color:#16a34a;margin-bottom:2px">🔭 Extended Thinking</div>${metaLine}<div style="font-size:14px;color:#374151;line-height:1.6;margin-top:6px">${htmlContent}</div></div>`;
                     const newContent = (selectedEntry?.content || '') + card;
                     await journalStorage.updateEntry(selectedId, { content: newContent });
@@ -1577,7 +1577,7 @@ const JournalView: React.FC<JournalViewProps> = ({
               <div>
                 <span style={{ fontSize: 12, fontWeight: 600, color: '#ca8a04' }}>{'\uD83D\uDCCB'} Summary</span>
                 {aiMeta.summary && (
-                  <div style={{ fontSize: 10, color: '#fbbf24', marginTop: 2 }}>
+                  <div style={{ fontSize: 10, color: '#d97706', marginTop: 2 }}>
                     {aiMeta.summary.model} · {new Date(aiMeta.summary.timestamp).toLocaleString()}
                   </div>
                 )}
@@ -1587,7 +1587,7 @@ const JournalView: React.FC<JournalViewProps> = ({
                   <button onClick={async () => {
                     if (!selectedId || !summaryResult) return;
                     const htmlContent = mdToHtml(summaryResult);
-                    const metaLine = aiMeta.summary ? `<div style="font-size:10px;color:#fbbf24;margin-top:2px">${aiMeta.summary.model || ''} · ${new Date(aiMeta.summary.timestamp).toLocaleString()}</div>` : '';
+                    const metaLine = aiMeta.summary ? `<div style="font-size:10px;color:#d97706;margin-top:2px">${aiMeta.summary.model || ''} · ${new Date(aiMeta.summary.timestamp).toLocaleString()}</div>` : '';
                     const card = `<div style="margin:16px 0;padding:12px 16px;border-radius:10px;background:linear-gradient(135deg,#fefce8 0%,#fef9c3 100%);border:1px solid #fde68a"><div style="font-size:12px;font-weight:600;color:#ca8a04;margin-bottom:2px">📋 Summary</div>${metaLine}<div style="font-size:14px;color:#374151;line-height:1.6;margin-top:6px">${htmlContent}</div></div>`;
                     const newContent = (selectedEntry?.content || '') + card;
                     await journalStorage.updateEntry(selectedId, { content: newContent });
@@ -1626,7 +1626,7 @@ const JournalView: React.FC<JournalViewProps> = ({
               <div>
                 <span style={{ fontSize: 12, fontWeight: 600, color: '#2563eb' }}>{'\uD83D\uDCD6'} Related Scripture</span>
                 {aiMeta.scripture && (
-                  <div style={{ fontSize: 10, color: '#93c5fd', marginTop: 2 }}>
+                  <div style={{ fontSize: 10, color: '#3b82f6', marginTop: 2 }}>
                     {aiMeta.scripture.model} · {new Date(aiMeta.scripture.timestamp).toLocaleString()}
                   </div>
                 )}
@@ -1640,7 +1640,7 @@ const JournalView: React.FC<JournalViewProps> = ({
                       const searchUrl = `https://www.biblegateway.com/passage/?search=${encodeURIComponent(s.reference)}&version=CUVS`;
                       return `<div style="margin:4px 0;padding:6px 10px;border-radius:6px;background:rgba(255,255,255,0.6);border:1px solid #dbeafe"><a href="${searchUrl}" target="_blank" rel="noopener noreferrer" style="font-size:13px;font-weight:600;color:#2563eb;text-decoration:underline;cursor:pointer">${s.reference}</a><div style="font-size:12px;color:#6b7280;margin-top:2px">${s.reason}</div></div>`;
                     }).join('');
-                    const metaLine = aiMeta.scripture ? `<div style="font-size:10px;color:#93c5fd;margin-top:2px">${aiMeta.scripture.model || ''} · ${new Date(aiMeta.scripture.timestamp).toLocaleString()}</div>` : '';
+                    const metaLine = aiMeta.scripture ? `<div style="font-size:10px;color:#3b82f6;margin-top:2px">${aiMeta.scripture.model || ''} · ${new Date(aiMeta.scripture.timestamp).toLocaleString()}</div>` : '';
                     const card = `<div style="margin:16px 0;padding:12px 16px;border-radius:10px;background:linear-gradient(135deg,#eff6ff 0%,#dbeafe 100%);border:1px solid #bfdbfe"><div style="font-size:12px;font-weight:600;color:#2563eb;margin-bottom:2px">📖 Related Scripture</div>${metaLine}<div style="margin-top:6px">${refs}</div></div>`;
                     const newContent = (selectedEntry?.content || '') + card;
                     await journalStorage.updateEntry(selectedId, { content: newContent });
