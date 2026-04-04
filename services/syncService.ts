@@ -41,6 +41,7 @@ interface SyncState {
   lastBibleCacheSync: number;
   lastJournalSync: number;
   lastChatHistorySync: number;
+  lastSpiritualMemorySync: number;
 }
 
 const SYNC_STATE_KEY = STORAGE_KEYS.SYNC_STATE;
@@ -55,6 +56,7 @@ const DEFAULT_SYNC_STATE: SyncState = {
   lastBibleCacheSync: 0,
   lastJournalSync: 0,
   lastChatHistorySync: 0,
+  lastSpiritualMemorySync: 0,
 };
 
 function getSyncState(): SyncState {
@@ -78,11 +80,13 @@ function setSyncState(state: Partial<SyncState>) {
 
 type SyncModule =
   | 'notes' | 'annotations' | 'readingHistory' | 'settings'
-  | 'verseData' | 'bookmarks' | 'bibleCache' | 'journal' | 'chatHistory';
+  | 'verseData' | 'bookmarks' | 'bibleCache' | 'journal' | 'chatHistory'
+  | 'spiritualMemory';
 
 const ALL_MODULES: SyncModule[] = [
   'notes', 'annotations', 'readingHistory', 'settings',
   'verseData', 'bookmarks', 'bibleCache', 'journal', 'chatHistory',
+  'spiritualMemory',
 ];
 
 const MODULE_TS_KEY = 'bible_sync_module_timestamps';
@@ -909,6 +913,86 @@ async function syncChatHistory(): Promise<void> {
 }
 
 // =====================================================
+// SPIRITUAL MEMORY SYNC
+// =====================================================
+
+async function syncSpiritualMemory(): Promise<void> {
+  if (!supabase || !canSync()) return;
+
+  const userId = authManager.getUserId();
+  if (!userId) return;
+
+  const { spiritualMemory } = await import('./spiritualMemory');
+
+  const syncState = getSyncState();
+  const lastSyncISO = new Date(syncState.lastSpiritualMemorySync).toISOString();
+
+  // Quick count check
+  const { count: remoteCount } = await supabase
+    .from('spiritual_memory')
+    .select('id', { count: 'exact', head: true })
+    .eq('user_id', userId)
+    .gte('updated_at', lastSyncISO);
+
+  const allLocal = await spiritualMemory.getAllItems();
+  const localChanged = allLocal.filter(item =>
+    new Date(item.updatedAt).getTime() > syncState.lastSpiritualMemorySync
+  );
+
+  // Early exit if nothing changed
+  if (!remoteCount && localChanged.length === 0) {
+    setSyncState({ lastSpiritualMemorySync: Date.now() });
+    return;
+  }
+
+  // Pull remote changes
+  if (remoteCount && remoteCount > 0) {
+    const { data: remoteItems, error } = await supabase
+      .from('spiritual_memory')
+      .select('*')
+      .eq('user_id', userId)
+      .gte('updated_at', lastSyncISO);
+
+    if (error) throw error;
+
+    const { idbService } = await import('./idbService');
+    for (const remote of remoteItems || []) {
+      const local = await spiritualMemory.getItem(remote.id);
+      if (!local || new Date(remote.updated_at).getTime() > new Date(local.updatedAt).getTime()) {
+        await idbService.put('spiritualMemory', {
+          id: remote.id,
+          category: remote.category,
+          content: remote.content,
+          source: remote.source || undefined,
+          createdAt: remote.created_at,
+          updatedAt: remote.updated_at,
+        });
+      }
+    }
+  }
+
+  // Push local changes
+  if (localChanged.length > 0) {
+    const rows = localChanged.map(item => ({
+      id: item.id,
+      user_id: userId,
+      category: item.category,
+      content: item.content,
+      source: item.source || null,
+      created_at: item.createdAt,
+      updated_at: item.updatedAt,
+    }));
+
+    for (let i = 0; i < rows.length; i += 50) {
+      if (!canSync()) break;
+      await supabase.from('spiritual_memory').upsert(rows.slice(i, i + 50), { onConflict: 'id' });
+    }
+  }
+
+  setSyncState({ lastSpiritualMemorySync: Date.now() });
+}
+
+// =====================================================
 // FULL SYNC
 // =====================================================
 
@@ -928,6 +1012,7 @@ export async function performFullSync(): Promise<void> {
       { name: 'Bible Cache', fn: syncBibleCache },
       { name: 'Journal', fn: syncJournal },
       { name: 'Chat History', fn: syncChatHistory },
+      { name: 'Spiritual Memory', fn: syncSpiritualMemory },
     ];
 
     syncManager.resetCancelled();
@@ -981,6 +1066,7 @@ const MODULE_SYNC_MAP: Record<SyncModule, { name: string; fn: () => Promise<void
   bibleCache:     { name: 'Bible Cache', fn: syncBibleCache },
   journal:        { name: 'Journal', fn: syncJournal },
   chatHistory:    { name: 'Chat History', fn: syncChatHistory },
+  spiritualMemory: { name: 'Spiritual Memory', fn: syncSpiritualMemory },
 };
 
 export async function performIncrementalSync(): Promise<void> {
@@ -1099,6 +1185,7 @@ if (typeof window !== 'undefined') {
     'journal-updated': 'journal',
     'readinghistory-updated': 'readingHistory',
     'settings-updated': 'settings',
+    'spiritualmemory-updated': 'spiritualMemory',
   };
   for (const [event, module] of Object.entries(eventToModule)) {
     window.addEventListener(event, () => schedulePush(module));
@@ -1141,7 +1228,13 @@ function setupRealtimeSync(): void {
         // Only pull if server is newer than local (another device pushed)
         if (serverTs > localTs && MODULE_SYNC_MAP[module]) {
           MODULE_SYNC_MAP[module].fn()
-            .then(() => setLocalTimestamp(module, serverTs))
+            .then(() => {
+              setLocalTimestamp(module, serverTs);
+              // Notify UI to re-read from IDB
+              if (typeof window !== 'undefined') {
+                window.dispatchEvent(new Event(`${module}-synced`));
+              }
+            })
             .catch(() => {});
         }
       }
@@ -1177,6 +1270,7 @@ export const syncService = {
   syncBibleCache,
   syncJournal,
   syncChatHistory,
+  syncSpiritualMemory,
   canSync,
   getSyncState,
 };

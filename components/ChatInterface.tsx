@@ -539,8 +539,17 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
         if (!cancelled) setMessages(saved);
       });
     });
-    return () => { cancelled = true; };
-  }, [currentBookId, currentChapter]);
+    // Re-read from IDB when another device syncs chat data
+    const onSynced = () => {
+      if (!cancelled && activeThreadId) {
+        loadThreadMessages(activeThreadId).then(saved => {
+          if (!cancelled) setMessages(saved);
+        });
+      }
+    };
+    window.addEventListener('chatHistory-synced', onSynced);
+    return () => { cancelled = true; window.removeEventListener('chatHistory-synced', onSynced); };
+  }, [currentBookId, currentChapter, activeThreadId]);
 
   // --- Chat persistence: save whenever messages change ---
   const lastSavedRef = useRef<string>('');

@@ -9,6 +9,8 @@ import { usePaperType } from '../hooks/usePaperType';
 import LazyMarkdown from './LazyMarkdown';
 import type { PaperType } from '../services/strokeNormalizer';
 import { syncService } from '../services/syncService';
+import { spiritualMemory } from '../services/spiritualMemory';
+import type { SpiritualMemoryItem } from '../services/idbService';
 import {
   suggestTags,
   findRelatedEntries,
@@ -141,8 +143,12 @@ const JournalView: React.FC<JournalViewProps> = ({
 
   // ── Phase 4: Personal Agent state ─────────────────────────────────
   const [showProfile, setShowProfile] = useState(false);
+  const [profileTab, setProfileTab] = useState<'profile' | 'memory'>('profile');
   const [profileText, setProfileText] = useState<string | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
+  const [memoryItems, setMemoryItems] = useState<SpiritualMemoryItem[]>([]);
+  const [editingMemoryId, setEditingMemoryId] = useState<string | null>(null);
+  const [editingMemoryText, setEditingMemoryText] = useState('');
   const [proactiveSuggestion, setProactiveSuggestion] = useState<string | null>(null);
   const [isLoadingProactive, setIsLoadingProactive] = useState(false);
   const memorySaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -158,6 +164,10 @@ const JournalView: React.FC<JournalViewProps> = ({
 
   useEffect(() => {
     loadEntries();
+    // Re-read from IDB when another device syncs journal data
+    const onSynced = () => loadEntries();
+    window.addEventListener('journal-synced', onSynced);
+    return () => window.removeEventListener('journal-synced', onSynced);
   }, [loadEntries]);
 
   // Manual sync: flush pending saves, pull from server, reload entries + editor
@@ -501,7 +511,10 @@ const JournalView: React.FC<JournalViewProps> = ({
 
   const handleShowProfile = async () => {
     setShowProfile(true);
+    setProfileTab('profile');
     setIsLoadingProfile(true);
+    // Load memory items immediately
+    spiritualMemory.getAllItems().then(setMemoryItems).catch(() => {});
     try {
       const items = await getMemoryContext();
       const profile = await generateSpiritualProfile(items);
@@ -511,6 +524,17 @@ const JournalView: React.FC<JournalViewProps> = ({
     } finally {
       setIsLoadingProfile(false);
     }
+  };
+
+  const handleDeleteMemory = async (id: string) => {
+    await spiritualMemory.deleteItem(id);
+    setMemoryItems(prev => prev.filter(m => m.id !== id));
+  };
+
+  const handleSaveMemoryEdit = async (id: string) => {
+    await spiritualMemory.updateItem(id, { content: editingMemoryText });
+    setMemoryItems(prev => prev.map(m => m.id === id ? { ...m, content: editingMemoryText, updatedAt: new Date().toISOString() } : m));
+    setEditingMemoryId(null);
   };
 
   // Proactive suggestion when no entry is selected (delayed to avoid spamming AI on load)
@@ -1406,30 +1430,102 @@ const JournalView: React.FC<JournalViewProps> = ({
         </div>
       )}
 
-      {/* Spiritual Profile modal */}
+      {/* Spiritual Profile & Memory modal */}
       {showProfile && (
         <div style={{
           position: 'absolute', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.4)',
           display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
         }} onClick={() => setShowProfile(false)}>
           <div style={{
-            background: '#fff', borderRadius: 12, maxWidth: 500, width: '100%', maxHeight: '80vh',
-            overflow: 'auto', padding: '20px 24px', boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
+            background: '#fff', borderRadius: 12, maxWidth: 540, width: '100%', maxHeight: '80vh',
+            display: 'flex', flexDirection: 'column', boxShadow: '0 8px 32px rgba(0,0,0,0.12)',
           }} onClick={e => e.stopPropagation()}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
-              <span style={{ fontSize: 16, fontWeight: 700, color: '#1f2937' }}>{'\uD83D\uDC64'} My Spiritual Profile</span>
+            {/* Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 20px 0' }}>
+              <span style={{ fontSize: 16, fontWeight: 700, color: '#1f2937' }}>{'\uD83D\uDC64'} Personal Agent</span>
               <button onClick={() => setShowProfile(false)}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 18, padding: 2 }}>
                 {'\u2715'}
               </button>
             </div>
-            {isLoadingProfile ? (
-              <div style={{ fontSize: 14, color: '#9ca3af', padding: '16px 0', textAlign: 'center' }}>Generating your spiritual profile...</div>
-            ) : (
-              <div style={{ fontSize: 14, color: '#374151', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>
-                {profileText}
-              </div>
-            )}
+            {/* Tabs */}
+            <div style={{ display: 'flex', gap: 0, padding: '12px 20px 0', borderBottom: '1px solid #e5e7eb' }}>
+              {(['profile', 'memory'] as const).map(tab => (
+                <button key={tab} onClick={() => { setProfileTab(tab); if (tab === 'memory') spiritualMemory.getAllItems().then(setMemoryItems); }}
+                  style={{
+                    padding: '6px 16px', fontSize: 13, fontWeight: profileTab === tab ? 600 : 400, border: 'none', cursor: 'pointer',
+                    background: 'none', color: profileTab === tab ? '#4f46e5' : '#6b7280',
+                    borderBottom: profileTab === tab ? '2px solid #4f46e5' : '2px solid transparent', marginBottom: -1,
+                  }}>
+                  {tab === 'profile' ? 'Profile' : `Memory (${memoryItems.length})`}
+                </button>
+              ))}
+            </div>
+            {/* Content */}
+            <div style={{ overflow: 'auto', padding: '16px 20px 20px', flex: 1 }}>
+              {profileTab === 'profile' ? (
+                isLoadingProfile ? (
+                  <div style={{ fontSize: 14, color: '#9ca3af', padding: '16px 0', textAlign: 'center' }}>Generating your spiritual profile...</div>
+                ) : (
+                  <div style={{ fontSize: 14, color: '#374151', lineHeight: 1.7 }}>
+                    <LazyMarkdown>{profileText || ''}</LazyMarkdown>
+                  </div>
+                )
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {memoryItems.length === 0 ? (
+                    <div style={{ fontSize: 13, color: '#9ca3af', textAlign: 'center', padding: 16 }}>
+                      No memories yet. Keep journaling and your agent will learn about you.
+                    </div>
+                  ) : (
+                    (['theme', 'prayer', 'growth', 'question'] as const).map(category => {
+                      const items = memoryItems.filter(m => m.category === category);
+                      if (items.length === 0) return null;
+                      const labels: Record<string, string> = { theme: 'Themes', prayer: 'Prayers', growth: 'Growth', question: 'Questions' };
+                      const colors: Record<string, string> = { theme: '#7c3aed', prayer: '#2563eb', growth: '#16a34a', question: '#d97706' };
+                      return (
+                        <div key={category}>
+                          <div style={{ fontSize: 11, fontWeight: 600, color: colors[category], textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 }}>
+                            {labels[category]} ({items.length})
+                          </div>
+                          {items.map(item => (
+                            <div key={item.id} style={{
+                              display: 'flex', alignItems: 'flex-start', gap: 8, padding: '6px 8px', borderRadius: 6,
+                              background: '#f9fafb', marginBottom: 4, fontSize: 13, color: '#374151',
+                            }}>
+                              {editingMemoryId === item.id ? (
+                                <div style={{ flex: 1, display: 'flex', gap: 4 }}>
+                                  <input value={editingMemoryText} onChange={e => setEditingMemoryText(e.target.value)}
+                                    style={{ flex: 1, padding: '2px 6px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 13 }}
+                                    onKeyDown={e => { if (e.key === 'Enter') handleSaveMemoryEdit(item.id); if (e.key === 'Escape') setEditingMemoryId(null); }}
+                                    autoFocus />
+                                  <button onClick={() => handleSaveMemoryEdit(item.id)}
+                                    style={{ background: '#4f46e5', color: '#fff', border: 'none', borderRadius: 4, padding: '2px 8px', fontSize: 11, cursor: 'pointer' }}>Save</button>
+                                  <button onClick={() => setEditingMemoryId(null)}
+                                    style={{ background: '#f3f4f6', border: 'none', borderRadius: 4, padding: '2px 8px', fontSize: 11, cursor: 'pointer' }}>Cancel</button>
+                                </div>
+                              ) : (
+                                <>
+                                  <span style={{ flex: 1 }}>{item.content}</span>
+                                  <button onClick={() => { setEditingMemoryId(item.id); setEditingMemoryText(item.content); }}
+                                    title="Edit" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 12, padding: 2 }}>
+                                    {'\u270E'}
+                                  </button>
+                                  <button onClick={() => handleDeleteMemory(item.id)}
+                                    title="Delete" style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', fontSize: 12, padding: 2 }}>
+                                    {'\u2715'}
+                                  </button>
+                                </>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
