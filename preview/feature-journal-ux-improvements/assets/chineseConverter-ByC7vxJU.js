@@ -1,0 +1,1 @@
+import{_ as i}from"./index-ELQ__AI-.js";let r=null,e=null,o=null;async function n(){r&&e||(o||(o=i(()=>import("./full-IpR1Lmkt.js"),[]).then(t=>{r=t.Converter({from:"tw",to:"cn"}),e=t.Converter({from:"cn",to:"tw"})})),await o)}const a=t=>r?r(t):(n(),t),_=()=>n();export{_ as p,a as t};
