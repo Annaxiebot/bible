@@ -48,14 +48,16 @@ global.ResizeObserver = vi.fn().mockImplementation(() => ({
 }));
 
 // Mock IntersectionObserver
-global.IntersectionObserver = vi.fn().mockImplementation(() => ({
-  observe: vi.fn(),
-  unobserve: vi.fn(),
-  disconnect: vi.fn(),
-  root: null,
-  rootMargin: '',
-  thresholds: []
-}));
+global.IntersectionObserver = class MockIntersectionObserver {
+  observe = vi.fn();
+  unobserve = vi.fn();
+  disconnect = vi.fn();
+  root = null;
+  rootMargin = '';
+  thresholds: number[] = [];
+  constructor(public callback: IntersectionObserverCallback, public options?: IntersectionObserverInit) {}
+  takeRecords() { return []; }
+} as any;
 
 // Mock fetch
 global.fetch = vi.fn();

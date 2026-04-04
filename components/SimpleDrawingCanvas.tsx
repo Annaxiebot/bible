@@ -34,6 +34,7 @@ export interface SimpleDrawingCanvasHandle {
   clear: () => void;
   getData: () => string;
   undo: () => void;
+  redo: () => void;
   setTool: (tool: StrokeTool) => void;
   setColor: (color: string) => void;
   setSize: (size: number) => void;
@@ -60,6 +61,7 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
     const strokeDataRef = useRef<NormalizedCanvasData>(createEmptyCanvasData(paperTypeProp));
     const currentStrokePointsRef = useRef<{ x: number; y: number }[]>([]);
     const undoHistoryRef = useRef<NormalizedCanvasData[]>([]);
+    const redoHistoryRef = useRef<NormalizedCanvasData[]>([]);
     const MAX_HISTORY = 20;
     const paperTypeRef = useRef<PaperType>(paperTypeProp);
 
@@ -221,6 +223,9 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
       strokeDataRef.current.strokes.push(normalizedStroke);
       currentStrokePointsRef.current = [];
 
+      // Clear redo stack on new action (standard undo/redo behavior)
+      redoHistoryRef.current = [];
+
       // Notify parent with serialized data
       onChange(serializeCanvasData(strokeDataRef.current));
     }, [onChange, getToolOpacity]);
@@ -322,6 +327,32 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
       isDrawingRef.current = false;
     }, [commitCurrentStroke]);
 
+    // Keyboard undo/redo handler
+    const handleKeyDown = useCallback((e: KeyboardEvent) => {
+      if (!isWritingMode) return;
+      const isMeta = e.metaKey || e.ctrlKey;
+      if (isMeta && e.key === 'z' && !e.shiftKey) {
+        e.preventDefault();
+        if (undoHistoryRef.current.length > 0) {
+          redoHistoryRef.current.push(JSON.parse(JSON.stringify(strokeDataRef.current)));
+          const previous = undoHistoryRef.current.pop()!;
+          strokeDataRef.current = previous;
+          redrawStrokes();
+          onChange(serializeCanvasData(strokeDataRef.current));
+        }
+      } else if (isMeta && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
+        e.preventDefault();
+        if (redoHistoryRef.current.length > 0) {
+          undoHistoryRef.current.push(JSON.parse(JSON.stringify(strokeDataRef.current)));
+          if (undoHistoryRef.current.length > MAX_HISTORY) undoHistoryRef.current.shift();
+          const next = redoHistoryRef.current.pop()!;
+          strokeDataRef.current = next;
+          redrawStrokes();
+          onChange(serializeCanvasData(strokeDataRef.current));
+        }
+      }
+    }, [isWritingMode, onChange, redrawStrokes]);
+
     // Setup event listeners
     useEffect(() => {
       const canvas = canvasRef.current;
@@ -335,6 +366,7 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
       canvas.addEventListener('mouseup', stopDrawing);
       canvas.addEventListener('mouseout', stopDrawing);
       canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+      document.addEventListener('keydown', handleKeyDown);
 
       return () => {
         canvas.removeEventListener('touchstart', handleTouchStart);
@@ -345,8 +377,9 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
         canvas.removeEventListener('mouseup', stopDrawing);
         canvas.removeEventListener('mouseout', stopDrawing);
         canvas.removeEventListener('contextmenu', (e) => e.preventDefault());
+        document.removeEventListener('keydown', handleKeyDown);
       };
-    }, [handleTouchStart, handleTouchMove, handleTouchEnd, startDrawing, draw, stopDrawing]);
+    }, [handleTouchStart, handleTouchMove, handleTouchEnd, startDrawing, draw, stopDrawing, handleKeyDown]);
 
     // Initialize canvases
     useEffect(() => {
@@ -412,6 +445,7 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
       clear: () => {
         undoHistoryRef.current.push(JSON.parse(JSON.stringify(strokeDataRef.current)));
         if (undoHistoryRef.current.length > MAX_HISTORY) undoHistoryRef.current.shift();
+        redoHistoryRef.current = [];
 
         strokeDataRef.current = createEmptyCanvasData(paperTypeRef.current);
         const ctx = ctxRef.current;
@@ -428,8 +462,22 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
 
       undo: () => {
         if (undoHistoryRef.current.length > 0) {
+          // Save current state to redo stack before undoing
+          redoHistoryRef.current.push(JSON.parse(JSON.stringify(strokeDataRef.current)));
           const previous = undoHistoryRef.current.pop()!;
           strokeDataRef.current = previous;
+          redrawStrokes();
+          onChange(serializeCanvasData(strokeDataRef.current));
+        }
+      },
+
+      redo: () => {
+        if (redoHistoryRef.current.length > 0) {
+          // Save current state to undo stack before redoing
+          undoHistoryRef.current.push(JSON.parse(JSON.stringify(strokeDataRef.current)));
+          if (undoHistoryRef.current.length > MAX_HISTORY) undoHistoryRef.current.shift();
+          const next = redoHistoryRef.current.pop()!;
+          strokeDataRef.current = next;
           redrawStrokes();
           onChange(serializeCanvasData(strokeDataRef.current));
         }
@@ -462,6 +510,7 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
         // Persist the paper type change
         onChange(serializeCanvasData(strokeDataRef.current));
       },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }), [onChange, redrawStrokes, redrawBackground, applyToolSettings]);
 
     return (
