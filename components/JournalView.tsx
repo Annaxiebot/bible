@@ -39,7 +39,6 @@ import {
   TimelineGroup,
   ScriptureSuggestion,
 } from '../services/journalAIService';
-import type { SpiritualMemoryItem } from '../services/idbService';
 
 interface JournalViewProps {
   /** Current Bible reading context for linking new entries */

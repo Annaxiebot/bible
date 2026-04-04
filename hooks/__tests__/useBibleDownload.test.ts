@@ -31,6 +31,7 @@ const makeParams = (overrides = {}) => ({
   selectedBookTotalVerses: 1533,
   selectedBookChapters: 50,
   selectedChapter: 1,
+  chineseVersion: 'cuv',
   englishVersion: 'web',
   isDownloading: false,
   setIsDownloading: vi.fn(),
