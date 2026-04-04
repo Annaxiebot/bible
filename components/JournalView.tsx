@@ -12,6 +12,8 @@ import { syncService } from '../services/syncService';
 import { spiritualMemory } from '../services/spiritualMemory';
 import type { SpiritualMemoryItem } from '../services/idbService';
 import {
+  getPrompt, setPrompt, resetPrompt, DEFAULT_PROMPTS, type JournalPromptConfig,
+  getAgentIdentity, setAgentIdentity, resetAgentIdentity,
   suggestTags,
   findRelatedEntries,
   generateWeeklyDigest,
@@ -143,7 +145,7 @@ const JournalView: React.FC<JournalViewProps> = ({
 
   // ── Phase 4: Personal Agent state ─────────────────────────────────
   const [showProfile, setShowProfile] = useState(false);
-  const [profileTab, setProfileTab] = useState<'profile' | 'memory'>('profile');
+  const [profileTab, setProfileTab] = useState<'profile' | 'memory' | 'settings'>('profile');
   const [profileText, setProfileText] = useState<string | null>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
   const [memoryItems, setMemoryItems] = useState<SpiritualMemoryItem[]>([]);
@@ -1450,14 +1452,14 @@ const JournalView: React.FC<JournalViewProps> = ({
             </div>
             {/* Tabs */}
             <div style={{ display: 'flex', gap: 0, padding: '12px 20px 0', borderBottom: '1px solid #e5e7eb' }}>
-              {(['profile', 'memory'] as const).map(tab => (
+              {(['profile', 'memory', 'settings'] as const).map(tab => (
                 <button key={tab} onClick={() => { setProfileTab(tab); if (tab === 'memory') spiritualMemory.getAllItems().then(setMemoryItems); }}
                   style={{
                     padding: '6px 16px', fontSize: 13, fontWeight: profileTab === tab ? 600 : 400, border: 'none', cursor: 'pointer',
                     background: 'none', color: profileTab === tab ? '#4f46e5' : '#6b7280',
                     borderBottom: profileTab === tab ? '2px solid #4f46e5' : '2px solid transparent', marginBottom: -1,
                   }}>
-                  {tab === 'profile' ? 'Profile' : `Memory (${memoryItems.length})`}
+                  {tab === 'profile' ? 'Profile' : tab === 'memory' ? `Memory (${memoryItems.length})` : 'Settings'}
                 </button>
               ))}
             </div>
@@ -1471,6 +1473,68 @@ const JournalView: React.FC<JournalViewProps> = ({
                     <LazyMarkdown>{profileText || ''}</LazyMarkdown>
                   </div>
                 )
+              ) : profileTab === 'settings' ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                  {/* Agent Identity */}
+                  <div style={{ padding: '10px 12px', background: '#f0f9ff', borderRadius: 8, border: '1px solid #bae6fd' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                      <span style={{ fontSize: 13, fontWeight: 600, color: '#0369a1' }}>Agent Identity</span>
+                      {(getAgentIdentity().name || getAgentIdentity().personality) && (
+                        <button onClick={() => { resetAgentIdentity(); setProfileTab('profile'); setTimeout(() => setProfileTab('settings'), 0); }}
+                          style={{ fontSize: 10, color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                          Reset
+                        </button>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+                      <label style={{ fontSize: 11, color: '#6b7280', width: 40, paddingTop: 4 }}>Name</label>
+                      <input defaultValue={getAgentIdentity().name} placeholder="e.g. Grace, Sophia"
+                        onBlur={e => setAgentIdentity({ name: e.target.value })}
+                        style={{ flex: 1, padding: '4px 8px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 12 }} />
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <label style={{ fontSize: 11, color: '#6b7280', width: 40, paddingTop: 4 }}>Style</label>
+                      <textarea defaultValue={getAgentIdentity().personality} placeholder="e.g. You are warm, encouraging, and speak with gentle wisdom. You reference scripture naturally."
+                        onBlur={e => setAgentIdentity({ personality: e.target.value })}
+                        rows={2}
+                        style={{ flex: 1, padding: '4px 8px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 12, fontFamily: 'inherit', resize: 'vertical' }} />
+                    </div>
+                  </div>
+                  {/* AI Prompts */}
+                  <div style={{ fontSize: 11, fontWeight: 600, color: '#6b7280', textTransform: 'uppercase', letterSpacing: 0.5 }}>AI Prompts</div>
+                  {(Object.keys(DEFAULT_PROMPTS) as Array<keyof JournalPromptConfig>).map(key => {
+                    const labels: Record<keyof JournalPromptConfig, string> = {
+                      tag: 'Auto-Tag', digest: 'Weekly Digest', reflection: 'Reflect',
+                      extend: 'Extend', summarize: 'Summarize', scripture: 'Scripture',
+                      memory: 'Memory Extraction', profile: 'Profile', proactive: 'Proactive Suggestion', chat: 'Chat',
+                    };
+                    const current = getPrompt(key);
+                    const isDefault = current === DEFAULT_PROMPTS[key];
+                    return (
+                      <div key={key}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+                          <label style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>{labels[key]}</label>
+                          {!isDefault && (
+                            <button onClick={() => { resetPrompt(key); setProfileTab('profile'); setTimeout(() => setProfileTab('settings'), 0); }}
+                              style={{ fontSize: 10, color: '#6366f1', background: 'none', border: 'none', cursor: 'pointer', textDecoration: 'underline' }}>
+                              Reset to default
+                            </button>
+                          )}
+                        </div>
+                        <textarea
+                          defaultValue={current}
+                          onBlur={e => { if (e.target.value !== DEFAULT_PROMPTS[key]) setPrompt(key, e.target.value); else resetPrompt(key); }}
+                          rows={3}
+                          style={{
+                            width: '100%', padding: '6px 8px', border: '1px solid #d1d5db', borderRadius: 6,
+                            fontSize: 12, fontFamily: 'inherit', resize: 'vertical', lineHeight: 1.5,
+                            background: isDefault ? '#fff' : '#fef3c7',
+                          }}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {memoryItems.length === 0 ? (
