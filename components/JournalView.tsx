@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
 import { JournalEntry } from '../services/idbService';
 import { journalStorage } from '../services/journalStorage';
 import JournalEditor from './JournalEditor';
@@ -11,6 +11,8 @@ import type { PaperType } from '../services/strokeNormalizer';
 import { syncService } from '../services/syncService';
 import { spiritualMemory } from '../services/spiritualMemory';
 import type { SpiritualMemoryItem } from '../services/idbService';
+import JournalBlockEditor, { useBlockHistory } from './JournalBlockEditor';
+import { type JournalBlock, migrateToBlocks, flattenBlocks, createTextBlock, createImageBlock } from '../types/journalBlocks';
 import {
   getPrompt, setPrompt, resetPrompt, DEFAULT_PROMPTS, type JournalPromptConfig,
   getAgentIdentity, setAgentIdentity, resetAgentIdentity,
@@ -601,22 +603,38 @@ const JournalView: React.FC<JournalViewProps> = ({
   // ---------------------------------------------------------------
   const [mobileShowEditor, setMobileShowEditor] = useState(false);
 
+  // Editor mode and block state (declared early for use in flushPendingSave)
+  type NoteMode = 'text' | 'draw' | 'overlay' | 'blocks';
+  const [noteMode, setNoteMode] = useState<NoteMode>('blocks');
+  const [editorBlocks, setEditorBlocks] = useState<JournalBlock[]>([createTextBlock()]);
+
   // Flush any pending auto-save before switching notes
   const flushPendingSave = useCallback(async () => {
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
-      // Save the current entry's state from the editor
-      if (selectedId && editorRef.current) {
-        const html = editorRef.current.innerHTML;
-        const plainText = editorRef.current.innerText || '';
-        const firstLine = plainText.split('\n').find((l) => l.trim()) || '';
-        const title = truncate(firstLine, 80);
-        await journalStorage.updateEntry(selectedId, { content: html, plainText, title });
+      if (selectedId) {
+        // In blocks mode, save blocks + flattened content
+        if (noteMode === 'blocks') {
+          const flattened = flattenBlocks(editorBlocks);
+          await journalStorage.updateEntry(selectedId, {
+            blocks: editorBlocks,
+            content: flattened.content,
+            plainText: flattened.plainText,
+            drawing: flattened.drawing,
+            title: truncate((flattened.plainText.split('\n').find(l => l.trim()) || ''), 80),
+          } as any);
+        } else if (editorRef.current) {
+          const html = editorRef.current.innerHTML;
+          const plainText = editorRef.current.innerText || '';
+          const firstLine = plainText.split('\n').find((l) => l.trim()) || '';
+          const title = truncate(firstLine, 80);
+          await journalStorage.updateEntry(selectedId, { content: html, plainText, title });
+        }
         window.dispatchEvent(new Event('journal-updated-now'));
       }
     }
-  }, [selectedId]);
+  }, [selectedId, noteMode, editorBlocks]);
 
   const selectEntry = async (id: string) => {
     await flushPendingSave();
@@ -1037,8 +1055,6 @@ const JournalView: React.FC<JournalViewProps> = ({
   );
 
   // Drawing state
-  type NoteMode = 'text' | 'draw' | 'overlay';
-  const [noteMode, setNoteMode] = useState<NoteMode>('text');
   const [drawingData, setDrawingData] = useState('');
   const [drawingTool, setDrawingTool] = useState<'pen' | 'marker' | 'highlighter' | 'eraser'>('pen');
   const [drawingColor, setDrawingColor] = useState('#000000');
@@ -1064,6 +1080,12 @@ const JournalView: React.FC<JournalViewProps> = ({
   useEffect(() => {
     if (selectedEntry) {
       setDrawingData(selectedDrawing || '');
+      // Load blocks: use stored blocks or migrate from legacy content
+      if (selectedEntry.blocks && selectedEntry.blocks.length > 0) {
+        setEditorBlocks(selectedEntry.blocks);
+      } else {
+        setEditorBlocks(migrateToBlocks(selectedEntry.content, selectedEntry.plainText, selectedEntry.drawing));
+      }
     }
   }, [selectedId, selectedDrawing]);
 
@@ -1076,6 +1098,37 @@ const JournalView: React.FC<JournalViewProps> = ({
       await journalStorage.updateEntry(selectedId, { drawing: data } as any);
     }, 2000);
   }, [selectedId]);
+
+  // Handle block editor changes — save blocks + flatten for backward compat
+  const handleBlocksChange = useCallback((newBlocks: JournalBlock[]) => {
+    setEditorBlocks(newBlocks);
+    if (!selectedId) return;
+
+    const flattened = flattenBlocks(newBlocks);
+
+    // Update local state immediately
+    setEntries(prev => prev.map(e =>
+      e.id === selectedId
+        ? { ...e, blocks: newBlocks, content: flattened.content, plainText: flattened.plainText, drawing: flattened.drawing, title: truncate((flattened.plainText.split('\n').find(l => l.trim()) || ''), 80), updatedAt: new Date().toISOString() }
+        : e
+    ));
+
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(async () => {
+      await journalStorage.updateEntry(selectedId, {
+        blocks: newBlocks,
+        content: flattened.content,
+        plainText: flattened.plainText,
+        drawing: flattened.drawing,
+        title: truncate((flattened.plainText.split('\n').find(l => l.trim()) || ''), 80),
+      } as any);
+    }, 2000);
+  }, [selectedId]);
+
+  // Image insertion for block editor
+  const handleBlockImageRequest = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
 
   // File/photo selection (works on all browsers)
   const handleImageSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1135,6 +1188,12 @@ const JournalView: React.FC<JournalViewProps> = ({
   }, []);
 
   const insertImageIntoEditor = (dataUrl: string) => {
+    // If in blocks mode, insert via block editor
+    if (noteMode === 'blocks') {
+      const insertFn = (JournalBlockEditor as any).__insertImage;
+      if (insertFn) insertFn(dataUrl);
+      return;
+    }
     if (editorRef.current) {
       const img = document.createElement('img');
       img.src = dataUrl;
@@ -1207,6 +1266,10 @@ const JournalView: React.FC<JournalViewProps> = ({
 
   // Sync editor content when switching entries
   useEffect(() => {
+    if (noteMode === 'blocks' && selectedEntry) {
+      // Blocks mode: state is managed via editorBlocks, no DOM sync needed
+      return;
+    }
     if (editorRef.current && selectedEntry && (noteMode === 'text' || noteMode === 'overlay')) {
       if (editorRef.current.innerHTML !== selectedEntry.content) {
         editorRef.current.innerHTML = selectedEntry.content || '';
@@ -1295,11 +1358,11 @@ const JournalView: React.FC<JournalViewProps> = ({
 
       {/* Mode selector */}
       <div style={{ display: 'flex', gap: 4, padding: '6px 12px', borderBottom: '1px solid #f3f4f6', flexShrink: 0, background: '#fafafa' }}>
-        {(['text', 'draw', 'overlay'] as NoteMode[]).map(m => (
+        {(['blocks', 'text', 'draw', 'overlay'] as NoteMode[]).map(m => (
           <button key={m} onClick={() => setNoteMode(m)}
             style={{ fontSize: 13, padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
               background: noteMode === m ? '#4f46e5' : '#f3f4f6', color: noteMode === m ? '#fff' : '#6b7280', fontWeight: noteMode === m ? 600 : 400 }}>
-            {m === 'text' ? '📝 Text' : m === 'draw' ? '✏️ Draw' : '🔀 Both'}
+            {m === 'blocks' ? '🧱 Blocks' : m === 'text' ? '📝 Text' : m === 'draw' ? '✏️ Draw' : '🔀 Both'}
           </button>
         ))}
         <span style={{ flex: 1 }} />
@@ -1665,7 +1728,8 @@ const JournalView: React.FC<JournalViewProps> = ({
               {t === 'pen' ? '✏️' : t === 'marker' ? '🖊️' : t === 'highlighter' ? '🖍️' : '🧹'}
             </button>
           ))}
-          <button onClick={() => canvasRef.current?.undo()} style={{ fontSize: 13, padding: '3px 6px', borderRadius: 4, border: 'none', cursor: 'pointer', background: 'transparent' }} title="Undo">↩️</button>
+          <button onClick={() => canvasRef.current?.undo()} style={{ fontSize: 13, padding: '3px 6px', borderRadius: 4, border: 'none', cursor: 'pointer', background: 'transparent' }} title="Undo (Ctrl+Z)">↩️</button>
+          <button onClick={() => canvasRef.current?.redo()} style={{ fontSize: 13, padding: '3px 6px', borderRadius: 4, border: 'none', cursor: 'pointer', background: 'transparent' }} title="Redo (Ctrl+Shift+Z)">↪️</button>
           <button onClick={() => canvasRef.current?.clear()} style={{ fontSize: 13, padding: '3px 6px', borderRadius: 4, border: 'none', cursor: 'pointer', background: 'transparent' }} title="Clear">🗑️</button>
           <span style={{ width: 1, height: 16, background: '#e5e7eb', margin: '0 2px' }} />
           {(['plain', 'grid', 'ruled'] as PaperType[]).map(t => (
@@ -1690,7 +1754,18 @@ const JournalView: React.FC<JournalViewProps> = ({
 
       {/* Editor / Canvas area */}
       <div style={{ flex: 1, overflow: 'auto', position: 'relative', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ flex: 1, position: 'relative', minHeight: noteMode === 'text' ? 'auto' : '400px' }}>
+        <div style={{ flex: 1, position: 'relative', minHeight: noteMode === 'text' || noteMode === 'blocks' ? 'auto' : '400px' }}>
+          {noteMode === 'blocks' && (
+            <div style={{ padding: '0 8px' }}>
+              <JournalBlockEditor
+                blocks={editorBlocks}
+                onChange={handleBlocksChange}
+                paperType={paperType}
+                onImageRequest={handleBlockImageRequest}
+              />
+            </div>
+          )}
+
           {noteMode === 'text' && (
             <div ref={editorRef} contentEditable onInput={handleContentEditableInput}
               data-placeholder="Write your thoughts, reflections, prayers..."
@@ -1705,14 +1780,14 @@ const JournalView: React.FC<JournalViewProps> = ({
 
           {noteMode === 'overlay' && (
             <div style={{ position: 'relative', minHeight: '400px', height: '100%' }}>
-              {/* Text layer — base */}
-              <div ref={editorRef} contentEditable={!isWritingMode} onInput={handleContentEditableInput}
-                data-placeholder="Write and draw — use the toolbar below to switch modes..."
-                style={{ minHeight: '100%', padding: '16px 20px', outline: 'none', fontSize: 16, lineHeight: 1.7, color: '#1f2937', pointerEvents: isWritingMode ? 'none' : 'auto' }} />
-              {/* Drawing layer — overlay */}
-              <div style={{ position: 'absolute', inset: 0, zIndex: 10, pointerEvents: isWritingMode ? 'auto' : 'none' }}>
+              {/* Drawing layer — below text so handwriting doesn't cover text */}
+              <div style={{ position: 'absolute', inset: 0, zIndex: 1, pointerEvents: isWritingMode ? 'auto' : 'none' }}>
                 <SimpleDrawingCanvas key={`overlay-${selectedId}`} ref={canvasRef} onChange={handleDrawingChange} initialData={drawingData} overlayMode={true} isWritingMode={isWritingMode} paperType={paperType} />
               </div>
+              {/* Text layer — on top of drawing so text is always readable */}
+              <div ref={editorRef} contentEditable={!isWritingMode} onInput={handleContentEditableInput}
+                data-placeholder="Write and draw — use the toolbar below to switch modes..."
+                style={{ position: 'relative', zIndex: 2, minHeight: '100%', padding: '16px 20px', outline: 'none', fontSize: 16, lineHeight: 1.7, color: '#1f2937', pointerEvents: isWritingMode ? 'none' : 'auto' }} />
               {/* Floating unified toolbar — Type / Draw / Photo */}
               <div style={{
                 position: 'absolute', bottom: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 20,
