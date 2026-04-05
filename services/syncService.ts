@@ -91,6 +91,35 @@ const ALL_MODULES: SyncModule[] = [
 
 const MODULE_TS_KEY = 'bible_sync_module_timestamps';
 
+// ── Global backoff: stop syncing after 503/throttle errors ──
+let syncBackoffUntil = 0; // timestamp — skip sync until this time
+let consecutiveFailures = 0;
+const BACKOFF_BASE_MS = 30_000; // 30 seconds initial backoff
+const BACKOFF_MAX_MS = 300_000; // 5 minutes max backoff
+
+function isSyncThrottled(): boolean {
+  return Date.now() < syncBackoffUntil;
+}
+
+function handleSyncError(error: any): void {
+  // Detect 503 / throttle / network errors
+  const is503 = error?.status === 503 || error?.statusCode === 503
+    || (error?.message && /503|Service Unavailable|Could not query/i.test(error.message));
+  const isNetworkError = error?.message && /fetch|network|timeout/i.test(error.message);
+
+  if (is503 || isNetworkError) {
+    consecutiveFailures++;
+    const backoffMs = Math.min(BACKOFF_BASE_MS * Math.pow(2, consecutiveFailures - 1), BACKOFF_MAX_MS);
+    syncBackoffUntil = Date.now() + backoffMs;
+    console.warn(`[Sync] Backing off for ${Math.round(backoffMs / 1000)}s after ${consecutiveFailures} failure(s)`);
+  }
+}
+
+function resetSyncBackoff(): void {
+  consecutiveFailures = 0;
+  syncBackoffUntil = 0;
+}
+
 function getLocalTimestamps(): Record<SyncModule, number> {
   try {
     const data = localStorage.getItem(MODULE_TS_KEY);
@@ -120,13 +149,15 @@ async function updateServerTimestamp(module: SyncModule, ts: number): Promise<vo
 }
 
 async function fetchServerTimestamps(): Promise<Record<string, number>> {
-  if (!supabase || !canSync()) return {};
+  if (!supabase || !canSync() || isSyncThrottled()) return {};
   const userId = authManager.getUserId();
   if (!userId) return {};
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('sync_metadata')
     .select('module, last_modified')
     .eq('user_id', userId);
+  if (error) { handleSyncError(error); return {}; }
+  resetSyncBackoff();
   const result: Record<string, number> = {};
   for (const row of data || []) result[row.module] = row.last_modified;
   return result;
@@ -1075,7 +1106,7 @@ const MODULE_SYNC_MAP: Record<SyncModule, { name: string; fn: () => Promise<void
 };
 
 export async function performIncrementalSync(): Promise<void> {
-  if (!canSync()) return;
+  if (!canSync() || isSyncThrottled()) return;
 
   try {
     // Fetch server timestamps (one lightweight query)
@@ -1098,20 +1129,22 @@ export async function performIncrementalSync(): Promise<void> {
       Promise.race([fn(), new Promise<void>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))]);
 
     for (const step of steps) {
-      if (syncManager.isCancelled() || !canSync()) break;
+      if (syncManager.isCancelled() || !canSync() || isSyncThrottled()) break;
       syncManager.stepStart(step.name);
       try {
         await withTimeout(step.fn);
-        // After successful download, update local timestamp to match server
         setLocalTimestamp(step.module, serverTs[step.module] || Date.now());
-      } catch {
-        // Failed modules will retry on next cycle
+        resetSyncBackoff();
+      } catch (err) {
+        handleSyncError(err);
+        if (isSyncThrottled()) break; // stop processing remaining modules
       }
       syncManager.stepDone(step.name);
     }
 
     syncManager.setStatus('idle');
   } catch (error) {
+    handleSyncError(error);
     syncManager.setStatus('error', error instanceof Error ? error.message : 'Sync failed');
   }
 }
@@ -1161,16 +1194,17 @@ if (typeof window !== 'undefined') {
 const pushTimers: Partial<Record<SyncModule, ReturnType<typeof setTimeout>>> = {};
 
 function schedulePush(module: SyncModule, immediate = false) {
-  if (!canSync()) return;
+  if (!canSync() || isSyncThrottled()) return;
   if (pushTimers[module]) clearTimeout(pushTimers[module]);
   const run = async () => {
-    if (!canSync()) return;
+    if (!canSync() || isSyncThrottled()) return;
     try {
-      // Run the module's sync function (uploads local changes)
       await MODULE_SYNC_MAP[module].fn();
-      // Stamp the module timestamp locally and on server
       stampModule(module);
-    } catch { /* silently handle */ }
+      resetSyncBackoff();
+    } catch (err) {
+      handleSyncError(err);
+    }
   };
   if (immediate) {
     run();
