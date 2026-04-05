@@ -23,7 +23,7 @@ import { compressImage } from '../services/imageCompressionService';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-export type ActiveTool = StrokeTool | 'text' | 'lasso';
+export type ActiveTool = StrokeTool | 'text' | 'lasso' | 'pointer';
 
 export interface TextBox {
   id: string;
@@ -603,6 +603,15 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 
     closeAllPopups();
 
+    // Pointer mode — do nothing on canvas click (just deselect)
+    if (tool === 'pointer') {
+      setSelectedItemId(null);
+      setSelectedItemType(null);
+      setEditingTextId(null);
+      setLassoSelection(null);
+      return;
+    }
+
     // Lasso drag
     if (lassoSelection && tool === 'lasso') {
       const w = displayWidthRef.current, h = displayHeightRef.current;
@@ -775,7 +784,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     const file = e.target.files?.[0];
     if (!file) return;
     try {
-      const compressed = await compressImage(file, 800, 0.7);
+      const compressed = await compressImage(file);
       const newImg: CanvasImage = {
         id: genId(),
         x: 0.1, y: 0.1,
@@ -1027,6 +1036,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   // ── Tool config ────────────────────────────────────────────────────────
 
   const toolButtons: { tool: ActiveTool; label: string; icon: string }[] = [
+    { tool: 'pointer', label: 'Pointer', icon: '👆' },
     { tool: 'lasso', label: 'Select', icon: '⭕' },
     { tool: 'pen', label: 'Pen', icon: '✏️' },
     { tool: 'marker', label: 'Marker', icon: '🖊️' },
@@ -1037,6 +1047,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 
   const getCursor = () => {
     switch (activeTool) {
+      case 'pointer': return 'default';
       case 'eraser': return 'cell';
       case 'text': return 'text';
       case 'lasso': return lassoSelection ? 'move' : 'crosshair';
@@ -1241,39 +1252,60 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
             const isEditing = editingTextId === tb.id;
             const isSelected = selectedItemId === tb.id && selectedItemType === 'text';
             return (
-              <div key={tb.id}
-                style={{
-                  position: 'absolute',
-                  left: `${tb.x * 100}%`,
-                  top: `${tb.y * 100}%`,
-                  width: `${tb.width * 100}%`,
-                  minHeight: 24,
-                  zIndex: 5,
-                  cursor: isEditing ? 'text' : 'move',
-                  border: isEditing ? '2px solid #4f46e5' : isSelected ? '2px dashed #4f46e5' : '1px dashed transparent',
-                  borderRadius: 4,
-                  padding: '4px 6px',
-                  background: tb.isAIReflection ? 'rgba(238, 235, 255, 0.9)' : (isEditing ? 'rgba(255,255,255,0.9)' : 'transparent'),
-                  fontSize: tb.fontSize || 16,
-                  lineHeight: 1.5,
-                  fontStyle: tb.isAIReflection ? 'italic' : 'normal',
-                  outline: 'none',
-                  touchAction: 'none',
-                }}
-                contentEditable={isEditing}
-                suppressContentEditableWarning
-                onMouseDown={e => !isEditing && handleItemPointerDown(e, tb.id, 'text')}
-                onTouchStart={e => !isEditing && handleItemPointerDown(e, tb.id, 'text')}
-                onDoubleClick={() => setEditingTextId(tb.id)}
-                onBlur={e => {
-                  updateTextBox(tb.id, e.currentTarget.innerText);
-                  setEditingTextId(null);
-                }}
-                onKeyDown={e => {
-                  if (e.key === 'Escape') { setEditingTextId(null); (e.target as HTMLElement).blur(); }
-                }}
-                dangerouslySetInnerHTML={{ __html: tb.content || (isEditing ? '' : '<span style="color:#999">Type here...</span>') }}
-              />
+              <React.Fragment key={tb.id}>
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: `${tb.x * 100}%`,
+                    top: `${tb.y * 100}%`,
+                    width: `${tb.width * 100}%`,
+                    minHeight: 24,
+                    zIndex: 5,
+                    cursor: isEditing ? 'text' : 'move',
+                    border: isEditing ? '2px solid #4f46e5' : isSelected ? '2px dashed #4f46e5' : '1px dashed transparent',
+                    borderRadius: 4,
+                    padding: '4px 6px',
+                    background: tb.isAIReflection ? 'rgba(238, 235, 255, 0.9)' : (isEditing ? 'rgba(255,255,255,0.9)' : 'transparent'),
+                    fontSize: tb.fontSize || 16,
+                    lineHeight: 1.5,
+                    fontStyle: tb.isAIReflection ? 'italic' : 'normal',
+                    outline: 'none',
+                    touchAction: 'none',
+                  }}
+                  contentEditable={isEditing}
+                  suppressContentEditableWarning
+                  onMouseDown={e => {
+                    if (!isEditing) handleItemPointerDown(e, tb.id, 'text');
+                  }}
+                  onTouchStart={e => {
+                    if (!isEditing) handleItemPointerDown(e, tb.id, 'text');
+                  }}
+                  onDoubleClick={() => setEditingTextId(tb.id)}
+                  onBlur={e => {
+                    updateTextBox(tb.id, e.currentTarget.innerText);
+                    setEditingTextId(null);
+                  }}
+                  onKeyDown={e => {
+                    if (e.key === 'Escape') { setEditingTextId(null); (e.target as HTMLElement).blur(); }
+                  }}
+                  dangerouslySetInnerHTML={{ __html: tb.content || (isEditing ? '' : '<span style="color:#999">Type here...</span>') }}
+                />
+                {/* Delete button for selected text box */}
+                {isSelected && !isEditing && (
+                  <button
+                    style={{
+                      position: 'absolute',
+                      left: `calc(${tb.x * 100}% + ${tb.width * 100}% - 8px)`,
+                      top: `calc(${tb.y * 100}% - 12px)`,
+                      width: 24, height: 24,
+                      background: '#ef4444', color: 'white', borderRadius: '50%', border: 'none',
+                      fontSize: 14, cursor: 'pointer', zIndex: 6,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}
+                    onClick={(e) => { e.stopPropagation(); deleteTextBox(tb.id); }}
+                  >×</button>
+                )}
+              </React.Fragment>
             );
           })}
 
