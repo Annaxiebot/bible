@@ -410,6 +410,7 @@ const SYNCED_SETTINGS_KEYS = [
   STORAGE_KEYS.BRAVE_API_KEY,
   STORAGE_KEYS.AUTO_SAVE_RESEARCH,
   STORAGE_KEYS.ENGLISH_VERSION,
+  STORAGE_KEYS.CHINESE_VERSION,
   STORAGE_KEYS.CHINESE_MODE,
   STORAGE_KEYS.FONT_SIZE,
   STORAGE_KEYS.VIEW_LAYOUT,
@@ -419,18 +420,20 @@ const SYNCED_SETTINGS_KEYS = [
   'webSearchProvider',
 ];
 
-async function syncSettings(): Promise<void> {
+async function syncSettings(forceRemotePull = false): Promise<void> {
   if (!supabase || !canSync()) return;
 
   const userId = authManager.getUserId();
   if (!userId) return;
 
   // Get remote settings
-  const { data: remote } = await supabase
+  const { data: remote, error } = await supabase
     .from('user_settings')
     .select('*')
     .eq('user_id', userId)
     .single();
+
+  if (error && error.code !== 'PGRST116') { handleSyncError(error); return; }
 
   // Build local settings object
   const localSettings: Record<string, string> = {};
@@ -444,7 +447,8 @@ async function syncSettings(): Promise<void> {
     const remoteTime = new Date(remote.updated_at).getTime();
     const syncState = getSyncState();
 
-    if (remoteTime > syncState.lastSettingsSync) {
+    // Pull from remote if remote is newer OR if forced (manual/full sync)
+    if (forceRemotePull || remoteTime > syncState.lastSettingsSync) {
       // Remote is newer — merge remote into local (remote wins)
       for (const [key, val] of Object.entries(remoteSettings)) {
         if (val && SYNCED_SETTINGS_KEYS.includes(key)) {
@@ -1043,7 +1047,7 @@ export async function performFullSync(): Promise<void> {
       { name: 'Notes', fn: syncNotes },
       { name: 'Annotations', fn: syncAnnotations },
       { name: 'Reading History', fn: syncReadingHistory },
-      { name: 'Settings', fn: syncSettings },
+      { name: 'Settings', fn: () => syncSettings(true) }, // force pull from remote on full sync
       { name: 'Verse Data', fn: syncVerseData },
       { name: 'Bookmarks', fn: syncBookmarks },
       { name: 'Bible Cache', fn: syncBibleCache },
