@@ -397,6 +397,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
   } | null>(null);
   const [quotedText, setQuotedText] = useState<string | null>(null);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const switchingThreadRef = useRef(false);
   const [showThreadList, setShowThreadList] = useState(false);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -528,16 +529,23 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     };
   }, []);
 
+  // --- Chat persistence: save whenever messages change ---
+  const lastSavedRef = useRef<string>('');
+
   // --- Chat persistence: load/create thread when chapter changes ---
   useEffect(() => {
     if (!currentBookId || currentChapter == null) return;
     let cancelled = false;
-    getOrCreateChapterThread(currentBookId, currentChapter).then(thread => {
+    switchingThreadRef.current = true;
+    getOrCreateChapterThread(currentBookId, currentChapter).then(async thread => {
       if (cancelled) return;
+      const saved = await loadThreadMessages(thread.id);
+      if (cancelled) return;
+      // Batch both updates so auto-save never sees new threadId with old messages
+      lastSavedRef.current = JSON.stringify(saved.map(m => m.timestamp));
       setActiveThreadId(thread.id);
-      loadThreadMessages(thread.id).then(saved => {
-        if (!cancelled) setMessages(saved);
-      });
+      setMessages(saved);
+      switchingThreadRef.current = false;
     });
     // Re-read from IDB when another device syncs chat data
     const onSynced = () => {
@@ -548,13 +556,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       }
     };
     window.addEventListener('chatHistory-synced', onSynced);
-    return () => { cancelled = true; window.removeEventListener('chatHistory-synced', onSynced); };
+    return () => { cancelled = true; switchingThreadRef.current = false; window.removeEventListener('chatHistory-synced', onSynced); };
   }, [currentBookId, currentChapter]); // Don't include activeThreadId — causes race when selecting threads
 
-  // --- Chat persistence: save whenever messages change ---
-  const lastSavedRef = useRef<string>('');
   useEffect(() => {
-    if (!activeThreadId) return;
+    if (!activeThreadId || switchingThreadRef.current) return;
     const key = JSON.stringify(messages.map(m => m.timestamp));
     if (key === lastSavedRef.current) return;
     lastSavedRef.current = key;
@@ -1083,15 +1089,17 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
             <ChatThreadList
               activeThreadId={activeThreadId}
               onSelectThread={async (threadId) => {
-                setActiveThreadId(threadId);
+                switchingThreadRef.current = true;
                 const saved = await loadThreadMessages(threadId);
-                setMessages(saved);
                 lastSavedRef.current = JSON.stringify(saved.map(m => m.timestamp));
+                setActiveThreadId(threadId);
+                setMessages(saved);
+                switchingThreadRef.current = false;
               }}
               onNewThread={(thread) => {
+                lastSavedRef.current = JSON.stringify([]);
                 setActiveThreadId(thread.id);
                 setMessages([]);
-                lastSavedRef.current = '';
               }}
               bookId={currentBookId}
               chapter={currentChapter}
