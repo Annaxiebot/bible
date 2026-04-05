@@ -84,6 +84,7 @@ export interface JournalEntry {
   plainText: string;
   drawing?: string; // Canvas data (legacy / first drawing block)
   blocks?: JournalBlock[]; // Block-based content (new format)
+  notabilityData?: string; // Notability-style unified canvas data (serialized NormalizedCanvasData)
   latitude?: number;
   longitude?: number;
   locationName?: string; // reverse-geocoded address, e.g. "Near San Jose, CA"
