@@ -85,8 +85,9 @@ type SyncModule =
 
 const ALL_MODULES: SyncModule[] = [
   'notes', 'annotations', 'readingHistory', 'settings',
-  'verseData', 'bookmarks', 'bibleCache', 'journal', 'chatHistory',
+  'verseData', 'bookmarks', 'journal', 'chatHistory',
   'spiritualMemory',
+  // 'bibleCache' — disabled to reduce Disk IO (Bible text cached locally via bible-api.com)
 ];
 
 const MODULE_TS_KEY = 'bible_sync_module_timestamps';
@@ -1099,7 +1100,7 @@ const MODULE_SYNC_MAP: Record<SyncModule, { name: string; fn: () => Promise<void
   settings:       { name: 'Settings', fn: syncSettings },
   verseData:      { name: 'Verse Data', fn: syncVerseData },
   bookmarks:      { name: 'Bookmarks', fn: syncBookmarks },
-  bibleCache:     { name: 'Bible Cache', fn: syncBibleCache },
+  bibleCache:     { name: 'Bible Cache', fn: syncBibleCache }, // disabled in ALL_MODULES but kept in map for manual use
   journal:        { name: 'Journal', fn: syncJournal },
   chatHistory:    { name: 'Chat History', fn: syncChatHistory },
   spiritualMemory: { name: 'Spiritual Memory', fn: syncSpiritualMemory },
@@ -1164,15 +1165,18 @@ authManager.subscribe(async (state) => {
 });
 
 // =====================================================
-// PERIODIC SYNC (every 1 minute — incremental only)
+// PERIODIC SYNC (every 5 minutes — incremental only)
 // =====================================================
+
+let lastSyncAttempt = 0;
 
 if (typeof window !== 'undefined') {
   setInterval(() => {
     if (canSync() && syncManager.getStatus() === 'idle') {
+      lastSyncAttempt = Date.now();
       performIncrementalSync().catch(() => {});
     }
-  }, 60 * 1000);
+  }, 300 * 1000); // 5 minutes
 }
 
 // =====================================================
@@ -1182,6 +1186,9 @@ if (typeof window !== 'undefined') {
 if (typeof window !== 'undefined') {
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && canSync() && syncManager.getStatus() === 'idle') {
+      // Skip if less than 60 seconds since last sync attempt
+      if (Date.now() - lastSyncAttempt < 60_000) return;
+      lastSyncAttempt = Date.now();
       performIncrementalSync().catch(() => {});
     }
   });
@@ -1219,7 +1226,7 @@ if (typeof window !== 'undefined') {
     'annotation-updated': 'annotations',
     'chathistory-updated': 'chatHistory',
     'bookmark-updated': 'bookmarks',
-    'bible-cache-updated': 'bibleCache',
+    // 'bible-cache-updated': 'bibleCache', — disabled to reduce Disk IO
     'notes-updated': 'notes',
     'journal-updated': 'journal',
     'readinghistory-updated': 'readingHistory',
@@ -1364,7 +1371,7 @@ authManager.subscribe((state) => {
     // Delay to let initial sync finish first
     setTimeout(() => {
       setupRealtimeSync();
-      setupJournalRealtimeSync();
+      // setupJournalRealtimeSync(); — disabled to reduce Disk IO (journal syncs via periodic + event push)
     }, 10000);
   } else if (!state.isAuthenticated && supabase) {
     if (realtimeChannel) {
