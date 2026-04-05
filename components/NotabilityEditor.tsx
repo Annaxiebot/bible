@@ -448,8 +448,17 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 
   // ── Auto-expand ────────────────────────────────────────────────────────
 
+  const needsExpandRef = useRef(false);
+
   const checkAutoExpand = useCallback((y: number) => {
     if (y > displayHeightRef.current - AUTO_EXPAND_THRESHOLD) {
+      needsExpandRef.current = true; // defer until stroke completes
+    }
+  }, []);
+
+  const applyDeferredExpand = useCallback(() => {
+    if (needsExpandRef.current) {
+      needsExpandRef.current = false;
       setCanvasHeight(prev => prev + AUTO_EXPAND_AMOUNT);
     }
   }, []);
@@ -695,10 +704,11 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     const tool = toolRef.current;
     if (lassoDragStart) { setLassoDragStart(null); return; }
     if (tool === 'lasso') { finishLasso(); isDrawingRef.current = false; return; }
-    if (tool === 'eraser') { eraserActiveRef.current = false; isDrawingRef.current = false; return; }
+    if (tool === 'eraser') { eraserActiveRef.current = false; isDrawingRef.current = false; applyDeferredExpand(); return; }
     if (isDrawingRef.current) commitCurrentStroke();
     isDrawingRef.current = false;
-  }, [commitCurrentStroke, finishLasso, lassoDragStart]);
+    applyDeferredExpand();
+  }, [commitCurrentStroke, finishLasso, lassoDragStart, applyDeferredExpand]);
 
   // Touch events
   const handleTouchStart = useCallback((e: TouchEvent) => {
