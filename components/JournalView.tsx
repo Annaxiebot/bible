@@ -13,6 +13,7 @@ import { spiritualMemory } from '../services/spiritualMemory';
 import type { SpiritualMemoryItem } from '../services/idbService';
 import JournalBlockEditor, { useBlockHistory } from './JournalBlockEditor';
 import JournalPrintDialog from './JournalPrintDialog';
+import NotabilityEditor from './NotabilityEditor';
 import { printJournalEntriesByIds } from '../services/printService';
 import type { JournalPrintOptions } from '../utils/journalPrintRenderer';
 import { type JournalBlock, migrateToBlocks, flattenBlocks, createTextBlock, createImageBlock } from '../types/journalBlocks';
@@ -614,6 +615,7 @@ const JournalView: React.FC<JournalViewProps> = ({
   // Editor mode and block state (declared early for use in flushPendingSave)
   type NoteMode = 'text' | 'draw' | 'overlay' | 'blocks';
   const [noteMode, setNoteMode] = useState<NoteMode>('blocks');
+  const [showNotabilityEditor, setShowNotabilityEditor] = useState(false);
   const [editorBlocks, setEditorBlocks] = useState<JournalBlock[]>([createTextBlock()]);
 
   // Flush any pending auto-save before switching notes
@@ -1340,6 +1342,11 @@ const JournalView: React.FC<JournalViewProps> = ({
             {m === 'blocks' ? '🧱 Blocks' : m === 'text' ? '📝 Text' : m === 'draw' ? '✏️ Draw' : '🔀 Both'}
           </button>
         ))}
+        <button onClick={() => setShowNotabilityEditor(true)}
+          style={{ fontSize: 13, padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
+            background: '#f3f4f6', color: '#6b7280', fontWeight: 400 }}>
+          📓 Notability
+        </button>
         <span style={{ flex: 1 }} />
         {/* Camera/photo button — mobile: OS file picker, desktop: menu with webcam + file */}
         {isTouchDevice ? (
@@ -2150,6 +2157,23 @@ const JournalView: React.FC<JournalViewProps> = ({
     </div>
   );
 
+  const notabilityOverlay = showNotabilityEditor && selectedEntry ? (
+    <NotabilityEditor
+      initialData={selectedEntry.notabilityData || selectedEntry.drawing}
+      paperType="ruled"
+      onSave={(data) => {
+        if (!selectedEntry) return;
+        journalStorage.updateEntry(selectedEntry.id, { notabilityData: data }).then((updated) => {
+          if (updated) {
+            setEntries(prev => prev.map(e => e.id === updated.id ? updated : e));
+          }
+          if (syncService.canSync()) syncService.syncJournal();
+        });
+      }}
+      onClose={() => setShowNotabilityEditor(false)}
+    />
+  ) : null;
+
   const printDialog = showPrintDialog ? (
     <JournalPrintDialog
       entries={entries}
@@ -2164,6 +2188,7 @@ const JournalView: React.FC<JournalViewProps> = ({
     return (
       <div style={{ height: '100%', background: '#fff', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
         {mobileShowEditor && selectedEntry ? editorContent : listContent}
+        {notabilityOverlay}
         {printDialog}
       </div>
     );
@@ -2193,6 +2218,7 @@ const JournalView: React.FC<JournalViewProps> = ({
         {listContent}
       </div>
       <div style={{ flex: 1, overflow: 'hidden' }}>{editorContent}</div>
+      {notabilityOverlay}
       {printDialog}
     </div>
   );
