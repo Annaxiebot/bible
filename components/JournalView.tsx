@@ -2171,6 +2171,11 @@ const JournalView: React.FC<JournalViewProps> = ({
         });
       }}
       onClose={() => setShowNotabilityEditor(false)}
+      entryPlainText={selectedEntry.plainText}
+      bibleContext={bookId ? { bookId, chapter, bookName } : null}
+      onAIStream={async (prompt, onChunk) => {
+        await streamAI(prompt, onChunk);
+      }}
     />
   ) : null;
 
