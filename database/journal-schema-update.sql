@@ -52,6 +52,9 @@ CREATE INDEX IF NOT EXISTS idx_journal_updated_at ON journal(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_journal_tags ON journal USING gin(tags);
 CREATE INDEX IF NOT EXISTS idx_journal_blocks ON journal USING gin(blocks);
 
+-- Notability-style unified canvas data (serialized JSON)
+ALTER TABLE journal ADD COLUMN IF NOT EXISTS notability_data TEXT DEFAULT NULL;
+
 -- Enable Realtime for journal
 ALTER PUBLICATION supabase_realtime ADD TABLE journal;
 
