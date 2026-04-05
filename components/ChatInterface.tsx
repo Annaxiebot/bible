@@ -549,7 +549,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     };
     window.addEventListener('chatHistory-synced', onSynced);
     return () => { cancelled = true; window.removeEventListener('chatHistory-synced', onSynced); };
-  }, [currentBookId, currentChapter, activeThreadId]);
+  }, [currentBookId, currentChapter]); // Don't include activeThreadId — causes race when selecting threads
 
   // --- Chat persistence: save whenever messages change ---
   const lastSavedRef = useRef<string>('');
