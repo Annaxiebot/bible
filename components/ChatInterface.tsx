@@ -19,7 +19,7 @@ import {
   processTextWithBibleRefs,
   BOOK_ID_TO_ENGLISH,
 } from '../services/messageParsingService';
-import { loadThreadMessages, saveThreadMessages, getOrCreateChapterThread, createThread, deleteThread } from '../services/chatHistoryStorage';
+import { loadThreadMessages, saveThreadMessages, findChapterThread, getOrCreateChapterThread, createThread, deleteThread } from '../services/chatHistoryStorage';
 import ChatThreadList from './ChatThreadList';
 
 interface GroundingChunk {
@@ -537,14 +537,21 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     if (!currentBookId || currentChapter == null) return;
     let cancelled = false;
     switchingThreadRef.current = true;
-    getOrCreateChapterThread(currentBookId, currentChapter).then(async thread => {
+    findChapterThread(currentBookId, currentChapter).then(async thread => {
       if (cancelled) return;
-      const saved = await loadThreadMessages(thread.id);
-      if (cancelled) return;
-      // Batch both updates so auto-save never sees new threadId with old messages
-      lastSavedRef.current = JSON.stringify(saved.map(m => m.timestamp));
-      setActiveThreadId(thread.id);
-      setMessages(saved);
+      if (thread) {
+        // Existing thread found — load its messages
+        const saved = await loadThreadMessages(thread.id);
+        if (cancelled) return;
+        lastSavedRef.current = JSON.stringify(saved.map(m => m.timestamp));
+        setActiveThreadId(thread.id);
+        setMessages(saved);
+      } else {
+        // No thread for this chapter — just clear the chat (don't create one yet)
+        lastSavedRef.current = JSON.stringify([]);
+        setActiveThreadId(null);
+        setMessages([]);
+      }
       switchingThreadRef.current = false;
     });
     // Re-read from IDB when another device syncs chat data
@@ -663,6 +670,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
 
   const handleSend = async () => {
     if ((!input.trim() && !imageAttachment) || isTyping) return;
+
+    // Create thread on first message if none exists
+    if (!activeThreadId && currentBookId && currentChapter != null) {
+      const thread = await getOrCreateChapterThread(currentBookId, currentChapter);
+      setActiveThreadId(thread.id);
+    }
 
     // Cancel any previous request
     if (abortControllerRef.current) {
