@@ -150,10 +150,11 @@ export async function clearAllThreads(): Promise<void> {
 // ---------------------------------------------------------------------------
 
 /** Find existing thread for a chapter, or create one. */
-export async function getOrCreateChapterThread(
+/** Find an existing chapter thread without creating one. Returns null if none exists. */
+export async function findChapterThread(
   bookId: string,
   chapter: number,
-): Promise<ChatHistoryRecord> {
+): Promise<ChatHistoryRecord | null> {
   const all = await idbService.getAll('chatHistory');
   // Check for legacy key format first
   const legacy = all.find(t => t.id === `${bookId}:${chapter}`);
@@ -165,8 +166,15 @@ export async function getOrCreateChapterThread(
     return legacy;
   }
   // Then check by bookId + chapter
-  const match = all.find(t => t.bookId === bookId && t.chapter === chapter);
-  if (match) return match;
-  // Create new
+  return all.find(t => t.bookId === bookId && t.chapter === chapter) || null;
+}
+
+/** Find or create a chapter thread. Only call when user actually sends a message. */
+export async function getOrCreateChapterThread(
+  bookId: string,
+  chapter: number,
+): Promise<ChatHistoryRecord> {
+  const existing = await findChapterThread(bookId, chapter);
+  if (existing) return existing;
   return createThread({ bookId, chapter });
 }
