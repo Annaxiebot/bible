@@ -254,7 +254,8 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1.0;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    renderAllStrokes(ctx, strokeDataRef.current, w, h);
+    // Use width for both dimensions so strokes don't stretch when height changes
+    renderAllStrokes(ctx, strokeDataRef.current, w, w);
 
     // Draw images on canvas
     imagesRef.current.forEach(img => {
@@ -262,9 +263,9 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       imgEl.onload = () => {
         ctx.save();
         const ix = img.x * w;
-        const iy = img.y * h;
+        const iy = img.y * w; // use width for both dimensions
         const iw = img.width * w;
-        const ih = img.height * h;
+        const ih = img.height * w; // use width for both
         if (img.rotation) {
           ctx.translate(ix + iw / 2, iy + ih / 2);
           ctx.rotate((img.rotation * Math.PI) / 180);
@@ -298,7 +299,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       ctx.strokeStyle = '#4f46e5';
       ctx.lineWidth = 2;
       ctx.setLineDash([4, 3]);
-      ctx.strokeRect(b.x * w, b.y * h, b.w * w, b.h * h);
+      ctx.strokeRect(b.x * w, b.y * w, b.w * w, b.h * w); // use width for both
       ctx.restore();
     }
   }, [lassoPoints, lassoSelection]);
@@ -443,7 +444,8 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     const { x, y } = getCanvasPoint(clientX, clientY);
     const w = displayWidthRef.current;
     const h = displayHeightRef.current;
-    return { x: w > 0 ? x / w : 0, y: h > 0 ? y / h : 0 };
+    // Use width for both dimensions so positions don't shift when height changes
+    return { x: w > 0 ? x / w : 0, y: w > 0 ? y / w : 0 };
   }, [getCanvasPoint]);
 
   // ── Auto-expand ────────────────────────────────────────────────────────
@@ -484,7 +486,8 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       points: [...points], color: colorRef.current, lineWidth: sizeRef.current,
       tool: toolRef.current as StrokeTool, opacity: getToolOpacity(),
     };
-    const normalized = normalizeStroke(abs, w, h);
+    // Use width for both dimensions so strokes don't stretch when height changes
+    const normalized = normalizeStroke(abs, w, w);
     pushUndo();
     strokeDataRef.current.strokes.push(normalized);
     currentStrokePointsRef.current = [];
@@ -496,10 +499,10 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const eraserActiveRef = useRef(false);
   const eraseStrokeAt = useCallback((px: number, py: number) => {
     const w = displayWidthRef.current;
-    const h = displayHeightRef.current;
-    if (w <= 0 || h <= 0) return;
+    if (w <= 0) return;
+    // Use width for both dimensions (matching stroke normalization)
     const nx = px / w;
-    const ny = py / h;
+    const ny = py / w;
     const hitRadius = 15 / w;
     const strokes = strokeDataRef.current.strokes;
     let hitIndex = -1;
@@ -527,7 +530,8 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     if (w <= 0 || h <= 0) { setLassoPoints([]); return; }
 
     // Convert lasso points to normalized
-    const normalizedLasso = lassoPoints.map(p => ({ x: p.x / w, y: p.y / h }));
+    // Use width for both dimensions
+    const normalizedLasso = lassoPoints.map(p => ({ x: p.x / w, y: p.y / w }));
 
     // Point-in-polygon test
     const isInside = (px: number, py: number): boolean => {
@@ -574,10 +578,10 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const moveLassoSelection = useCallback((dx: number, dy: number) => {
     if (!lassoSelection) return;
     const w = displayWidthRef.current;
-    const h = displayHeightRef.current;
-    if (w <= 0 || h <= 0) return;
+    if (w <= 0) return;
+    // Use width for both dimensions
     const ndx = dx / w;
-    const ndy = dy / h;
+    const ndy = dy / w;
     const strokes = strokeDataRef.current.strokes;
     for (const idx of lassoSelection.strokeIndices) {
       if (strokes[idx]) {
@@ -625,7 +629,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     if (lassoSelection && tool === 'lasso') {
       const w = displayWidthRef.current, h = displayHeightRef.current;
       const b = lassoSelection.bounds;
-      const nx = x / w, ny = y / h;
+      const nx = x / w, ny = y / w; // use width for both
       if (nx >= b.x && nx <= b.x + b.w && ny >= b.y && ny <= b.y + b.h) {
         setLassoDragStart({ x, y });
         pushUndo();
@@ -1023,7 +1027,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     // Draw background
     drawPaperBackground(ectx, w, h, paperType);
     // Draw strokes
-    renderAllStrokes(ectx, strokeDataRef.current, w, h);
+    renderAllStrokes(ectx, strokeDataRef.current, w, w); // use width for both
 
     // Open in new window for printing/saving
     const dataUrl = exportCanvas.toDataURL('image/png');
@@ -1267,7 +1271,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                   style={{
                     position: 'absolute',
                     left: `${tb.x * 100}%`,
-                    top: `${tb.y * 100}%`,
+                    top: `${tb.y * (w || 1)}px`,
                     width: `${tb.width * 100}%`,
                     minHeight: 24,
                     zIndex: 5,
@@ -1306,7 +1310,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                     style={{
                       position: 'absolute',
                       left: `calc(${tb.x * 100}% + ${tb.width * 100}% - 8px)`,
-                      top: `calc(${tb.y * 100}% - 12px)`,
+                      top: `${tb.y * (w || 1) - 12}px`,
                       width: 24, height: 24,
                       background: '#ef4444', color: 'white', borderRadius: '50%', border: 'none',
                       fontSize: 14, cursor: 'pointer', zIndex: 6,
@@ -1327,9 +1331,9 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                 style={{
                   position: 'absolute',
                   left: `${img.x * 100}%`,
-                  top: `${img.y * 100}%`,
+                  top: `${img.y * (w || 1)}px`,
                   width: `${img.width * 100}%`,
-                  height: `${img.height * 100}%`,
+                  height: `${img.height * (w || 1)}px`,
                   zIndex: 4,
                   border: isSelected ? '2px solid #4f46e5' : '1px solid transparent',
                   cursor: 'move',
