@@ -421,6 +421,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
   const containerRef = useRef<HTMLDivElement>(null);
   const zhScrollRef = useRef<HTMLDivElement>(null);
   const enScrollRef = useRef<HTMLDivElement>(null);
+  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const lastPayloadId = useRef<number>(-1);
   const abortControllerRef = useRef<AbortController | null>(null);
 
@@ -538,6 +539,23 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     savedSelectionRange.current = null;
     setContextMenu(null);
   };
+
+  const checkScrollPosition = useCallback(() => {
+    const el = zhScrollRef.current || enScrollRef.current;
+    if (el) {
+      const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      setShowScrollToBottom(distanceFromBottom > 200);
+    }
+  }, []);
+
+  const scrollToBottom = useCallback(() => {
+    if (zhScrollRef.current) {
+      zhScrollRef.current.scrollTo({ top: zhScrollRef.current.scrollHeight, behavior: 'smooth' });
+    }
+    if (enScrollRef.current) {
+      enScrollRef.current.scrollTo({ top: enScrollRef.current.scrollHeight, behavior: 'smooth' });
+    }
+  }, []);
 
   const syncScroll = (source: 'zh' | 'en') => {
     const src = source === 'zh' ? zhScrollRef.current : enScrollRef.current;
@@ -1162,8 +1180,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
 
         {/* Chinese Side */}
         <div 
-          ref={zhScrollRef} 
-          onScroll={() => syncScroll('zh')}
+          ref={zhScrollRef}
+          onScroll={() => { syncScroll('zh'); checkScrollPosition(); }}
           className="overflow-y-auto p-4 space-y-6 border-r border-slate-200 bg-white"
           style={{
             flexGrow: vSplitOffset >= LAYOUT.DEFAULT_SPLIT_OFFSET ? 1 : 0,
@@ -1286,8 +1304,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
 
         {/* English Side */}
         <div 
-          ref={enScrollRef} 
-          onScroll={() => syncScroll('en')}
+          ref={enScrollRef}
+          onScroll={() => { syncScroll('en'); checkScrollPosition(); }}
           className="overflow-y-auto p-4 space-y-6 bg-slate-50/50"
           style={{
             flexGrow: vSplitOffset <= LAYOUT.ENGLISH_FULL_SPLIT_OFFSET ? 1 : 0,
@@ -1319,6 +1337,19 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
             />
           ))}
         </div>
+
+        {/* Scroll to bottom button */}
+        {showScrollToBottom && messages.length > 0 && (
+          <button
+            onClick={scrollToBottom}
+            className="absolute bottom-3 left-1/2 -translate-x-1/2 z-20 bg-white/90 backdrop-blur-sm border border-slate-300 shadow-lg rounded-full p-2 hover:bg-indigo-50 hover:border-indigo-300 transition-all"
+            title="Scroll to latest"
+          >
+            <svg className="w-5 h-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+            </svg>
+          </button>
+        )}
       </div>
 
       {/* Input area - relative position needed for z-index to work */}
