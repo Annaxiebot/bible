@@ -1160,12 +1160,23 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
             <ChatThreadList
               activeThreadId={activeThreadId}
               onSelectThread={async (threadId) => {
+                if (threadId === activeThreadId) return;
                 switchingThreadRef.current = true;
-                const saved = await loadThreadMessages(threadId);
-                lastSavedRef.current = JSON.stringify(saved.map(m => m.timestamp));
-                setActiveThreadId(threadId);
-                setMessages(saved);
-                switchingThreadRef.current = false;
+                try {
+                  const saved = await loadThreadMessages(threadId);
+                  lastSavedRef.current = JSON.stringify(saved.map(m => m.timestamp));
+                  setActiveThreadId(threadId);
+                  setMessages(saved);
+                } catch (e) {
+                  console.error('[ChatInterface] Failed to load thread:', e);
+                  setActiveThreadId(threadId);
+                  setMessages([]);
+                } finally {
+                  // Delay clearing the flag so the save useEffect skips this render cycle
+                  requestAnimationFrame(() => {
+                    switchingThreadRef.current = false;
+                  });
+                }
               }}
               onNewThread={(thread) => {
                 lastSavedRef.current = JSON.stringify([]);
