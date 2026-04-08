@@ -5,6 +5,7 @@ import React from 'react';
 import JournalBlockEditor, { useBlockHistory } from '../JournalBlockEditor';
 import {
   type JournalBlock,
+  type ImageBlock,
   createTextBlock,
   createDrawingBlock,
   createImageBlock,
@@ -142,11 +143,11 @@ describe('useBlockHistory', () => {
 });
 
 describe('JournalBlockEditor', () => {
-  let onChange: ReturnType<typeof vi.fn>;
+  let onChange: ReturnType<typeof vi.fn<(blocks: JournalBlock[]) => void>>;
   let defaultBlocks: JournalBlock[];
 
   beforeEach(() => {
-    onChange = vi.fn();
+    onChange = vi.fn<(blocks: JournalBlock[]) => void>();
     defaultBlocks = [createTextBlock('Hello', 'Hello')];
   });
 
@@ -205,7 +206,7 @@ describe('JournalBlockEditor', () => {
     const newBlocks = onChange.mock.calls[0][0];
     expect(newBlocks).toHaveLength(2);
     expect(newBlocks[0].type).toBe('text');
-    expect(newBlocks[0].content).toBe(''); // new empty block
+    expect((newBlocks[0] as { content: string }).content).toBe(''); // new empty block
   });
 
   it('inserts a drawing block', () => {
