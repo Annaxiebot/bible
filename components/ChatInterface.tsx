@@ -412,6 +412,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     position: { x: number; y: number };
     selectedText: string;
   } | null>(null);
+  const savedSelectionRange = useRef<Range | null>(null);
   const [quotedText, setQuotedText] = useState<string | null>(null);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const switchingThreadRef = useRef(false);
@@ -496,8 +497,23 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
   };
 
   const handleTextSelection = (selectedText: string, position: { x: number; y: number }) => {
+    const selection = window.getSelection();
+    if (selection && selection.rangeCount > 0) {
+      savedSelectionRange.current = selection.getRangeAt(0).cloneRange();
+    }
     setContextMenu({ selectedText, position });
   };
+
+  // Restore text selection after context menu renders
+  useEffect(() => {
+    if (contextMenu && savedSelectionRange.current) {
+      const selection = window.getSelection();
+      if (selection) {
+        selection.removeAllRanges();
+        selection.addRange(savedSelectionRange.current);
+      }
+    }
+  }, [contextMenu]);
 
   const handleContextMenuAction = (action: 'search' | 'copy') => {
     if (!contextMenu) return;
@@ -513,6 +529,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
         break;
     }
     
+    savedSelectionRange.current = null;
     setContextMenu(null);
   };
 
@@ -1587,6 +1604,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
           className="fixed inset-0 z-40"
           onMouseDown={(e) => {
             e.preventDefault();
+            savedSelectionRange.current = null;
             setContextMenu(null);
           }}
         />
