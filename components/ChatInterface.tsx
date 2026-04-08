@@ -1546,12 +1546,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
 
       {/* Context Menu for Text Selection */}
       {contextMenu && (
-        <div 
+        <div
           className="fixed bg-white rounded-lg shadow-xl border border-slate-200 z-50 py-1"
           style={{
             left: `${contextMenu.position.x}px`,
             top: `${contextMenu.position.y}px`,
           }}
+          onMouseDown={(e) => e.preventDefault()}
         >
           <button
             onClick={() => handleContextMenuAction('search')}
@@ -1582,9 +1583,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
 
       {/* Click outside to close context menu */}
       {contextMenu && (
-        <div 
+        <div
           className="fixed inset-0 z-40"
-          onClick={() => setContextMenu(null)}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            setContextMenu(null);
+          }}
         />
       )}
 
