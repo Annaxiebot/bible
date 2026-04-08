@@ -507,11 +507,17 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
   // Restore text selection after context menu renders
   useEffect(() => {
     if (contextMenu && savedSelectionRange.current) {
-      const selection = window.getSelection();
-      if (selection) {
-        selection.removeAllRanges();
-        selection.addRange(savedSelectionRange.current);
-      }
+      const range = savedSelectionRange.current;
+      // Double rAF ensures we restore after React commit AND browser paint
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const selection = window.getSelection();
+          if (selection) {
+            selection.removeAllRanges();
+            selection.addRange(range);
+          }
+        });
+      });
     }
   }, [contextMenu]);
 
