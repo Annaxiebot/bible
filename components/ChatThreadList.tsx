@@ -123,12 +123,15 @@ const ChatThreadList: React.FC<ChatThreadListProps> = ({
               <div
                 key={t.id}
                 onClick={() => onSelectThread(t.id)}
-                className={`group relative mx-2 mb-0.5 px-3 py-2 rounded-lg cursor-pointer transition-colors text-sm ${
+                onTouchEnd={(e) => {
+                  e.preventDefault();
+                  onSelectThread(t.id);
+                }}
+                className={`group relative mx-2 mb-0.5 px-3 py-2 rounded-lg cursor-pointer text-sm ${
                   t.id === activeThreadId
                     ? 'bg-indigo-50 text-indigo-700'
-                    : 'hover:bg-slate-50 active:bg-slate-100 text-slate-700'
+                    : 'active:bg-slate-100 text-slate-700'
                 }`}
-                style={{ WebkitTapHighlightColor: 'transparent', touchAction: 'manipulation' }}
               >
                 <div className="truncate font-medium text-xs">
                   {t.title || 'New Chat'}
