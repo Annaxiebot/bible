@@ -628,8 +628,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     if (!activeThreadId || switchingThreadRef.current) return;
     const key = JSON.stringify(messages.map(m => m.timestamp));
     if (key === lastSavedRef.current) return;
-    lastSavedRef.current = key;
-    saveThreadMessages(activeThreadId, messages);
+    // Debounce save to avoid race conditions on mobile thread switching
+    const timeout = setTimeout(() => {
+      if (switchingThreadRef.current) return;
+      lastSavedRef.current = key;
+      saveThreadMessages(activeThreadId, messages);
+    }, 100);
+    return () => clearTimeout(timeout);
   }, [messages, activeThreadId]);
 
   // --- Quote handler ---
@@ -1208,7 +1213,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
           </div>
           {messages.map((m, idx) => (
             <MessageBubble
-              key={idx}
+              key={`${activeThreadId}-${idx}-${m.timestamp.getTime()}`}
               m={m}
               side="zh"
               isSpeaking={speakingMsgIndex.zh === idx}
@@ -1332,7 +1337,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
           </div>
           {messages.map((m, idx) => (
             <MessageBubble
-              key={idx}
+              key={`${activeThreadId}-${idx}-${m.timestamp.getTime()}`}
               m={m}
               side="en"
               isSpeaking={speakingMsgIndex.en === idx}

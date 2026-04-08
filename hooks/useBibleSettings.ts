@@ -7,7 +7,10 @@ export function useBibleSettings() {
     const saved = localStorage.getItem(STORAGE_KEYS.CHINESE_MODE);
     // Default to simplified if no preference saved
     const simplified = saved ? saved === 'simplified' : true;
-    if (simplified) preloadConverter();
+    if (simplified) {
+      const defer = window.requestIdleCallback || ((cb: () => void) => setTimeout(cb, 200));
+      defer(() => preloadConverter());
+    }
     return simplified;
   });
 
