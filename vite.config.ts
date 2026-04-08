@@ -66,6 +66,8 @@ export default defineConfig(({ mode }) => {
         rollupOptions: {
           output: {
             manualChunks(id) {
+              if (id.includes('node_modules/opencc-js')) return 'vendor-opencc';
+              if (id.includes('node_modules/katex') || id.includes('node_modules/rehype-katex')) return 'vendor-katex';
               if (id.includes('node_modules/react') || id.includes('node_modules/react-dom') || id.includes('node_modules/scheduler')) {
                 return 'vendor-react';
               }
