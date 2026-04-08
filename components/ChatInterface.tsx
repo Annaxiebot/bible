@@ -157,8 +157,8 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpe
         style={{ WebkitUserSelect: 'text', userSelect: 'text' }}
         onMouseUp={handleMouseUp}
       >
-        <div className="flex justify-between items-start gap-2">
-          <div className={`flex-1 overflow-hidden prose prose-sm sm:prose-base ${m.role === 'user' ? 'prose-invert text-white' : 'prose-slate'}`}>
+        <div>
+          <div className={`overflow-hidden prose prose-sm sm:prose-base ${m.role === 'user' ? 'prose-invert text-white' : 'prose-slate'}`}>
             <LazyMarkdown 
               katexOptions={{ 
                 throwOnError: false,
@@ -221,7 +221,7 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpe
               {content}
             </LazyMarkdown>
           </div>
-          <div className="flex gap-2 mt-1">
+          <div className="flex justify-end gap-1 mt-1">
             {/* Quote button -- available on all messages */}
             {onQuote && (
               <button
