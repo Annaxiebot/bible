@@ -255,12 +255,25 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     setShowFontSizePicker(false);
   }, []);
 
+  // Ref to track which text box is being edited (avoids stale closures in save/undo)
+  const editingTextIdRef = useRef<string | null>(null);
+  useEffect(() => { editingTextIdRef.current = editingTextId; }, [editingTextId]);
+
   // ── Snapshot for undo ─────────────────────────────────────────────────
 
   const getSnapshot = useCallback((): string => {
+    // Sync any in-progress editing into the snapshot
+    let boxes = textBoxesRef.current;
+    const eid = editingTextIdRef.current;
+    if (eid) {
+      const el = contentEditableRefs.current.get(eid);
+      if (el) {
+        boxes = boxes.map(tb => tb.id === eid ? { ...tb, content: el.innerHTML } : tb);
+      }
+    }
     const data: ExtendedCanvasData = {
       ...strokeDataRef.current,
-      textBoxes: textBoxesRef.current,
+      textBoxes: boxes,
       images: imagesRef.current,
     };
     return JSON.stringify(data);
@@ -286,9 +299,18 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const triggerAutoSave = useCallback(() => {
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     autoSaveTimerRef.current = setTimeout(() => {
+      // Sync any in-progress editing before saving
+      let boxes = textBoxesRef.current;
+      const eid = editingTextIdRef.current;
+      if (eid) {
+        const el = contentEditableRefs.current.get(eid);
+        if (el) {
+          boxes = boxes.map(tb => tb.id === eid ? { ...tb, content: el.innerHTML } : tb);
+        }
+      }
       const data: ExtendedCanvasData = {
         ...strokeDataRef.current,
-        textBoxes: textBoxesRef.current,
+        textBoxes: boxes,
         images: imagesRef.current,
         pageMode,
       };
@@ -807,6 +829,17 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 
     // Pointer mode — do nothing on canvas click (just deselect)
     if (tool === 'pointer') {
+      // Sync content before clearing editing state
+      const eid = editingTextIdRef.current;
+      if (eid) {
+        const el = contentEditableRefs.current.get(eid);
+        if (el) {
+          textBoxesRef.current = textBoxesRef.current.map(tb =>
+            tb.id === eid ? { ...tb, content: el.innerHTML } : tb
+          );
+          setTextBoxes(textBoxesRef.current);
+        }
+      }
       setSelectedItemId(null);
       setSelectedItemType(null);
       setEditingTextId(null);
@@ -1527,6 +1560,16 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 
   const handleDone = useCallback(() => {
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    // Sync any in-progress editing before saving
+    if (editingTextId) {
+      const el = contentEditableRefs.current.get(editingTextId);
+      if (el) {
+        // Directly update the ref to ensure save captures latest content
+        textBoxesRef.current = textBoxesRef.current.map(tb =>
+          tb.id === editingTextId ? { ...tb, content: el.innerHTML } : tb
+        );
+      }
+    }
     const data: ExtendedCanvasData = {
       ...strokeDataRef.current,
       textBoxes: textBoxesRef.current,
@@ -1535,7 +1578,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     };
     onSave(serializeExtended(data));
     onClose();
-  }, [onSave, onClose, pageMode]);
+  }, [onSave, onClose, pageMode, editingTextId]);
 
   // ── Export PDF ──────────────────────────────────────────────────────────
 
