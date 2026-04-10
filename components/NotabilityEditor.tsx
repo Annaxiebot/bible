@@ -4,7 +4,7 @@
  * Phases 1-4: Drawing, Text Boxes, Images, Lasso Selection, Pages, Export
  */
 
-import React, { useRef, useEffect, useCallback, useState } from 'react';
+import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
 import {
   type AbsoluteStroke,
   type StrokeTool,
@@ -168,6 +168,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const [showFontSizePicker, setShowFontSizePicker] = useState(false);
   const contentEditableRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const isToolbarActionRef = useRef(false);
+  const savedSelectionRef = useRef<Range | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [selectedItemType, setSelectedItemType] = useState<'text' | 'image' | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -937,9 +938,22 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   }, [currentPage, goToPage, editingTextId]);
 
   // ── Finger vs Stylus detection ─────────────────────────────────────
+  // Detect if device has Apple Pencil support (iPad). iPhone does not.
+  // On iPhone, finger acts as the drawing tool since there's no Apple Pencil.
+  const isApplePencilDevice = useMemo(() => {
+    if (typeof navigator === 'undefined') return false;
+    const ua = navigator.userAgent;
+    // iPad reports as "iPad" or (in iPadOS 13+) as "Macintosh" with touch
+    const isIPad = /iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1);
+    return isIPad;
+  }, []);
+
   // Apple Pencil: touchType === 'stylus' OR very small radiusX (< 10)
   // Finger: touchType === 'direct' OR larger radiusX (>= 10)
+  // On iPhone (no Apple Pencil): finger acts as stylus for drawing
   const isStylusTouch = useCallback((touch: Touch): boolean => {
+    // On iPhone, finger IS the drawing tool — treat all touches as stylus
+    if (!isApplePencilDevice && /iPhone/.test(navigator.userAgent)) return true;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const t = touch as any;
     if (t.touchType === 'stylus') return true;
@@ -949,13 +963,14 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       return touch.radiusX < 10;
     }
     return true; // default to stylus on desktop/unknown
-  }, []);
+  }, [isApplePencilDevice]);
 
   // Determine if a touch should navigate (scroll/swipe) instead of draw.
-  // Navigation happens when: finger touch (any mode), OR pointer tool (any input).
+  // Navigation happens when: pointer tool (any input), OR finger on iPad (pencil draws).
+  // On iPhone: finger draws in drawing modes, navigates only in pointer mode.
   const shouldNavigate = useCallback((touch: Touch): boolean => {
     if (toolRef.current === 'pointer') return true; // pointer mode: both finger & pencil navigate
-    return !isStylusTouch(touch); // other modes: finger navigates, pencil draws
+    return !isStylusTouch(touch); // drawing modes: iPhone finger draws, iPad finger navigates
   }, [isStylusTouch]);
 
   // Touch events — finger scrolls/swipes, stylus draws (except pointer mode)
@@ -1135,19 +1150,52 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     }
   }, [updateTextBox]);
 
+  // Save selection whenever it changes inside the contentEditable
+  const saveSelection = useCallback(() => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && editingTextId) {
+      const el = contentEditableRefs.current.get(editingTextId);
+      if (el && el.contains(sel.anchorNode)) {
+        savedSelectionRef.current = sel.getRangeAt(0).cloneRange();
+      }
+    }
+  }, [editingTextId]);
+
+  // Restore saved selection into the contentEditable
+  const restoreSelection = useCallback(() => {
+    if (!savedSelectionRef.current || !editingTextId) return false;
+    const el = contentEditableRefs.current.get(editingTextId);
+    if (!el) return false;
+    el.focus();
+    const sel = window.getSelection();
+    if (sel) {
+      sel.removeAllRanges();
+      sel.addRange(savedSelectionRef.current);
+      return true;
+    }
+    return false;
+  }, [editingTextId]);
+
   // Execute rich text formatting command on the current selection
   const execFormat = useCallback((command: string, value?: string) => {
-    // Ensure contentEditable is focused before executing command
     if (editingTextId) {
       const el = contentEditableRefs.current.get(editingTextId);
-      if (el && document.activeElement !== el) {
-        el.focus();
+      if (el) {
+        // Ensure focused
+        if (document.activeElement !== el) {
+          el.focus();
+        }
+        // Restore selection if lost
+        const sel = window.getSelection();
+        if (!sel || sel.rangeCount === 0 || !el.contains(sel.anchorNode)) {
+          restoreSelection();
+        }
       }
     }
     document.execCommand(command, false, value);
     // Sync after formatting
     if (editingTextId) syncContentFromRef(editingTextId);
-  }, [editingTextId, syncContentFromRef]);
+  }, [editingTextId, syncContentFromRef, restoreSelection]);
 
   // Get the currently editing text box
   const editingTextBox = textBoxes.find(tb => tb.id === editingTextId);
@@ -1470,7 +1518,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   // ── Render ─────────────────────────────────────────────────────────────
 
   return (
-    <div className="fixed inset-0 bg-white flex flex-col" style={{ touchAction: pageMode === 'seamless' ? 'pan-y' : 'none', zIndex: 9998 }}
+    <div className="fixed inset-0 bg-white flex flex-col" style={{ touchAction: pageMode === 'seamless' && (isApplePencilDevice || activeTool === 'pointer' || activeTool === 'text') ? 'pan-y' : 'none', zIndex: 9998 }}
          onMouseMove={e => { if (isDragging) handleItemPointerMove(e); if (isResizing) handleResizeMove(e); }}
          onMouseUp={() => { handleItemPointerUp(); handleResizeEnd(); }}
          onTouchMove={e => { if (isDragging) handleItemPointerMove(e); if (isResizing) handleResizeMove(e); }}
@@ -1699,7 +1747,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
           <canvas ref={canvasRef} className="absolute inset-0"
             style={{
               width: '100%', height: `${canvasHeight}px`,
-              touchAction: pageMode === 'seamless' ? 'pan-y' : 'none',
+              touchAction: pageMode === 'seamless' && (isApplePencilDevice || activeTool === 'pointer' || activeTool === 'text') ? 'pan-y' : 'none',
               WebkitTouchCallout: 'none', WebkitUserSelect: 'none',
               userSelect: 'none', cursor: getCursor(),
               pointerEvents: (activeTool === 'text' && editingTextId) ? 'none' : 'auto',
@@ -1764,6 +1812,9 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                     });
                   }}
                   onInput={() => syncContentFromRef(tb.id)}
+                  onSelect={saveSelection}
+                  onKeyUp={saveSelection}
+                  onMouseUp={saveSelection}
                   onKeyDown={e => { if (e.key === 'Escape') (e.target as HTMLElement).blur(); }}
                   onMouseDown={e => {
                     if (!isEditing) { e.preventDefault(); handleItemPointerDown(e, tb.id, 'text'); }
