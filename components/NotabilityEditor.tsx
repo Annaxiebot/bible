@@ -134,7 +134,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showSizeSlider, setShowSizeSlider] = useState(false);
-  const [canvasHeight, setCanvasHeight] = useState(() => Math.max(window.innerHeight - 48, 600));
+  const [canvasHeight, setCanvasHeight] = useState(PAGE_HEIGHT);
   const [pageMode, setPageMode] = useState<'seamless' | 'single'>('seamless');
   const [currentPage, setCurrentPage] = useState(0);
 
@@ -463,7 +463,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       const estimatedContentHeight = maxContentY * (window.innerWidth || 800);
       const neededPages = Math.ceil(estimatedContentHeight / PAGE_HEIGHT);
       if (neededPages > 1) {
-        setCanvasHeight(Math.max(neededPages * PAGE_HEIGHT, window.innerHeight - 48));
+        setCanvasHeight(neededPages * PAGE_HEIGHT);
       }
 
       lastSavedDataRef.current = initialData;
