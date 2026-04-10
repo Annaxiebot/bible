@@ -127,7 +127,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 }) => {
   // ── State ──────────────────────────────────────────────────────────────
 
-  const [activeTool, setActiveTool] = useState<ActiveTool>('pen');
+  const [activeTool, setActiveTool] = useState<ActiveTool>('pointer');
   const [activeColor, setActiveColor] = useState('#000000');
   const [activeSize, setActiveSize] = useState(2);
   const [paperType, setPaperType] = useState<PaperType>(initialPaperType);
@@ -195,7 +195,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const displayHeightRef = useRef(0);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastSavedDataRef = useRef<string>('');
-  const toolRef = useRef<ActiveTool>('pen');
+  const toolRef = useRef<ActiveTool>('pointer');
   const colorRef = useRef('#000000');
   const sizeRef = useRef(2);
   const textBoxesRef = useRef<TextBox[]>([]);
