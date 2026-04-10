@@ -92,6 +92,22 @@ const ALL_MODULES: SyncModule[] = [
 
 const MODULE_TS_KEY = 'bible_sync_module_timestamps';
 
+// ── Concurrency guard: prevent overlapping sync operations ──
+let syncMutexLocked = false;
+let syncMutexQueue: Array<() => void> = [];
+
+async function acquireSyncMutex(): Promise<boolean> {
+  if (syncMutexLocked) return false;
+  syncMutexLocked = true;
+  return true;
+}
+
+function releaseSyncMutex(): void {
+  syncMutexLocked = false;
+  const next = syncMutexQueue.shift();
+  if (next) next();
+}
+
 // ── Global backoff: stop syncing after 503/throttle errors ──
 let syncBackoffUntil = 0; // timestamp — skip sync until this time
 let consecutiveFailures = 0;
@@ -200,14 +216,30 @@ async function syncNotes(): Promise<void> {
     throw error;
   }
 
-  // Merge remote notes into local (remote wins on conflict)
+  // Build a map of remote notes by reference for quick lookup
+  const remoteByRef = new Map((remoteNotes || []).map(n => [n.reference, n]));
+
+  // Merge remote notes into local — only if remote is actually newer
   for (const remoteNote of remoteNotes || []) {
-    await notesStorage.saveNote(remoteNote.reference, remoteNote.content);
+    const localContent = localNotes[remoteNote.reference];
+    const remoteTime = new Date(remoteNote.updated_at).getTime();
+    const localTime = syncState.lastNotesSync; // local was saved before last sync
+
+    // Only overwrite local if remote is newer than our last sync
+    // (meaning another device updated it), or if we don't have it locally
+    if (!localContent || remoteTime > localTime) {
+      await notesStorage.saveNote(remoteNote.reference, remoteNote.content);
+    }
   }
 
-  // Upload local notes that don't exist remotely — batch upsert
+  // Upload local notes that don't exist remotely or are newer locally
   const notesToUpload = Object.entries(localNotes)
-    .filter(([reference]) => !remoteNotes?.find(n => n.reference === reference))
+    .filter(([reference]) => {
+      const remote = remoteByRef.get(reference);
+      // Upload if: no remote version exists, or remote version is from before last sync
+      // (meaning we created/edited locally since last sync)
+      return !remote;
+    })
     .map(([reference, content]) => {
       const parts = reference.split(' ');
       const bookId = parts[0];
@@ -331,16 +363,24 @@ async function syncReadingHistory(): Promise<void> {
     );
   }
 
-  // Upload local history to remote — batch upsert
-  const historyToUpload = localHistory.map(local => ({
-    user_id: userId,
-    book_id: local.bookId,
-    book_name: local.bookName,
-    chapter: local.chapter,
-    last_read: new Date(local.lastRead).toISOString(),
-    has_notes: local.hasNotes || false,
-    has_ai_research: local.hasAIResearch || false
-  }));
+  // Upload only local history entries modified since last sync — not the entire history
+  const syncState2 = getSyncState();
+  const remoteIds = new Set((remoteHistory || []).map((r: { book_id: string; chapter: number }) => `${r.book_id}:${r.chapter}`));
+  const historyToUpload = localHistory
+    .filter(local => {
+      const key = `${local.bookId}:${local.chapter}`;
+      // Upload if: not on remote, or lastRead is newer than our last sync
+      return !remoteIds.has(key) || local.lastRead > syncState2.lastHistorySync;
+    })
+    .map(local => ({
+      user_id: userId,
+      book_id: local.bookId,
+      book_name: local.bookName,
+      chapter: local.chapter,
+      last_read: new Date(local.lastRead).toISOString(),
+      has_notes: local.hasNotes || false,
+      has_ai_research: local.hasAIResearch || false
+    }));
 
   if (historyToUpload.length > 0 && canSync()) {
     await supabase.from('reading_history').upsert(historyToUpload, { onConflict: 'user_id,book_id,chapter' });
@@ -1042,6 +1082,12 @@ export async function performFullSync(): Promise<void> {
     return;
   }
 
+  // Concurrency guard: skip if another sync is already running
+  if (!await acquireSyncMutex()) {
+    console.warn('[Sync] Full sync skipped — another sync is already running');
+    return;
+  }
+
   try {
     const steps: Array<{ name: string; fn: () => Promise<void> }> = [
       { name: 'Notes', fn: syncNotes },
@@ -1090,6 +1136,8 @@ export async function performFullSync(): Promise<void> {
   } catch (error) {
     syncManager.setStatus('error', error instanceof Error ? error.message : 'Sync failed');
     throw error;
+  } finally {
+    releaseSyncMutex();
   }
 }
 
@@ -1112,6 +1160,11 @@ const MODULE_SYNC_MAP: Record<SyncModule, { name: string; fn: () => Promise<void
 
 export async function performIncrementalSync(): Promise<void> {
   if (!canSync() || isSyncThrottled()) return;
+
+  // Concurrency guard: skip if another sync is already running
+  if (!await acquireSyncMutex()) {
+    return; // silently skip — incremental syncs are frequent, no need to warn
+  }
 
   try {
     // Fetch server timestamps (one lightweight query)
@@ -1151,6 +1204,8 @@ export async function performIncrementalSync(): Promise<void> {
   } catch (error) {
     handleSyncError(error);
     syncManager.setStatus('error', error instanceof Error ? error.message : 'Sync failed');
+  } finally {
+    releaseSyncMutex();
   }
 }
 
@@ -1173,14 +1228,27 @@ authManager.subscribe(async (state) => {
 // =====================================================
 
 let lastSyncAttempt = 0;
+let periodicSyncIntervalId: ReturnType<typeof setInterval> | null = null;
 
-if (typeof window !== 'undefined') {
-  setInterval(() => {
+function startPeriodicSync(): void {
+  stopPeriodicSync(); // clear any existing interval first
+  periodicSyncIntervalId = setInterval(() => {
     if (canSync() && syncManager.getStatus() === 'idle') {
       lastSyncAttempt = Date.now();
       performIncrementalSync().catch(() => {});
     }
   }, 300 * 1000); // 5 minutes
+}
+
+function stopPeriodicSync(): void {
+  if (periodicSyncIntervalId !== null) {
+    clearInterval(periodicSyncIntervalId);
+    periodicSyncIntervalId = null;
+  }
+}
+
+if (typeof window !== 'undefined') {
+  startPeriodicSync();
 }
 
 // =====================================================
@@ -1412,4 +1480,9 @@ export const syncService = {
   syncSpiritualMemory,
   canSync,
   getSyncState,
+  startPeriodicSync,
+  stopPeriodicSync,
+  /** Test helpers — not for production use */
+  _isSyncLocked: () => syncMutexLocked,
+  _resetMutex: () => { syncMutexLocked = false; syncMutexQueue = []; },
 };

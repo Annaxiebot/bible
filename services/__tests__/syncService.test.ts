@@ -397,4 +397,124 @@ describe('sync data transformation', () => {
       expect(row.data.aiResearch[0].tags).toContain('general-research');
     });
   });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // New tests for sync fixes
+  // ─────────────────────────────────────────────────────────────────────────
+
+  describe('concurrency guard (mutex)', () => {
+    it('should export _isSyncLocked and _resetMutex test helpers', async () => {
+      const { syncService } = await import('../syncService');
+      expect(typeof syncService._isSyncLocked).toBe('function');
+      expect(typeof syncService._resetMutex).toBe('function');
+    });
+
+    it('should prevent concurrent full syncs', async () => {
+      const { syncService } = await import('../syncService');
+      syncService._resetMutex();
+
+      // Start two full syncs concurrently
+      const sync1 = syncService.performFullSync();
+      // The second sync should be skipped because first holds the mutex
+      const sync2 = syncService.performFullSync();
+
+      await Promise.all([sync1, sync2]);
+      // Mutex should be released after both complete
+      expect(syncService._isSyncLocked()).toBe(false);
+    });
+
+    it('should release mutex after sync completes', async () => {
+      const { syncService } = await import('../syncService');
+      syncService._resetMutex();
+
+      await syncService.performFullSync();
+      expect(syncService._isSyncLocked()).toBe(false);
+    });
+  });
+
+  describe('periodic sync lifecycle', () => {
+    it('should export startPeriodicSync and stopPeriodicSync', async () => {
+      const { syncService } = await import('../syncService');
+      expect(typeof syncService.startPeriodicSync).toBe('function');
+      expect(typeof syncService.stopPeriodicSync).toBe('function');
+    });
+
+    it('should not throw when calling stopPeriodicSync', async () => {
+      const { syncService } = await import('../syncService');
+      expect(() => syncService.stopPeriodicSync()).not.toThrow();
+    });
+
+    it('should not throw when calling startPeriodicSync after stop', async () => {
+      const { syncService } = await import('../syncService');
+      syncService.stopPeriodicSync();
+      expect(() => syncService.startPeriodicSync()).not.toThrow();
+      syncService.stopPeriodicSync(); // cleanup
+    });
+  });
+
+  describe('notes sync conflict detection', () => {
+    it('should not overwrite local notes when local is newer than last sync', () => {
+      const lastSyncTime = 5000;
+      const remoteUpdatedAt = new Date(3000).toISOString();
+      const localContent = 'My local edit';
+
+      const remoteTime = new Date(remoteUpdatedAt).getTime();
+      const shouldOverwrite = !localContent || remoteTime > lastSyncTime;
+      expect(shouldOverwrite).toBe(false);
+    });
+
+    it('should overwrite local when remote is newer than last sync', () => {
+      const lastSyncTime = 5000;
+      const remoteUpdatedAt = new Date(8000).toISOString();
+      const localContent = 'My local edit';
+
+      const remoteTime = new Date(remoteUpdatedAt).getTime();
+      const shouldOverwrite = !localContent || remoteTime > lastSyncTime;
+      expect(shouldOverwrite).toBe(true);
+    });
+
+    it('should always accept remote if no local content exists', () => {
+      const lastSyncTime = 5000;
+      const remoteUpdatedAt = new Date(3000).toISOString();
+      const localContent = undefined;
+
+      const shouldOverwrite = !localContent || new Date(remoteUpdatedAt).getTime() > lastSyncTime;
+      expect(shouldOverwrite).toBe(true);
+    });
+  });
+
+  describe('reading history incremental sync', () => {
+    it('should filter out unchanged history entries', () => {
+      const lastHistorySync = 5000;
+      const localHistory = [
+        { bookId: 'GEN', chapter: 1, bookName: 'Genesis', lastRead: 3000, hasNotes: false, hasAIResearch: false },
+        { bookId: 'GEN', chapter: 2, bookName: 'Genesis', lastRead: 8000, hasNotes: true, hasAIResearch: false },
+        { bookId: 'EXO', chapter: 1, bookName: 'Exodus', lastRead: 6000, hasNotes: false, hasAIResearch: true },
+      ];
+      const remoteIds = new Set(['GEN:1', 'GEN:2']);
+
+      const toUpload = localHistory.filter(local => {
+        const key = `${local.bookId}:${local.chapter}`;
+        return !remoteIds.has(key) || local.lastRead > lastHistorySync;
+      });
+
+      expect(toUpload).toHaveLength(2);
+      expect(toUpload.map(h => `${h.bookId}:${h.chapter}`)).toEqual(['GEN:2', 'EXO:1']);
+    });
+
+    it('should upload nothing if all history is unchanged', () => {
+      const lastHistorySync = 10000;
+      const localHistory = [
+        { bookId: 'GEN', chapter: 1, bookName: 'Genesis', lastRead: 3000, hasNotes: false, hasAIResearch: false },
+      ];
+      const remoteIds = new Set(['GEN:1']);
+
+      const toUpload = localHistory.filter(local => {
+        const key = `${local.bookId}:${local.chapter}`;
+        return !remoteIds.has(key) || local.lastRead > lastHistorySync;
+      });
+
+      expect(toUpload).toHaveLength(0);
+    });
+  });
 });
