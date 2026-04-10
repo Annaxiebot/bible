@@ -17,6 +17,7 @@ import {
   serializeCanvasData,
   normalizeStroke,
   renderAllStrokes,
+  renderStrokesByLayer,
   drawPaperBackground,
 } from '../services/strokeNormalizer';
 import { compressImage } from '../services/imageCompressionService';
@@ -36,6 +37,8 @@ export interface TextBox {
   textColor?: string;
   textAlign?: 'left' | 'center' | 'right' | 'justify';
   isAIReflection?: boolean;
+  /** z-ordering for layer control: higher = closer to front. Default 0. */
+  zOrder?: number;
 }
 
 const TEXT_FONTS = [
@@ -201,14 +204,20 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const [swipeOffset, setSwipeOffset] = useState(0); // px offset during swipe animation
   const isFingerTouchRef = useRef(false); // true when current touch is a finger (not stylus)
 
+  // Drawing layer: 'below' draws under text boxes, 'above' draws over them
+  const [drawingLayer, setDrawingLayer] = useState<'below' | 'above'>('below');
+  const drawingLayerRef = useRef<'below' | 'above'>('below');
+
   // Image cache — pre-load images to avoid async flicker in redrawAll
   const imageCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
 
   // Canvas refs
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);       // Below-text strokes
+  const overlayCanvasRef = useRef<HTMLCanvasElement>(null); // Above-text strokes
   const bgCanvasRef = useRef<HTMLCanvasElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
+  const overlayCtxRef = useRef<CanvasRenderingContext2D | null>(null);
   const bgCtxRef = useRef<CanvasRenderingContext2D | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -234,6 +243,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   useEffect(() => { sizeRef.current = activeSize; }, [activeSize]);
   useEffect(() => { textBoxesRef.current = textBoxes; }, [textBoxes]);
   useEffect(() => { imagesRef.current = images; }, [images]);
+  useEffect(() => { drawingLayerRef.current = drawingLayer; }, [drawingLayer]);
 
   const closeAllPopups = useCallback(() => {
     setShowColorPicker(false);
@@ -299,6 +309,8 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const redrawAll = useCallback(() => {
     const ctx = ctxRef.current;
     const canvas = canvasRef.current;
+    const overlayCtx = overlayCtxRef.current;
+    const overlayCanvas = overlayCanvasRef.current;
     if (!ctx || !canvas) return;
     const w = displayWidthRef.current;
     const h = displayHeightRef.current;
@@ -306,8 +318,24 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     ctx.globalCompositeOperation = 'source-over';
     ctx.globalAlpha = 1.0;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    // Use width for both dimensions so strokes don't stretch when height changes
-    renderAllStrokes(ctx, strokeDataRef.current, w, w);
+
+    // Check if any strokes use layers
+    const hasLayeredStrokes = strokeDataRef.current.strokes.some(s => s.layer === 'above');
+
+    if (hasLayeredStrokes && overlayCtx && overlayCanvas) {
+      // Render below-layer strokes on main canvas, above-layer on overlay
+      overlayCtx.globalCompositeOperation = 'source-over';
+      overlayCtx.globalAlpha = 1.0;
+      overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+      renderStrokesByLayer(ctx, strokeDataRef.current, w, w, 'below');
+      renderStrokesByLayer(overlayCtx, strokeDataRef.current, w, w, 'above');
+    } else {
+      // All strokes on main canvas (backward compatible)
+      renderAllStrokes(ctx, strokeDataRef.current, w, w);
+      if (overlayCtx && overlayCanvas) {
+        overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+      }
+    }
 
     // Draw images on canvas using pre-cached images (synchronous, no flicker)
     imagesRef.current.forEach(img => {
@@ -400,7 +428,8 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   }, [pageMode]);
 
   const applyToolSettings = useCallback(() => {
-    const ctx = ctxRef.current;
+    // Apply tool settings to the correct canvas context
+    const ctx = drawingLayerRef.current === 'above' ? overlayCtxRef.current : ctxRef.current;
     if (!ctx) return;
     const tool = toolRef.current;
     if (tool === 'highlighter') {
@@ -428,6 +457,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const setupCanvases = useCallback(() => {
     const canvas = canvasRef.current;
     const bgCanvas = bgCanvasRef.current;
+    const overlayCanvas = overlayCanvasRef.current;
     if (!canvas || !bgCanvas) return;
     const dpr = window.devicePixelRatio || 1;
     const rect = canvas.getBoundingClientRect();
@@ -455,6 +485,21 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 
     ctxRef.current = ctx;
     bgCtxRef.current = bgCtx;
+
+    // Setup overlay canvas (above text boxes)
+    if (overlayCanvas) {
+      overlayCanvas.width = width * dpr;
+      overlayCanvas.height = height * dpr;
+      const overlayCtx = overlayCanvas.getContext('2d', { willReadFrequently: true });
+      if (overlayCtx) {
+        overlayCtx.setTransform(1, 0, 0, 1, 0, 0);
+        overlayCtx.scale(dpr, dpr);
+        overlayCtx.lineCap = 'round';
+        overlayCtx.lineJoin = 'round';
+        overlayCtxRef.current = overlayCtx;
+      }
+    }
+
     redrawBackground();
     redrawAll();
   }, [canvasHeight, redrawBackground, redrawAll]);
@@ -589,6 +634,8 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     };
     // Use width for both dimensions so strokes don't stretch when height changes
     const normalized = normalizeStroke(abs, w, w);
+    // Tag stroke with current drawing layer
+    normalized.layer = drawingLayerRef.current;
     pushUndo();
     strokeDataRef.current.strokes.push(normalized);
     currentStrokePointsRef.current = [];
@@ -817,14 +864,14 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       return;
     }
 
-    // Drawing tools
-    const ctx = ctxRef.current;
-    if (!ctx) return;
+    // Drawing tools — use overlay canvas when drawing above text
+    const drawCtx = drawingLayerRef.current === 'above' ? overlayCtxRef.current : ctxRef.current;
+    if (!drawCtx) return;
     isDrawingRef.current = true;
     currentStrokePointsRef.current = [{ x, y }];
     applyToolSettings();
-    ctx.beginPath();
-    ctx.moveTo(x, y);
+    drawCtx.beginPath();
+    drawCtx.moveTo(x, y);
   }, [getCanvasPoint, getNormalizedPoint, closeAllPopups, applyToolSettings, eraseStrokeAt, lassoSelection, pushUndo, redrawAll, triggerAutoSave]);
 
   const handlePointerMove = useCallback((clientX: number, clientY: number) => {
@@ -853,11 +900,12 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 
     if (tool === 'eraser') { eraseStrokeAt(x, y); return; }
 
-    const ctx = ctxRef.current;
-    if (!ctx) return;
+    // Draw live stroke on the correct layer canvas
+    const drawCtx = drawingLayerRef.current === 'above' ? overlayCtxRef.current : ctxRef.current;
+    if (!drawCtx) return;
     currentStrokePointsRef.current.push({ x, y });
-    ctx.lineTo(x, y);
-    ctx.stroke();
+    drawCtx.lineTo(x, y);
+    drawCtx.stroke();
     checkAutoExpand(y);
   }, [getCanvasPoint, checkAutoExpand, eraseStrokeAt, lassoDragStart, lassoSelection, moveLassoSelection, redrawAll]);
 
@@ -1058,26 +1106,35 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const handleMouseMove = useCallback((e: MouseEvent) => handlePointerMove(e.clientX, e.clientY), [handlePointerMove]);
   const handleMouseUp = useCallback(() => handlePointerUp(), [handlePointerUp]);
 
-  // Event listener setup
+  // Event listener setup — attach to both main and overlay canvases
   useEffect(() => {
     const canvas = canvasRef.current;
+    const overlay = overlayCanvasRef.current;
     if (!canvas) return;
-    canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
-    canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
-    canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
-    canvas.addEventListener('mousedown', handleMouseDown);
-    canvas.addEventListener('mousemove', handleMouseMove);
-    canvas.addEventListener('mouseup', handleMouseUp);
-    canvas.addEventListener('mouseout', handleMouseUp);
-    canvas.addEventListener('contextmenu', (e) => e.preventDefault());
+    const attachEvents = (el: HTMLCanvasElement) => {
+      el.addEventListener('touchstart', handleTouchStart, { passive: false });
+      el.addEventListener('touchmove', handleTouchMove, { passive: false });
+      el.addEventListener('touchend', handleTouchEnd, { passive: false });
+      el.addEventListener('mousedown', handleMouseDown);
+      el.addEventListener('mousemove', handleMouseMove);
+      el.addEventListener('mouseup', handleMouseUp);
+      el.addEventListener('mouseout', handleMouseUp);
+      el.addEventListener('contextmenu', (e) => e.preventDefault());
+    };
+    const detachEvents = (el: HTMLCanvasElement) => {
+      el.removeEventListener('touchstart', handleTouchStart);
+      el.removeEventListener('touchmove', handleTouchMove);
+      el.removeEventListener('touchend', handleTouchEnd);
+      el.removeEventListener('mousedown', handleMouseDown);
+      el.removeEventListener('mousemove', handleMouseMove);
+      el.removeEventListener('mouseup', handleMouseUp);
+      el.removeEventListener('mouseout', handleMouseUp);
+    };
+    attachEvents(canvas);
+    if (overlay) attachEvents(overlay);
     return () => {
-      canvas.removeEventListener('touchstart', handleTouchStart);
-      canvas.removeEventListener('touchmove', handleTouchMove);
-      canvas.removeEventListener('touchend', handleTouchEnd);
-      canvas.removeEventListener('mousedown', handleMouseDown);
-      canvas.removeEventListener('mousemove', handleMouseMove);
-      canvas.removeEventListener('mouseup', handleMouseUp);
-      canvas.removeEventListener('mouseout', handleMouseUp);
+      detachEvents(canvas);
+      if (overlay) detachEvents(overlay);
     };
   }, [handleTouchStart, handleTouchMove, handleTouchEnd, handleMouseDown, handleMouseMove, handleMouseUp]);
 
@@ -1160,6 +1217,35 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       }
     }
   }, [editingTextId]);
+
+  // Close editing mode — called by click-outside handler
+  const closeEditing = useCallback(() => {
+    if (editingTextId) syncContentFromRef(editingTextId);
+    setEditingTextId(null);
+    setShowTextColorPicker(false);
+    setShowHighlightColorPicker(false);
+    setShowFontPicker(false);
+    setShowFontSizePicker(false);
+  }, [editingTextId, syncContentFromRef]);
+
+  // Click-outside handler: close editing when clicking outside the text box + toolbar
+  useEffect(() => {
+    if (!editingTextId) return;
+    const handleOutsideInteraction = (e: MouseEvent | TouchEvent) => {
+      const target = e.target as HTMLElement;
+      // Check if click is inside the text box container (has data-textbox-id)
+      const container = document.querySelector(`[data-textbox-id="${editingTextId}"]`);
+      if (container && container.contains(target)) return; // inside — do nothing
+      closeEditing();
+    };
+    // Use capture phase to detect before any preventDefault stops propagation
+    document.addEventListener('mousedown', handleOutsideInteraction, true);
+    document.addEventListener('touchstart', handleOutsideInteraction, true);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideInteraction, true);
+      document.removeEventListener('touchstart', handleOutsideInteraction, true);
+    };
+  }, [editingTextId, closeEditing]);
 
   // Restore saved selection into the contentEditable
   const restoreSelection = useCallback(() => {
@@ -1604,6 +1690,21 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
               )}
             </div>
           ))}
+
+          {/* Layer toggle — visible when drawing tools active */}
+          {(activeTool === 'pen' || activeTool === 'marker' || activeTool === 'highlighter') && (
+            <button
+              onClick={() => setDrawingLayer(prev => prev === 'below' ? 'above' : 'below')}
+              className={`px-2 py-1 rounded-lg text-[10px] font-bold transition-colors ml-1 ${
+                drawingLayer === 'above'
+                  ? 'bg-orange-100 text-orange-700 ring-1 ring-orange-300'
+                  : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+              }`}
+              title={drawingLayer === 'above' ? 'Drawing above text' : 'Drawing below text'}
+            >
+              {drawingLayer === 'above' ? '↑Txt' : '↓Txt'}
+            </button>
+          )}
         </div>
 
         {/* Right: Undo, Redo, Color, Size, Menu */}
@@ -1757,14 +1858,15 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
           {/* Background canvas */}
           <canvas ref={bgCanvasRef} className="absolute inset-0"
             style={{ width: '100%', height: `${canvasHeight}px`, pointerEvents: 'none' }} />
-          {/* Drawing canvas */}
+          {/* Drawing canvas (below text boxes) */}
           <canvas ref={canvasRef} className="absolute inset-0"
             style={{
               width: '100%', height: `${canvasHeight}px`,
               touchAction: pageMode === 'seamless' && (isApplePencilDevice || activeTool === 'pointer' || activeTool === 'text') ? 'pan-y' : 'none',
               WebkitTouchCallout: 'none', WebkitUserSelect: 'none',
               userSelect: 'none', cursor: getCursor(),
-              pointerEvents: (activeTool === 'text' && editingTextId) ? 'none' : 'auto',
+              // Disable pointer events when editing text, or when drawing on the above layer
+              pointerEvents: (activeTool === 'text' && editingTextId) || (drawingLayer === 'above' && activeTool !== 'pointer' && activeTool !== 'text') ? 'none' : 'auto',
             }} />
 
           {/* ── Text Boxes (Rich text with contentEditable) ────────────── */}
@@ -1776,13 +1878,14 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
             const tbTop = tb.y * (w || 1);
             return (
               <div key={tb.id}
+                data-textbox-id={tb.id}
                 style={{
                   position: 'absolute',
                   left: `${tb.x * 100}%`,
                   top: `${tbTop}px`,
                   width: `${tbW}%`,
                   height: `${tbH}px`,
-                  zIndex: 5,
+                  zIndex: 5 + (tb.zOrder || 0),
                   touchAction: 'none',
                 }}
               >
@@ -1809,27 +1912,14 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                   }}
                   onBlur={() => {
                     syncContentFromRef(tb.id);
-                    // Delay blur to check if toolbar was clicked
-                    requestAnimationFrame(() => {
-                      if (isToolbarActionRef.current) {
-                        isToolbarActionRef.current = false;
-                        // Refocus the contentEditable
-                        const el = contentEditableRefs.current.get(tb.id);
-                        if (el) el.focus();
-                        return;
-                      }
-                      setEditingTextId(null);
-                      setShowTextColorPicker(false);
-                      setShowHighlightColorPicker(false);
-                      setShowFontPicker(false);
-                      setShowFontSizePicker(false);
-                    });
+                    // Don't close editing mode here — click-outside handler does that.
+                    // This prevents iOS touch-triggered blur from killing the toolbar.
                   }}
                   onInput={() => syncContentFromRef(tb.id)}
                   onSelect={saveSelection}
                   onKeyUp={saveSelection}
                   onMouseUp={saveSelection}
-                  onKeyDown={e => { if (e.key === 'Escape') (e.target as HTMLElement).blur(); }}
+                  onKeyDown={e => { if (e.key === 'Escape') closeEditing(); }}
                   onMouseDown={e => {
                     if (!isEditing) { e.preventDefault(); handleItemPointerDown(e, tb.id, 'text'); }
                   }}
@@ -2059,6 +2149,25 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                     <button onMouseDown={e => e.preventDefault()} onClick={() => execFormat('insertOrderedList')}
                       title="Numbered List"
                       style={{ padding: '2px 5px', border: '1px solid #ddd', borderRadius: 4, background: '#f8f8f8', cursor: 'pointer', fontSize: 13 }}>1.</button>
+
+                    {/* Divider */}
+                    <div style={{ width: 1, height: 20, background: '#ddd' }} />
+
+                    {/* Layer controls */}
+                    <button onMouseDown={e => e.preventDefault()}
+                      onClick={() => {
+                        const maxZ = Math.max(0, ...textBoxes.map(t => t.zOrder || 0));
+                        updateTextBox(tb.id, { zOrder: maxZ + 1 });
+                      }}
+                      title="Bring to Front"
+                      style={{ padding: '2px 5px', border: '1px solid #ddd', borderRadius: 4, background: '#f8f8f8', cursor: 'pointer', fontSize: 11 }}>↑F</button>
+                    <button onMouseDown={e => e.preventDefault()}
+                      onClick={() => {
+                        const minZ = Math.min(0, ...textBoxes.map(t => t.zOrder || 0));
+                        updateTextBox(tb.id, { zOrder: minZ - 1 });
+                      }}
+                      title="Send to Back"
+                      style={{ padding: '2px 5px', border: '1px solid #ddd', borderRadius: 4, background: '#f8f8f8', cursor: 'pointer', fontSize: 11 }}>↓B</button>
                   </div>
                 )}
 
@@ -2154,6 +2263,19 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
               </div>
             );
           })}
+
+          {/* ── Overlay canvas (above-text strokes) ────────────────── */}
+          <canvas ref={overlayCanvasRef} className="absolute inset-0"
+            style={{
+              width: '100%', height: `${canvasHeight}px`,
+              zIndex: 10,
+              touchAction: pageMode === 'seamless' && (isApplePencilDevice || activeTool === 'pointer' || activeTool === 'text') ? 'pan-y' : 'none',
+              WebkitTouchCallout: 'none', WebkitUserSelect: 'none',
+              userSelect: 'none',
+              cursor: getCursor(),
+              // Only receive pointer events when drawing on the above layer
+              pointerEvents: drawingLayer === 'above' && !editingTextId && activeTool !== 'text' && activeTool !== 'pointer' ? 'auto' : 'none',
+            }} />
 
           {/* ── Page break lines (seamless mode, like Notability) ─────── */}
           {pageMode === 'seamless' && Array.from({ length: totalPagesDisplay - 1 }, (_, i) => (

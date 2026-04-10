@@ -41,6 +41,8 @@ export interface NormalizedStroke {
   lineWidth: number;
   tool: StrokeTool;
   opacity: number;
+  /** Layer: 'below' renders under text boxes, 'above' renders over them. Default 'below'. */
+  layer?: 'below' | 'above';
 }
 
 /** Canvas data format version 2: normalized strokes */
@@ -250,6 +252,24 @@ export function renderAllStrokes(
   containerHeight: number
 ): void {
   const absoluteStrokes = denormalizeStrokes(data.strokes, containerWidth, containerHeight);
+  for (const stroke of absoluteStrokes) {
+    renderStroke(ctx, stroke);
+  }
+}
+
+/**
+ * Render only strokes that belong to a specific layer.
+ * Strokes without a layer property default to 'below'.
+ */
+export function renderStrokesByLayer(
+  ctx: CanvasRenderingContext2D,
+  data: NormalizedCanvasData,
+  containerWidth: number,
+  containerHeight: number,
+  layer: 'below' | 'above'
+): void {
+  const filtered = data.strokes.filter(s => (s.layer || 'below') === layer);
+  const absoluteStrokes = denormalizeStrokes(filtered, containerWidth, containerHeight);
   for (const stroke of absoluteStrokes) {
     renderStroke(ctx, stroke);
   }
