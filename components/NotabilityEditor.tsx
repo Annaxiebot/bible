@@ -30,10 +30,30 @@ export interface TextBox {
   x: number; y: number;       // normalized 0-1
   width: number;               // normalized
   height: number;              // normalized (freely resizable)
-  content: string;
+  content: string;             // HTML string for rich text
   fontSize?: number;           // px
+  fontFamily?: string;
+  textColor?: string;
+  textAlign?: 'left' | 'center' | 'right' | 'justify';
   isAIReflection?: boolean;
 }
+
+const TEXT_FONTS = [
+  { label: 'System', value: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' },
+  { label: 'Serif', value: 'Georgia, "Times New Roman", serif' },
+  { label: 'Mono', value: '"SF Mono", "Fira Code", "Courier New", monospace' },
+  { label: 'Helvetica', value: '"Helvetica Neue", Helvetica, Arial, sans-serif' },
+  { label: 'Handwriting', value: '"Comic Sans MS", "Marker Felt", cursive' },
+];
+
+const TEXT_SIZES = [10, 12, 14, 16, 18, 20, 24, 28, 32, 36, 48, 64];
+
+const TEXT_COLORS = [
+  '#000000', '#333333', '#666666', '#999999',
+  '#CC0000', '#FF4444', '#FF8800', '#FFCC00',
+  '#006400', '#228B22', '#0000CC', '#2196F3',
+  '#6A1B9A', '#AB47BC', '#8B4513', '#FFFFFF',
+];
 
 export interface CanvasImage {
   id: string;
@@ -142,6 +162,10 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const [textBoxes, setTextBoxes] = useState<TextBox[]>([]);
   const [images, setImages] = useState<CanvasImage[]>([]);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
+  const [showTextColorPicker, setShowTextColorPicker] = useState(false);
+  const [showFontPicker, setShowFontPicker] = useState(false);
+  const [showFontSizePicker, setShowFontSizePicker] = useState(false);
+  const contentEditableRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [selectedItemType, setSelectedItemType] = useState<'text' | 'image' | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -213,6 +237,9 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     setShowMenu(false);
     setShowSizeSlider(false);
     setShowSelectionSubmenu(false);
+    setShowTextColorPicker(false);
+    setShowFontPicker(false);
+    setShowFontSizePicker(false);
   }, []);
 
   // ── Snapshot for undo ─────────────────────────────────────────────────
@@ -766,7 +793,13 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     if (tool === 'text') {
       // Create text box at tap position
       const np = getNormalizedPoint(clientX, clientY);
-      const newBox: TextBox = { id: genId(), x: np.x, y: np.y, width: 0.4, height: 0.15, content: '', fontSize: 16 };
+      const newBox: TextBox = {
+        id: genId(), x: np.x, y: np.y, width: 0.4, height: 0.15,
+        content: '', fontSize: 16,
+        fontFamily: TEXT_FONTS[0].value,
+        textColor: '#000000',
+        textAlign: 'left',
+      };
       pushUndo();
       setTextBoxes(prev => [...prev, newBox]);
       setEditingTextId(newBox.id);
@@ -1087,10 +1120,28 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 
   // ── Text box management ────────────────────────────────────────────────
 
-  const updateTextBox = useCallback((id: string, content: string) => {
-    setTextBoxes(prev => prev.map(tb => tb.id === id ? { ...tb, content } : tb));
+  const updateTextBox = useCallback((id: string, updates: Partial<TextBox>) => {
+    setTextBoxes(prev => prev.map(tb => tb.id === id ? { ...tb, ...updates } : tb));
     triggerAutoSave();
   }, [triggerAutoSave]);
+
+  // Save HTML content from contentEditable ref
+  const syncContentFromRef = useCallback((id: string) => {
+    const el = contentEditableRefs.current.get(id);
+    if (el) {
+      updateTextBox(id, { content: el.innerHTML });
+    }
+  }, [updateTextBox]);
+
+  // Execute rich text formatting command on the current selection
+  const execFormat = useCallback((command: string, value?: string) => {
+    document.execCommand(command, false, value);
+    // Sync after formatting
+    if (editingTextId) syncContentFromRef(editingTextId);
+  }, [editingTextId, syncContentFromRef]);
+
+  // Get the currently editing text box
+  const editingTextBox = textBoxes.find(tb => tb.id === editingTextId);
 
   const deleteTextBox = useCallback((id: string) => {
     pushUndo();
@@ -1276,10 +1327,10 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     setShowAIMenu(false);
     setAiLoading(true);
 
-    // Gather text context from text boxes
+    // Gather text context from text boxes (strip HTML tags for AI context)
     const textContent = textBoxesRef.current
       .filter(tb => !tb.isAIReflection)
-      .map(tb => tb.content)
+      .map(tb => tb.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim())
       .filter(Boolean)
       .join('\n');
     const context = [entryPlainText, textContent]
@@ -1416,6 +1467,14 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
          onTouchMove={e => { if (isDragging) handleItemPointerMove(e); if (isResizing) handleResizeMove(e); }}
          onTouchEnd={() => { handleItemPointerUp(); handleResizeEnd(); }}
     >
+      {/* Placeholder style for empty contentEditable */}
+      <style>{`
+        [data-placeholder]:empty::before {
+          content: attr(data-placeholder);
+          color: #9ca3af;
+          pointer-events: none;
+        }
+      `}</style>
       {/* Hidden file input */}
       <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect}
              style={{ position: 'fixed', top: '-10000px', left: '-10000px' }} />
@@ -1637,7 +1696,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
               pointerEvents: (activeTool === 'text' && editingTextId) ? 'none' : 'auto',
             }} />
 
-          {/* ── Text Boxes (Word-like resizable text areas) ─────────────── */}
+          {/* ── Text Boxes (Rich text with contentEditable) ────────────── */}
           {textBoxes.map(tb => {
             const isEditing = editingTextId === tb.id;
             const isSelected = selectedItemId === tb.id && selectedItemType === 'text';
@@ -1656,12 +1715,35 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                   touchAction: 'none',
                 }}
               >
-                {/* The text area itself */}
-                <textarea
-                  value={tb.content}
-                  onChange={e => updateTextBox(tb.id, e.target.value)}
-                  onFocus={() => { setEditingTextId(tb.id); setSelectedItemId(tb.id); setSelectedItemType('text'); }}
-                  onBlur={() => { setEditingTextId(null); }}
+                {/* Rich text contentEditable div */}
+                <div
+                  ref={el => {
+                    if (el) {
+                      contentEditableRefs.current.set(tb.id, el);
+                      // Set initial content only when the element is first mounted
+                      if (el.innerHTML === '' && tb.content) {
+                        el.innerHTML = tb.content;
+                      }
+                    } else {
+                      contentEditableRefs.current.delete(tb.id);
+                    }
+                  }}
+                  contentEditable={!tb.isAIReflection}
+                  suppressContentEditableWarning
+                  data-placeholder="Type here..."
+                  onFocus={() => {
+                    setEditingTextId(tb.id);
+                    setSelectedItemId(tb.id);
+                    setSelectedItemType('text');
+                  }}
+                  onBlur={() => {
+                    syncContentFromRef(tb.id);
+                    setEditingTextId(null);
+                    setShowTextColorPicker(false);
+                    setShowFontPicker(false);
+                    setShowFontSizePicker(false);
+                  }}
+                  onInput={() => syncContentFromRef(tb.id)}
                   onKeyDown={e => { if (e.key === 'Escape') (e.target as HTMLElement).blur(); }}
                   onMouseDown={e => {
                     if (!isEditing) { e.preventDefault(); handleItemPointerDown(e, tb.id, 'text'); }
@@ -1670,29 +1752,186 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                     if (!isEditing) handleItemPointerDown(e, tb.id, 'text');
                   }}
                   onDoubleClick={() => setEditingTextId(tb.id)}
-                  placeholder="Type here..."
-                  readOnly={tb.isAIReflection}
                   style={{
                     width: '100%',
                     height: '100%',
-                    resize: 'none', // we handle resize via handles
                     border: isEditing ? '2px solid #4f46e5'
                       : isSelected ? '2px dashed #4f46e5'
                       : '1px solid transparent',
                     borderRadius: 4,
                     padding: '6px 8px',
-                    background: tb.isAIReflection ? 'rgba(238, 235, 255, 0.3)'
-                      : 'transparent',
+                    background: tb.isAIReflection ? 'rgba(238, 235, 255, 0.3)' : 'transparent',
                     fontSize: tb.fontSize || 16,
                     lineHeight: '1.6',
-                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                    fontFamily: tb.fontFamily || TEXT_FONTS[0].value,
+                    color: tb.textColor || '#000000',
+                    textAlign: (tb.textAlign || 'left') as React.CSSProperties['textAlign'],
                     fontStyle: tb.isAIReflection ? 'italic' : 'normal',
                     outline: 'none',
                     overflow: 'auto',
                     cursor: isEditing ? 'text' : 'move',
                     boxShadow: isSelected || isEditing ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+                    minHeight: 24,
+                    whiteSpace: 'pre-wrap',
+                    wordBreak: 'break-word',
+                    WebkitUserSelect: isEditing ? 'text' : 'none',
+                    userSelect: isEditing ? 'text' : 'none',
                   }}
                 />
+
+                {/* ── Floating Text Formatting Toolbar (Notability-style) ── */}
+                {isEditing && !tb.isAIReflection && (
+                  <div
+                    onMouseDown={e => e.preventDefault()} // prevent blur
+                    style={{
+                      position: 'absolute',
+                      bottom: '100%',
+                      left: 0,
+                      right: 0,
+                      marginBottom: 6,
+                      background: 'white',
+                      borderRadius: 8,
+                      boxShadow: '0 2px 12px rgba(0,0,0,0.15)',
+                      padding: '4px 6px',
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      alignItems: 'center',
+                      gap: 2,
+                      zIndex: 20,
+                      fontSize: 13,
+                      minWidth: 320,
+                    }}
+                  >
+                    {/* Font family */}
+                    <div style={{ position: 'relative' }}>
+                      <button
+                        onClick={() => setShowFontPicker(!showFontPicker)}
+                        style={{
+                          padding: '3px 8px', borderRadius: 4,
+                          border: '1px solid #ddd', background: showFontPicker ? '#eef' : '#f8f8f8',
+                          fontSize: 12, cursor: 'pointer', maxWidth: 90,
+                          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                        }}
+                      >
+                        {TEXT_FONTS.find(f => f.value === (tb.fontFamily || TEXT_FONTS[0].value))?.label || 'Font'}
+                      </button>
+                      {showFontPicker && (
+                        <div style={{
+                          position: 'absolute', top: '100%', left: 0, marginTop: 4,
+                          background: 'white', borderRadius: 6, boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                          zIndex: 25, minWidth: 160, maxHeight: 200, overflowY: 'auto',
+                        }}>
+                          {TEXT_FONTS.map(f => (
+                            <button key={f.label}
+                              onClick={() => {
+                                updateTextBox(tb.id, { fontFamily: f.value });
+                                setShowFontPicker(false);
+                              }}
+                              style={{
+                                display: 'block', width: '100%', textAlign: 'left',
+                                padding: '6px 12px', border: 'none', background: 'none',
+                                cursor: 'pointer', fontFamily: f.value, fontSize: 14,
+                                backgroundColor: f.value === (tb.fontFamily || TEXT_FONTS[0].value) ? '#eef2ff' : 'transparent',
+                              }}
+                            >{f.label}</button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Divider */}
+                    <div style={{ width: 1, height: 20, background: '#ddd' }} />
+
+                    {/* Font size */}
+                    <button onClick={() => updateTextBox(tb.id, { fontSize: Math.max(8, (tb.fontSize || 16) - 2) })}
+                      style={{ padding: '2px 5px', border: '1px solid #ddd', borderRadius: 4, background: '#f8f8f8', cursor: 'pointer', fontSize: 13 }}>−</button>
+                    <div style={{ position: 'relative' }}>
+                      <button onClick={() => setShowFontSizePicker(!showFontSizePicker)}
+                        style={{ padding: '2px 6px', border: '1px solid #ddd', borderRadius: 4, background: showFontSizePicker ? '#eef' : '#f8f8f8', cursor: 'pointer', fontSize: 13, minWidth: 30, textAlign: 'center' }}>
+                        {tb.fontSize || 16}
+                      </button>
+                      {showFontSizePicker && (
+                        <div style={{
+                          position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)',
+                          marginTop: 4, background: 'white', borderRadius: 6, boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                          zIndex: 25, maxHeight: 180, overflowY: 'auto',
+                        }}>
+                          {TEXT_SIZES.map(s => (
+                            <button key={s}
+                              onClick={() => { updateTextBox(tb.id, { fontSize: s }); setShowFontSizePicker(false); }}
+                              style={{
+                                display: 'block', width: '100%', padding: '4px 16px',
+                                border: 'none', background: s === (tb.fontSize || 16) ? '#eef2ff' : 'none',
+                                cursor: 'pointer', fontSize: 13, textAlign: 'center',
+                              }}>{s}</button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <button onClick={() => updateTextBox(tb.id, { fontSize: Math.min(96, (tb.fontSize || 16) + 2) })}
+                      style={{ padding: '2px 5px', border: '1px solid #ddd', borderRadius: 4, background: '#f8f8f8', cursor: 'pointer', fontSize: 13 }}>+</button>
+
+                    {/* Divider */}
+                    <div style={{ width: 1, height: 20, background: '#ddd' }} />
+
+                    {/* Text color */}
+                    <div style={{ position: 'relative' }}>
+                      <button onClick={() => setShowTextColorPicker(!showTextColorPicker)}
+                        style={{ width: 24, height: 24, borderRadius: 4, border: '1px solid #ddd', background: tb.textColor || '#000', cursor: 'pointer' }} />
+                      {showTextColorPicker && (
+                        <div style={{
+                          position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)',
+                          marginTop: 4, background: 'white', borderRadius: 6, boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                          zIndex: 25, padding: 6, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4,
+                        }}>
+                          {TEXT_COLORS.map(c => (
+                            <button key={c}
+                              onClick={() => { updateTextBox(tb.id, { textColor: c }); setShowTextColorPicker(false); }}
+                              style={{
+                                width: 24, height: 24, borderRadius: '50%', border: c === (tb.textColor || '#000000') ? '2px solid #4f46e5' : '1px solid #ccc',
+                                background: c, cursor: 'pointer',
+                              }} />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Divider */}
+                    <div style={{ width: 1, height: 20, background: '#ddd' }} />
+
+                    {/* Bold / Italic / Underline / Strikethrough */}
+                    <button onClick={() => execFormat('bold')}
+                      style={{ padding: '2px 6px', border: '1px solid #ddd', borderRadius: 4, background: '#f8f8f8', cursor: 'pointer', fontWeight: 'bold', fontSize: 14 }}>B</button>
+                    <button onClick={() => execFormat('italic')}
+                      style={{ padding: '2px 6px', border: '1px solid #ddd', borderRadius: 4, background: '#f8f8f8', cursor: 'pointer', fontStyle: 'italic', fontSize: 14 }}>I</button>
+                    <button onClick={() => execFormat('underline')}
+                      style={{ padding: '2px 6px', border: '1px solid #ddd', borderRadius: 4, background: '#f8f8f8', cursor: 'pointer', textDecoration: 'underline', fontSize: 14 }}>U</button>
+                    <button onClick={() => execFormat('strikeThrough')}
+                      style={{ padding: '2px 6px', border: '1px solid #ddd', borderRadius: 4, background: '#f8f8f8', cursor: 'pointer', textDecoration: 'line-through', fontSize: 14 }}>S</button>
+
+                    {/* Divider */}
+                    <div style={{ width: 1, height: 20, background: '#ddd' }} />
+
+                    {/* Alignment */}
+                    <button onClick={() => updateTextBox(tb.id, { textAlign: 'left' })}
+                      style={{ padding: '2px 5px', border: '1px solid #ddd', borderRadius: 4, background: (tb.textAlign || 'left') === 'left' ? '#e0e7ff' : '#f8f8f8', cursor: 'pointer', fontSize: 12 }}>≡←</button>
+                    <button onClick={() => updateTextBox(tb.id, { textAlign: 'center' })}
+                      style={{ padding: '2px 5px', border: '1px solid #ddd', borderRadius: 4, background: tb.textAlign === 'center' ? '#e0e7ff' : '#f8f8f8', cursor: 'pointer', fontSize: 12 }}>≡↔</button>
+                    <button onClick={() => updateTextBox(tb.id, { textAlign: 'right' })}
+                      style={{ padding: '2px 5px', border: '1px solid #ddd', borderRadius: 4, background: tb.textAlign === 'right' ? '#e0e7ff' : '#f8f8f8', cursor: 'pointer', fontSize: 12 }}>≡→</button>
+
+                    {/* Divider */}
+                    <div style={{ width: 1, height: 20, background: '#ddd' }} />
+
+                    {/* Lists */}
+                    <button onClick={() => execFormat('insertUnorderedList')}
+                      title="Bullet List"
+                      style={{ padding: '2px 5px', border: '1px solid #ddd', borderRadius: 4, background: '#f8f8f8', cursor: 'pointer', fontSize: 13 }}>•≡</button>
+                    <button onClick={() => execFormat('insertOrderedList')}
+                      title="Numbered List"
+                      style={{ padding: '2px 5px', border: '1px solid #ddd', borderRadius: 4, background: '#f8f8f8', cursor: 'pointer', fontSize: 13 }}>1.</button>
+                  </div>
+                )}
 
                 {/* Resize handles (visible when selected or editing) */}
                 {(isSelected || isEditing) && !tb.isAIReflection && (
