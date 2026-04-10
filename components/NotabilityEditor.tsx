@@ -29,6 +29,7 @@ export interface TextBox {
   id: string;
   x: number; y: number;       // normalized 0-1
   width: number;               // normalized
+  height: number;              // normalized (freely resizable)
   content: string;
   fontSize?: number;           // px
   isAIReflection?: boolean;
@@ -160,10 +161,10 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const [lassoSelection, setLassoSelection] = useState<{ strokeIndices: number[]; bounds: { x: number; y: number; w: number; h: number } } | null>(null);
   const [lassoDragStart, setLassoDragStart] = useState<{ x: number; y: number } | null>(null);
 
-  // Text box resize
+  // Text box resize (any edge or corner)
   const [isResizingText, setIsResizingText] = useState(false);
   const [resizingTextId, setResizingTextId] = useState<string | null>(null);
-  const [resizingTextEdge, setResizingTextEdge] = useState<'left' | 'right' | null>(null);
+  const [resizingTextEdge, setResizingTextEdge] = useState<string | null>(null); // 'n','s','e','w','ne','nw','se','sw'
 
   // Selection submenu
   const [showSelectionSubmenu, setShowSelectionSubmenu] = useState(false);
@@ -444,9 +445,26 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     if (parsed) {
       strokeDataRef.current = parsed;
       if (parsed.paperType) setPaperType(parsed.paperType);
-      if (parsed.textBoxes) setTextBoxes(parsed.textBoxes);
+      // Migrate old text boxes that don't have height
+      if (parsed.textBoxes) setTextBoxes(parsed.textBoxes.map(tb => ({ ...tb, height: tb.height || 0.15 })));
       if (parsed.images) setImages(parsed.images);
       if (parsed.pageMode) setPageMode(parsed.pageMode);
+
+      // Restore canvas height from content: find the lowest content point
+      const maxContentY = Math.max(
+        ...(parsed.strokes || []).flatMap(s => s.points.map(p => p.y)),
+        ...(parsed.textBoxes || []).map(tb => (tb.y || 0) + (tb.height || 0.15)),
+        ...(parsed.images || []).map(img => (img.y || 0) + (img.height || 0)),
+        0,
+      );
+      // Convert normalized y to pixels (use width as reference since y is normalized by width)
+      // Then ensure at least enough pages to show all content
+      const estimatedContentHeight = maxContentY * (window.innerWidth || 800);
+      const neededPages = Math.ceil(estimatedContentHeight / PAGE_HEIGHT);
+      if (neededPages > 1) {
+        setCanvasHeight(Math.max(neededPages * PAGE_HEIGHT, window.innerHeight - 48));
+      }
+
       lastSavedDataRef.current = initialData;
       initialDataLoadedRef.current = true;
       redrawBackground();
@@ -747,7 +765,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     if (tool === 'text') {
       // Create text box at tap position
       const np = getNormalizedPoint(clientX, clientY);
-      const newBox: TextBox = { id: genId(), x: np.x, y: np.y, width: 0.4, content: '', fontSize: 16 };
+      const newBox: TextBox = { id: genId(), x: np.x, y: np.y, width: 0.4, height: 0.15, content: '', fontSize: 16 };
       pushUndo();
       setTextBoxes(prev => [...prev, newBox]);
       setEditingTextId(newBox.id);
@@ -1081,12 +1099,12 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 
   // ── Text box resize (left/right edge handles like Notability) ──────────
 
-  const handleTextResizeStart = useCallback((e: React.MouseEvent | React.TouchEvent, id: string, edge: 'left' | 'right') => {
+  const handleTextResizeStart = useCallback((e: React.MouseEvent | React.TouchEvent, id: string, handle: string) => {
     e.stopPropagation();
     e.preventDefault();
     setIsResizingText(true);
     setResizingTextId(id);
-    setResizingTextEdge(edge);
+    setResizingTextEdge(handle);
     setSelectedItemId(id);
     setSelectedItemType('text');
   }, []);
@@ -1094,21 +1112,36 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const handleTextResizeMove = useCallback((e: MouseEvent | TouchEvent) => {
     if (!isResizingText || !resizingTextId || !resizingTextEdge) return;
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-    const np = getNormalizedPoint(clientX, 0); // only x matters
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    const np = getNormalizedPoint(clientX, clientY);
+    const handle = resizingTextEdge;
 
     setTextBoxes(prev => prev.map(tb => {
       if (tb.id !== resizingTextId) return tb;
-      if (resizingTextEdge === 'right') {
-        // Drag right edge: change width, keep left edge fixed
-        const newWidth = Math.max(0.1, np.x - tb.x);
-        return { ...tb, width: Math.min(newWidth, 1 - tb.x) };
-      } else {
-        // Drag left edge: change x and width simultaneously
-        const oldRight = tb.x + tb.width;
-        const newX = Math.max(0, Math.min(np.x, oldRight - 0.1));
-        const newWidth = oldRight - newX;
-        return { ...tb, x: newX, width: newWidth };
+      let { x, y, width, height } = tb;
+      const minW = 0.08;
+      const minH = 0.04;
+
+      // Horizontal resize
+      if (handle.includes('e')) {
+        width = Math.max(minW, Math.min(np.x - x, 1 - x));
       }
+      if (handle.includes('w')) {
+        const oldRight = x + width;
+        x = Math.max(0, Math.min(np.x, oldRight - minW));
+        width = oldRight - x;
+      }
+      // Vertical resize
+      if (handle.includes('s')) {
+        height = Math.max(minH, np.y - y);
+      }
+      if (handle === 'n' || handle === 'ne' || handle === 'nw') {
+        const oldBottom = y + height;
+        y = Math.max(0, Math.min(np.y, oldBottom - minH));
+        height = oldBottom - y;
+      }
+
+      return { ...tb, x, y, width, height };
     }));
   }, [isResizingText, resizingTextId, resizingTextEdge, getNormalizedPoint]);
 
@@ -1216,6 +1249,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       x: 0.05,
       y: Math.min(maxY + 0.02, 0.9),
       width: 0.9,
+      height: 0.2,
       content: '',
       fontSize: 14,
       isAIReflection: true,
@@ -1549,96 +1583,110 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
               pointerEvents: (activeTool === 'text' && editingTextId) ? 'none' : 'auto',
             }} />
 
-          {/* ── Text Boxes (HTML overlay) ──────────────────────────────── */}
+          {/* ── Text Boxes (Word-like resizable text areas) ─────────────── */}
           {textBoxes.map(tb => {
             const isEditing = editingTextId === tb.id;
             const isSelected = selectedItemId === tb.id && selectedItemType === 'text';
+            const tbW = tb.width * 100;
+            const tbH = (tb.height || 0.15) * (w || 1);
+            const tbTop = tb.y * (w || 1);
             return (
-              <React.Fragment key={tb.id}>
-                <div
-                  style={{
-                    position: 'absolute',
-                    left: `${tb.x * 100}%`,
-                    top: `${tb.y * (w || 1)}px`,
-                    width: `${tb.width * 100}%`,
-                    minHeight: 24,
-                    zIndex: 5,
-                    cursor: isEditing ? 'text' : 'move',
-                    border: isEditing ? '2px solid #4f46e5' : isSelected ? '2px dashed #4f46e5' : '1px dashed transparent',
-                    borderRadius: 4,
-                    padding: '4px 6px',
-                    background: tb.isAIReflection ? 'rgba(238, 235, 255, 0.9)' : (isEditing ? 'rgba(255,255,255,0.9)' : 'transparent'),
-                    fontSize: tb.fontSize || 16,
-                    lineHeight: 1.5,
-                    fontStyle: tb.isAIReflection ? 'italic' : 'normal',
-                    outline: 'none',
-                    touchAction: 'none',
-                  }}
-                  contentEditable={isEditing}
-                  suppressContentEditableWarning
+              <div key={tb.id}
+                style={{
+                  position: 'absolute',
+                  left: `${tb.x * 100}%`,
+                  top: `${tbTop}px`,
+                  width: `${tbW}%`,
+                  height: `${tbH}px`,
+                  zIndex: 5,
+                  touchAction: 'none',
+                }}
+              >
+                {/* The text area itself */}
+                <textarea
+                  value={tb.content}
+                  onChange={e => updateTextBox(tb.id, e.target.value)}
+                  onFocus={() => { setEditingTextId(tb.id); setSelectedItemId(tb.id); setSelectedItemType('text'); }}
+                  onBlur={() => { setEditingTextId(null); }}
+                  onKeyDown={e => { if (e.key === 'Escape') (e.target as HTMLElement).blur(); }}
                   onMouseDown={e => {
-                    if (!isEditing) handleItemPointerDown(e, tb.id, 'text');
+                    if (!isEditing) { e.preventDefault(); handleItemPointerDown(e, tb.id, 'text'); }
                   }}
                   onTouchStart={e => {
                     if (!isEditing) handleItemPointerDown(e, tb.id, 'text');
                   }}
                   onDoubleClick={() => setEditingTextId(tb.id)}
-                  onBlur={e => {
-                    updateTextBox(tb.id, e.currentTarget.innerText);
-                    setEditingTextId(null);
+                  placeholder="Type here..."
+                  readOnly={tb.isAIReflection}
+                  style={{
+                    width: '100%',
+                    height: '100%',
+                    resize: 'none', // we handle resize via handles
+                    border: isEditing ? '2px solid #4f46e5'
+                      : isSelected ? '2px dashed #4f46e5'
+                      : '1px solid #e2e8f0',
+                    borderRadius: 4,
+                    padding: '6px 8px',
+                    background: tb.isAIReflection ? 'rgba(238, 235, 255, 0.95)'
+                      : isEditing ? 'rgba(255,255,255,0.98)'
+                      : 'rgba(255,255,255,0.85)',
+                    fontSize: tb.fontSize || 16,
+                    lineHeight: '1.6',
+                    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+                    fontStyle: tb.isAIReflection ? 'italic' : 'normal',
+                    outline: 'none',
+                    overflow: 'auto',
+                    cursor: isEditing ? 'text' : 'move',
+                    boxShadow: isSelected || isEditing ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
                   }}
-                  onKeyDown={e => {
-                    if (e.key === 'Escape') { setEditingTextId(null); (e.target as HTMLElement).blur(); }
-                  }}
-                  dangerouslySetInnerHTML={{ __html: tb.content || (isEditing ? '' : '<span style="color:#999">Type here...</span>') }}
                 />
-                {/* Text box controls when selected (not editing) */}
-                {isSelected && !isEditing && (
+
+                {/* Resize handles (visible when selected or editing) */}
+                {(isSelected || isEditing) && !tb.isAIReflection && (
                   <>
-                    {/* Left edge resize handle */}
-                    <div
-                      style={{
-                        position: 'absolute',
-                        left: `${tb.x * 100}%`,
-                        top: `${tb.y * (w || 1) + 4}px`,
-                        width: 6, height: 'calc(100% - 8px)',
-                        cursor: 'ew-resize', zIndex: 7,
-                        background: '#4f46e5', borderRadius: 3, opacity: 0.6,
-                        transform: 'translateX(-3px)',
-                      }}
-                      onMouseDown={e => handleTextResizeStart(e, tb.id, 'left')}
-                      onTouchStart={e => handleTextResizeStart(e, tb.id, 'left')}
-                    />
-                    {/* Right edge resize handle */}
-                    <div
-                      style={{
-                        position: 'absolute',
-                        left: `calc(${tb.x * 100}% + ${tb.width * 100}%)`,
-                        top: `${tb.y * (w || 1) + 4}px`,
-                        width: 6, height: 'calc(100% - 8px)',
-                        cursor: 'ew-resize', zIndex: 7,
-                        background: '#4f46e5', borderRadius: 3, opacity: 0.6,
-                        transform: 'translateX(-3px)',
-                      }}
-                      onMouseDown={e => handleTextResizeStart(e, tb.id, 'right')}
-                      onTouchStart={e => handleTextResizeStart(e, tb.id, 'right')}
-                    />
+                    {/* 4 corner handles */}
+                    {(['nw', 'ne', 'sw', 'se'] as const).map(corner => (
+                      <div key={corner}
+                        style={{
+                          position: 'absolute',
+                          width: 10, height: 10,
+                          background: '#4f46e5', borderRadius: '50%', border: '2px solid white',
+                          zIndex: 8,
+                          cursor: corner === 'nw' || corner === 'se' ? 'nwse-resize' : 'nesw-resize',
+                          ...(corner.includes('n') ? { top: -5 } : { bottom: -5 }),
+                          ...(corner.includes('w') ? { left: -5 } : { right: -5 }),
+                        }}
+                        onMouseDown={e => handleTextResizeStart(e, tb.id, corner)}
+                        onTouchStart={e => handleTextResizeStart(e, tb.id, corner)}
+                      />
+                    ))}
+                    {/* 4 edge midpoint handles */}
+                    <div style={{ position: 'absolute', top: -4, left: '50%', transform: 'translateX(-50%)', width: 8, height: 8, background: '#4f46e5', borderRadius: '50%', border: '2px solid white', zIndex: 8, cursor: 'ns-resize' }}
+                      onMouseDown={e => handleTextResizeStart(e, tb.id, 'n')}
+                      onTouchStart={e => handleTextResizeStart(e, tb.id, 'n')} />
+                    <div style={{ position: 'absolute', bottom: -4, left: '50%', transform: 'translateX(-50%)', width: 8, height: 8, background: '#4f46e5', borderRadius: '50%', border: '2px solid white', zIndex: 8, cursor: 'ns-resize' }}
+                      onMouseDown={e => handleTextResizeStart(e, tb.id, 's')}
+                      onTouchStart={e => handleTextResizeStart(e, tb.id, 's')} />
+                    <div style={{ position: 'absolute', left: -4, top: '50%', transform: 'translateY(-50%)', width: 8, height: 8, background: '#4f46e5', borderRadius: '50%', border: '2px solid white', zIndex: 8, cursor: 'ew-resize' }}
+                      onMouseDown={e => handleTextResizeStart(e, tb.id, 'w')}
+                      onTouchStart={e => handleTextResizeStart(e, tb.id, 'w')} />
+                    <div style={{ position: 'absolute', right: -4, top: '50%', transform: 'translateY(-50%)', width: 8, height: 8, background: '#4f46e5', borderRadius: '50%', border: '2px solid white', zIndex: 8, cursor: 'ew-resize' }}
+                      onMouseDown={e => handleTextResizeStart(e, tb.id, 'e')}
+                      onTouchStart={e => handleTextResizeStart(e, tb.id, 'e')} />
                     {/* Delete button */}
                     <button
                       style={{
-                        position: 'absolute',
-                        left: `calc(${tb.x * 100}% + ${tb.width * 100}% - 8px)`,
-                        top: `${tb.y * (w || 1) - 12}px`,
+                        position: 'absolute', right: -12, top: -12,
                         width: 24, height: 24,
                         background: '#ef4444', color: 'white', borderRadius: '50%', border: 'none',
-                        fontSize: 14, cursor: 'pointer', zIndex: 8,
+                        fontSize: 14, cursor: 'pointer', zIndex: 9,
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                       }}
                       onClick={(e) => { e.stopPropagation(); deleteTextBox(tb.id); }}
                     >×</button>
                   </>
                 )}
-              </React.Fragment>
+              </div>
             );
           })}
 
