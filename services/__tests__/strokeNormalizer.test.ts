@@ -10,6 +10,7 @@ import {
   createEmptyCanvasData,
   drawPaperBackground,
   renderStroke,
+  renderStrokesByLayer,
   getToolRenderProps,
   type AbsoluteStroke,
   type NormalizedStroke,
@@ -309,6 +310,123 @@ describe('strokeNormalizer', () => {
 
       // Should not throw
       renderStroke(ctx, singlePointStroke);
+    });
+  });
+
+  describe('renderStrokesByLayer', () => {
+    it('filters strokes by layer property', () => {
+      const renderedStrokes: string[] = [];
+      const mockCtx = {
+        save: () => {},
+        restore: () => {},
+        beginPath: () => {},
+        moveTo: () => {},
+        lineTo: () => {},
+        stroke: () => renderedStrokes.push('stroke'),
+        globalCompositeOperation: 'source-over',
+        globalAlpha: 1,
+        strokeStyle: '#000',
+        lineWidth: 1,
+        lineCap: 'round',
+        lineJoin: 'round',
+      } as unknown as CanvasRenderingContext2D;
+
+      const data: NormalizedCanvasData = {
+        version: 2,
+        strokes: [
+          { points: [{ x: 0.1, y: 0.1 }, { x: 0.2, y: 0.2 }], color: '#000', lineWidth: 0.01, tool: 'pen', opacity: 1 },
+          { points: [{ x: 0.3, y: 0.3 }, { x: 0.4, y: 0.4 }], color: '#f00', lineWidth: 0.01, tool: 'pen', opacity: 1, layer: 'above' },
+          { points: [{ x: 0.5, y: 0.5 }, { x: 0.6, y: 0.6 }], color: '#00f', lineWidth: 0.01, tool: 'pen', opacity: 1, layer: 'below' },
+        ],
+      };
+
+      // Render only 'below' layer — should include stroke 0 (no layer = default below) and stroke 2
+      renderStrokesByLayer(mockCtx, data, 1000, 1000, 'below');
+      expect(renderedStrokes).toHaveLength(2);
+
+      renderedStrokes.length = 0;
+      // Render only 'above' layer — should include only stroke 1
+      renderStrokesByLayer(mockCtx, data, 1000, 1000, 'above');
+      expect(renderedStrokes).toHaveLength(1);
+    });
+
+    it('returns no strokes when filtering for layer with no matches', () => {
+      const renderedStrokes: string[] = [];
+      const mockCtx = {
+        save: () => {},
+        restore: () => {},
+        beginPath: () => {},
+        moveTo: () => {},
+        lineTo: () => {},
+        stroke: () => renderedStrokes.push('stroke'),
+        globalCompositeOperation: 'source-over',
+        globalAlpha: 1,
+        strokeStyle: '#000',
+        lineWidth: 1,
+        lineCap: 'round',
+        lineJoin: 'round',
+      } as unknown as CanvasRenderingContext2D;
+
+      const data: NormalizedCanvasData = {
+        version: 2,
+        strokes: [
+          { points: [{ x: 0.1, y: 0.1 }, { x: 0.2, y: 0.2 }], color: '#000', lineWidth: 0.01, tool: 'pen', opacity: 1 },
+        ],
+      };
+
+      // All strokes default to 'below', so 'above' should have 0
+      renderStrokesByLayer(mockCtx, data, 1000, 1000, 'above');
+      expect(renderedStrokes).toHaveLength(0);
+    });
+
+    it('handles strokes without layer property as below by default', () => {
+      const renderedStrokes: string[] = [];
+      const mockCtx = {
+        save: () => {},
+        restore: () => {},
+        beginPath: () => {},
+        moveTo: () => {},
+        lineTo: () => {},
+        stroke: () => renderedStrokes.push('stroke'),
+        globalCompositeOperation: 'source-over',
+        globalAlpha: 1,
+        strokeStyle: '#000',
+        lineWidth: 1,
+        lineCap: 'round',
+        lineJoin: 'round',
+      } as unknown as CanvasRenderingContext2D;
+
+      const data: NormalizedCanvasData = {
+        version: 2,
+        strokes: [
+          { points: [{ x: 0.1, y: 0.1 }, { x: 0.2, y: 0.2 }], color: '#000', lineWidth: 0.01, tool: 'pen', opacity: 1 },
+          { points: [{ x: 0.3, y: 0.3 }, { x: 0.4, y: 0.4 }], color: '#f00', lineWidth: 0.01, tool: 'pen', opacity: 1 },
+        ],
+      };
+
+      renderStrokesByLayer(mockCtx, data, 1000, 1000, 'below');
+      expect(renderedStrokes).toHaveLength(2);
+    });
+  });
+
+  describe('NormalizedStroke layer property', () => {
+    it('preserves layer through serialization roundtrip', () => {
+      const data: NormalizedCanvasData = {
+        version: 2,
+        strokes: [
+          { points: [{ x: 0.1, y: 0.2 }], color: '#000', lineWidth: 0.005, tool: 'pen', opacity: 1.0, layer: 'above' },
+          { points: [{ x: 0.3, y: 0.4 }], color: '#f00', lineWidth: 0.005, tool: 'pen', opacity: 1.0, layer: 'below' },
+          { points: [{ x: 0.5, y: 0.6 }], color: '#00f', lineWidth: 0.005, tool: 'pen', opacity: 1.0 },
+        ],
+        paperType: 'plain',
+      };
+
+      const serialized = serializeCanvasData(data);
+      const parsed = parseCanvasData(serialized);
+      expect(parsed).not.toBeNull();
+      expect(parsed!.strokes[0].layer).toBe('above');
+      expect(parsed!.strokes[1].layer).toBe('below');
+      expect(parsed!.strokes[2].layer).toBeUndefined();
     });
   });
 });
