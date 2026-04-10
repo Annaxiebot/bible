@@ -89,6 +89,7 @@ const AUTO_EXPAND_AMOUNT = 300;
 const AUTOSAVE_DELAY = 2000;
 const MAX_HISTORY = 100;
 const PAGE_HEIGHT = 1200; // px per page in seamless mode
+const SWIPE_THRESHOLD = 50; // px minimum swipe distance to trigger page change
 
 function genId() { return Math.random().toString(36).slice(2, 10); }
 
@@ -151,10 +152,28 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const [showAIMenu, setShowAIMenu] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
 
-  // Lasso
+  // Selection (lasso + rectangle)
+  const [selectionMode, setSelectionMode] = useState<'lasso' | 'rectangle'>('rectangle');
   const [lassoPoints, setLassoPoints] = useState<{ x: number; y: number }[]>([]);
+  const [rectStart, setRectStart] = useState<{ x: number; y: number } | null>(null);
+  const [rectEnd, setRectEnd] = useState<{ x: number; y: number } | null>(null);
   const [lassoSelection, setLassoSelection] = useState<{ strokeIndices: number[]; bounds: { x: number; y: number; w: number; h: number } } | null>(null);
   const [lassoDragStart, setLassoDragStart] = useState<{ x: number; y: number } | null>(null);
+
+  // Text box resize
+  const [isResizingText, setIsResizingText] = useState(false);
+  const [resizingTextId, setResizingTextId] = useState<string | null>(null);
+  const [resizingTextEdge, setResizingTextEdge] = useState<'left' | 'right' | null>(null);
+
+  // Selection submenu
+  const [showSelectionSubmenu, setShowSelectionSubmenu] = useState(false);
+
+  // Single-page swipe state
+  const swipeStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
+  const [swipeOffset, setSwipeOffset] = useState(0); // px offset during swipe animation
+
+  // Image cache — pre-load images to avoid async flicker in redrawAll
+  const imageCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
 
   // Canvas refs
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -191,6 +210,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     setShowColorPicker(false);
     setShowMenu(false);
     setShowSizeSlider(false);
+    setShowSelectionSubmenu(false);
   }, []);
 
   // ── Snapshot for undo ─────────────────────────────────────────────────
@@ -257,25 +277,23 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     // Use width for both dimensions so strokes don't stretch when height changes
     renderAllStrokes(ctx, strokeDataRef.current, w, w);
 
-    // Draw images on canvas
+    // Draw images on canvas using pre-cached images (synchronous, no flicker)
     imagesRef.current.forEach(img => {
-      const imgEl = new Image();
-      imgEl.onload = () => {
-        ctx.save();
-        const ix = img.x * w;
-        const iy = img.y * w; // use width for both dimensions
-        const iw = img.width * w;
-        const ih = img.height * w; // use width for both
-        if (img.rotation) {
-          ctx.translate(ix + iw / 2, iy + ih / 2);
-          ctx.rotate((img.rotation * Math.PI) / 180);
-          ctx.drawImage(imgEl, -iw / 2, -ih / 2, iw, ih);
-        } else {
-          ctx.drawImage(imgEl, ix, iy, iw, ih);
-        }
-        ctx.restore();
-      };
-      imgEl.src = img.src;
+      const cached = imageCacheRef.current.get(img.id);
+      if (!cached || !cached.complete) return; // skip if not yet loaded
+      ctx.save();
+      const ix = img.x * w;
+      const iy = img.y * w;
+      const iw = img.width * w;
+      const ih = img.height * w;
+      if (img.rotation) {
+        ctx.translate(ix + iw / 2, iy + ih / 2);
+        ctx.rotate((img.rotation * Math.PI) / 180);
+        ctx.drawImage(cached, -iw / 2, -ih / 2, iw, ih);
+      } else {
+        ctx.drawImage(cached, ix, iy, iw, ih);
+      }
+      ctx.restore();
     });
 
     // Draw lasso path if active
@@ -292,7 +310,23 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       ctx.restore();
     }
 
-    // Draw lasso selection bounds
+    // Draw rectangle selection preview
+    if (rectStart && rectEnd) {
+      ctx.save();
+      ctx.strokeStyle = '#4f46e5';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      ctx.fillStyle = 'rgba(79, 70, 229, 0.08)';
+      const rx = Math.min(rectStart.x, rectEnd.x);
+      const ry = Math.min(rectStart.y, rectEnd.y);
+      const rw = Math.abs(rectEnd.x - rectStart.x);
+      const rh = Math.abs(rectEnd.y - rectStart.y);
+      ctx.fillRect(rx, ry, rw, rh);
+      ctx.strokeRect(rx, ry, rw, rh);
+      ctx.restore();
+    }
+
+    // Draw lasso/rect selection bounds
     if (lassoSelection) {
       const b = lassoSelection.bounds;
       ctx.save();
@@ -302,7 +336,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       ctx.strokeRect(b.x * w, b.y * w, b.w * w, b.h * w); // use width for both
       ctx.restore();
     }
-  }, [lassoPoints, lassoSelection]);
+  }, [lassoPoints, lassoSelection, rectStart, rectEnd]);
 
   const redrawBackground = useCallback(() => {
     const bgCtx = bgCtxRef.current;
@@ -425,6 +459,24 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     redrawBackground();
     triggerAutoSave();
   }, [paperType, redrawBackground, triggerAutoSave]);
+
+  // Pre-cache images into HTMLImageElement objects for synchronous canvas drawing
+  useEffect(() => {
+    const cache = imageCacheRef.current;
+    for (const img of images) {
+      if (!cache.has(img.id)) {
+        const el = new Image();
+        el.onload = () => redrawAll(); // redraw once image is loaded
+        el.src = img.src;
+        cache.set(img.id, el);
+      }
+    }
+    // Clean up removed images from cache
+    const currentIds = new Set(images.map(img => img.id));
+    cache.forEach((_, id) => {
+      if (!currentIds.has(id)) cache.delete(id);
+    });
+  }, [images, redrawAll]);
 
   // ── Coordinate helper ──────────────────────────────────────────────────
 
@@ -575,6 +627,47 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     redrawAll();
   }, [lassoPoints, redrawAll]);
 
+  // Rectangle selection: finalize selection from rectStart/rectEnd
+  const finishRectSelection = useCallback(() => {
+    if (!rectStart || !rectEnd) { setRectStart(null); setRectEnd(null); return; }
+    const w = displayWidthRef.current;
+    if (w <= 0) { setRectStart(null); setRectEnd(null); return; }
+
+    // Normalize rect coords (use width for both dims, matching stroke normalization)
+    const nx1 = Math.min(rectStart.x, rectEnd.x) / w;
+    const ny1 = Math.min(rectStart.y, rectEnd.y) / w;
+    const nx2 = Math.max(rectStart.x, rectEnd.x) / w;
+    const ny2 = Math.max(rectStart.y, rectEnd.y) / w;
+
+    // Find strokes with any point inside rectangle
+    const selectedIndices: number[] = [];
+    const strokes = strokeDataRef.current.strokes;
+    for (let i = 0; i < strokes.length; i++) {
+      if (strokes[i].points.some(p => p.x >= nx1 && p.x <= nx2 && p.y >= ny1 && p.y <= ny2)) {
+        selectedIndices.push(i);
+      }
+    }
+
+    if (selectedIndices.length > 0) {
+      let minX = 1, minY = 1, maxX = 0, maxY = 0;
+      for (const idx of selectedIndices) {
+        for (const p of strokes[idx].points) {
+          if (p.x < minX) minX = p.x;
+          if (p.y < minY) minY = p.y;
+          if (p.x > maxX) maxX = p.x;
+          if (p.y > maxY) maxY = p.y;
+        }
+      }
+      setLassoSelection({
+        strokeIndices: selectedIndices,
+        bounds: { x: minX, y: minY, w: maxX - minX, h: maxY - minY },
+      });
+    }
+    setRectStart(null);
+    setRectEnd(null);
+    redrawAll();
+  }, [rectStart, rectEnd, redrawAll]);
+
   const moveLassoSelection = useCallback((dx: number, dy: number) => {
     if (!lassoSelection) return;
     const w = displayWidthRef.current;
@@ -641,7 +734,12 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     }
 
     if (tool === 'lasso') {
-      setLassoPoints([{ x, y }]);
+      if (selectionMode === 'rectangle') {
+        setRectStart({ x, y });
+        setRectEnd({ x, y });
+      } else {
+        setLassoPoints([{ x, y }]);
+      }
       isDrawingRef.current = true;
       return;
     }
@@ -689,7 +787,11 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     }
 
     if (tool === 'lasso') {
-      setLassoPoints(prev => [...prev, { x, y }]);
+      if (selectionMode === 'rectangle' && rectStart) {
+        setRectEnd({ x, y });
+      } else {
+        setLassoPoints(prev => [...prev, { x, y }]);
+      }
       redrawAll();
       return;
     }
@@ -707,32 +809,128 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const handlePointerUp = useCallback(() => {
     const tool = toolRef.current;
     if (lassoDragStart) { setLassoDragStart(null); return; }
-    if (tool === 'lasso') { finishLasso(); isDrawingRef.current = false; return; }
+    if (tool === 'lasso') {
+      if (selectionMode === 'rectangle') { finishRectSelection(); }
+      else { finishLasso(); }
+      isDrawingRef.current = false;
+      return;
+    }
     if (tool === 'eraser') { eraserActiveRef.current = false; isDrawingRef.current = false; applyDeferredExpand(); return; }
     if (isDrawingRef.current) commitCurrentStroke();
     isDrawingRef.current = false;
     applyDeferredExpand();
   }, [commitCurrentStroke, finishLasso, lassoDragStart, applyDeferredExpand]);
 
-  // Touch events
+  // ── Single-page navigation helpers ─────────────────────────────────────
+
+  const totalPages = Math.max(1, Math.ceil(canvasHeight / PAGE_HEIGHT));
+
+  const goToPage = useCallback((page: number) => {
+    const clamped = Math.max(0, Math.min(page, totalPages - 1));
+    setCurrentPage(clamped);
+    setSwipeOffset(0);
+    // In seamless mode, scroll to the page position
+    if (pageMode === 'seamless' && scrollContainerRef.current) {
+      scrollContainerRef.current.scrollTo({
+        top: clamped * PAGE_HEIGHT,
+        behavior: 'smooth',
+      });
+    }
+  }, [totalPages, pageMode]);
+
+  const addPage = useCallback(() => {
+    setCanvasHeight(prev => prev + PAGE_HEIGHT);
+    // Navigate to the new page after adding
+    setTimeout(() => goToPage(totalPages), 50);
+  }, [totalPages, goToPage]);
+
+  // Track current page from scroll position (Notability-style: updates on scroll)
+  const [showPageIndicator, setShowPageIndicator] = useState(false);
+  const pageIndicatorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const handleScroll = () => {
+      const page = Math.round(container.scrollTop / PAGE_HEIGHT);
+      setCurrentPage(Math.max(0, Math.min(page, totalPages - 1)));
+      // Show floating page indicator, then fade out after 1.5s (Notability behavior)
+      setShowPageIndicator(true);
+      if (pageIndicatorTimerRef.current) clearTimeout(pageIndicatorTimerRef.current);
+      pageIndicatorTimerRef.current = setTimeout(() => setShowPageIndicator(false), 1500);
+    };
+    container.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+      if (pageIndicatorTimerRef.current) clearTimeout(pageIndicatorTimerRef.current);
+    };
+  }, [totalPages]);
+
+  // Keyboard navigation for page switching (laptop-friendly)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Only handle page nav when not editing text
+      if (editingTextId) return;
+      if (e.key === 'PageDown' || (e.key === 'ArrowDown' && e.metaKey)) {
+        e.preventDefault();
+        goToPage(currentPage + 1);
+      } else if (e.key === 'PageUp' || (e.key === 'ArrowUp' && e.metaKey)) {
+        e.preventDefault();
+        goToPage(currentPage - 1);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentPage, goToPage, editingTextId]);
+
+  // Touch events — with single-page swipe detection
   const handleTouchStart = useCallback((e: TouchEvent) => {
     e.preventDefault();
     if (e.touches.length > 1) return;
     const t = e.touches[0];
     if (t.radiusX && t.radiusX > 25) return;
+
+    // In single-page mode with pointer/non-drawing tool, track swipe
+    if (pageMode === 'single' && (toolRef.current === 'pointer' || toolRef.current === 'text')) {
+      swipeStartRef.current = { x: t.clientX, y: t.clientY, time: Date.now() };
+    }
     handlePointerDown(t.clientX, t.clientY);
-  }, [handlePointerDown]);
+  }, [handlePointerDown, pageMode]);
 
   const handleTouchMove = useCallback((e: TouchEvent) => {
     e.preventDefault();
     if (e.touches.length > 1) { isDrawingRef.current = false; return; }
+
+    // Single-page swipe tracking
+    if (pageMode === 'single' && swipeStartRef.current && !isDrawingRef.current) {
+      const dx = e.touches[0].clientX - swipeStartRef.current.x;
+      setSwipeOffset(dx);
+      return; // don't pass to drawing handler during swipe
+    }
+
     handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
-  }, [handlePointerMove]);
+  }, [handlePointerMove, pageMode]);
 
   const handleTouchEnd = useCallback((e: TouchEvent) => {
     e.preventDefault();
+
+    // Single-page swipe completion
+    if (pageMode === 'single' && swipeStartRef.current) {
+      const elapsed = Date.now() - swipeStartRef.current.time;
+      if (Math.abs(swipeOffset) > SWIPE_THRESHOLD && elapsed < 500) {
+        if (swipeOffset < 0) {
+          // Swipe left → next page
+          goToPage(currentPage + 1);
+        } else {
+          // Swipe right → previous page
+          goToPage(currentPage - 1);
+        }
+      }
+      swipeStartRef.current = null;
+      setSwipeOffset(0);
+    }
+
     handlePointerUp();
-  }, [handlePointerUp]);
+  }, [handlePointerUp, pageMode, swipeOffset, currentPage, goToPage]);
 
   // Mouse events
   const handleMouseDown = useCallback((e: MouseEvent) => handlePointerDown(e.clientX, e.clientY), [handlePointerDown]);
@@ -881,6 +1079,46 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     setIsDragging(false);
   }, [isDragging, triggerAutoSave]);
 
+  // ── Text box resize (left/right edge handles like Notability) ──────────
+
+  const handleTextResizeStart = useCallback((e: React.MouseEvent | React.TouchEvent, id: string, edge: 'left' | 'right') => {
+    e.stopPropagation();
+    e.preventDefault();
+    setIsResizingText(true);
+    setResizingTextId(id);
+    setResizingTextEdge(edge);
+    setSelectedItemId(id);
+    setSelectedItemType('text');
+  }, []);
+
+  const handleTextResizeMove = useCallback((e: MouseEvent | TouchEvent) => {
+    if (!isResizingText || !resizingTextId || !resizingTextEdge) return;
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const np = getNormalizedPoint(clientX, 0); // only x matters
+
+    setTextBoxes(prev => prev.map(tb => {
+      if (tb.id !== resizingTextId) return tb;
+      if (resizingTextEdge === 'right') {
+        // Drag right edge: change width, keep left edge fixed
+        const newWidth = Math.max(0.1, np.x - tb.x);
+        return { ...tb, width: Math.min(newWidth, 1 - tb.x) };
+      } else {
+        // Drag left edge: change x and width simultaneously
+        const oldRight = tb.x + tb.width;
+        const newX = Math.max(0, Math.min(np.x, oldRight - 0.1));
+        const newWidth = oldRight - newX;
+        return { ...tb, x: newX, width: newWidth };
+      }
+    }));
+  }, [isResizingText, resizingTextId, resizingTextEdge, getNormalizedPoint]);
+
+  const handleTextResizeEnd = useCallback(() => {
+    if (isResizingText) triggerAutoSave();
+    setIsResizingText(false);
+    setResizingTextId(null);
+    setResizingTextEdge(null);
+  }, [isResizingText, triggerAutoSave]);
+
   // ── Resize handle for images ───────────────────────────────────────────
 
   const handleResizeStart = useCallback((e: React.MouseEvent | React.TouchEvent, id: string, corner: string) => {
@@ -914,24 +1152,33 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     setResizeCorner(null);
   }, [isResizing, triggerAutoSave]);
 
-  // Global move/resize handlers
+  // Global move/resize handlers (items + text box resize)
   useEffect(() => {
-    if (!isDragging && !isResizing) return;
+    if (!isDragging && !isResizing && !isResizingText) return;
     const handleMove = (e: MouseEvent) => {
       if (isDragging) handleItemPointerMove(e as any);
       if (isResizing) handleResizeMove(e as any);
+      if (isResizingText) handleTextResizeMove(e);
+    };
+    const handleTouchMove = (e: TouchEvent) => {
+      if (isResizingText) handleTextResizeMove(e);
     };
     const handleUp = () => {
       handleItemPointerUp();
       handleResizeEnd();
+      handleTextResizeEnd();
     };
     window.addEventListener('mousemove', handleMove);
     window.addEventListener('mouseup', handleUp);
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', handleUp);
     return () => {
       window.removeEventListener('mousemove', handleMove);
       window.removeEventListener('mouseup', handleUp);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', handleUp);
     };
-  }, [isDragging, isResizing, handleItemPointerMove, handleItemPointerUp, handleResizeMove, handleResizeEnd]);
+  }, [isDragging, isResizing, isResizingText, handleItemPointerMove, handleItemPointerUp, handleResizeMove, handleResizeEnd, handleTextResizeMove, handleTextResizeEnd]);
 
   // ── AI handler ──────────────────────────────────────────────────────────
 
@@ -1051,7 +1298,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 
   const toolButtons: { tool: ActiveTool; label: string; icon: string }[] = [
     { tool: 'pointer', label: 'Pointer', icon: '👆' },
-    { tool: 'lasso', label: 'Select', icon: '⭕' },
+    { tool: 'lasso', label: selectionMode === 'lasso' ? 'Lasso Select' : 'Box Select', icon: selectionMode === 'lasso' ? '⭕' : '⬜' },
     { tool: 'pen', label: 'Pen', icon: '✏️' },
     { tool: 'marker', label: 'Marker', icon: '🖊️' },
     { tool: 'highlighter', label: 'Highlighter', icon: '🖍️' },
@@ -1071,7 +1318,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 
   const w = displayWidthRef.current;
   const h = displayHeightRef.current;
-  const totalPages = Math.max(1, Math.ceil(canvasHeight / PAGE_HEIGHT));
+  const totalPagesDisplay = Math.max(1, Math.ceil(canvasHeight / PAGE_HEIGHT));
 
   // ── Render ─────────────────────────────────────────────────────────────
 
@@ -1101,13 +1348,44 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
         {/* Center: Tools */}
         <div className="flex items-center gap-0.5">
           {toolButtons.map(({ tool, label, icon }) => (
-            <button key={tool} onClick={() => { setActiveTool(tool); if (tool !== 'lasso') { setLassoSelection(null); setLassoPoints([]); } }}
-              className={`px-2 py-1.5 rounded-lg transition-all ${
-                activeTool === tool ? 'bg-indigo-100 shadow-sm ring-1 ring-indigo-300' : 'hover:bg-slate-100'
-              } ${tool === 'text' ? 'font-bold text-sm' : 'text-base'}`}
-              title={label}>
-              {icon}
-            </button>
+            <div key={tool} className="relative">
+              <button
+                onClick={() => {
+                  if (tool === 'lasso' && activeTool === 'lasso') {
+                    // Already on select tool — toggle submenu
+                    setShowSelectionSubmenu(!showSelectionSubmenu);
+                  } else {
+                    setActiveTool(tool);
+                    setShowSelectionSubmenu(false);
+                    if (tool !== 'lasso') { setLassoSelection(null); setLassoPoints([]); setRectStart(null); setRectEnd(null); }
+                  }
+                }}
+                className={`px-2 py-1.5 rounded-lg transition-all ${
+                  activeTool === tool ? 'bg-indigo-100 shadow-sm ring-1 ring-indigo-300' : 'hover:bg-slate-100'
+                } ${tool === 'text' ? 'font-bold text-sm' : 'text-base'}`}
+                title={label}>
+                {icon}
+              </button>
+              {/* Selection mode submenu */}
+              {tool === 'lasso' && showSelectionSubmenu && (
+                <div className="absolute left-0 top-full mt-1 bg-white rounded-lg shadow-lg border border-slate-200 py-1 z-50 min-w-[140px]">
+                  <button onClick={() => { setSelectionMode('lasso'); setShowSelectionSubmenu(false); }}
+                    className={`w-full text-left px-3 py-1.5 text-sm hover:bg-slate-50 flex items-center gap-2 ${
+                      selectionMode === 'lasso' ? 'text-indigo-600 font-medium' : 'text-slate-700'
+                    }`}>
+                    <span>⭕</span> Freeform
+                    {selectionMode === 'lasso' && <span className="ml-auto text-indigo-500">✓</span>}
+                  </button>
+                  <button onClick={() => { setSelectionMode('rectangle'); setShowSelectionSubmenu(false); }}
+                    className={`w-full text-left px-3 py-1.5 text-sm hover:bg-slate-50 flex items-center gap-2 ${
+                      selectionMode === 'rectangle' ? 'text-indigo-600 font-medium' : 'text-slate-700'
+                    }`}>
+                    <span>⬜</span> Rectangle
+                    {selectionMode === 'rectangle' && <span className="ml-auto text-indigo-500">✓</span>}
+                  </button>
+                </div>
+              )}
+            </div>
           ))}
         </div>
 
@@ -1245,10 +1523,20 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       </div>
 
       {/* ── Canvas Area ─────────────────────────────────────────────────── */}
-      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden"
-           style={{ WebkitOverflowScrolling: 'touch' }}
+      <div ref={scrollContainerRef}
+           className="flex-1 overflow-x-hidden"
+           style={{
+             WebkitOverflowScrolling: 'touch',
+             overflowY: pageMode === 'single' ? 'hidden' : 'auto',
+           }}
            onClick={closeAllPopups}>
-        <div className="relative w-full" style={{ height: `${canvasHeight}px` }}>
+        <div className="relative w-full" style={{
+          height: `${canvasHeight}px`,
+          ...(pageMode === 'single' ? {
+            transform: `translateY(-${currentPage * PAGE_HEIGHT}px) translateX(${swipeOffset}px)`,
+            transition: swipeOffset === 0 ? 'transform 0.3s ease-out' : 'none',
+          } : {}),
+        }}>
           {/* Background canvas */}
           <canvas ref={bgCanvasRef} className="absolute inset-0"
             style={{ width: '100%', height: `${canvasHeight}px`, pointerEvents: 'none' }} />
@@ -1304,20 +1592,51 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                   }}
                   dangerouslySetInnerHTML={{ __html: tb.content || (isEditing ? '' : '<span style="color:#999">Type here...</span>') }}
                 />
-                {/* Delete button for selected text box */}
+                {/* Text box controls when selected (not editing) */}
                 {isSelected && !isEditing && (
-                  <button
-                    style={{
-                      position: 'absolute',
-                      left: `calc(${tb.x * 100}% + ${tb.width * 100}% - 8px)`,
-                      top: `${tb.y * (w || 1) - 12}px`,
-                      width: 24, height: 24,
-                      background: '#ef4444', color: 'white', borderRadius: '50%', border: 'none',
-                      fontSize: 14, cursor: 'pointer', zIndex: 6,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}
-                    onClick={(e) => { e.stopPropagation(); deleteTextBox(tb.id); }}
-                  >×</button>
+                  <>
+                    {/* Left edge resize handle */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: `${tb.x * 100}%`,
+                        top: `${tb.y * (w || 1) + 4}px`,
+                        width: 6, height: 'calc(100% - 8px)',
+                        cursor: 'ew-resize', zIndex: 7,
+                        background: '#4f46e5', borderRadius: 3, opacity: 0.6,
+                        transform: 'translateX(-3px)',
+                      }}
+                      onMouseDown={e => handleTextResizeStart(e, tb.id, 'left')}
+                      onTouchStart={e => handleTextResizeStart(e, tb.id, 'left')}
+                    />
+                    {/* Right edge resize handle */}
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: `calc(${tb.x * 100}% + ${tb.width * 100}%)`,
+                        top: `${tb.y * (w || 1) + 4}px`,
+                        width: 6, height: 'calc(100% - 8px)',
+                        cursor: 'ew-resize', zIndex: 7,
+                        background: '#4f46e5', borderRadius: 3, opacity: 0.6,
+                        transform: 'translateX(-3px)',
+                      }}
+                      onMouseDown={e => handleTextResizeStart(e, tb.id, 'right')}
+                      onTouchStart={e => handleTextResizeStart(e, tb.id, 'right')}
+                    />
+                    {/* Delete button */}
+                    <button
+                      style={{
+                        position: 'absolute',
+                        left: `calc(${tb.x * 100}% + ${tb.width * 100}% - 8px)`,
+                        top: `${tb.y * (w || 1) - 12}px`,
+                        width: 24, height: 24,
+                        background: '#ef4444', color: 'white', borderRadius: '50%', border: 'none',
+                        fontSize: 14, cursor: 'pointer', zIndex: 8,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      }}
+                      onClick={(e) => { e.stopPropagation(); deleteTextBox(tb.id); }}
+                    >×</button>
+                  </>
                 )}
               </React.Fragment>
             );
@@ -1367,8 +1686,8 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
             );
           })}
 
-          {/* ── Page numbers (seamless mode) ───────────────────────────── */}
-          {pageMode === 'seamless' && Array.from({ length: totalPages - 1 }, (_, i) => (
+          {/* ── Page break lines (seamless mode, like Notability) ─────── */}
+          {pageMode === 'seamless' && Array.from({ length: totalPagesDisplay - 1 }, (_, i) => (
             <div key={`page-${i}`} style={{
               position: 'absolute', right: 8, top: (i + 1) * PAGE_HEIGHT - 24,
               background: 'rgba(255,255,255,0.8)', padding: '2px 8px', borderRadius: 4,
@@ -1378,6 +1697,31 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
             </div>
           ))}
         </div>
+
+        {/* ── Floating page indicator (Notability-style: appears on scroll, fades out) */}
+        <div style={{
+          position: 'absolute', right: 16, top: '50%', transform: 'translateY(-50%)',
+          background: 'rgba(0,0,0,0.6)', color: 'white', padding: '6px 14px',
+          borderRadius: 20, fontSize: 13, fontWeight: 500, zIndex: 20,
+          opacity: showPageIndicator ? 1 : 0,
+          transition: 'opacity 0.3s ease-out',
+          pointerEvents: 'none',
+        }}>
+          {currentPage + 1} / {totalPagesDisplay}
+        </div>
+      </div>
+
+      {/* ── Bottom bar: + New Page (Notability adds pages on demand) ── */}
+      <div className="flex items-center justify-between px-3 py-1.5 border-t border-slate-100 bg-white/95 shrink-0">
+        <span className="text-xs text-slate-400">
+          Page {currentPage + 1} of {totalPagesDisplay}
+        </span>
+        <button
+          onClick={addPage}
+          className="px-3 py-1 rounded-lg text-xs text-indigo-600 hover:bg-indigo-50 font-medium"
+        >
+          + Add Page
+        </button>
       </div>
     </div>
   );

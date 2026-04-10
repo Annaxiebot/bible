@@ -289,9 +289,10 @@ export function drawPaperBackground(
       ctx.stroke();
     }
   } else if (paperType === 'ruled') {
-    // College-ruled: ~8mm equivalent spacing
-    // At typical screen DPI, 8mm ~ 30px. Use proportional spacing based on height.
-    const lineSpacing = Math.max(24, Math.round(height / 20));
+    // College-ruled: fixed ~8mm spacing (~30px at screen DPI).
+    // Must NOT scale with canvas height — lines stay the same distance apart
+    // regardless of how much vertical space is expanded.
+    const lineSpacing = 30;
 
     // Horizontal ruled lines
     ctx.strokeStyle = '#C8D8F0';
