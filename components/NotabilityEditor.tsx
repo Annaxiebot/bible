@@ -1531,6 +1531,20 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
           color: #9ca3af;
           pointer-events: none;
         }
+        [contenteditable="true"] ul {
+          list-style-type: disc;
+          padding-left: 1.5em;
+          margin: 0.25em 0;
+        }
+        [contenteditable="true"] ol {
+          list-style-type: decimal;
+          padding-left: 1.5em;
+          margin: 0.25em 0;
+        }
+        [contenteditable="true"] li {
+          list-style: inherit;
+          display: list-item;
+        }
       `}</style>
       {/* Hidden file input */}
       <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageSelect}
