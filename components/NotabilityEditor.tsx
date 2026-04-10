@@ -163,9 +163,11 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const [images, setImages] = useState<CanvasImage[]>([]);
   const [editingTextId, setEditingTextId] = useState<string | null>(null);
   const [showTextColorPicker, setShowTextColorPicker] = useState(false);
+  const [showHighlightColorPicker, setShowHighlightColorPicker] = useState(false);
   const [showFontPicker, setShowFontPicker] = useState(false);
   const [showFontSizePicker, setShowFontSizePicker] = useState(false);
   const contentEditableRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const isToolbarActionRef = useRef(false);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [selectedItemType, setSelectedItemType] = useState<'text' | 'image' | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -1135,6 +1137,13 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 
   // Execute rich text formatting command on the current selection
   const execFormat = useCallback((command: string, value?: string) => {
+    // Ensure contentEditable is focused before executing command
+    if (editingTextId) {
+      const el = contentEditableRefs.current.get(editingTextId);
+      if (el && document.activeElement !== el) {
+        el.focus();
+      }
+    }
     document.execCommand(command, false, value);
     // Sync after formatting
     if (editingTextId) syncContentFromRef(editingTextId);
@@ -1738,10 +1747,21 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                   }}
                   onBlur={() => {
                     syncContentFromRef(tb.id);
-                    setEditingTextId(null);
-                    setShowTextColorPicker(false);
-                    setShowFontPicker(false);
-                    setShowFontSizePicker(false);
+                    // Delay blur to check if toolbar was clicked
+                    requestAnimationFrame(() => {
+                      if (isToolbarActionRef.current) {
+                        isToolbarActionRef.current = false;
+                        // Refocus the contentEditable
+                        const el = contentEditableRefs.current.get(tb.id);
+                        if (el) el.focus();
+                        return;
+                      }
+                      setEditingTextId(null);
+                      setShowTextColorPicker(false);
+                      setShowHighlightColorPicker(false);
+                      setShowFontPicker(false);
+                      setShowFontSizePicker(false);
+                    });
                   }}
                   onInput={() => syncContentFromRef(tb.id)}
                   onKeyDown={e => { if (e.key === 'Escape') (e.target as HTMLElement).blur(); }}
@@ -1782,7 +1802,8 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                 {/* ── Floating Text Formatting Toolbar (Notability-style) ── */}
                 {isEditing && !tb.isAIReflection && (
                   <div
-                    onMouseDown={e => e.preventDefault()} // prevent blur
+                    onMouseDown={e => { e.preventDefault(); isToolbarActionRef.current = true; }}
+                    onTouchStart={() => { isToolbarActionRef.current = true; }}
                     style={{
                       position: 'absolute',
                       bottom: '100%',
@@ -1823,7 +1844,9 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                         }}>
                           {TEXT_FONTS.map(f => (
                             <button key={f.label}
+                              onMouseDown={e => e.preventDefault()}
                               onClick={() => {
+                                execFormat('fontName', f.value);
                                 updateTextBox(tb.id, { fontFamily: f.value });
                                 setShowFontPicker(false);
                               }}
@@ -1843,7 +1866,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                     <div style={{ width: 1, height: 20, background: '#ddd' }} />
 
                     {/* Font size */}
-                    <button onClick={() => updateTextBox(tb.id, { fontSize: Math.max(8, (tb.fontSize || 16) - 2) })}
+                    <button onMouseDown={e => e.preventDefault()} onClick={() => updateTextBox(tb.id, { fontSize: Math.max(8, (tb.fontSize || 16) - 2) })}
                       style={{ padding: '2px 5px', border: '1px solid #ddd', borderRadius: 4, background: '#f8f8f8', cursor: 'pointer', fontSize: 13 }}>−</button>
                     <div style={{ position: 'relative' }}>
                       <button onClick={() => setShowFontSizePicker(!showFontSizePicker)}
@@ -1858,7 +1881,8 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                         }}>
                           {TEXT_SIZES.map(s => (
                             <button key={s}
-                              onClick={() => { updateTextBox(tb.id, { fontSize: s }); setShowFontSizePicker(false); }}
+                              onMouseDown={e => e.preventDefault()}
+                              onClick={() => { execFormat('fontSize', '7'); document.querySelectorAll('font[size="7"]').forEach(el => { (el as HTMLElement).removeAttribute('size'); (el as HTMLElement).style.fontSize = `${s}px`; }); updateTextBox(tb.id, { fontSize: s }); setShowFontSizePicker(false); }}
                               style={{
                                 display: 'block', width: '100%', padding: '4px 16px',
                                 border: 'none', background: s === (tb.fontSize || 16) ? '#eef2ff' : 'none',
@@ -1868,7 +1892,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                         </div>
                       )}
                     </div>
-                    <button onClick={() => updateTextBox(tb.id, { fontSize: Math.min(96, (tb.fontSize || 16) + 2) })}
+                    <button onMouseDown={e => e.preventDefault()} onClick={() => updateTextBox(tb.id, { fontSize: Math.min(96, (tb.fontSize || 16) + 2) })}
                       style={{ padding: '2px 5px', border: '1px solid #ddd', borderRadius: 4, background: '#f8f8f8', cursor: 'pointer', fontSize: 13 }}>+</button>
 
                     {/* Divider */}
@@ -1886,7 +1910,8 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                         }}>
                           {TEXT_COLORS.map(c => (
                             <button key={c}
-                              onClick={() => { updateTextBox(tb.id, { textColor: c }); setShowTextColorPicker(false); }}
+                              onMouseDown={e => e.preventDefault()}
+                              onClick={() => { execFormat('foreColor', c); updateTextBox(tb.id, { textColor: c }); setShowTextColorPicker(false); }}
                               style={{
                                 width: 24, height: 24, borderRadius: '50%', border: c === (tb.textColor || '#000000') ? '2px solid #4f46e5' : '1px solid #ccc',
                                 background: c, cursor: 'pointer',
@@ -1900,34 +1925,73 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                     <div style={{ width: 1, height: 20, background: '#ddd' }} />
 
                     {/* Bold / Italic / Underline / Strikethrough */}
-                    <button onClick={() => execFormat('bold')}
+                    <button onMouseDown={e => e.preventDefault()} onClick={() => execFormat('bold')}
                       style={{ padding: '2px 6px', border: '1px solid #ddd', borderRadius: 4, background: '#f8f8f8', cursor: 'pointer', fontWeight: 'bold', fontSize: 14 }}>B</button>
-                    <button onClick={() => execFormat('italic')}
+                    <button onMouseDown={e => e.preventDefault()} onClick={() => execFormat('italic')}
                       style={{ padding: '2px 6px', border: '1px solid #ddd', borderRadius: 4, background: '#f8f8f8', cursor: 'pointer', fontStyle: 'italic', fontSize: 14 }}>I</button>
-                    <button onClick={() => execFormat('underline')}
+                    <button onMouseDown={e => e.preventDefault()} onClick={() => execFormat('underline')}
                       style={{ padding: '2px 6px', border: '1px solid #ddd', borderRadius: 4, background: '#f8f8f8', cursor: 'pointer', textDecoration: 'underline', fontSize: 14 }}>U</button>
-                    <button onClick={() => execFormat('strikeThrough')}
+                    <button onMouseDown={e => e.preventDefault()} onClick={() => execFormat('strikeThrough')}
                       style={{ padding: '2px 6px', border: '1px solid #ddd', borderRadius: 4, background: '#f8f8f8', cursor: 'pointer', textDecoration: 'line-through', fontSize: 14 }}>S</button>
 
                     {/* Divider */}
                     <div style={{ width: 1, height: 20, background: '#ddd' }} />
 
+                    {/* Highlighter */}
+                    <div style={{ position: 'relative' }}>
+                      <button onMouseDown={e => e.preventDefault()} onClick={() => setShowHighlightColorPicker(!showHighlightColorPicker)}
+                        title="Highlight"
+                        style={{ padding: '2px 6px', border: '1px solid #ddd', borderRadius: 4, background: showHighlightColorPicker ? '#eef' : '#f8f8f8', cursor: 'pointer', fontSize: 13 }}>
+                        <span style={{ background: '#FFFF00', padding: '0 2px', borderRadius: 2 }}>H</span>
+                      </button>
+                      {showHighlightColorPicker && (
+                        <div onMouseDown={e => e.preventDefault()} style={{
+                          position: 'absolute', top: '100%', left: '50%', transform: 'translateX(-50%)',
+                          marginTop: 4, background: 'white', borderRadius: 6, boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                          zIndex: 25, padding: 6, display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 4,
+                        }}>
+                          {/* No highlight (remove) */}
+                          <button
+                            onMouseDown={e => e.preventDefault()}
+                            onClick={() => { execFormat('removeFormat'); setShowHighlightColorPicker(false); }}
+                            title="Remove highlight"
+                            style={{
+                              width: 24, height: 24, borderRadius: '50%', border: '1px solid #ccc',
+                              background: 'white', cursor: 'pointer', fontSize: 10, lineHeight: '22px', textAlign: 'center',
+                            }}>x</button>
+                          {['#FFFF00', '#00FF00', '#00FFFF', '#FF69B4', '#FFA500', '#FF6347', '#DDA0DD', '#87CEEB',
+                            '#98FB98', '#FFD700', '#F0E68C', '#E6E6FA', '#FFDAB9', '#FFB6C1', '#B0E0E6'].map(c => (
+                            <button key={c}
+                              onMouseDown={e => e.preventDefault()}
+                              onClick={() => { execFormat('hiliteColor', c); setShowHighlightColorPicker(false); }}
+                              style={{
+                                width: 24, height: 24, borderRadius: '50%', border: '1px solid #ccc',
+                                background: c, cursor: 'pointer',
+                              }} />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Divider */}
+                    <div style={{ width: 1, height: 20, background: '#ddd' }} />
+
                     {/* Alignment */}
-                    <button onClick={() => updateTextBox(tb.id, { textAlign: 'left' })}
+                    <button onMouseDown={e => e.preventDefault()} onClick={() => updateTextBox(tb.id, { textAlign: 'left' })}
                       style={{ padding: '2px 5px', border: '1px solid #ddd', borderRadius: 4, background: (tb.textAlign || 'left') === 'left' ? '#e0e7ff' : '#f8f8f8', cursor: 'pointer', fontSize: 12 }}>≡←</button>
-                    <button onClick={() => updateTextBox(tb.id, { textAlign: 'center' })}
+                    <button onMouseDown={e => e.preventDefault()} onClick={() => updateTextBox(tb.id, { textAlign: 'center' })}
                       style={{ padding: '2px 5px', border: '1px solid #ddd', borderRadius: 4, background: tb.textAlign === 'center' ? '#e0e7ff' : '#f8f8f8', cursor: 'pointer', fontSize: 12 }}>≡↔</button>
-                    <button onClick={() => updateTextBox(tb.id, { textAlign: 'right' })}
+                    <button onMouseDown={e => e.preventDefault()} onClick={() => updateTextBox(tb.id, { textAlign: 'right' })}
                       style={{ padding: '2px 5px', border: '1px solid #ddd', borderRadius: 4, background: tb.textAlign === 'right' ? '#e0e7ff' : '#f8f8f8', cursor: 'pointer', fontSize: 12 }}>≡→</button>
 
                     {/* Divider */}
                     <div style={{ width: 1, height: 20, background: '#ddd' }} />
 
                     {/* Lists */}
-                    <button onClick={() => execFormat('insertUnorderedList')}
+                    <button onMouseDown={e => e.preventDefault()} onClick={() => execFormat('insertUnorderedList')}
                       title="Bullet List"
                       style={{ padding: '2px 5px', border: '1px solid #ddd', borderRadius: 4, background: '#f8f8f8', cursor: 'pointer', fontSize: 13 }}>•≡</button>
-                    <button onClick={() => execFormat('insertOrderedList')}
+                    <button onMouseDown={e => e.preventDefault()} onClick={() => execFormat('insertOrderedList')}
                       title="Numbered List"
                       style={{ padding: '2px 5px', border: '1px solid #ddd', borderRadius: 4, background: '#f8f8f8', cursor: 'pointer', fontSize: 13 }}>1.</button>
                   </div>
