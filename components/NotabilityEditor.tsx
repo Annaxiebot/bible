@@ -172,6 +172,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   // Single-page swipe state
   const swipeStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const [swipeOffset, setSwipeOffset] = useState(0); // px offset during swipe animation
+  const isFingerTouchRef = useRef(false); // true when current touch is a finger (not stylus)
 
   // Image cache — pre-load images to avoid async flicker in redrawAll
   const imageCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
@@ -900,53 +901,105 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [currentPage, goToPage, editingTextId]);
 
-  // Touch events — with single-page swipe detection
+  // ── Finger vs Stylus detection ─────────────────────────────────────
+  // Apple Pencil: touchType === 'stylus' OR very small radiusX (< 10)
+  // Finger: touchType === 'direct' OR larger radiusX (>= 10)
+  const isStylusTouch = useCallback((touch: Touch): boolean => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const t = touch as any;
+    if (t.touchType === 'stylus') return true;
+    if (t.touchType === 'direct') return false;
+    // Fallback: Apple Pencil has very small radius; finger is larger
+    if (touch.radiusX !== undefined && touch.radiusX > 0) {
+      return touch.radiusX < 10;
+    }
+    return true; // default to stylus on desktop/unknown
+  }, []);
+
+  // Determine if a touch should navigate (scroll/swipe) instead of draw.
+  // Navigation happens when: finger touch (any mode), OR pointer tool (any input).
+  const shouldNavigate = useCallback((touch: Touch): boolean => {
+    if (toolRef.current === 'pointer') return true; // pointer mode: both finger & pencil navigate
+    return !isStylusTouch(touch); // other modes: finger navigates, pencil draws
+  }, [isStylusTouch]);
+
+  // Touch events — finger scrolls/swipes, stylus draws (except pointer mode)
   const handleTouchStart = useCallback((e: TouchEvent) => {
-    e.preventDefault();
     if (e.touches.length > 1) return;
     const t = e.touches[0];
-    if (t.radiusX && t.radiusX > 25) return;
+    const nav = shouldNavigate(t);
+    isFingerTouchRef.current = nav;
 
-    // In single-page mode with pointer/non-drawing tool, track swipe
-    if (pageMode === 'single' && (toolRef.current === 'pointer' || toolRef.current === 'text')) {
-      swipeStartRef.current = { x: t.clientX, y: t.clientY, time: Date.now() };
+    if (nav) {
+      // Navigation touch — allow native scroll in seamless, track swipe in single-page
+      if (pageMode === 'single') {
+        e.preventDefault();
+        swipeStartRef.current = { x: t.clientX, y: t.clientY, time: Date.now() };
+      }
+      // In seamless mode: do NOT preventDefault → native vertical scroll works
+      return;
     }
+
+    // Drawing touch (stylus with non-pointer tool) — prevent default and draw
+    e.preventDefault();
     handlePointerDown(t.clientX, t.clientY);
-  }, [handlePointerDown, pageMode]);
+  }, [handlePointerDown, pageMode, shouldNavigate]);
 
   const handleTouchMove = useCallback((e: TouchEvent) => {
-    e.preventDefault();
     if (e.touches.length > 1) { isDrawingRef.current = false; return; }
 
-    // Single-page swipe tracking
-    if (pageMode === 'single' && swipeStartRef.current && !isDrawingRef.current) {
-      const dx = e.touches[0].clientX - swipeStartRef.current.x;
-      setSwipeOffset(dx);
-      return; // don't pass to drawing handler during swipe
+    if (isFingerTouchRef.current) {
+      // Navigation move — handle swipe in single-page mode
+      if (pageMode === 'single' && swipeStartRef.current) {
+        e.preventDefault();
+        const t = e.touches[0];
+        const dx = t.clientX - swipeStartRef.current.x;
+        const dy = t.clientY - swipeStartRef.current.y;
+        // Use dominant axis for visual feedback
+        if (Math.abs(dx) > Math.abs(dy)) {
+          setSwipeOffset(dx);
+        } else {
+          setSwipeOffset(0);
+        }
+      }
+      // In seamless mode: no preventDefault, native scroll works
+      return;
     }
 
+    // Drawing move (stylus)
+    e.preventDefault();
     handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
   }, [handlePointerMove, pageMode]);
 
   const handleTouchEnd = useCallback((e: TouchEvent) => {
-    e.preventDefault();
+    if (isFingerTouchRef.current) {
+      isFingerTouchRef.current = false;
+      // Single-page swipe completion
+      if (pageMode === 'single' && swipeStartRef.current) {
+        e.preventDefault();
+        const elapsed = Date.now() - swipeStartRef.current.time;
+        const startPt = swipeStartRef.current;
+        const lastTouch = e.changedTouches[0];
+        const dx = lastTouch ? lastTouch.clientX - startPt.x : swipeOffset;
+        const dy = lastTouch ? lastTouch.clientY - startPt.y : 0;
 
-    // Single-page swipe completion
-    if (pageMode === 'single' && swipeStartRef.current) {
-      const elapsed = Date.now() - swipeStartRef.current.time;
-      if (Math.abs(swipeOffset) > SWIPE_THRESHOLD && elapsed < 500) {
-        if (swipeOffset < 0) {
-          // Swipe left → next page
-          goToPage(currentPage + 1);
-        } else {
-          // Swipe right → previous page
-          goToPage(currentPage - 1);
+        if (elapsed < 500) {
+          if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > SWIPE_THRESHOLD) {
+            // Horizontal swipe — left/right page nav
+            goToPage(dx < 0 ? currentPage + 1 : currentPage - 1);
+          } else if (Math.abs(dy) > SWIPE_THRESHOLD) {
+            // Vertical swipe — up = next page, down = previous page
+            goToPage(dy < 0 ? currentPage + 1 : currentPage - 1);
+          }
         }
+        swipeStartRef.current = null;
+        setSwipeOffset(0);
       }
-      swipeStartRef.current = null;
-      setSwipeOffset(0);
+      return;
     }
 
+    // Drawing end (stylus)
+    e.preventDefault();
     handlePointerUp();
   }, [handlePointerUp, pageMode, swipeOffset, currentPage, goToPage]);
 
@@ -1357,7 +1410,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   // ── Render ─────────────────────────────────────────────────────────────
 
   return (
-    <div className="fixed inset-0 bg-white flex flex-col" style={{ touchAction: 'none', zIndex: 9998 }}
+    <div className="fixed inset-0 bg-white flex flex-col" style={{ touchAction: pageMode === 'seamless' ? 'pan-y' : 'none', zIndex: 9998 }}
          onMouseMove={e => { if (isDragging) handleItemPointerMove(e); if (isResizing) handleResizeMove(e); }}
          onMouseUp={() => { handleItemPointerUp(); handleResizeEnd(); }}
          onTouchMove={e => { if (isDragging) handleItemPointerMove(e); if (isResizing) handleResizeMove(e); }}
@@ -1578,7 +1631,8 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
           <canvas ref={canvasRef} className="absolute inset-0"
             style={{
               width: '100%', height: `${canvasHeight}px`,
-              touchAction: 'none', WebkitTouchCallout: 'none', WebkitUserSelect: 'none',
+              touchAction: pageMode === 'seamless' ? 'pan-y' : 'none',
+              WebkitTouchCallout: 'none', WebkitUserSelect: 'none',
               userSelect: 'none', cursor: getCursor(),
               pointerEvents: (activeTool === 'text' && editingTextId) ? 'none' : 'auto',
             }} />
@@ -1624,12 +1678,11 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                     resize: 'none', // we handle resize via handles
                     border: isEditing ? '2px solid #4f46e5'
                       : isSelected ? '2px dashed #4f46e5'
-                      : '1px solid #e2e8f0',
+                      : '1px solid transparent',
                     borderRadius: 4,
                     padding: '6px 8px',
-                    background: tb.isAIReflection ? 'rgba(238, 235, 255, 0.95)'
-                      : isEditing ? 'rgba(255,255,255,0.98)'
-                      : 'rgba(255,255,255,0.85)',
+                    background: tb.isAIReflection ? 'rgba(238, 235, 255, 0.3)'
+                      : 'transparent',
                     fontSize: tb.fontSize || 16,
                     lineHeight: '1.6',
                     fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
