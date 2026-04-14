@@ -611,10 +611,11 @@ const JournalView: React.FC<JournalViewProps> = ({
   // Mobile: show list OR editor, not both
   // ---------------------------------------------------------------
   const [mobileShowEditor, setMobileShowEditor] = useState(false);
+  const [listCollapsed, setListCollapsed] = useState(false);
 
   // Editor mode and block state (declared early for use in flushPendingSave)
-  type NoteMode = 'text' | 'draw' | 'overlay' | 'blocks';
-  const [noteMode, setNoteMode] = useState<NoteMode>('blocks');
+  type NoteMode = 'text' | 'draw' | 'overlay';
+  const [noteMode, setNoteMode] = useState<NoteMode>('text');
   const [showNotabilityEditor, setShowNotabilityEditor] = useState(false);
   const [editorBlocks, setEditorBlocks] = useState<JournalBlock[]>([createTextBlock()]);
 
@@ -624,17 +625,7 @@ const JournalView: React.FC<JournalViewProps> = ({
       clearTimeout(saveTimerRef.current);
       saveTimerRef.current = null;
       if (selectedId) {
-        // In blocks mode, save blocks + flattened content
-        if (noteMode === 'blocks') {
-          const flattened = flattenBlocks(editorBlocks);
-          await journalStorage.updateEntry(selectedId, {
-            blocks: editorBlocks,
-            content: flattened.content,
-            plainText: flattened.plainText,
-            drawing: flattened.drawing,
-            title: truncate((flattened.plainText.split('\n').find(l => l.trim()) || ''), 80),
-          } as any);
-        } else if (editorRef.current) {
+        if (editorRef.current) {
           const html = editorRef.current.innerHTML;
           const plainText = editorRef.current.innerText || '';
           const firstLine = plainText.split('\n').find((l) => l.trim()) || '';
@@ -1091,9 +1082,15 @@ const JournalView: React.FC<JournalViewProps> = ({
   useEffect(() => {
     if (selectedEntry) {
       setDrawingData(selectedDrawing || '');
-      // Load blocks: use stored blocks or migrate from legacy content
+      // Load blocks (kept for data compat) and convert to text content if entry has blocks
       if (selectedEntry.blocks && selectedEntry.blocks.length > 0) {
         setEditorBlocks(selectedEntry.blocks);
+        // Convert blocks data to text content so it displays in text mode
+        const flattened = flattenBlocks(selectedEntry.blocks);
+        if (flattened.content) {
+          selectedEntry.content = flattened.content;
+          selectedEntry.plainText = flattened.plainText;
+        }
       } else {
         setEditorBlocks(migrateToBlocks(selectedEntry.content, selectedEntry.plainText, selectedEntry.drawing));
       }
@@ -1200,11 +1197,6 @@ const JournalView: React.FC<JournalViewProps> = ({
 
   const insertImageIntoEditor = (dataUrl: string) => {
     // If in blocks mode, insert via block editor
-    if (noteMode === 'blocks') {
-      const insertFn = (JournalBlockEditor as any).__insertImage;
-      if (insertFn) insertFn(dataUrl);
-      return;
-    }
     if (editorRef.current) {
       const img = document.createElement('img');
       img.src = dataUrl;
@@ -1243,10 +1235,6 @@ const JournalView: React.FC<JournalViewProps> = ({
 
   // Sync editor content when switching entries
   useEffect(() => {
-    if (noteMode === 'blocks' && selectedEntry) {
-      // Blocks mode: state is managed via editorBlocks, no DOM sync needed
-      return;
-    }
     if (editorRef.current && selectedEntry && (noteMode === 'text' || noteMode === 'overlay')) {
       if (editorRef.current.innerHTML !== selectedEntry.content) {
         editorRef.current.innerHTML = selectedEntry.content || '';
@@ -1335,11 +1323,11 @@ const JournalView: React.FC<JournalViewProps> = ({
 
       {/* Mode selector */}
       <div style={{ display: 'flex', gap: 4, padding: '6px 12px', borderBottom: '1px solid #f3f4f6', flexShrink: 0, background: '#fafafa' }}>
-        {(['blocks', 'text', 'draw', 'overlay'] as NoteMode[]).map(m => (
+        {(['text', 'draw', 'overlay'] as NoteMode[]).map(m => (
           <button key={m} onClick={() => setNoteMode(m)}
             style={{ fontSize: 13, padding: '4px 10px', borderRadius: 6, border: 'none', cursor: 'pointer',
               background: noteMode === m ? '#4f46e5' : '#f3f4f6', color: noteMode === m ? '#fff' : '#6b7280', fontWeight: noteMode === m ? 600 : 400 }}>
-            {m === 'blocks' ? '🧱 Blocks' : m === 'text' ? '📝 Text' : m === 'draw' ? '✏️ Draw' : '🔀 Both'}
+            {m === 'text' ? '📝 Text' : m === 'draw' ? '✏️ Draw' : '🔀 Both'}
           </button>
         ))}
         <button onClick={() => setShowNotabilityEditor(true)}
@@ -1736,18 +1724,7 @@ const JournalView: React.FC<JournalViewProps> = ({
 
       {/* Editor / Canvas area */}
       <div style={{ flex: 1, overflow: 'auto', position: 'relative', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ flex: 1, position: 'relative', minHeight: noteMode === 'text' || noteMode === 'blocks' ? 'auto' : '400px' }}>
-          {noteMode === 'blocks' && (
-            <div style={{ padding: '0 8px' }}>
-              <JournalBlockEditor
-                blocks={editorBlocks}
-                onChange={handleBlocksChange}
-                paperType={paperType}
-                onImageRequest={handleBlockImageRequest}
-              />
-            </div>
-          )}
-
+        <div style={{ flex: 1, position: 'relative', minHeight: noteMode === 'text' ? 'auto' : '400px' }}>
           {noteMode === 'text' && (
             <div ref={editorRef} contentEditable onInput={handleContentEditableInput}
               data-placeholder="Write your thoughts, reflections, prayers..."
@@ -2246,18 +2223,45 @@ const JournalView: React.FC<JournalViewProps> = ({
     >
       <div
         style={{
-          width: 280,
-          minWidth: 220,
-          borderRight: '1px solid #f3f4f6',
+          width: listCollapsed ? 0 : 280,
+          minWidth: listCollapsed ? 0 : 220,
+          borderRight: listCollapsed ? 'none' : '1px solid #f3f4f6',
           flexShrink: 0,
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column',
+          transition: 'width 0.2s ease, min-width 0.2s ease',
         }}
       >
         {listContent}
       </div>
-      <div style={{ flex: 1, overflow: 'hidden' }}>{editorContent}</div>
+      <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+        <button
+          onClick={() => setListCollapsed(c => !c)}
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: 12,
+            zIndex: 10,
+            width: 24,
+            height: 32,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: '#f3f4f6',
+            border: 'none',
+            borderRadius: '0 6px 6px 0',
+            cursor: 'pointer',
+            color: '#6b7280',
+            fontSize: 14,
+            padding: 0,
+          }}
+          title={listCollapsed ? 'Show list' : 'Hide list'}
+        >
+          {listCollapsed ? '\u203A' : '\u2039'}
+        </button>
+        {editorContent}
+      </div>
       {notabilityOverlay}
       {printDialog}
     </div>
