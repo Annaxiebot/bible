@@ -881,6 +881,7 @@ async function syncJournal(): Promise<void> {
           content: mapped.content,
           plainText: mapped.plainText,
           drawing: mapped.drawing,
+          notabilityData: mapped.notabilityData,
           blocks: mapped.blocks,
           latitude: mapped.latitude,
           longitude: mapped.longitude,
