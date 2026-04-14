@@ -907,13 +907,24 @@ async function syncJournal(): Promise<void> {
   const toUpload = localChanged.filter(local =>
     new Date(local.updatedAt).getTime() > syncState.lastJournalSync
   );
-
   if (toUpload.length > 0) {
     const rows = toUpload.map(e => localToRemoteJournal(e, userId));
+    let uploadSuccess = true;
 
     for (let i = 0; i < rows.length; i += 50) {
       if (!canSync()) break;
-      await supabase.from('journal').upsert(rows.slice(i, i + 50), { onConflict: 'id' });
+      const batch = rows.slice(i, i + 50);
+      const { error: upsertError } = await supabase.from('journal').upsert(batch, { onConflict: 'id' });
+      if (upsertError) {
+        console.error('[syncJournal] upsert failed:', upsertError.message);
+        uploadSuccess = false;
+      }
+    }
+
+    // Only advance sync timestamp if upload succeeded — failed entries will be retried next cycle
+    if (!uploadSuccess) {
+      console.warn('[syncJournal] skipping lastJournalSync update due to upsert failure');
+      return;
     }
   }
 

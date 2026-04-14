@@ -2,7 +2,7 @@
 # Setup journal tables in Supabase using Management API
 
 PROJECT_REF="akzgptgetjmsbibhnuhs"
-TOKEN="sbp_5955e1845252daebe2f2b5c508366c26e43331fa"
+TOKEN="sbp_v0_e62680ea49e2d6adabb7fcaaa4e62d760b0dfb23"
 API_URL="https://api.supabase.com/v1/projects/$PROJECT_REF/database/query"
 
 echo "🔧 Setting up journal tables in Supabase..."
