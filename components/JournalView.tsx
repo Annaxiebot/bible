@@ -2167,7 +2167,10 @@ const JournalView: React.FC<JournalViewProps> = ({
         const updates: Partial<typeof selectedEntry> = { notabilityData: data };
         try {
           const parsed = JSON.parse(data);
-          if (parsed?.textBoxes?.length) {
+          const hasText = parsed?.textBoxes?.length > 0;
+          const hasStrokes = parsed?.strokes?.length > 0;
+          const hasImages = parsed?.images?.length > 0;
+          if (hasText) {
             const allText = parsed.textBoxes
               .map((tb: { content?: string }) => {
                 const tmp = document.createElement('div');
@@ -2181,6 +2184,17 @@ const JournalView: React.FC<JournalViewProps> = ({
               if (!selectedEntry.title || selectedEntry.title === 'Untitled') {
                 updates.title = allText.trim().substring(0, 60).replace(/\s+/g, ' ');
               }
+            }
+          }
+          // Fallback title for drawing-only or image-only notes
+          if (!updates.title && (!selectedEntry.title || selectedEntry.title === 'Untitled')) {
+            const date = new Date(selectedEntry.createdAt).toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' });
+            if (hasStrokes && hasImages) {
+              updates.title = `${date} 手写笔记 + 图片`;
+            } else if (hasStrokes) {
+              updates.title = `${date} 手写笔记`;
+            } else if (hasImages) {
+              updates.title = `${date} 图片笔记`;
             }
           }
         } catch { /* ignore parse errors */ }
