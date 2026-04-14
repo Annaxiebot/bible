@@ -898,6 +898,11 @@ async function syncJournal(): Promise<void> {
     }
   }
 
+  // Notify UI if remote changes were merged
+  if (remoteEntries.length > 0) {
+    window.dispatchEvent(new CustomEvent('journal-synced'));
+  }
+
   // Upload local entries modified since last sync
   const toUpload = localChanged.filter(local =>
     new Date(local.updatedAt).getTime() > syncState.lastJournalSync
