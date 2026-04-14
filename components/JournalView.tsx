@@ -2238,24 +2238,41 @@ const JournalView: React.FC<JournalViewProps> = ({
       <button
         onClick={() => setListCollapsed(c => !c)}
         style={{
-          width: 20,
+          width: 6,
           flexShrink: 0,
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#f9fafb',
+          background: '#e5e7eb',
           border: 'none',
-          borderRight: '1px solid #f3f4f6',
           cursor: 'pointer',
-          color: '#9ca3af',
-          fontSize: 12,
+          color: 'transparent',
+          fontSize: 10,
           padding: 0,
+          transition: 'width 0.15s, color 0.15s, background 0.15s',
         }}
+        onMouseEnter={e => { Object.assign(e.currentTarget.style, { width: '14px', color: '#6b7280', background: '#f3f4f6' }); }}
+        onMouseLeave={e => { Object.assign(e.currentTarget.style, { width: '6px', color: 'transparent', background: '#e5e7eb' }); }}
         title={listCollapsed ? 'Show list' : 'Hide list'}
       >
         {listCollapsed ? '\u203A' : '\u2039'}
       </button>
-      <div style={{ flex: 1, overflow: 'hidden' }}>
+      <div
+        style={{ flex: 1, overflow: 'hidden' }}
+        onTouchStart={e => {
+          const touch = e.touches[0];
+          (e.currentTarget as any).__swipeStartX = touch.clientX;
+        }}
+        onTouchEnd={e => {
+          const startX = (e.currentTarget as any).__swipeStartX;
+          if (startX == null) return;
+          const endX = e.changedTouches[0].clientX;
+          const diff = endX - startX;
+          if (diff > 60 && listCollapsed) setListCollapsed(false);
+          else if (diff < -60 && !listCollapsed) setListCollapsed(true);
+          delete (e.currentTarget as any).__swipeStartX;
+        }}
+      >
         {editorContent}
       </div>
       {notabilityOverlay}
