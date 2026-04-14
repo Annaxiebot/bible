@@ -1951,7 +1951,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                   left: `${tb.x * 100}%`,
                   top: `${tbTop}px`,
                   width: `${tbW}%`,
-                  height: `${tbH}px`,
+                  minHeight: `${tbH}px`,
                   zIndex: 5 + (tb.zOrder || 0),
                   touchAction: 'none',
                 }}
@@ -1996,7 +1996,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                   onDoubleClick={() => setEditingTextId(tb.id)}
                   style={{
                     width: '100%',
-                    height: '100%',
+                    minHeight: '100%',
                     border: isEditing ? '2px solid #4f46e5'
                       : isSelected ? '2px dashed #4f46e5'
                       : '1px solid transparent',
@@ -2010,7 +2010,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                     textAlign: (tb.textAlign || 'left') as React.CSSProperties['textAlign'],
                     fontStyle: tb.isAIReflection ? 'italic' : 'normal',
                     outline: 'none',
-                    overflow: 'auto',
+                    overflow: 'visible',
                     cursor: isEditing ? 'text' : 'move',
                     boxShadow: isSelected || isEditing ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
                     minHeight: 24,
