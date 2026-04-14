@@ -955,7 +955,7 @@ const JournalView: React.FC<JournalViewProps> = ({
                       {entry.verseRef}
                     </div>
                   )}
-                  {entry.plainText && (
+                  {entry.plainText && !entry.plainText.startsWith(entry.title || '\0') && (
                     <div
                       style={{
                         fontSize: 13,
