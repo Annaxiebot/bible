@@ -1246,10 +1246,20 @@ const JournalView: React.FC<JournalViewProps> = ({
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Header */}
       <div style={{ padding: '8px 16px', borderBottom: '1px solid #f3f4f6', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8 }}>
-        {isMobile && (
+        {isMobile ? (
           <button onClick={mobileBack} style={{ background: 'none', border: 'none', color: '#4f46e5', cursor: 'pointer', padding: 4, display: 'flex', alignItems: 'center', fontSize: 14 }}>
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M15 18l-6-6 6-6" /></svg>
             Back
+          </button>
+        ) : (
+          <button
+            onClick={() => setListCollapsed(c => !c)}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', display: 'flex', alignItems: 'center', color: '#9ca3af', flexShrink: 0 }}
+            title={listCollapsed ? 'Show list' : 'Hide list'}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              {listCollapsed ? <path d="M9 18l6-6-6-6" /> : <path d="M15 18l-6-6 6-6" />}
+            </svg>
           </button>
         )}
         <div style={{ flex: 1 }}>
@@ -2235,28 +2245,6 @@ const JournalView: React.FC<JournalViewProps> = ({
       >
         {listContent}
       </div>
-      <button
-        onClick={() => setListCollapsed(c => !c)}
-        style={{
-          width: 6,
-          flexShrink: 0,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          background: '#e5e7eb',
-          border: 'none',
-          cursor: 'pointer',
-          color: 'transparent',
-          fontSize: 10,
-          padding: 0,
-          transition: 'width 0.15s, color 0.15s, background 0.15s',
-        }}
-        onMouseEnter={e => { Object.assign(e.currentTarget.style, { width: '14px', color: '#6b7280', background: '#f3f4f6' }); }}
-        onMouseLeave={e => { Object.assign(e.currentTarget.style, { width: '6px', color: 'transparent', background: '#e5e7eb' }); }}
-        title={listCollapsed ? 'Show list' : 'Hide list'}
-      >
-        {listCollapsed ? '\u203A' : '\u2039'}
-      </button>
       <div
         style={{ flex: 1, overflow: 'hidden' }}
         onTouchStart={e => {
