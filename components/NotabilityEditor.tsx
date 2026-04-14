@@ -173,6 +173,8 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const isToolbarActionRef = useRef(false);
   const savedSelectionRef = useRef<Range | null>(null);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const selectedItemIdRef = useRef<string | null>(null);
+  useEffect(() => { selectedItemIdRef.current = selectedItemId; }, [selectedItemId]);
   const [selectedItemType, setSelectedItemType] = useState<'text' | 'image' | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState(false);
@@ -874,6 +876,23 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     }
 
     if (tool === 'text') {
+      // If a text box is selected or being edited, deselect first instead of creating a new one
+      const eid = editingTextIdRef.current;
+      if (eid || selectedItemIdRef.current) {
+        if (eid) {
+          const el = contentEditableRefs.current.get(eid);
+          if (el) {
+            textBoxesRef.current = textBoxesRef.current.map(tb =>
+              tb.id === eid ? { ...tb, content: el.innerHTML } : tb
+            );
+            setTextBoxes(textBoxesRef.current);
+          }
+        }
+        setSelectedItemId(null);
+        setSelectedItemType(null);
+        setEditingTextId(null);
+        return;
+      }
       // Create text box at tap position
       const np = getNormalizedPoint(clientX, clientY);
       const newBox: TextBox = {
@@ -1681,7 +1700,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 
       {/* ── Toolbar ─────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-2 py-1.5 border-b border-slate-200 bg-white/95 backdrop-blur-sm shrink-0"
-           style={{ height: '48px', paddingTop: 'env(safe-area-inset-top, 0px)', zIndex: 10, position: 'relative' }}>
+           style={{ height: '48px', paddingTop: 'env(safe-area-inset-top, 0px)', zIndex: 50, position: 'relative' }}>
         {/* Left: Done */}
         <button onClick={handleDone}
           className="flex items-center gap-1 px-3 py-1.5 bg-indigo-500 text-white rounded-lg text-sm font-medium hover:bg-indigo-600 transition-colors">
@@ -2000,8 +2019,9 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                 {/* ── Floating Text Formatting Toolbar (Notability-style) ── */}
                 {isEditing && !tb.isAIReflection && (
                   <div
-                    onMouseDown={e => { e.preventDefault(); isToolbarActionRef.current = true; }}
-                    onTouchStart={() => { isToolbarActionRef.current = true; }}
+                    onMouseDown={e => { e.stopPropagation(); isToolbarActionRef.current = true; }}
+                    onTouchStart={e => { e.stopPropagation(); isToolbarActionRef.current = true; }}
+                    onClick={e => e.stopPropagation()}
                     style={{
                       position: 'absolute',
                       bottom: '100%',
@@ -2024,6 +2044,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                     {/* Font family */}
                     <div style={{ position: 'relative' }}>
                       <button
+                        onMouseDown={e => e.preventDefault()}
                         onClick={() => setShowFontPicker(!showFontPicker)}
                         style={{
                           padding: '3px 8px', borderRadius: 4,
@@ -2067,7 +2088,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                     <button onMouseDown={e => e.preventDefault()} onClick={() => updateTextBox(tb.id, { fontSize: Math.max(8, (tb.fontSize || 16) - 2) })}
                       style={{ padding: '2px 5px', border: '1px solid #ddd', borderRadius: 4, background: '#f8f8f8', cursor: 'pointer', fontSize: 13 }}>−</button>
                     <div style={{ position: 'relative' }}>
-                      <button onClick={() => setShowFontSizePicker(!showFontSizePicker)}
+                      <button onMouseDown={e => e.preventDefault()} onClick={() => setShowFontSizePicker(!showFontSizePicker)}
                         style={{ padding: '2px 6px', border: '1px solid #ddd', borderRadius: 4, background: showFontSizePicker ? '#eef' : '#f8f8f8', cursor: 'pointer', fontSize: 13, minWidth: 30, textAlign: 'center' }}>
                         {tb.fontSize || 16}
                       </button>
@@ -2098,7 +2119,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 
                     {/* Text color */}
                     <div style={{ position: 'relative' }}>
-                      <button onClick={() => setShowTextColorPicker(!showTextColorPicker)}
+                      <button onMouseDown={e => e.preventDefault()} onClick={() => setShowTextColorPicker(!showTextColorPicker)}
                         style={{ width: 24, height: 24, borderRadius: 4, border: '1px solid #ddd', background: tb.textColor || '#000', cursor: 'pointer' }} />
                       {showTextColorPicker && (
                         <div style={{
