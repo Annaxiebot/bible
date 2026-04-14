@@ -1493,6 +1493,11 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       if (isResizingText) handleTextResizeMove(e);
     };
     const handleTouchMove = (e: TouchEvent) => {
+      if (isDragging || isResizing || isResizingText) {
+        e.preventDefault(); // prevent native scroll while dragging/resizing
+      }
+      if (isDragging) handleItemPointerMove(e as any);
+      if (isResizing) handleResizeMove(e as any);
       if (isResizingText) handleTextResizeMove(e);
     };
     const handleUp = () => {
@@ -1669,7 +1674,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     <div className="fixed inset-0 bg-white flex flex-col" style={{ touchAction: pageMode === 'seamless' && (isApplePencilDevice || activeTool === 'pointer' || activeTool === 'text') ? 'pan-y' : 'none', zIndex: 9998 }}
          onMouseMove={e => { if (isDragging) handleItemPointerMove(e); if (isResizing) handleResizeMove(e); }}
          onMouseUp={() => { handleItemPointerUp(); handleResizeEnd(); }}
-         onTouchMove={e => { if (isDragging) handleItemPointerMove(e); if (isResizing) handleResizeMove(e); }}
+         onTouchMove={e => { if (isDragging || isResizing) { e.preventDefault(); } if (isDragging) handleItemPointerMove(e); if (isResizing) handleResizeMove(e); }}
          onTouchEnd={() => { handleItemPointerUp(); handleResizeEnd(); }}
     >
       {/* Placeholder style for empty contentEditable */}
