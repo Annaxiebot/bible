@@ -2163,7 +2163,28 @@ const JournalView: React.FC<JournalViewProps> = ({
       paperType="ruled"
       onSave={(data) => {
         if (!selectedEntry) return;
-        journalStorage.updateEntry(selectedEntry.id, { notabilityData: data }).then((updated) => {
+        // Extract plain text and auto-title from notability text boxes
+        const updates: Partial<typeof selectedEntry> = { notabilityData: data };
+        try {
+          const parsed = JSON.parse(data);
+          if (parsed?.textBoxes?.length) {
+            const allText = parsed.textBoxes
+              .map((tb: { content?: string }) => {
+                const tmp = document.createElement('div');
+                tmp.innerHTML = tb.content || '';
+                return tmp.textContent || '';
+              })
+              .filter(Boolean)
+              .join(' ');
+            if (allText.trim()) {
+              updates.plainText = allText.trim();
+              if (!selectedEntry.title || selectedEntry.title === 'Untitled') {
+                updates.title = allText.trim().substring(0, 60).replace(/\s+/g, ' ');
+              }
+            }
+          }
+        } catch { /* ignore parse errors */ }
+        journalStorage.updateEntry(selectedEntry.id, updates).then((updated) => {
           if (updated) {
             setEntries(prev => prev.map(e => e.id === updated.id ? updated : e));
           }
