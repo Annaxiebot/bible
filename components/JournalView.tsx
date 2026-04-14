@@ -2235,31 +2235,27 @@ const JournalView: React.FC<JournalViewProps> = ({
       >
         {listContent}
       </div>
-      <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
-        <button
-          onClick={() => setListCollapsed(c => !c)}
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: 12,
-            zIndex: 10,
-            width: 24,
-            height: 32,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            background: '#f3f4f6',
-            border: 'none',
-            borderRadius: '0 6px 6px 0',
-            cursor: 'pointer',
-            color: '#6b7280',
-            fontSize: 14,
-            padding: 0,
-          }}
-          title={listCollapsed ? 'Show list' : 'Hide list'}
-        >
-          {listCollapsed ? '\u203A' : '\u2039'}
-        </button>
+      <button
+        onClick={() => setListCollapsed(c => !c)}
+        style={{
+          width: 20,
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: '#f9fafb',
+          border: 'none',
+          borderRight: '1px solid #f3f4f6',
+          cursor: 'pointer',
+          color: '#9ca3af',
+          fontSize: 12,
+          padding: 0,
+        }}
+        title={listCollapsed ? 'Show list' : 'Hide list'}
+      >
+        {listCollapsed ? '\u203A' : '\u2039'}
+      </button>
+      <div style={{ flex: 1, overflow: 'hidden' }}>
         {editorContent}
       </div>
       {notabilityOverlay}
