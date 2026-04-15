@@ -37,6 +37,8 @@ export interface TextBox {
   textColor?: string;
   textAlign?: 'left' | 'center' | 'right' | 'justify';
   isAIReflection?: boolean;
+  /** ID of the source text box this AI reflection was generated from */
+  sourceId?: string;
   /** z-ordering for layer control: higher = closer to front. Default 0. */
   zOrder?: number;
 }
@@ -57,6 +59,17 @@ const TEXT_COLORS = [
   '#006400', '#228B22', '#0000CC', '#2196F3',
   '#6A1B9A', '#AB47BC', '#8B4513', '#FFFFFF',
 ];
+
+const SLASH_COMMANDS = [
+  { cmd: '/date', label: '/date', desc: 'Insert current date', icon: '📅' },
+  { cmd: '/time', label: '/time', desc: 'Insert current time', icon: '🕐' },
+  { cmd: '/now', label: '/now', desc: 'Insert date + time', icon: '📆' },
+  { cmd: '/location', label: '/location', desc: 'Insert current location', icon: '📍' },
+  { cmd: '/divider', label: '/divider', desc: 'Insert a horizontal line', icon: '➖' },
+  { cmd: '/heading', label: '/heading', desc: 'Insert a heading', icon: '🔤' },
+  { cmd: '/bible', label: '/bible', desc: 'Insert current Bible reference', icon: '📖' },
+  { cmd: '/checklist', label: '/checklist', desc: 'Insert a checkbox', icon: '☑️' },
+] as const;
 
 export interface CanvasImage {
   id: string;
@@ -207,8 +220,8 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const isFingerTouchRef = useRef(false); // true when current touch is a finger (not stylus)
 
   // Drawing layer: 'below' draws under text boxes, 'above' draws over them
-  const [drawingLayer, setDrawingLayer] = useState<'below' | 'above'>('below');
-  const drawingLayerRef = useRef<'below' | 'above'>('below');
+  const [drawingLayer, setDrawingLayer] = useState<'below' | 'above'>('above');
+  const drawingLayerRef = useRef<'below' | 'above'>('above');
 
   // Image cache — pre-load images to avoid async flicker in redrawAll
   const imageCacheRef = useRef<Map<string, HTMLImageElement>>(new Map());
@@ -571,6 +584,30 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       redrawAll();
     }
   }, [initialData, redrawBackground, redrawAll]);
+
+  // Auto-fit text box heights to content after initial load
+  useEffect(() => {
+    if (textBoxes.length === 0) return;
+    const timer = setTimeout(() => {
+      const w = displayWidthRef.current;
+      if (w <= 0) return;
+      let changed = false;
+      const fitted = textBoxes.map(tb => {
+        const el = contentEditableRefs.current.get(tb.id);
+        if (!el || !el.scrollHeight) return tb;
+        const fittedH = Math.max(el.scrollHeight, 24) / w;
+        // Only shrink if current height is significantly larger than content
+        if (tb.height > fittedH + 0.005) {
+          changed = true;
+          return { ...tb, height: fittedH };
+        }
+        return tb;
+      });
+      if (changed) setTextBoxes(fitted);
+    }, 100); // small delay to let DOM render content
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialData]); // only run on initial load
 
   useEffect(() => {
     strokeDataRef.current.paperType = paperType;
@@ -1255,9 +1292,170 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const syncContentFromRef = useCallback((id: string) => {
     const el = contentEditableRefs.current.get(id);
     if (el) {
-      updateTextBox(id, { content: el.innerHTML });
+      // Auto-fit height to content
+      const w = displayWidthRef.current;
+      const scrollH = el.scrollHeight;
+      const minH = 24;
+      const fittedPx = Math.max(scrollH, minH);
+      const normalizedH = w > 0 ? fittedPx / w : 0.15;
+      updateTextBox(id, { content: el.innerHTML, height: normalizedH });
     }
   }, [updateTextBox]);
+
+  // ── Slash commands (/date, /time, /location, /divider, /heading, /bible) ──
+  const [slashMenuVisible, setSlashMenuVisible] = useState(false);
+  const [slashFilter, setSlashFilter] = useState('');
+  const [slashMenuPos, setSlashMenuPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+
+  // SLASH_COMMANDS defined at module level
+
+  const executeSlashCommand = useCallback((cmd: string, tbId: string) => {
+    const el = contentEditableRefs.current.get(tbId);
+    if (!el) return;
+
+    let replacement = '';
+    switch (cmd) {
+      case '/date': {
+        const d = new Date();
+        replacement = d.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+        break;
+      }
+      case '/time': {
+        const d = new Date();
+        replacement = d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        break;
+      }
+      case '/now': {
+        const d = new Date();
+        replacement = d.toLocaleDateString('zh-CN', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
+          + ' ' + d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+        break;
+      }
+      case '/location': {
+        replacement = '📍 获取位置中...';
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+              try {
+                const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json&accept-language=zh`);
+                const data = await resp.json();
+                const loc = data.display_name || `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
+                el.innerHTML = el.innerHTML.replace('📍 获取位置中...', `📍 ${loc}`);
+                syncContentFromRef(tbId);
+              } catch {
+                el.innerHTML = el.innerHTML.replace('📍 获取位置中...', `📍 ${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`);
+                syncContentFromRef(tbId);
+              }
+            },
+            () => {
+              el.innerHTML = el.innerHTML.replace('📍 获取位置中...', '📍 无法获取位置');
+              syncContentFromRef(tbId);
+            }
+          );
+        } else {
+          replacement = '📍 不支持定位';
+        }
+        break;
+      }
+      case '/divider':
+        replacement = '<hr style="border:none;border-top:1px solid #ccc;margin:8px 0">';
+        break;
+      case '/heading':
+        replacement = '<b style="font-size:1.4em">标题</b><br>';
+        break;
+      case '/bible': {
+        const ref = bibleContext?.bookName && bibleContext?.chapter
+          ? `📖 ${bibleContext.bookName} ${bibleContext.chapter}` : '📖 无当前经文';
+        replacement = ref;
+        break;
+      }
+      case '/checklist':
+        replacement = '☐ ';
+        break;
+      default:
+        return;
+    }
+
+    // Replace the slash command text in the contentEditable
+    const html = el.innerHTML;
+    // Find the command text to replace — look for the typed command
+    const textNodes: Text[] = [];
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    let node: Text | null;
+    while ((node = walker.nextNode() as Text | null)) textNodes.push(node);
+
+    for (const tn of textNodes) {
+      const idx = tn.textContent?.indexOf(cmd);
+      if (idx !== undefined && idx >= 0) {
+        const before = tn.textContent!.substring(0, idx);
+        const after = tn.textContent!.substring(idx + cmd.length);
+        const span = document.createElement('span');
+        span.innerHTML = before + replacement + after;
+        tn.parentNode?.replaceChild(span, tn);
+        // Place cursor after insertion
+        const sel = window.getSelection();
+        if (sel) {
+          const range = document.createRange();
+          range.selectNodeContents(span);
+          range.collapse(false);
+          sel.removeAllRanges();
+          sel.addRange(range);
+        }
+        break;
+      }
+    }
+
+    syncContentFromRef(tbId);
+    setSlashMenuVisible(false);
+    setSlashFilter('');
+  }, [bibleContext, syncContentFromRef]);
+
+  const handleTextInput = useCallback((id: string) => {
+    const el = contentEditableRefs.current.get(id);
+    if (!el) return;
+    syncContentFromRef(id);
+
+    // Check for slash commands
+    const text = el.textContent || '';
+    const sel = window.getSelection();
+    if (!sel || sel.rangeCount === 0) return;
+
+    // Get text before cursor
+    const range = sel.getRangeAt(0);
+    const preRange = document.createRange();
+    preRange.setStart(el, 0);
+    preRange.setEnd(range.startContainer, range.startOffset);
+    const textBeforeCursor = preRange.toString();
+
+    // Check if there's a slash command being typed
+    const slashMatch = textBeforeCursor.match(/\/(\w*)$/);
+    if (slashMatch) {
+      const filter = slashMatch[0];
+      const matching = SLASH_COMMANDS.filter(c => c.cmd.startsWith(filter));
+
+      // Auto-execute if exact match followed by space or at end after Enter
+      const exactCmd = SLASH_COMMANDS.find(c => c.cmd === filter);
+      if (exactCmd) {
+        const afterCmd = textBeforeCursor.endsWith(filter) ? text.charAt(textBeforeCursor.length) : '';
+        if (afterCmd === ' ' || afterCmd === '\n' || afterCmd === '') {
+          executeSlashCommand(exactCmd.cmd, id);
+          return;
+        }
+      }
+
+      if (matching.length > 0 && filter.length > 1) {
+        // Position the menu near the cursor
+        const rect = range.getBoundingClientRect();
+        setSlashMenuPos({ top: rect.bottom + 4, left: rect.left });
+        setSlashFilter(filter);
+        setSlashMenuVisible(true);
+      } else {
+        setSlashMenuVisible(false);
+      }
+    } else {
+      setSlashMenuVisible(false);
+    }
+  }, [syncContentFromRef, executeSlashCommand, SLASH_COMMANDS]);
 
   // Save selection whenever it changes inside the contentEditable
   const saveSelection = useCallback(() => {
@@ -1519,7 +1717,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 
   // ── AI handler ──────────────────────────────────────────────────────────
 
-  const handleAIAction = useCallback(async (actionId: string) => {
+  const handleAIAction = useCallback(async (actionId: string, sourceTextBoxId?: string) => {
     if (!onAIStream || aiLoading) return;
     const action = AI_ACTIONS.find(a => a.id === actionId);
     if (!action) return;
@@ -1527,36 +1725,61 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     setShowAIMenu(false);
     setAiLoading(true);
 
-    // Gather text context from text boxes (strip HTML tags for AI context)
-    const textContent = textBoxesRef.current
-      .filter(tb => !tb.isAIReflection)
-      .map(tb => tb.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim())
-      .filter(Boolean)
-      .join('\n');
-    const context = [entryPlainText, textContent]
-      .filter(Boolean)
-      .join('\n') || 'No text content yet.';
+    // Use specific source text box if provided, otherwise gather all text
+    const srcId = sourceTextBoxId || editingTextIdRef.current || selectedItemIdRef.current;
+    const srcBox = srcId ? textBoxesRef.current.find(tb => tb.id === srcId) : null;
+
+    let context: string;
+    if (srcBox) {
+      // Use the source text box content
+      const tmp = document.createElement('div');
+      tmp.innerHTML = srcBox.content;
+      context = tmp.textContent || '';
+    } else {
+      // Fallback: gather all text
+      const textContent = textBoxesRef.current
+        .filter(tb => !tb.isAIReflection)
+        .map(tb => tb.content.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim())
+        .filter(Boolean)
+        .join('\n');
+      context = [entryPlainText, textContent].filter(Boolean).join('\n') || 'No text content yet.';
+    }
+
     const bibleInfo = bibleContext?.bookName && bibleContext?.chapter
       ? `\nCurrently reading: ${bibleContext.bookName} ${bibleContext.chapter}`
       : '';
 
     const prompt = action.prompt + context + bibleInfo;
 
-    // Create a new AI text box at the bottom of current content
-    const maxY = Math.max(
-      0.1,
-      ...textBoxesRef.current.map(tb => tb.y + 0.05),
-      ...strokeDataRef.current.strokes.flatMap(s => s.points.map(p => p.y)),
-    );
+    // Position AI box below the source text box, or at the bottom of content
+    let aiY: number;
+    let aiX: number;
+    let aiW: number;
+    if (srcBox) {
+      aiY = srcBox.y + (srcBox.height || 0.15) + 0.01;
+      aiX = srcBox.x;
+      aiW = srcBox.width;
+    } else {
+      const maxY = Math.max(
+        0.1,
+        ...textBoxesRef.current.map(tb => tb.y + (tb.height || 0.15)),
+        ...strokeDataRef.current.strokes.flatMap(s => s.points.map(p => p.y)),
+      );
+      aiY = maxY + 0.02;
+      aiX = 0.05;
+      aiW = 0.9;
+    }
+
     const aiBox: TextBox = {
       id: genId(),
-      x: 0.05,
-      y: Math.min(maxY + 0.02, 0.9),
-      width: 0.9,
+      x: aiX,
+      y: Math.min(aiY, 0.9),
+      width: aiW,
       height: 0.2,
       content: '',
       fontSize: 14,
       isAIReflection: true,
+      sourceId: srcBox?.id || undefined,
     };
     pushUndo();
     setTextBoxes(prev => [...prev, aiBox]);
@@ -1569,6 +1792,17 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
           tb.id === aiBox.id ? { ...tb, content: accumulated } : tb
         ));
       });
+      // Auto-fit AI box height after streaming completes
+      setTimeout(() => {
+        const el = contentEditableRefs.current.get(aiBox.id);
+        if (el) {
+          const w = displayWidthRef.current;
+          const fittedH = w > 0 ? Math.max(el.scrollHeight, 24) / w : 0.2;
+          setTextBoxes(prev => prev.map(tb =>
+            tb.id === aiBox.id ? { ...tb, height: fittedH } : tb
+          ));
+        }
+      }, 100);
       triggerAutoSave();
     } catch (err) {
       console.error('AI action failed:', err);
@@ -1936,6 +2170,29 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
               pointerEvents: (activeTool === 'text' && editingTextId) || (drawingLayer === 'above' && activeTool !== 'pointer' && activeTool !== 'text') ? 'none' : 'auto',
             }} />
 
+          {/* ── AI source link connectors ────────────────────────────── */}
+          <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 3 }}>
+            {textBoxes.filter(tb => tb.isAIReflection && tb.sourceId).map(aiTb => {
+              const src = textBoxes.find(s => s.id === aiTb.sourceId);
+              if (!src) return null;
+              const srcCenterX = (src.x + src.width / 2) * (w || 1);
+              const srcBottomY = (src.y + (src.height || 0.15)) * (w || 1);
+              const aiCenterX = (aiTb.x + aiTb.width / 2) * (w || 1);
+              const aiTopY = aiTb.y * (w || 1);
+              return (
+                <g key={`link-${aiTb.id}`}>
+                  <line
+                    x1={srcCenterX} y1={srcBottomY}
+                    x2={aiCenterX} y2={aiTopY}
+                    stroke="#a78bfa" strokeWidth={2} strokeDasharray="6 3" opacity={0.6}
+                  />
+                  <circle cx={srcCenterX} cy={srcBottomY} r={4} fill="#a78bfa" opacity={0.6} />
+                  <circle cx={aiCenterX} cy={aiTopY} r={4} fill="#a78bfa" opacity={0.6} />
+                </g>
+              );
+            })}
+          </svg>
+
           {/* ── Text Boxes (Rich text with contentEditable) ────────────── */}
           {textBoxes.map(tb => {
             const isEditing = editingTextId === tb.id;
@@ -1987,7 +2244,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                     // Don't close editing mode here — click-outside handler does that.
                     // This prevents iOS touch-triggered blur from killing the toolbar.
                   }}
-                  onInput={() => syncContentFromRef(tb.id)}
+                  onInput={() => handleTextInput(tb.id)}
                   onSelect={saveSelection}
                   onKeyUp={saveSelection}
                   onMouseUp={saveSelection}
@@ -2004,10 +2261,11 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                     minHeight: '100%',
                     border: isEditing ? '2px solid #4f46e5'
                       : isSelected ? '2px dashed #4f46e5'
+                      : tb.isAIReflection ? '1px solid #c4b5fd'
                       : '1px solid transparent',
                     borderRadius: 4,
                     padding: '6px 8px',
-                    background: tb.isAIReflection ? 'rgba(238, 235, 255, 0.3)' : 'transparent',
+                    background: tb.isAIReflection ? 'rgba(238, 235, 255, 0.25)' : 'transparent',
                     fontSize: scaledFontSize,
                     lineHeight: '1.6',
                     fontFamily: tb.fontFamily || TEXT_FONTS[0].value,
@@ -2015,7 +2273,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                     textAlign: (tb.textAlign || 'left') as React.CSSProperties['textAlign'],
                     fontStyle: tb.isAIReflection ? 'italic' : 'normal',
                     outline: 'none',
-                    overflow: 'visible',
+                    overflow: 'hidden',
                     cursor: isEditing ? 'text' : 'move',
                     boxShadow: isSelected || isEditing ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
                     minHeight: 24,
@@ -2025,6 +2283,17 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                     userSelect: isEditing ? 'text' : 'none',
                   }}
                 />
+
+                {/* AI badge */}
+                {tb.isAIReflection && !isEditing && (
+                  <div style={{
+                    position: 'absolute', top: -10, left: 8,
+                    background: '#7c3aed', color: 'white',
+                    fontSize: 9, fontWeight: 600,
+                    padding: '1px 6px', borderRadius: 4,
+                    letterSpacing: 0.5, zIndex: 10,
+                  }}>AI</div>
+                )}
 
                 {/* ── Floating Text Formatting Toolbar (Notability-style) ── */}
                 {isEditing && !tb.isAIReflection && (
@@ -2242,11 +2511,34 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                       }}
                       title="Send to Back"
                       style={{ padding: '2px 5px', border: '1px solid #ddd', borderRadius: 4, background: '#f8f8f8', cursor: 'pointer', fontSize: 11 }}>↓B</button>
+
+                    {/* AI actions in toolbar */}
+                    {onAIStream && !tb.isAIReflection && (
+                      <>
+                        <div style={{ width: 1, height: 20, background: '#ddd' }} />
+                        {AI_ACTIONS.map(action => (
+                          <button key={action.id}
+                            onMouseDown={e => e.preventDefault()}
+                            onClick={() => handleAIAction(action.id, tb.id)}
+                            disabled={aiLoading}
+                            title={action.label}
+                            style={{
+                              padding: '2px 6px', border: '1px solid #ddd', borderRadius: 4,
+                              background: aiLoading ? '#f3e8ff' : '#f8f8f8',
+                              cursor: aiLoading ? 'wait' : 'pointer', fontSize: 11,
+                              color: '#7c3aed', fontWeight: 500,
+                              opacity: aiLoading ? 0.6 : 1,
+                            }}>
+                            {action.label.split(' ')[0]} {action.label.split(' ').slice(1).join(' ')}
+                          </button>
+                        ))}
+                      </>
+                    )}
                   </div>
                 )}
 
-                {/* Resize handles (visible when selected or editing) */}
-                {(isSelected || isEditing) && !tb.isAIReflection && (
+                {/* Resize handles (visible when selected but NOT editing — editing auto-fits) */}
+                {isSelected && !isEditing && !tb.isAIReflection && (
                   <>
                     {/* 4 corner handles */}
                     {(['nw', 'ne', 'sw', 'se'] as const).map(corner => (
@@ -2375,6 +2667,53 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
           {currentPage + 1} / {totalPagesDisplay}
         </div>
       </div>
+
+      {/* ── Slash command menu ── */}
+      {slashMenuVisible && editingTextId && (
+        <div
+          style={{
+            position: 'fixed',
+            top: slashMenuPos.top,
+            left: slashMenuPos.left,
+            background: 'white',
+            borderRadius: 8,
+            boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
+            zIndex: 10000,
+            minWidth: 220,
+            maxHeight: 260,
+            overflowY: 'auto',
+            padding: '4px 0',
+          }}
+          onMouseDown={e => e.preventDefault()}
+          onTouchStart={e => e.preventDefault()}
+        >
+          <div style={{ padding: '4px 12px', fontSize: 11, color: '#888', borderBottom: '1px solid #eee', marginBottom: 2 }}>
+            Shortcuts — type / for commands
+          </div>
+          {SLASH_COMMANDS
+            .filter(c => c.cmd.startsWith(slashFilter))
+            .map(c => (
+              <button
+                key={c.cmd}
+                onClick={() => editingTextId && executeSlashCommand(c.cmd, editingTextId)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  width: '100%', padding: '8px 12px',
+                  border: 'none', background: 'none', cursor: 'pointer',
+                  fontSize: 14, textAlign: 'left',
+                }}
+                onMouseOver={e => (e.currentTarget.style.background = '#f3f0ff')}
+                onMouseOut={e => (e.currentTarget.style.background = 'none')}
+              >
+                <span style={{ fontSize: 18 }}>{c.icon}</span>
+                <div>
+                  <div style={{ fontWeight: 500, color: '#333' }}>{c.label}</div>
+                  <div style={{ fontSize: 11, color: '#888' }}>{c.desc}</div>
+                </div>
+              </button>
+            ))}
+        </div>
+      )}
 
       {/* ── Bottom bar: + New Page (Notability adds pages on demand) ── */}
       <div className="flex items-center justify-between px-3 py-1.5 border-t border-slate-100 bg-white/95 shrink-0">
