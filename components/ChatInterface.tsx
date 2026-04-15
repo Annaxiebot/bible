@@ -238,6 +238,29 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpe
                 </svg>
               </button>
             )}
+            {/* Copy button -- available on all messages */}
+            <button
+              onClick={() => {
+                navigator.clipboard.writeText(content).then(() => {
+                  setCopied(true);
+                  setTimeout(() => setCopied(false), 2000);
+                });
+              }}
+              className={`shrink-0 transition-colors p-1 rounded-full ${
+                copied
+                  ? (m.role === 'user' ? 'text-green-300 bg-indigo-500' : 'text-green-500 bg-green-50')
+                  : m.role === 'user'
+                    ? 'text-indigo-200 hover:text-white hover:bg-indigo-500'
+                    : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'
+              }`}
+              title={copied ? (side === 'zh' ? '已复制' : 'Copied!') : (side === 'zh' ? '复制' : 'Copy')}
+            >
+              {copied ? (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+              ) : (
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
+              )}
+            </button>
             {onDelete && (
               <button
                 onClick={onDelete}
@@ -264,22 +287,6 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpe
                     <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
                   ) : (
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>
-                  )}
-                </button>
-                <button
-                  onClick={() => {
-                    navigator.clipboard.writeText(content).then(() => {
-                      setCopied(true);
-                      setTimeout(() => setCopied(false), 2000);
-                    });
-                  }}
-                  className={`shrink-0 transition-colors p-1 rounded-full ${copied ? 'text-green-500 bg-green-50' : 'text-slate-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
-                  title={copied ? (side === 'zh' ? '已复制' : 'Copied!') : (side === 'zh' ? '复制' : 'Copy')}
-                >
-                  {copied ? (
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
-                  ) : (
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" /></svg>
                   )}
                 </button>
                 {onSaveResearch && (
