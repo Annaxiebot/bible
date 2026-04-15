@@ -799,9 +799,25 @@ const JournalView: React.FC<JournalViewProps> = ({
               <div style={{ fontSize: 12, color: '#9ca3af', marginBottom: 6 }}>
                 {weeklyDigest.entryCount} {weeklyDigest.entryCount === 1 ? 'entry' : 'entries'} this week
               </div>
-              <div style={{ fontSize: 13, color: '#374151', lineHeight: 1.6, whiteSpace: 'pre-wrap' }}>
-                {weeklyDigest.summary}
-              </div>
+              <div
+                style={{ fontSize: 13, color: '#374151', lineHeight: 1.7 }}
+                dangerouslySetInnerHTML={{
+                  __html: weeklyDigest.summary
+                    // Convert markdown bold
+                    .replace(/\*\*(.+?)\*\*/g, '<strong style="color:#4f46e5">$1</strong>')
+                    // Convert *italic*
+                    .replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>')
+                    // Convert markdown headers (## or ###)
+                    .replace(/^###?\s+(.+)$/gm, '<h4 style="font-size:14px;font-weight:600;color:#1e293b;margin:12px 0 4px">$1</h4>')
+                    // Convert bullet points (* or - at start of line)
+                    .replace(/^[\*\-]\s+/gm, '• ')
+                    // Convert numbered lists
+                    .replace(/^\d+\.\s+/gm, (m) => `<span style="color:#4f46e5;font-weight:600">${m.trim()}</span> `)
+                    // Convert line breaks
+                    .replace(/\n\n/g, '</p><p style="margin:8px 0">')
+                    .replace(/\n/g, '<br>')
+                }}
+              />
             </div>
           ) : (
             <div style={{ fontSize: 13, color: '#9ca3af' }}>No entries in the past 7 days.</div>
@@ -1263,6 +1279,27 @@ const JournalView: React.FC<JournalViewProps> = ({
           </button>
         )}
         <div style={{ flex: 1 }}>
+          <input
+            type="text"
+            value={selectedEntry.title || ''}
+            placeholder="Untitled"
+            onChange={e => {
+              const newTitle = e.target.value;
+              setEntries(prev => prev.map(ent => ent.id === selectedEntry.id ? { ...ent, title: newTitle } : ent));
+            }}
+            onBlur={e => {
+              const newTitle = e.target.value.trim() || 'Untitled';
+              journalStorage.updateEntry(selectedEntry.id, { title: newTitle }).then(updated => {
+                if (updated) setEntries(prev => prev.map(ent => ent.id === updated.id ? updated : ent));
+              });
+            }}
+            onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+            style={{
+              width: '100%', border: 'none', outline: 'none',
+              fontSize: 16, fontWeight: 600, color: '#1e293b',
+              background: 'transparent', padding: 0,
+            }}
+          />
           <div style={{ fontSize: 12, color: '#9ca3af' }}>
             Created {formatDate(selectedEntry.createdAt, true)}
             {selectedEntry.updatedAt !== selectedEntry.createdAt && (

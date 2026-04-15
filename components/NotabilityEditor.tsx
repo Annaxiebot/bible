@@ -67,7 +67,7 @@ const SLASH_COMMANDS = [
   { cmd: '/location', label: '/location', desc: 'Insert current location', icon: '📍' },
   { cmd: '/divider', label: '/divider', desc: 'Insert a horizontal line', icon: '➖' },
   { cmd: '/heading', label: '/heading', desc: 'Insert a heading', icon: '🔤' },
-  { cmd: '/bible', label: '/bible', desc: 'Insert current Bible reference', icon: '📖' },
+  { cmd: '/bible', label: '/bible', desc: 'Insert current book:chapter:verse', icon: '📖' },
   { cmd: '/checklist', label: '/checklist', desc: 'Insert a checkbox', icon: '☑️' },
 ] as const;
 
@@ -103,7 +103,7 @@ export interface NotabilityEditorProps {
   /** AI context: current entry plain text for AI features */
   entryPlainText?: string;
   /** AI context: Bible reading context */
-  bibleContext?: { bookId?: string; chapter?: number; bookName?: string } | null;
+  bibleContext?: { bookId?: string; chapter?: number; bookName?: string; verse?: number } | null;
   /** AI stream function */
   onAIStream?: (prompt: string, onChunk: (text: string) => void) => Promise<void>;
 }
@@ -1337,9 +1337,12 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
           navigator.geolocation.getCurrentPosition(
             async (pos) => {
               try {
-                const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json&accept-language=zh`);
+                const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json&accept-language=zh-CN&zoom=18`);
                 const data = await resp.json();
-                const loc = data.display_name || `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
+                // Build a clean address from structured parts to avoid duplicates
+                const addr = data.address || {};
+                const parts = [addr.road, addr.neighbourhood, addr.suburb, addr.city || addr.town || addr.village, addr.state, addr.postcode, addr.country].filter(Boolean);
+                const loc = parts.length > 0 ? [...new Set(parts)].join(', ') : data.display_name || `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
                 el.innerHTML = el.innerHTML.replace('📍 获取位置中...', `📍 ${loc}`);
                 syncContentFromRef(tbId);
               } catch {
@@ -1364,9 +1367,12 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
         replacement = '<b style="font-size:1.4em">标题</b><br>';
         break;
       case '/bible': {
-        const ref = bibleContext?.bookName && bibleContext?.chapter
-          ? `📖 ${bibleContext.bookName} ${bibleContext.chapter}` : '📖 无当前经文';
-        replacement = ref;
+        if (bibleContext?.bookName && bibleContext?.chapter) {
+          const verseStr = bibleContext.verse ? `:${bibleContext.verse}` : '';
+          replacement = `📖 ${bibleContext.bookName} ${bibleContext.chapter}${verseStr}`;
+        } else {
+          replacement = '📖 无当前经文 (请先在圣经视图中选择经文)';
+        }
         break;
       }
       case '/checklist':
@@ -1433,17 +1439,17 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       const filter = slashMatch[0];
       const matching = SLASH_COMMANDS.filter(c => c.cmd.startsWith(filter));
 
-      // Auto-execute if exact match followed by space or at end after Enter
+      // Auto-execute only if exact match followed by space or newline (not at end — user may still be typing)
       const exactCmd = SLASH_COMMANDS.find(c => c.cmd === filter);
       if (exactCmd) {
         const afterCmd = textBeforeCursor.endsWith(filter) ? text.charAt(textBeforeCursor.length) : '';
-        if (afterCmd === ' ' || afterCmd === '\n' || afterCmd === '') {
+        if (afterCmd === ' ' || afterCmd === '\n') {
           executeSlashCommand(exactCmd.cmd, id);
           return;
         }
       }
 
-      if (matching.length > 0 && filter.length > 1) {
+      if (matching.length > 0) {
         // Position the menu near the cursor
         const rect = range.getBoundingClientRect();
         setSlashMenuPos({ top: rect.bottom + 4, left: rect.left });
@@ -2258,7 +2264,6 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                   onDoubleClick={() => setEditingTextId(tb.id)}
                   style={{
                     width: '100%',
-                    minHeight: '100%',
                     border: isEditing ? '2px solid #4f46e5'
                       : isSelected ? '2px dashed #4f46e5'
                       : tb.isAIReflection ? '1px solid #c4b5fd'
