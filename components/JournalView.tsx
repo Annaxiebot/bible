@@ -803,18 +803,18 @@ const JournalView: React.FC<JournalViewProps> = ({
                 style={{ fontSize: 13, color: '#374151', lineHeight: 1.7 }}
                 dangerouslySetInnerHTML={{
                   __html: weeklyDigest.summary
-                    // Convert markdown bold
-                    .replace(/\*\*(.+?)\*\*/g, '<strong style="color:#4f46e5">$1</strong>')
-                    // Convert *italic*
-                    .replace(/(?<!\*)\*(?!\*)(.+?)(?<!\*)\*(?!\*)/g, '<em>$1</em>')
-                    // Convert markdown headers (## or ###)
-                    .replace(/^###?\s+(.+)$/gm, '<h4 style="font-size:14px;font-weight:600;color:#1e293b;margin:12px 0 4px">$1</h4>')
-                    // Convert bullet points (* or - at start of line)
-                    .replace(/^[\*\-]\s+/gm, '• ')
+                    // Convert markdown headers first (## or ###)
+                    .replace(/^#{1,3}\s+(.+)$/gm, '<h4 style="font-size:14px;font-weight:600;color:#1e293b;margin:16px 0 6px;border-bottom:1px solid #e5e7eb;padding-bottom:4px">$1</h4>')
+                    // Convert bullet points (* or - at start of line) before bold processing
+                    .replace(/^[\*\-]\s+/gm, '<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:#4f46e5;margin-right:8px;vertical-align:middle"></span>')
                     // Convert numbered lists
-                    .replace(/^\d+\.\s+/gm, (m) => `<span style="color:#4f46e5;font-weight:600">${m.trim()}</span> `)
-                    // Convert line breaks
-                    .replace(/\n\n/g, '</p><p style="margin:8px 0">')
+                    .replace(/^(\d+)\.\s+/gm, '<span style="color:#4f46e5;font-weight:700;margin-right:4px">$1.</span> ')
+                    // Convert markdown bold **text**
+                    .replace(/\*\*(.+?)\*\*/g, '<strong style="color:#4f46e5">$1</strong>')
+                    // Convert *italic* (single asterisks not adjacent to other asterisks)
+                    .replace(/(?<!\*)\*([^*]+)\*(?!\*)/g, '<em>$1</em>')
+                    // Convert paragraphs and line breaks
+                    .replace(/\n\n/g, '</p><p style="margin:10px 0">')
                     .replace(/\n/g, '<br>')
                 }}
               />
