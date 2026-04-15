@@ -1297,7 +1297,8 @@ const JournalView: React.FC<JournalViewProps> = ({
             style={{
               width: '100%', border: 'none', outline: 'none',
               fontSize: 16, fontWeight: 600, color: '#1e293b',
-              background: 'transparent', padding: 0,
+              background: 'transparent', padding: '2px 0',
+              borderBottom: '1px dashed #e2e8f0',
             }}
           />
           <div style={{ fontSize: 12, color: '#9ca3af' }}>
