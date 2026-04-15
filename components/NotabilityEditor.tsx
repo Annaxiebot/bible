@@ -1943,6 +1943,11 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
             const tbW = tb.width * 100;
             const tbH = (tb.height || 0.15) * (w || 1);
             const tbTop = tb.y * (w || 1);
+            // Scale font size proportionally to canvas width so text wraps
+            // consistently across devices (reference width: 700px)
+            const refWidth = 700;
+            const fontScale = Math.min(1, (w || refWidth) / refWidth);
+            const scaledFontSize = Math.round((tb.fontSize || 16) * fontScale);
             return (
               <div key={tb.id}
                 data-textbox-id={tb.id}
@@ -2003,7 +2008,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                     borderRadius: 4,
                     padding: '6px 8px',
                     background: tb.isAIReflection ? 'rgba(238, 235, 255, 0.3)' : 'transparent',
-                    fontSize: tb.fontSize || 16,
+                    fontSize: scaledFontSize,
                     lineHeight: '1.6',
                     fontFamily: tb.fontFamily || TEXT_FONTS[0].value,
                     color: tb.textColor || '#000000',
