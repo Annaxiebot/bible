@@ -216,7 +216,7 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
       const normalizedStroke = normalizeStroke(absoluteStroke, w, h);
 
       // Save undo state before adding the stroke
-      undoHistoryRef.current.push(JSON.parse(JSON.stringify(strokeDataRef.current)));
+      undoHistoryRef.current.push(structuredClone(strokeDataRef.current));
       if (undoHistoryRef.current.length > MAX_HISTORY) {
         undoHistoryRef.current.shift();
       }
@@ -335,7 +335,7 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
       if (isMeta && e.key === 'z' && !e.shiftKey) {
         e.preventDefault();
         if (undoHistoryRef.current.length > 0) {
-          redoHistoryRef.current.push(JSON.parse(JSON.stringify(strokeDataRef.current)));
+          redoHistoryRef.current.push(structuredClone(strokeDataRef.current));
           const previous = undoHistoryRef.current.pop()!;
           strokeDataRef.current = previous;
           redrawStrokes();
@@ -344,7 +344,7 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
       } else if (isMeta && (e.key === 'y' || (e.key === 'z' && e.shiftKey))) {
         e.preventDefault();
         if (redoHistoryRef.current.length > 0) {
-          undoHistoryRef.current.push(JSON.parse(JSON.stringify(strokeDataRef.current)));
+          undoHistoryRef.current.push(structuredClone(strokeDataRef.current));
           if (undoHistoryRef.current.length > MAX_HISTORY) undoHistoryRef.current.shift();
           const next = redoHistoryRef.current.pop()!;
           strokeDataRef.current = next;
@@ -444,7 +444,7 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
     // Expose methods via ref
     useImperativeHandle(ref, () => ({
       clear: () => {
-        undoHistoryRef.current.push(JSON.parse(JSON.stringify(strokeDataRef.current)));
+        undoHistoryRef.current.push(structuredClone(strokeDataRef.current));
         if (undoHistoryRef.current.length > MAX_HISTORY) undoHistoryRef.current.shift();
         redoHistoryRef.current = [];
 
@@ -464,7 +464,7 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
       undo: () => {
         if (undoHistoryRef.current.length > 0) {
           // Save current state to redo stack before undoing
-          redoHistoryRef.current.push(JSON.parse(JSON.stringify(strokeDataRef.current)));
+          redoHistoryRef.current.push(structuredClone(strokeDataRef.current));
           const previous = undoHistoryRef.current.pop()!;
           strokeDataRef.current = previous;
           redrawStrokes();
@@ -475,7 +475,7 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
       redo: () => {
         if (redoHistoryRef.current.length > 0) {
           // Save current state to undo stack before redoing
-          undoHistoryRef.current.push(JSON.parse(JSON.stringify(strokeDataRef.current)));
+          undoHistoryRef.current.push(structuredClone(strokeDataRef.current));
           if (undoHistoryRef.current.length > MAX_HISTORY) undoHistoryRef.current.shift();
           const next = redoHistoryRef.current.pop()!;
           strokeDataRef.current = next;

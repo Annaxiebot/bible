@@ -213,11 +213,11 @@ let activeContext: AudioContext | null = null;
 
 export const stopSpeech = () => {
   if (activeSource) {
-    try { activeSource.stop(); } catch (e) {}
+    try { activeSource.stop(); } catch (e) { console.warn('[gemini] audio source stop failed', e); }
     activeSource = null;
   }
   if (activeContext) {
-    try { activeContext.close(); } catch (e) {}
+    try { activeContext.close(); } catch (e) { console.warn('[gemini] audio context close failed', e); }
     activeContext = null;
   }
 };

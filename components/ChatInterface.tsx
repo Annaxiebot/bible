@@ -633,7 +633,8 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
 
   useEffect(() => {
     if (!activeThreadId || switchingThreadRef.current) return;
-    const key = JSON.stringify(messages.map(m => m.timestamp));
+    const lastTs = messages.length > 0 ? messages[messages.length - 1].timestamp ?? 0 : 0;
+    const key = `${messages.length}-${lastTs}`;
     if (key === lastSavedRef.current) return;
     // Debounce save to avoid race conditions on mobile thread switching
     const timeout = setTimeout(() => {

@@ -391,7 +391,7 @@ const JournalView: React.FC<JournalViewProps> = ({
       const recentEntries = entries.slice(0, 3);
       const recentContext = recentEntries.map(e => e.plainText.slice(0, 300)).join('\n---\n');
       let prompt = 'Generate a thoughtful, personal spiritual reflection prompt for the user. Be warm, gentle, and thought-provoking. One paragraph.';
-      if (selectedEntry?.plainText) prompt += `\n\nTheir current journal entry:\n${selectedEntry.plainText.slice(0, 500)}`;
+      if (selectedEntry?.plainText) prompt += `\n\nTheir current journal entry:\n${selectedEntry?.plainText?.slice(0, 500) ?? ''}`;
       if (bookName && chapter) prompt += `\n\nCurrently reading: ${bookName} ${chapter}`;
       if (recentContext) prompt += `\n\nRecent journal themes:\n${recentContext}`;
       const meta = await streamAI(prompt, (chunk) => {
