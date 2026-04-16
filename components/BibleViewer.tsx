@@ -4,7 +4,7 @@ import { STORAGE_KEYS } from '../constants/storageKeys';
 import { Verse, Book, SelectionInfo } from '../types';
 import { BIBLE_BOOKS } from '../constants';
 import { parseBibleReference } from '../services/bibleBookData';
-import { toSimplified, preloadConverter } from '../services/chineseConverter';
+import { toSimplified, toSimplifiedAsync, preloadConverter } from '../services/chineseConverter';
 import { bibleStorage, BibleTranslation } from '../services/bibleStorage';
 import { readingHistory } from '../services/readingHistory';
 import { verseDataStorage } from '../services/verseDataStorage';
@@ -450,7 +450,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     setIsSearching(true);
     try {
       const queryLower = query.toLowerCase();
-      const querySimplified = toSimplified(queryLower);
+      const querySimplified = await toSimplifiedAsync(queryLower);
 
       // Search cached Bible chapters
       const results = await searchCachedChapters(querySimplified, queryLower, englishVersion);
@@ -466,7 +466,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       // Search current chapter if not cached
       const offlineChapterSet = await bibleStorage.getAllOfflineChapters();
       if (!offlineChapterSet.has(`${selectedBook.id}_${selectedChapter}`)) {
-        const currentResults = searchCurrentChapter(
+        const currentResults = await searchCurrentChapter(
           querySimplified, queryLower,
           leftVerses, rightVerses,
           selectedBook.id, selectedBook.name, selectedChapter,
