@@ -92,6 +92,8 @@ RESPONSE STRUCTURE:
 [Brief English summary and key points]
 Please let me know if you would like more in-depth details or a specific deep dive.
 
+BILINGUAL KEYWORDS: In the Chinese section, append the English equivalent in parentheses after key theological terms, proper nouns, and important concepts on first mention — e.g. 圣灵 (Holy Spirit), 圣约 (Covenant), 以弗所书 (Ephesians). This helps the reader anchor Chinese terms to their English counterparts.
+
 Cite relevant sources. Maintain professional scholarship even in brevity.`
     },
     ...history.map(h => ({ role: h.role === 'user' ? 'user' : 'assistant', content: h.content })),

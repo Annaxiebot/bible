@@ -120,11 +120,17 @@ async function callSingleProvider(
 ): Promise<CallResult> {
   const startTime = Date.now();
 
+  // Separate the system prompt from user/assistant messages — Claude and Gemini
+  // require the system instruction in a dedicated field, not as a message role.
+  const systemMessage = messages.find(m => m.role === "system");
+  const systemText = systemMessage && typeof systemMessage.content === "string" ? systemMessage.content : "";
+  const nonSystemMessages = messages.filter(m => m.role !== "system");
+
   if (providerName === "gemini") {
     const geminiModel = model || "gemini-3-flash-preview";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:generateContent?key=${apiKey}`;
     // Gemini image format: inlineData in parts
-    const parts: any[] = [{ text: typeof messages[messages.length - 1]?.content === "string" ? messages[messages.length - 1].content : prompt }];
+    const parts: any[] = [{ text: typeof nonSystemMessages[nonSystemMessages.length - 1]?.content === "string" ? nonSystemMessages[nonSystemMessages.length - 1].content : prompt }];
     if (image) {
       const rawBase64 = image.data.includes(",") ? image.data.split(",")[1] : image.data;
       const mimeType = image.mimeType || (image.data.match(/^data:([^;]+);/)?.[1] ?? "image/jpeg");
@@ -134,9 +140,10 @@ async function callSingleProvider(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: messages.map((m, i) => ({
+        ...(systemText ? { systemInstruction: { parts: [{ text: systemText }] } } : {}),
+        contents: nonSystemMessages.map((m, i) => ({
           role: m.role === "assistant" ? "model" : "user",
-          parts: i === messages.length - 1 ? parts : [{ text: typeof m.content === "string" ? m.content : prompt }],
+          parts: i === nonSystemMessages.length - 1 ? parts : [{ text: typeof m.content === "string" ? m.content : prompt }],
         })),
       }),
     });
@@ -147,8 +154,8 @@ async function callSingleProvider(
 
   } else if (ANTHROPIC_PROTOCOL_PROVIDERS.has(providerName)) {
     // Claude/Anthropic image format: type "image" with source (raw base64, no data URL prefix)
-    const anthropicMessages = messages.map((m, i) => {
-      if (i === messages.length - 1 && image) {
+    const anthropicMessages = nonSystemMessages.map((m, i) => {
+      if (i === nonSystemMessages.length - 1 && image) {
         // Strip data URL prefix if present: "data:image/jpeg;base64,..." → raw base64
         const rawBase64 = image.data.includes(",") ? image.data.split(",")[1] : image.data;
         const mimeType = image.mimeType || (image.data.match(/^data:([^;]+);/)?.[1] ?? "image/jpeg");
@@ -170,7 +177,7 @@ async function callSingleProvider(
         "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
       },
-      body: JSON.stringify({ model, max_tokens: 4096, messages: anthropicMessages }),
+      body: JSON.stringify({ model, max_tokens: 4096, messages: anthropicMessages, ...(systemText ? { system: systemText } : {}) }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error?.message || `${providerName} API error`);
@@ -342,6 +349,11 @@ async function raceStreaming(
 
       let response: Response;
 
+      // Separate the system prompt for providers that need it in a dedicated field
+      const raceSystemMessage = messages.find(m => m.role === "system");
+      const raceSystemText = raceSystemMessage && typeof raceSystemMessage.content === "string" ? raceSystemMessage.content : "";
+      const raceNonSystem = messages.filter(m => m.role !== "system");
+
       if (r.name === "gemini") {
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${r.model}:streamGenerateContent?alt=sse&key=${r.apiKey}`;
         response = await fetch(url, {
@@ -349,7 +361,8 @@ async function raceStreaming(
           headers: { "Content-Type": "application/json" },
           signal: abortControllers[i].signal,
           body: JSON.stringify({
-            contents: messages.map((m) => ({
+            ...(raceSystemText ? { systemInstruction: { parts: [{ text: raceSystemText }] } } : {}),
+            contents: raceNonSystem.map((m) => ({
               role: m.role === "assistant" ? "model" : "user",
               parts: [{ text: typeof m.content === "string" ? m.content : prompt }],
             })),
@@ -360,7 +373,7 @@ async function raceStreaming(
           method: "POST",
           headers: { "Content-Type": "application/json", "x-api-key": r.apiKey, "anthropic-version": "2023-06-01" },
           signal: abortControllers[i].signal,
-          body: JSON.stringify({ model: r.model, max_tokens: 4096, messages, stream: true }),
+          body: JSON.stringify({ model: r.model, max_tokens: 4096, messages: raceNonSystem, stream: true, ...(raceSystemText ? { system: raceSystemText } : {}) }),
         });
       } else {
         let finalModel = r.model;
@@ -490,6 +503,11 @@ async function streamProvider(
 ): Promise<{ stream: ReadableStream; model: string; provider: string }> {
   const startTime = Date.now();
 
+  // Separate the system prompt for providers that need it in a dedicated field
+  const streamSystemMessage = messages.find(m => m.role === "system");
+  const streamSystemText = streamSystemMessage && typeof streamSystemMessage.content === "string" ? streamSystemMessage.content : "";
+  const streamNonSystem = messages.filter(m => m.role !== "system");
+
   if (providerName === "gemini") {
     const geminiModel = model || "gemini-3-flash-preview";
     const url = `https://generativelanguage.googleapis.com/v1beta/models/${geminiModel}:streamGenerateContent?alt=sse&key=${apiKey}`;
@@ -497,7 +515,8 @@ async function streamProvider(
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        contents: messages.map((m) => ({
+        ...(streamSystemText ? { systemInstruction: { parts: [{ text: streamSystemText }] } } : {}),
+        contents: streamNonSystem.map((m) => ({
           role: m.role === "assistant" ? "model" : "user",
           parts: [{ text: typeof m.content === "string" ? m.content : prompt }],
         })),
@@ -527,7 +546,7 @@ async function streamProvider(
         "x-api-key": apiKey,
         "anthropic-version": "2023-06-01",
       },
-      body: JSON.stringify({ model, max_tokens: 4096, messages, stream: true }),
+      body: JSON.stringify({ model, max_tokens: 4096, messages: streamNonSystem, stream: true, ...(streamSystemText ? { system: streamSystemText } : {}) }),
     });
     if (!response.ok) {
       const data = await response.json();
@@ -607,7 +626,29 @@ Deno.serve(async (req: Request) => {
     const settings = cached || ((settingsResult?.data?.settings || {}) as Record<string, string>);
     if (!cached) setCachedSettings(user.id, settings);
 
+    // System prompt: forces the [SPLIT]-separated bilingual response format
+    // that the client's parseMessage relies on to populate Chinese and English panes.
+    const SYSTEM_PROMPT = `You are a world-class Bible Scholar and Researcher.
+
+CORE DIRECTIVE: Be extremely concise. Provide a brief overview or summary of the answer only.
+Avoid long paragraphs unless specifically asked for a deep dive.
+
+CRITICAL RULE: You must ALWAYS respond in two distinct sections: first Chinese, then English.
+You MUST separate these sections with the exact string "[SPLIT]" on its own line.
+
+RESPONSE STRUCTURE:
+[Brief Chinese summary and key points]
+如果您需要更深入的解析或特定细节，请告知。
+[SPLIT]
+[Brief English summary and key points]
+Please let me know if you would like more in-depth details or a specific deep dive.
+
+BILINGUAL KEYWORDS: In the Chinese section, append the English equivalent in parentheses after key theological terms, proper nouns, and important concepts on first mention — e.g. 圣灵 (Holy Spirit), 圣约 (Covenant), 以弗所书 (Ephesians). This helps the reader anchor Chinese terms to their English counterparts.
+
+Maintain professional scholarship even in brevity.`;
+
     const messages = [
+      { role: "system", content: SYSTEM_PROMPT },
       ...history.map((h: any) => ({ role: h.role, content: h.content })),
       { role: "user", content: prompt },
     ];

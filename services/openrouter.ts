@@ -239,19 +239,41 @@ export const chatWithAI = async (
     ? options.model 
     : (options.model || FREE_ROUTER_MODEL);
 
+  // System prompt: forces the [SPLIT]-separated bilingual response format that
+  // ChatInterface / parseMessage rely on to populate the Chinese and English panes.
+  const systemPrompt = `You are a world-class Bible Scholar and Researcher.
+
+CORE DIRECTIVE: Be extremely concise. Provide a brief overview or summary of the answer only.
+Avoid long paragraphs unless specifically asked for a deep dive.
+
+CRITICAL RULE: You must ALWAYS respond in two distinct sections: first Chinese, then English.
+You MUST separate these sections with the exact string "[SPLIT]" on its own line.
+
+RESPONSE STRUCTURE:
+[Brief Chinese summary and key points]
+如果您需要更深入的解析或特定细节，请告知。
+[SPLIT]
+[Brief English summary and key points]
+Please let me know if you would like more in-depth details or a specific deep dive.
+
+BILINGUAL KEYWORDS: In the Chinese section, append the English equivalent in parentheses after key theological terms, proper nouns, and important concepts on first mention — e.g. 圣灵 (Holy Spirit), 圣约 (Covenant), 以弗所书 (Ephesians). This helps the reader anchor Chinese terms to their English counterparts.
+
+Maintain professional scholarship even in brevity.`;
+
   // Build messages array
   const messages = [
+    { role: 'system', content: systemPrompt },
     ...history.map(msg => ({
       role: msg.role === 'assistant' ? 'assistant' : 'user',
       content: msg.content,
     })),
     {
       role: 'user',
-      content: options.image 
+      content: options.image
         ? [
             { type: 'text', text: prompt },
-            { 
-              type: 'image_url', 
+            {
+              type: 'image_url',
               image_url: { url: `data:${options.image.mimeType};base64,${options.image.data}` }
             }
           ]

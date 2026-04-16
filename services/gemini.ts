@@ -86,8 +86,10 @@ export const chatWithAI = async (
     [SPLIT]
     [Brief English summary and key points]
     Please let me know if you would like more in-depth details or a specific deep dive.
-    
-    If you use Google Search, provide links at the end of EACH language section. 
+
+    BILINGUAL KEYWORDS: In the Chinese section, append the English equivalent in parentheses after key theological terms, proper nouns, and important concepts on first mention — e.g. 圣灵 (Holy Spirit), 圣约 (Covenant), 以弗所书 (Ephesians). This helps the reader anchor Chinese terms to their English counterparts.
+
+    If you use Google Search, provide links at the end of EACH language section.
     Maintain professional scholarship even in brevity.
     Use LaTeX notation for complex theological or linguistic terms if needed, e.g., $\text{Elohim}$.`,
   };
