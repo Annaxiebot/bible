@@ -146,10 +146,10 @@ function parseExtended(raw: string): ExtendedCanvasData | null {
 // ── Component ──────────────────────────────────────────────────────────────
 
 const AI_ACTIONS = [
-  { id: 'reflect', label: '💭 Reflect', prompt: 'Write a gentle spiritual reflection on the following journal entry. Be warm, personal, and reference relevant scripture:\n\n' },
-  { id: 'extend', label: '✨ Extend', prompt: 'Continue and extend the thinking in this journal entry with deeper insights:\n\n' },
-  { id: 'summarize', label: '📋 Summarize', prompt: 'Summarize the key themes and insights from this journal entry in 2-3 sentences:\n\n' },
-  { id: 'scripture', label: '📖 Scripture', prompt: 'Suggest 3-5 relevant Bible verses related to this journal entry, with brief explanations of how they connect:\n\n' },
+  { id: 'reflect', label: '💭 Reflect', prompt: 'Write a brief spiritual reflection (3-4 sentences, max 80 words) on the following entry. Be direct and personal. Cite at most one relevant verse. No preamble, no flowery prose, no "dear friend" openers:\n\n' },
+  { id: 'extend', label: '✨ Extend', prompt: 'Extend this entry with one concrete insight (2-3 sentences, max 60 words). Get to the point. No preamble:\n\n' },
+  { id: 'summarize', label: '📋 Summarize', prompt: 'Summarize the key themes in 1-2 sentences (max 40 words). No preamble:\n\n' },
+  { id: 'scripture', label: '📖 Scripture', prompt: 'Suggest 3 relevant Bible verses. For each: one line with the reference and a one-sentence connection. Format: "Book chapter:verse — connection." No preamble:\n\n' },
 ];
 
 const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
