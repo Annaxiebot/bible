@@ -116,7 +116,7 @@ const VoiceSession: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOp
 
           if (msg.serverContent?.interrupted) {
             for (const source of sourcesRef.current) {
-              try { source.stop(); } catch(e) {}
+              try { source.stop(); } catch(e) { console.warn('[VoiceSession] source stop failed', e); }
             }
             sourcesRef.current.clear();
             nextStartTimeRef.current = 0;
@@ -138,7 +138,7 @@ const VoiceSession: React.FC<{ isOpen: boolean; onClose: () => void }> = ({ isOp
   useEffect(() => {
     if (!isOpen && sessionPromiseRef.current) {
       sessionPromiseRef.current.then(session => {
-        try { session.close(); } catch(e) {}
+        try { session.close(); } catch(e) { console.warn('[VoiceSession] session close failed', e); }
       });
       setIsActive(false);
       setIsMuted(false);
