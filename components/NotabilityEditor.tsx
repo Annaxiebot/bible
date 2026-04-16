@@ -2237,7 +2237,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                       contentEditableRefs.current.delete(tb.id);
                     }
                   }}
-                  contentEditable={!tb.isAIReflection}
+                  contentEditable={true}
                   suppressContentEditableWarning
                   data-placeholder="Type here..."
                   onFocus={() => {
@@ -2301,7 +2301,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                 )}
 
                 {/* ── Floating Text Formatting Toolbar (Notability-style) ── */}
-                {isEditing && !tb.isAIReflection && (
+                {isEditing && (
                   <div
                     onMouseDown={e => { e.stopPropagation(); isToolbarActionRef.current = true; }}
                     onTouchStart={e => { e.stopPropagation(); isToolbarActionRef.current = true; }}
@@ -2543,7 +2543,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                 )}
 
                 {/* Resize handles (visible when selected but NOT editing — editing auto-fits) */}
-                {isSelected && !isEditing && !tb.isAIReflection && (
+                {isSelected && !isEditing && (
                   <>
                     {/* 4 corner handles */}
                     {(['nw', 'ne', 'sw', 'se'] as const).map(corner => (

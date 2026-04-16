@@ -113,6 +113,8 @@ const JournalView: React.FC<JournalViewProps> = ({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [editingTitleId, setEditingTitleId] = useState<string | null>(null);
+  const [editingTitleValue, setEditingTitleValue] = useState('');
   const [showMap, setShowMap] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
@@ -924,18 +926,57 @@ const JournalView: React.FC<JournalViewProps> = ({
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontSize: 14,
-                      fontWeight: 600,
-                      color: '#1f2937',
-                      whiteSpace: 'nowrap',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                    }}
-                  >
-                    {entry.title || 'Untitled'}
-                  </div>
+                  {editingTitleId === entry.id ? (
+                    <input
+                      autoFocus
+                      type="text"
+                      value={editingTitleValue}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => setEditingTitleValue(e.target.value)}
+                      onBlur={async () => {
+                        const newTitle = editingTitleValue.trim() || 'Untitled';
+                        if (newTitle !== (entry.title || 'Untitled')) {
+                          const updated = await journalStorage.updateEntry(entry.id, { title: newTitle });
+                          if (updated) setEntries(prev => prev.map(ent => ent.id === updated.id ? updated : ent));
+                        }
+                        setEditingTitleId(null);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                        if (e.key === 'Escape') setEditingTitleId(null);
+                      }}
+                      style={{
+                        fontSize: 14,
+                        fontWeight: 600,
+                        color: '#1f2937',
+                        width: '100%',
+                        border: '1px solid #6366f1',
+                        borderRadius: 4,
+                        padding: '2px 6px',
+                        outline: 'none',
+                        background: '#fff',
+                      }}
+                    />
+                  ) : (
+                    <div
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        setEditingTitleValue(entry.title || '');
+                        setEditingTitleId(entry.id);
+                      }}
+                      title="Double-click to edit title"
+                      style={{
+                        fontSize: 14,
+                        fontWeight: 600,
+                        color: '#1f2937',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {entry.title || 'Untitled'}
+                    </div>
+                  )}
                   <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>
                     {formatDate(entry.createdAt, true)}
                     {entry.updatedAt !== entry.createdAt && (
@@ -979,6 +1020,30 @@ const JournalView: React.FC<JournalViewProps> = ({
                     </div>
                   )}
                 </div>
+                {/* Edit title button */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditingTitleValue(entry.title || '');
+                    setEditingTitleId(entry.id);
+                  }}
+                  title="Edit title"
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#d1d5db',
+                    cursor: 'pointer',
+                    padding: 4,
+                    marginLeft: 4,
+                    flexShrink: 0,
+                    borderRadius: 4,
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" strokeLinecap="round" strokeLinejoin="round" />
+                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </button>
                 {/* Delete button */}
                 <button
                   onClick={(e) => {
