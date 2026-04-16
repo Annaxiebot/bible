@@ -314,9 +314,27 @@ describe('openrouter', () => {
       ]);
 
       const body = JSON.parse(mockFetch.mock.calls[0][1].body);
-      expect(body.messages).toHaveLength(3); // 2 history + 1 new
-      expect(body.messages[0].role).toBe('user');
-      expect(body.messages[1].role).toBe('assistant');
+      expect(body.messages).toHaveLength(4); // 1 system + 2 history + 1 new
+      expect(body.messages[0].role).toBe('system');
+      expect(body.messages[1].role).toBe('user');
+      expect(body.messages[2].role).toBe('assistant');
+      expect(body.messages[3].role).toBe('user');
+    });
+
+    it('includes bilingual system prompt enforcing [SPLIT] separator', async () => {
+      localStorage.setItem(STORAGE_KEYS.OPENROUTER_API_KEY, 'sk-test');
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ choices: [{ message: { content: 'response' } }] }),
+      });
+
+      await chatWithAI('Hello', []);
+
+      const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(body.messages[0].role).toBe('system');
+      expect(body.messages[0].content).toContain('[SPLIT]');
+      expect(body.messages[0].content).toContain('BILINGUAL KEYWORDS');
     });
 
     it('throws on API error response', async () => {
