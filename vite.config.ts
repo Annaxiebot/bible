@@ -62,6 +62,9 @@ export default defineConfig(({ mode }) => {
           "@": path.resolve(__dirname, "."),
         }
       },
+      worker: {
+        format: 'es'
+      },
       build: {
         rollupOptions: {
           output: {

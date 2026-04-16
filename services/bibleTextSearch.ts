@@ -6,7 +6,7 @@
 
 import { bibleStorage, BibleTranslation } from './bibleStorage';
 import { verseDataStorage } from './verseDataStorage';
-import { toSimplified } from './chineseConverter';
+import { toSimplifiedAsync } from './chineseConverter';
 import { BIBLE_BOOKS } from '../constants';
 import { stripHTML } from '../utils/textUtils';
 
@@ -66,7 +66,8 @@ export async function searchCachedChapters(
     if (cuvData?.verses) {
       for (const verse of cuvData.verses) {
         if (results.length >= MAX_SEARCH_RESULTS) break;
-        if (toSimplified(verse.text.toLowerCase()).includes(querySimplified)) {
+        const verseSimplified = await toSimplifiedAsync(verse.text.toLowerCase());
+        if (verseSimplified.includes(querySimplified)) {
           results.push({
             bookId,
             bookName: book.name,
@@ -121,7 +122,7 @@ export async function searchNotesAndResearch(
     // Personal note text
     if (vd.personalNote) {
       const plainNote = stripHTML(vd.personalNote.text);
-      if (toSimplified(plainNote.toLowerCase()).includes(querySimplified)) {
+      if ((await toSimplifiedAsync(plainNote.toLowerCase())).includes(querySimplified)) {
         if (!isDuplicate(existingResults, vd.bookId, vd.chapter, vd.verses[0])) {
           const snippet =
             plainNote.length > SNIPPET_MAX_LENGTH
@@ -142,9 +143,9 @@ export async function searchNotesAndResearch(
     // AI research queries and responses
     for (const research of vd.aiResearch) {
       if (existingResults.length + results.length >= MAX_SEARCH_RESULTS) break;
-      const matchInQuery = toSimplified(research.query.toLowerCase()).includes(querySimplified);
+      const matchInQuery = (await toSimplifiedAsync(research.query.toLowerCase())).includes(querySimplified);
       const plainResponse = stripHTML(research.response);
-      const matchInResponse = toSimplified(plainResponse.toLowerCase()).includes(querySimplified);
+      const matchInResponse = (await toSimplifiedAsync(plainResponse.toLowerCase())).includes(querySimplified);
       if (matchInQuery || matchInResponse) {
         if (!isDuplicate(existingResults, vd.bookId, vd.chapter, vd.verses[0], '研究 Research')) {
           const snippet = matchInQuery
@@ -169,7 +170,7 @@ export async function searchNotesAndResearch(
 /**
  * Search current chapter verses (for chapters not yet cached).
  */
-export function searchCurrentChapter(
+export async function searchCurrentChapter(
   querySimplified: string,
   queryLower: string,
   leftVerses: Array<{ verse: number; text: string }>,
@@ -178,12 +179,12 @@ export function searchCurrentChapter(
   bookName: string,
   chapter: number,
   existingResults: SearchResult[],
-): SearchResult[] {
+): Promise<SearchResult[]> {
   const results: SearchResult[] = [];
 
   for (const verse of leftVerses) {
     if (existingResults.length + results.length >= MAX_SEARCH_RESULTS) break;
-    if (toSimplified(verse.text.toLowerCase()).includes(querySimplified)) {
+    if ((await toSimplifiedAsync(verse.text.toLowerCase())).includes(querySimplified)) {
       results.push({
         bookId,
         bookName,

@@ -24,15 +24,15 @@ vi.mock('../SimpleDrawingCanvas', () => {
 });
 
 describe('Rich Text Formatting Toolbar', () => {
-  let onChange: ReturnType<typeof vi.fn>;
+  let onChange: ReturnType<typeof vi.fn<(blocks: JournalBlock[]) => void>>;
   let blocks: JournalBlock[];
-  let execCommandMock: ReturnType<typeof vi.fn>;
+  let execCommandMock: ReturnType<typeof vi.fn<(commandId: string, showUI?: boolean, value?: string) => boolean>>;
 
   beforeEach(() => {
-    onChange = vi.fn();
+    onChange = vi.fn<(blocks: JournalBlock[]) => void>();
     blocks = [createTextBlock('Hello world', 'Hello world')];
     // jsdom doesn't implement execCommand — provide a mock
-    execCommandMock = vi.fn().mockReturnValue(true);
+    execCommandMock = vi.fn<(commandId: string, showUI?: boolean, value?: string) => boolean>().mockReturnValue(true);
     document.execCommand = execCommandMock;
   });
 
@@ -422,7 +422,7 @@ describe('Rich Text Formatting Toolbar', () => {
       fireEvent.input(editor);
       expect(onChange).toHaveBeenCalled();
       const updated = onChange.mock.calls[0][0];
-      expect(updated[0].content).toContain('<b>Bold text</b>');
+      expect((updated[0] as { content: string }).content).toContain('<b>Bold text</b>');
     });
 
     it('updates plainText alongside HTML content', () => {
@@ -433,7 +433,7 @@ describe('Rich Text Formatting Toolbar', () => {
       fireEvent.input(editor);
       const updated = onChange.mock.calls[0][0];
       // content should be set (innerHTML)
-      expect(updated[0].content).toBe('Some plain text');
+      expect((updated[0] as { content: string }).content).toBe('Some plain text');
     });
 
     it('preserves existing HTML when loading block', () => {

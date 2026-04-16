@@ -40,6 +40,97 @@ function groupByDate(threads: ChatHistoryRecord[]): Array<{ label: string; threa
   return Array.from(groups.entries()).map(([label, threads]) => ({ label, threads }));
 }
 
+interface ThreadItemProps {
+  thread: ChatHistoryRecord;
+  isActive: boolean;
+  confirmDelete: boolean;
+  onSelect: (threadId: string) => void;
+  onRequestDelete: (threadId: string) => void;
+  onConfirmDelete: (threadId: string) => void;
+  onCancelDelete: () => void;
+}
+
+const ThreadItem = React.memo<ThreadItemProps>(({
+  thread,
+  isActive,
+  confirmDelete,
+  onSelect,
+  onRequestDelete,
+  onConfirmDelete,
+  onCancelDelete,
+}) => {
+  const handleSelect = () => onSelect(thread.id);
+  const handleRequestDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onRequestDelete(thread.id);
+  };
+  const handleConfirmDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onConfirmDelete(thread.id);
+  };
+  const handleCancelDelete = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onCancelDelete();
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={handleSelect}
+      className={`group/thread relative w-full text-left mx-2 mb-0.5 px-3 py-2 rounded-lg text-sm ${
+        isActive
+          ? 'bg-indigo-50 text-indigo-700'
+          : 'active:bg-slate-100 text-slate-700'
+      }`}
+    >
+      <div className="truncate font-medium text-xs">
+        {thread.title || 'New Chat'}
+      </div>
+      <div className="flex items-center gap-1.5 mt-0.5">
+        {thread.bookId && (
+          <span className="text-[10px] text-slate-400">
+            {thread.bookId} {thread.chapter}
+          </span>
+        )}
+        <span className="text-[10px] text-slate-300">
+          {thread.messages.length} msg{thread.messages.length !== 1 ? 's' : ''}
+        </span>
+      </div>
+
+      {/* Delete button */}
+      {confirmDelete ? (
+        <div className="absolute right-1 top-1/2 -translate-y-1/2 flex gap-1">
+          <button
+            type="button"
+            onClick={handleConfirmDelete}
+            className="px-2 py-0.5 text-[10px] bg-red-500 text-white rounded hover:bg-red-600"
+          >
+            Delete
+          </button>
+          <button
+            type="button"
+            onClick={handleCancelDelete}
+            className="px-2 py-0.5 text-[10px] bg-slate-200 text-slate-600 rounded hover:bg-slate-300"
+          >
+            Cancel
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={handleRequestDelete}
+          className="absolute right-2 top-1/2 -translate-y-1/2 hidden sm:block sm:opacity-0 sm:group-hover/thread:opacity-100 transition-opacity p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-500"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        </button>
+      )}
+    </button>
+  );
+});
+ThreadItem.displayName = 'ThreadItem';
+
 const ChatThreadList: React.FC<ChatThreadListProps> = ({
   activeThreadId,
   onSelectThread,
@@ -69,11 +160,19 @@ const ChatThreadList: React.FC<ChatThreadListProps> = ({
     onNewThread(thread);
   };
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = useCallback(async (id: string) => {
     await deleteThread(id);
     setConfirmDelete(null);
     await load();
-  };
+  }, [load]);
+
+  const handleRequestDelete = useCallback((id: string) => {
+    setConfirmDelete(id);
+  }, []);
+
+  const handleCancelDelete = useCallback(() => {
+    setConfirmDelete(null);
+  }, []);
 
   const filtered = search.trim()
     ? threads.filter(t => t.title.toLowerCase().includes(search.toLowerCase()))
@@ -120,60 +219,16 @@ const ChatThreadList: React.FC<ChatThreadListProps> = ({
               {group.label}
             </div>
             {group.threads.map((t) => (
-              <button
-                type="button"
+              <ThreadItem
                 key={t.id}
-                onClick={() => onSelectThread(t.id)}
-                className={`group/thread relative w-full text-left mx-2 mb-0.5 px-3 py-2 rounded-lg text-sm ${
-                  t.id === activeThreadId
-                    ? 'bg-indigo-50 text-indigo-700'
-                    : 'active:bg-slate-100 text-slate-700'
-                }`}
-              >
-                <div className="truncate font-medium text-xs">
-                  {t.title || 'New Chat'}
-                </div>
-                <div className="flex items-center gap-1.5 mt-0.5">
-                  {t.bookId && (
-                    <span className="text-[10px] text-slate-400">
-                      {t.bookId} {t.chapter}
-                    </span>
-                  )}
-                  <span className="text-[10px] text-slate-300">
-                    {t.messages.length} msg{t.messages.length !== 1 ? 's' : ''}
-                  </span>
-                </div>
-
-                {/* Delete button */}
-                {confirmDelete === t.id ? (
-                  <div className="absolute right-1 top-1/2 -translate-y-1/2 flex gap-1">
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); handleDelete(t.id); }}
-                      className="px-2 py-0.5 text-[10px] bg-red-500 text-white rounded hover:bg-red-600"
-                    >
-                      Delete
-                    </button>
-                    <button
-                      type="button"
-                      onClick={(e) => { e.stopPropagation(); setConfirmDelete(null); }}
-                      className="px-2 py-0.5 text-[10px] bg-slate-200 text-slate-600 rounded hover:bg-slate-300"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={(e) => { e.stopPropagation(); setConfirmDelete(t.id); }}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 hidden sm:block sm:opacity-0 sm:group-hover/thread:opacity-100 transition-opacity p-1 rounded hover:bg-red-50 text-slate-400 hover:text-red-500"
-                  >
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                    </svg>
-                  </button>
-                )}
-              </button>
+                thread={t}
+                isActive={t.id === activeThreadId}
+                confirmDelete={confirmDelete === t.id}
+                onSelect={onSelectThread}
+                onRequestDelete={handleRequestDelete}
+                onConfirmDelete={handleDelete}
+                onCancelDelete={handleCancelDelete}
+              />
             ))}
           </div>
         ))}

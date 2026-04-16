@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import { List, RowComponentProps, useDynamicRowHeight } from 'react-window';
 import { verseDataStorage } from '../services/verseDataStorage';
 import { notesStorage } from '../services/notesStorage';
 import { annotationStorage } from '../services/annotationStorage';
@@ -7,6 +8,170 @@ import { BIBLE_BOOKS } from '../constants';
 import { VerseData, AIResearchEntry } from '../types/verseData';
 import { exportImportService } from '../services/exportImportService';
 import { stripHTML } from '../utils/textUtils';
+
+type NoteRowProps = {
+  notes: NoteItem[];
+  expandedNotes: Set<string>;
+  onSelectNote?: (bookId: string, chapter: number, verses?: number[]) => void;
+  toggleExpanded: (noteId: string) => void;
+  formatVerseReference: (note: NoteItem) => string;
+  formatDate: (timestamp: number) => string;
+  truncateText: (text: string, maxLength?: number) => string;
+  rowHeight: ReturnType<typeof useDynamicRowHeight>;
+};
+
+const NoteRow = React.memo(function NoteRow({
+  index,
+  style,
+  notes,
+  expandedNotes,
+  onSelectNote,
+  toggleExpanded,
+  formatVerseReference,
+  formatDate,
+  truncateText,
+  rowHeight,
+}: RowComponentProps<NoteRowProps>): React.ReactElement {
+  const note = notes[index];
+  const innerRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const el = innerRef.current;
+    if (!el) return;
+    return rowHeight.observeRowElements([el]);
+  }, [rowHeight]);
+
+  if (!note) return <div style={style} />;
+
+  const isExpanded = expandedNotes.has(note.id);
+  const hasContent = note.personalNote || note.aiResearchCount > 0 || note.hasAnnotation;
+
+  return (
+    <div style={style}>
+      <div
+        ref={innerRef}
+        className="p-4 hover:bg-slate-50 transition-colors cursor-pointer border-b"
+        onClick={() => {
+          if (onSelectNote) {
+            onSelectNote(note.bookId, note.chapter, note.verses);
+          }
+        }}
+      >
+        {/* Note Header */}
+        <div className="flex items-start justify-between mb-2">
+          <div className="flex-1">
+            <div className="font-medium text-sm text-indigo-600">
+              {formatVerseReference(note)}
+            </div>
+            <div className="flex items-center gap-3 mt-1">
+              {note.personalNote && (
+                <span className="flex items-center gap-1 text-xs text-slate-500">
+                  <span>📝</span>
+                  <span>笔记 Note</span>
+                </span>
+              )}
+              {note.hasAnnotation && (
+                <span className="flex items-center gap-1 text-xs text-slate-500">
+                  <span>✏️</span>
+                  <span>标注 Annotation</span>
+                </span>
+              )}
+              {note.aiResearchCount > 0 && (
+                <span className="flex items-center gap-1 text-xs text-slate-500">
+                  <span>🔍</span>
+                  <span>{note.aiResearchCount} 研究 research</span>
+                </span>
+              )}
+              <span className="text-xs text-slate-400">
+                {formatDate(note.createdAt)}
+              </span>
+            </div>
+          </div>
+          {hasContent && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleExpanded(note.id);
+              }}
+              className="p-1 hover:bg-slate-100 rounded transition-colors"
+            >
+              <svg
+                className={`w-4 h-4 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </button>
+          )}
+        </div>
+
+        {/* Personal Note Content */}
+        {note.personalNote && (
+          <div className="text-sm text-slate-600 mt-2">
+            {isExpanded ? (
+              <div
+                dangerouslySetInnerHTML={{ __html: note.personalNote }}
+                className="prose prose-sm max-w-none"
+              />
+            ) : (
+              <div
+                dangerouslySetInnerHTML={{
+                  __html: truncateText(stripHTML(note.personalNote))
+                }}
+              />
+            )}
+          </div>
+        )}
+
+        {/* AI Research Preview */}
+        {note.aiResearch.length > 0 && (
+          <div className="mt-2 space-y-2">
+            {(isExpanded ? note.aiResearch : note.aiResearch.slice(0, 1)).map((research) => (
+              <div key={research.id} className="p-2.5 bg-indigo-50 rounded-lg border border-indigo-100">
+                <div className="flex items-start gap-1.5">
+                  <span className="text-xs mt-0.5">🔍</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium text-indigo-700">
+                      {truncateText(research.query, 80)}
+                    </div>
+                    <div className="text-xs text-slate-600 mt-1">
+                      {isExpanded
+                        ? research.response
+                        : truncateText(stripHTML(research.response), 120)}
+                    </div>
+                    {research.tags && research.tags.length > 0 && isExpanded && (
+                      <div className="flex gap-1 mt-1.5 flex-wrap">
+                        {research.tags.map((tag, i) => (
+                          <span key={i} className="px-1.5 py-0.5 text-[10px] bg-indigo-100 text-indigo-600 rounded">
+                            {tag}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+            {!isExpanded && note.aiResearch.length > 1 && (
+              <div className="text-xs text-indigo-500 pl-5">
+                +{note.aiResearch.length - 1} more research
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Verse Text Preview (if available) */}
+        {note.verseText && isExpanded && (
+          <div className="mt-3 p-2 bg-amber-50 rounded text-xs text-slate-600 italic">
+            {note.verseText}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
 
 interface NotesListProps {
   onSelectNote?: (bookId: string, chapter: number, verses?: number[]) => void;
@@ -41,6 +206,7 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
   const [exportMode, setExportMode] = useState(false);
   const [exportStatus, setExportStatus] = useState('');
   const importInputRef = React.useRef<HTMLInputElement>(null);
+  const rowHeight = useDynamicRowHeight({ defaultRowHeight: 120 });
 
   useEffect(() => {
     loadNotes();
@@ -197,7 +363,7 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
     return sorted;
   }, [notes, searchTerm, sortMode]);
 
-  const toggleExpanded = (noteId: string) => {
+  const toggleExpanded = useCallback((noteId: string) => {
     setExpandedNotes(prev => {
       const newSet = new Set(prev);
       if (newSet.has(noteId)) {
@@ -207,9 +373,15 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
       }
       return newSet;
     });
-  };
+  }, []);
 
-  const formatVerseReference = (note: NoteItem) => {
+  const handleSelectNote = useCallback((bookId: string, chapter: number, verses: number[]) => {
+    if (onSelectNote) {
+      onSelectNote(bookId, chapter, verses);
+    }
+  }, [onSelectNote]);
+
+  const formatVerseReference = useCallback((note: NoteItem) => {
     let ref = `${note.bookName} ${note.chapter}`;
     if (note.verses.length > 0) {
       if (note.verses.length === 1) {
@@ -219,9 +391,9 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
       }
     }
     return ref;
-  };
+  }, []);
 
-  const formatDate = (timestamp: number) => {
+  const formatDate = useCallback((timestamp: number) => {
     if (!timestamp) return '';
     const date = new Date(timestamp);
     const now = new Date();
@@ -235,12 +407,12 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
     if (diffDays < 7) return `${diffDays}天前 ${diffDays} days ago`;
     if (diffDays < 30) return `${Math.floor(diffDays / 7)}周前 ${Math.floor(diffDays / 7)} weeks ago`;
     return date.toLocaleDateString();
-  };
+  }, []);
 
-  const truncateText = (text: string, maxLength: number = 150) => {
+  const truncateText = useCallback((text: string, maxLength: number = 150) => {
     if (text.length <= maxLength) return text;
     return text.substring(0, maxLength) + '...';
-  };
+  }, []);
 
   // Group notes by book+chapter for export selection
   const chapterGroups = useMemo(() => {
@@ -252,9 +424,13 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
       }
       groups[key].noteCount++;
     }
+    const bookIndexMap = new Map<string, number>();
+    for (let i = 0; i < BIBLE_BOOKS.length; i++) {
+      bookIndexMap.set(BIBLE_BOOKS[i].id, i);
+    }
     return Object.values(groups).sort((a, b) => {
-      const ai = BIBLE_BOOKS.findIndex(bk => bk.id === a.bookId);
-      const bi = BIBLE_BOOKS.findIndex(bk => bk.id === b.bookId);
+      const ai = bookIndexMap.get(a.bookId) ?? -1;
+      const bi = bookIndexMap.get(b.bookId) ?? -1;
       if (ai !== bi) return ai - bi;
       return a.chapter - b.chapter;
     });
@@ -479,7 +655,7 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
       )}
 
       {/* Notes List */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 min-h-0">
         {loading ? (
           <div className="flex items-center justify-center h-32">
             <div className="text-sm text-slate-500">加载中... Loading...</div>
@@ -494,136 +670,22 @@ const NotesList: React.FC<NotesListProps> = ({ onSelectNote, onClose }) => {
             </p>
           </div>
         ) : (
-          <div className="divide-y">
-            {filteredAndSortedNotes.map((note) => {
-              const isExpanded = expandedNotes.has(note.id);
-              const hasContent = note.personalNote || note.aiResearchCount > 0 || note.hasAnnotation;
-              
-              return (
-                <div
-                  key={note.id}
-                  className="p-4 hover:bg-slate-50 transition-colors cursor-pointer"
-                  onClick={() => {
-                    if (onSelectNote) {
-                      onSelectNote(note.bookId, note.chapter, note.verses);
-                    }
-                  }}
-                >
-                  {/* Note Header */}
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1">
-                      <div className="font-medium text-sm text-indigo-600">
-                        {formatVerseReference(note)}
-                      </div>
-                      <div className="flex items-center gap-3 mt-1">
-                        {note.personalNote && (
-                          <span className="flex items-center gap-1 text-xs text-slate-500">
-                            <span>📝</span>
-                            <span>笔记 Note</span>
-                          </span>
-                        )}
-                        {note.hasAnnotation && (
-                          <span className="flex items-center gap-1 text-xs text-slate-500">
-                            <span>✏️</span>
-                            <span>标注 Annotation</span>
-                          </span>
-                        )}
-                        {note.aiResearchCount > 0 && (
-                          <span className="flex items-center gap-1 text-xs text-slate-500">
-                            <span>🔍</span>
-                            <span>{note.aiResearchCount} 研究 research</span>
-                          </span>
-                        )}
-                        <span className="text-xs text-slate-400">
-                          {formatDate(note.createdAt)}
-                        </span>
-                      </div>
-                    </div>
-                    {hasContent && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleExpanded(note.id);
-                        }}
-                        className="p-1 hover:bg-slate-100 rounded transition-colors"
-                      >
-                        <svg 
-                          className={`w-4 h-4 text-slate-400 transition-transform ${isExpanded ? 'rotate-180' : ''}`} 
-                          fill="none" 
-                          viewBox="0 0 24 24" 
-                          stroke="currentColor"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-
-                  {/* Personal Note Content */}
-                  {note.personalNote && (
-                    <div className="text-sm text-slate-600 mt-2">
-                      {isExpanded ? (
-                        <div
-                          dangerouslySetInnerHTML={{ __html: note.personalNote }}
-                          className="prose prose-sm max-w-none"
-                        />
-                      ) : (
-                        <div
-                          dangerouslySetInnerHTML={{
-                            __html: truncateText(stripHTML(note.personalNote))
-                          }}
-                        />
-                      )}
-                    </div>
-                  )}
-
-                  {/* AI Research Preview */}
-                  {note.aiResearch.length > 0 && (
-                    <div className="mt-2 space-y-2">
-                      {(isExpanded ? note.aiResearch : note.aiResearch.slice(0, 1)).map((research) => (
-                        <div key={research.id} className="p-2.5 bg-indigo-50 rounded-lg border border-indigo-100">
-                          <div className="flex items-start gap-1.5">
-                            <span className="text-xs mt-0.5">🔍</span>
-                            <div className="flex-1 min-w-0">
-                              <div className="text-xs font-medium text-indigo-700">
-                                {truncateText(research.query, 80)}
-                              </div>
-                              <div className="text-xs text-slate-600 mt-1">
-                                {isExpanded
-                                  ? research.response
-                                  : truncateText(stripHTML(research.response), 120)}
-                              </div>
-                              {research.tags && research.tags.length > 0 && isExpanded && (
-                                <div className="flex gap-1 mt-1.5 flex-wrap">
-                                  {research.tags.map((tag, i) => (
-                                    <span key={i} className="px-1.5 py-0.5 text-[10px] bg-indigo-100 text-indigo-600 rounded">
-                                      {tag}
-                                    </span>
-                                  ))}
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                      {!isExpanded && note.aiResearch.length > 1 && (
-                        <div className="text-xs text-indigo-500 pl-5">
-                          +{note.aiResearch.length - 1} more research
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Verse Text Preview (if available) */}
-                  {note.verseText && isExpanded && (
-                    <div className="mt-3 p-2 bg-amber-50 rounded text-xs text-slate-600 italic">
-                      {note.verseText}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+          <List
+            rowCount={filteredAndSortedNotes.length}
+            rowHeight={rowHeight}
+            rowComponent={NoteRow as any}
+            rowProps={{
+              notes: filteredAndSortedNotes,
+              expandedNotes,
+              onSelectNote,
+              toggleExpanded,
+              formatVerseReference,
+              formatDate,
+              truncateText,
+              rowHeight,
+            }}
+            style={{ height: '100%', width: '100%' }}
+          />
         )}
       </div>
     </div>
