@@ -1252,7 +1252,7 @@ function startPeriodicSync(): void {
   periodicSyncIntervalId = setInterval(() => {
     if (canSync() && syncManager.getStatus() === 'idle') {
       lastSyncAttempt = Date.now();
-      performIncrementalSync().catch(() => {});
+      performIncrementalSync().catch((err) => console.warn('[Sync]', err));
     }
   }, 300 * 1000); // 5 minutes
 }
@@ -1278,7 +1278,7 @@ if (typeof window !== 'undefined') {
       // Skip if less than 60 seconds since last sync attempt
       if (Date.now() - lastSyncAttempt < 60_000) return;
       lastSyncAttempt = Date.now();
-      performIncrementalSync().catch(() => {});
+      performIncrementalSync().catch((err) => console.warn('[Sync]', err));
     }
   });
 }
@@ -1370,7 +1370,7 @@ function setupRealtimeSync(): void {
                 window.dispatchEvent(new Event(`${module}-synced`));
               }
             })
-            .catch(() => {});
+            .catch((err) => console.warn('[Sync]', err));
         }
       }
     )
