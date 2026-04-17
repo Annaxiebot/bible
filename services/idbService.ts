@@ -213,6 +213,20 @@ export interface BibleAppSchema extends DBSchema {
       'by-created': string;
     };
   };
+  imageBlobs: {
+    key: string;
+    value: ImageBlobRecord;
+    indexes: {
+      'by-created': number;
+    };
+  };
+}
+
+export interface ImageBlobRecord {
+  id: string;
+  blob: Blob;
+  mimeType: string;
+  createdAt: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -220,7 +234,7 @@ export interface BibleAppSchema extends DBSchema {
 // ---------------------------------------------------------------------------
 
 const DB_NAME = 'BibleApp';
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 class IDBService {
   private dbPromise: Promise<IDBPDatabase<BibleAppSchema>>;
@@ -289,6 +303,12 @@ class IDBService {
           const memoryStore = db.createObjectStore('spiritualMemory', { keyPath: 'id' });
           memoryStore.createIndex('by-category', 'category');
           memoryStore.createIndex('by-created', 'createdAt');
+        }
+
+        // imageBlobs (added in v5) — binary image storage for blob URL rendering
+        if (!db.objectStoreNames.contains('imageBlobs')) {
+          const blobStore = db.createObjectStore('imageBlobs', { keyPath: 'id' });
+          blobStore.createIndex('by-created', 'createdAt');
         }
       },
     });
