@@ -1045,8 +1045,9 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     isDrawingRef.current = true;
     currentStrokePointsRef.current = [{ x, y }];
     applyToolSettings();
-    drawCtx.beginPath();
-    drawCtx.moveTo(x, y);
+    // NOTE: we do NOT beginPath/stroke a growing path here. Each pointermove strokes only
+    // the latest segment (moveTo prev → lineTo curr → stroke). Re-stroking one growing path
+    // is O(points) per event, so a long stroke becomes O(N²) total and lags the pencil.
   }, [getCanvasPoint, getNormalizedPoint, closeAllPopups, applyToolSettings, eraseStrokeAt, lassoSelection, pushUndo, redrawAll, triggerAutoSave]);
 
   const handlePointerMove = useCallback((clientX: number, clientY: number) => {
@@ -1118,12 +1119,19 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 
     if (tool === 'eraser') { eraseStrokeAt(x, y); return; }
 
-    // Draw live stroke on the correct layer canvas
+    // Draw live stroke on the correct layer canvas. Stroke only the NEW segment
+    // (prev → curr) each event so total cost is O(N) for an N-point stroke, not O(N²).
     const drawCtx = drawingLayerRef.current === 'above' ? overlayCtxRef.current : ctxRef.current;
     if (!drawCtx) return;
-    currentStrokePointsRef.current.push({ x, y });
-    drawCtx.lineTo(x, y);
-    drawCtx.stroke();
+    const pts = currentStrokePointsRef.current;
+    const prev = pts[pts.length - 1];
+    pts.push({ x, y });
+    if (prev) {
+      drawCtx.beginPath();
+      drawCtx.moveTo(prev.x, prev.y);
+      drawCtx.lineTo(x, y);
+      drawCtx.stroke();
+    }
     checkAutoExpand(y);
   }, [getCanvasPoint, checkAutoExpand, eraseStrokeAt, lassoSelection, moveLassoSelection, redrawAll]);
 
