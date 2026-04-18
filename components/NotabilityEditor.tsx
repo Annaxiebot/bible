@@ -39,6 +39,8 @@ export interface TextBox {
   isAIReflection?: boolean;
   /** ID of the source text box this AI reflection was generated from */
   sourceId?: string;
+  /** Which AI action produced this box (matches AI_ACTIONS id: 'reflect', 'extend', 'summarize', 'scripture') */
+  aiAction?: string;
   /** z-ordering for layer control: higher = closer to front. Default 0. */
   zOrder?: number;
 }
@@ -1842,6 +1844,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       fontSize: 14,
       isAIReflection: true,
       sourceId: srcBox?.id || undefined,
+      aiAction: actionId,
     };
     pushUndo();
     setTextBoxes(prev => [...prev, aiBox]);
@@ -2354,16 +2357,22 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                   }}
                 />
 
-                {/* AI badge */}
-                {tb.isAIReflection && !isEditing && (
-                  <div style={{
-                    position: 'absolute', top: -10, left: 8,
-                    background: '#7c3aed', color: 'white',
-                    fontSize: 9, fontWeight: 600,
-                    padding: '1px 6px', borderRadius: 4,
-                    letterSpacing: 0.5, zIndex: 10,
-                  }}>AI</div>
-                )}
+                {/* AI badge — shows which AI action produced this box */}
+                {tb.isAIReflection && !isEditing && (() => {
+                  const action = tb.aiAction ? AI_ACTIONS.find(a => a.id === tb.aiAction) : null;
+                  // Strip the leading emoji + space from the action label (e.g. "📖 Scripture" → "Scripture")
+                  const actionName = action?.label.replace(/^\p{Extended_Pictographic}\s*/u, '') || '';
+                  return (
+                    <div style={{
+                      position: 'absolute', top: -10, left: 8,
+                      background: '#7c3aed', color: 'white',
+                      fontSize: 9, fontWeight: 600,
+                      padding: '1px 6px', borderRadius: 4,
+                      letterSpacing: 0.5, zIndex: 10,
+                      whiteSpace: 'nowrap',
+                    }}>{actionName ? `AI · ${actionName}` : 'AI'}</div>
+                  );
+                })()}
 
                 {/* ── Floating Text Formatting Toolbar (Notability-style) ── */}
                 {isEditing && (
