@@ -272,8 +272,14 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const isDrawingRef = useRef(false);
   const strokeDataRef = useRef<ExtendedCanvasData>({ ...createEmptyCanvasData(initialPaperType), textBoxes: [], images: [] });
   const currentStrokePointsRef = useRef<{ x: number; y: number }[]>([]);
-  // rAF handle for coalescing high-frequency selection-preview redraws (Apple Pencil ~240Hz)
+  // Selection-preview perf: during lasso/rect drag we snapshot the main canvas once at
+  // pointerDown and each frame blit the snapshot + draw the selection shape on top. This
+  // makes the preview O(1) per frame instead of O(strokes), which matters a lot once the
+  // page has many strokes.
   const selectionRafRef = useRef<number | null>(null);
+  const selectionSnapshotRef = useRef<HTMLCanvasElement | null>(null);
+  const lassoPointsRef = useRef<{ x: number; y: number }[]>([]);
+  const rectEndRef = useRef<{ x: number; y: number } | null>(null);
   const undoHistoryRef = useRef<string[]>([]);
   const redoHistoryRef = useRef<string[]>([]);
   const displayWidthRef = useRef(0);
@@ -779,14 +785,17 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   // ── Lasso selection ────────────────────────────────────────────────────
 
   const finishLasso = useCallback(() => {
-    if (lassoPoints.length < 3) { setLassoPoints([]); return; }
+    // Read from the drag ref — points are accumulated there to avoid state churn during the drag.
+    const pts = lassoPointsRef.current;
+    const resetPts = () => { lassoPointsRef.current = []; setLassoPoints([]); };
+    if (pts.length < 3) { resetPts(); redrawAll(); return; }
     const w = displayWidthRef.current;
     const h = displayHeightRef.current;
-    if (w <= 0 || h <= 0) { setLassoPoints([]); return; }
+    if (w <= 0 || h <= 0) { resetPts(); return; }
 
     // Convert lasso points to normalized
     // Use width for both dimensions
-    const normalizedLasso = lassoPoints.map(p => ({ x: p.x / w, y: p.y / w }));
+    const normalizedLasso = pts.map(p => ({ x: p.x / w, y: p.y / w }));
 
     // Point-in-polygon test
     const isInside = (px: number, py: number): boolean => {
@@ -826,21 +835,24 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
         bounds: { x: minX, y: minY, w: maxX - minX, h: maxY - minY },
       });
     }
+    lassoPointsRef.current = [];
     setLassoPoints([]);
     redrawAll();
-  }, [lassoPoints, redrawAll]);
+  }, [redrawAll]);
 
-  // Rectangle selection: finalize selection from rectStart/rectEnd
+  // Rectangle selection: finalize selection from rectStart/rectEndRef
   const finishRectSelection = useCallback(() => {
-    if (!rectStart || !rectEnd) { setRectStart(null); setRectEnd(null); return; }
+    const end = rectEndRef.current;
+    const reset = () => { rectEndRef.current = null; setRectStart(null); setRectEnd(null); };
+    if (!rectStart || !end) { reset(); redrawAll(); return; }
     const w = displayWidthRef.current;
-    if (w <= 0) { setRectStart(null); setRectEnd(null); return; }
+    if (w <= 0) { reset(); return; }
 
     // Normalize rect coords (use width for both dims, matching stroke normalization)
-    const nx1 = Math.min(rectStart.x, rectEnd.x) / w;
-    const ny1 = Math.min(rectStart.y, rectEnd.y) / w;
-    const nx2 = Math.max(rectStart.x, rectEnd.x) / w;
-    const ny2 = Math.max(rectStart.y, rectEnd.y) / w;
+    const nx1 = Math.min(rectStart.x, end.x) / w;
+    const ny1 = Math.min(rectStart.y, end.y) / w;
+    const nx2 = Math.max(rectStart.x, end.x) / w;
+    const ny2 = Math.max(rectStart.y, end.y) / w;
 
     // Find strokes with any point inside rectangle
     const selectedIndices: number[] = [];
@@ -866,10 +878,11 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
         bounds: { x: minX, y: minY, w: maxX - minX, h: maxY - minY },
       });
     }
+    rectEndRef.current = null;
     setRectStart(null);
     setRectEnd(null);
     redrawAll();
-  }, [rectStart, rectEnd, redrawAll]);
+  }, [rectStart, redrawAll]);
 
   const moveLassoSelection = useCallback((dx: number, dy: number) => {
     if (!lassoSelection) return;
@@ -948,11 +961,30 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     }
 
     if (tool === 'lasso') {
+      // Snapshot the current main-canvas pixels so selection-preview frames can restore
+      // state via drawImage (O(1)) instead of redrawing every stroke (O(strokes)).
+      const main = canvasRef.current;
+      if (main) {
+        let snap = selectionSnapshotRef.current;
+        if (!snap) {
+          snap = document.createElement('canvas');
+          selectionSnapshotRef.current = snap;
+        }
+        if (snap.width !== main.width || snap.height !== main.height) {
+          snap.width = main.width;
+          snap.height = main.height;
+        }
+        const sctx = snap.getContext('2d');
+        if (sctx) {
+          sctx.clearRect(0, 0, snap.width, snap.height);
+          sctx.drawImage(main, 0, 0);
+        }
+      }
       if (selectionMode === 'rectangle') {
         setRectStart({ x, y });
-        setRectEnd({ x, y });
+        rectEndRef.current = { x, y };
       } else {
-        setLassoPoints([{ x, y }]);
+        lassoPointsRef.current = [{ x, y }];
       }
       isDrawingRef.current = true;
       return;
@@ -1024,19 +1056,48 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     }
 
     if (tool === 'lasso') {
+      // Accumulate into refs — no React state churn during the drag.
       if (selectionMode === 'rectangle' && rectStart) {
-        setRectEnd({ x, y });
+        rectEndRef.current = { x, y };
       } else {
-        setLassoPoints(prev => [...prev, { x, y }]);
+        lassoPointsRef.current.push({ x, y });
       }
-      // Coalesce redraws to the display refresh rate. Apple Pencil fires pointermove up
-      // to ~240Hz; redrawAll is O(strokes) so running it per-event makes selection sluggish.
-      if (selectionRafRef.current === null) {
-        selectionRafRef.current = requestAnimationFrame(() => {
-          selectionRafRef.current = null;
-          redrawAll();
-        });
-      }
+      // Coalesce preview rendering to display refresh (Apple Pencil fires up to ~240Hz).
+      if (selectionRafRef.current !== null) return;
+      selectionRafRef.current = requestAnimationFrame(() => {
+        selectionRafRef.current = null;
+        const main = canvasRef.current;
+        const mainCtx = ctxRef.current;
+        const snap = selectionSnapshotRef.current;
+        if (!main || !mainCtx || !snap) return;
+        // Restore pre-drag pixels (O(1) GPU blit), then draw just the selection shape.
+        mainCtx.clearRect(0, 0, main.width, main.height);
+        mainCtx.drawImage(snap, 0, 0);
+        mainCtx.save();
+        mainCtx.strokeStyle = '#4f46e5';
+        mainCtx.lineWidth = 2;
+        mainCtx.setLineDash([6, 4]);
+        if (selectionMode === 'rectangle' && rectStart && rectEndRef.current) {
+          const end = rectEndRef.current;
+          const rx = Math.min(rectStart.x, end.x);
+          const ry = Math.min(rectStart.y, end.y);
+          const rw = Math.abs(end.x - rectStart.x);
+          const rh = Math.abs(end.y - rectStart.y);
+          mainCtx.fillStyle = 'rgba(79, 70, 229, 0.08)';
+          mainCtx.fillRect(rx, ry, rw, rh);
+          mainCtx.strokeRect(rx, ry, rw, rh);
+        } else {
+          const pts = lassoPointsRef.current;
+          if (pts.length > 1) {
+            mainCtx.beginPath();
+            mainCtx.moveTo(pts[0].x, pts[0].y);
+            for (let i = 1; i < pts.length; i++) mainCtx.lineTo(pts[i].x, pts[i].y);
+            mainCtx.closePath();
+            mainCtx.stroke();
+          }
+        }
+        mainCtx.restore();
+      });
       return;
     }
 
@@ -1172,6 +1233,12 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const handleTouchStart = useCallback((e: TouchEvent) => {
     if (e.touches.length > 1) return;
     const t = e.touches[0];
+    // Text mode is keyboard-only: Apple Pencil is inert. Blocks Scribble, accidental
+    // strokes, and accidental new text boxes from pencil taps while typing.
+    if (toolRef.current === 'text' && isStylusTouch(t)) {
+      e.preventDefault();
+      return;
+    }
     const nav = shouldNavigate(t);
     isFingerTouchRef.current = nav;
 
@@ -2325,6 +2392,12 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                     if (!isEditing) { e.preventDefault(); handleItemPointerDown(e, tb.id, 'text'); }
                   }}
                   onTouchStart={e => {
+                    const nt = e.nativeEvent.touches[0];
+                    // Text mode is keyboard-only — block pencil (incl. Scribble) on the text box.
+                    if (toolRef.current === 'text' && nt && isStylusTouch(nt)) {
+                      e.preventDefault();
+                      return;
+                    }
                     // Always preventDefault when not editing to block iOS Scribble (Apple Pencil
                     // handwriting-to-text) from activating on the contentEditable surface.
                     if (!isEditing) { e.preventDefault(); handleItemPointerDown(e, tb.id, 'text'); }
