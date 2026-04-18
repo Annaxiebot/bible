@@ -284,8 +284,12 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const selectionSnapshotRef = useRef<HTMLCanvasElement | null>(null);
   const lassoPointsRef = useRef<{ x: number; y: number }[]>([]);
   const rectEndRef = useRef<{ x: number; y: number } | null>(null);
-  const undoHistoryRef = useRef<string[]>([]);
-  const redoHistoryRef = useRef<string[]>([]);
+  // Undo history holds either a full JSON snapshot (for text/image/lasso edits) OR a
+  // light-weight action marker for pen strokes. Snapshotting on every stroke-commit
+  // is O(doc_size) and makes pen-up visibly lag once the page has many strokes.
+  type UndoEntry = string | { kind: 'stroke-add'; stroke: NormalizedStroke };
+  const undoHistoryRef = useRef<UndoEntry[]>([]);
+  const redoHistoryRef = useRef<UndoEntry[]>([]);
   const displayWidthRef = useRef(0);
   const displayHeightRef = useRef(0);
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -753,11 +757,16 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     const normalized = normalizeStroke(abs, w, w);
     // Tag stroke with current drawing layer
     normalized.layer = drawingLayerRef.current;
-    pushUndo();
     strokeDataRef.current.strokes.push(normalized);
+    // Record an O(1) action marker instead of a full document snapshot — JSON.stringify
+    // of the whole document on every pen-up was making the commit block for tens of ms
+    // once the page had many strokes.
+    undoHistoryRef.current.push({ kind: 'stroke-add', stroke: normalized });
+    if (undoHistoryRef.current.length > MAX_HISTORY) undoHistoryRef.current.shift();
+    redoHistoryRef.current = [];
     currentStrokePointsRef.current = [];
     triggerAutoSave();
-  }, [getToolOpacity, triggerAutoSave, pushUndo]);
+  }, [getToolOpacity, triggerAutoSave]);
 
   // ── Stroke eraser ──────────────────────────────────────────────────────
 
@@ -1415,18 +1424,33 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   // ── Undo / Redo ────────────────────────────────────────────────────────
 
   const handleUndo = useCallback(() => {
-    if (undoHistoryRef.current.length === 0) return;
-    redoHistoryRef.current.push(getSnapshot());
-    restoreSnapshot(undoHistoryRef.current.pop()!);
+    const entry = undoHistoryRef.current.pop();
+    if (!entry) return;
+    if (typeof entry === 'string') {
+      redoHistoryRef.current.push(getSnapshot());
+      restoreSnapshot(entry);
+    } else if (entry.kind === 'stroke-add') {
+      // Undo a stroke-add by popping the last stroke; record the reverse for redo.
+      const popped = strokeDataRef.current.strokes.pop();
+      if (popped) redoHistoryRef.current.push({ kind: 'stroke-add', stroke: popped });
+    }
     redrawAll();
     triggerAutoSave();
   }, [getSnapshot, restoreSnapshot, redrawAll, triggerAutoSave]);
 
   const handleRedo = useCallback(() => {
-    if (redoHistoryRef.current.length === 0) return;
-    undoHistoryRef.current.push(getSnapshot());
-    if (undoHistoryRef.current.length > MAX_HISTORY) undoHistoryRef.current.shift();
-    restoreSnapshot(redoHistoryRef.current.pop()!);
+    const entry = redoHistoryRef.current.pop();
+    if (!entry) return;
+    if (typeof entry === 'string') {
+      undoHistoryRef.current.push(getSnapshot());
+      if (undoHistoryRef.current.length > MAX_HISTORY) undoHistoryRef.current.shift();
+      restoreSnapshot(entry);
+    } else if (entry.kind === 'stroke-add') {
+      // Redo re-appends the stroke and records the matching undo entry.
+      strokeDataRef.current.strokes.push(entry.stroke);
+      undoHistoryRef.current.push({ kind: 'stroke-add', stroke: entry.stroke });
+      if (undoHistoryRef.current.length > MAX_HISTORY) undoHistoryRef.current.shift();
+    }
     redrawAll();
     triggerAutoSave();
   }, [getSnapshot, restoreSnapshot, redrawAll, triggerAutoSave]);
