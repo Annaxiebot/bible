@@ -562,7 +562,12 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     const bgCanvas = bgCanvasRef.current;
     const overlayCanvas = overlayCanvasRef.current;
     if (!canvas || !bgCanvas) return;
-    const dpr = window.devicePixelRatio || 1;
+    // Cap device-pixel-ratio at 1.5 on tall canvases — at 2x DPR a 4-page canvas is
+    // ~15M pixels, and every stroke() triggers an iOS composite of that entire layer.
+    // 1.5x keeps strokes visibly crisp (pencil doesn't expose sub-pixel hinting) while
+    // cutting bitmap size by ~44% and composite time accordingly.
+    const rawDpr = window.devicePixelRatio || 1;
+    const dpr = Math.min(rawDpr, 1.5);
     const rect = canvas.getBoundingClientRect();
     const width = rect.width;
     const height = canvasHeight;
