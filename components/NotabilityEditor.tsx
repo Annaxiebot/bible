@@ -16,8 +16,6 @@ import {
   createEmptyCanvasData,
   serializeCanvasData,
   normalizeStroke,
-  denormalizeStroke,
-  renderStroke,
   renderAllStrokes,
   renderStrokesByLayer,
   drawPaperBackground,
@@ -286,11 +284,6 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const selectionSnapshotRef = useRef<HTMLCanvasElement | null>(null);
   const lassoPointsRef = useRef<{ x: number; y: number }[]>([]);
   const rectEndRef = useRef<{ x: number; y: number } | null>(null);
-  // Drag-selection perf: at drag-start we render the canvas WITHOUT the selected strokes
-  // into selectionSnapshotRef. During the drag we blit the snapshot + redraw only the
-  // selected strokes at the accumulated offset. That makes the drag O(selected_strokes)
-  // per frame instead of the full O(all_strokes) from redrawAll.
-  const dragDeltaRef = useRef({ dx: 0, dy: 0 });
   const undoHistoryRef = useRef<string[]>([]);
   const redoHistoryRef = useRef<string[]>([]);
   const displayWidthRef = useRef(0);
@@ -899,92 +892,6 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     redrawAll();
   }, [rectStart, redrawAll]);
 
-  // Render the main canvas contents EXCLUDING the selected strokes into selectionSnapshotRef.
-  // Used at drag-start so each frame during the drag only needs to blit + redraw the selected
-  // strokes at the current offset, instead of re-rendering every stroke on the page.
-  const takeDragSnapshotExcludingSelected = useCallback(() => {
-    if (!lassoSelection) return;
-    const main = canvasRef.current;
-    if (!main) return;
-    let snap = selectionSnapshotRef.current;
-    if (!snap) {
-      snap = document.createElement('canvas');
-      selectionSnapshotRef.current = snap;
-    }
-    if (snap.width !== main.width || snap.height !== main.height) {
-      snap.width = main.width;
-      snap.height = main.height;
-    }
-    const sctx = snap.getContext('2d');
-    if (!sctx) return;
-    const dpr = window.devicePixelRatio || 1;
-    const w = displayWidthRef.current;
-    const h = displayHeightRef.current;
-    sctx.setTransform(1, 0, 0, 1, 0, 0);
-    sctx.scale(dpr, dpr);
-    sctx.lineCap = 'round';
-    sctx.lineJoin = 'round';
-    sctx.clearRect(0, 0, w, h);
-
-    const selected = new Set(lassoSelection.strokeIndices);
-    const remaining = strokeDataRef.current.strokes.filter((_, i) => !selected.has(i));
-    renderAllStrokes(sctx, { ...strokeDataRef.current, strokes: remaining }, w, w);
-
-    // Images live on the main canvas — include them in the snapshot.
-    imagesRef.current.forEach(img => {
-      const cached = imageCacheRef.current.get(img.id);
-      if (!cached || !cached.complete) return;
-      const ix = img.x * w;
-      const iy = img.y * w;
-      const iw = img.width * w;
-      const ih = img.height * w;
-      sctx.save();
-      if (img.rotation) {
-        sctx.translate(ix + iw / 2, iy + ih / 2);
-        sctx.rotate((img.rotation * Math.PI) / 180);
-        sctx.drawImage(cached, -iw / 2, -ih / 2, iw, ih);
-      } else {
-        sctx.drawImage(cached, ix, iy, iw, ih);
-      }
-      sctx.restore();
-    });
-  }, [lassoSelection]);
-
-  // Blit the drag snapshot, then redraw the selected strokes translated by the current delta.
-  // Also redraw the dashed bounds at the translated position so the visual follows the pencil.
-  const renderDragFrame = useCallback(() => {
-    if (!lassoSelection) return;
-    const main = canvasRef.current;
-    const mainCtx = ctxRef.current;
-    const snap = selectionSnapshotRef.current;
-    if (!main || !mainCtx || !snap) return;
-    const logicalW = displayWidthRef.current;
-    const logicalH = displayHeightRef.current;
-    const { dx, dy } = dragDeltaRef.current;
-
-    mainCtx.clearRect(0, 0, logicalW, logicalH);
-    mainCtx.drawImage(snap, 0, 0, logicalW, logicalH);
-
-    const w = logicalW;
-    mainCtx.save();
-    mainCtx.translate(dx, dy);
-    for (const idx of lassoSelection.strokeIndices) {
-      const s = strokeDataRef.current.strokes[idx];
-      if (!s) continue;
-      renderStroke(mainCtx, denormalizeStroke(s, w, w));
-    }
-    mainCtx.restore();
-
-    // Dashed bounds, translated by delta
-    const b = lassoSelection.bounds;
-    mainCtx.save();
-    mainCtx.strokeStyle = '#4f46e5';
-    mainCtx.lineWidth = 2;
-    mainCtx.setLineDash([4, 3]);
-    mainCtx.strokeRect(b.x * w + dx, b.y * w + dy, b.w * w, b.h * w);
-    mainCtx.restore();
-  }, [lassoSelection]);
-
   const moveLassoSelection = useCallback((dx: number, dy: number) => {
     if (!lassoSelection) return;
     const w = displayWidthRef.current;
@@ -1053,9 +960,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       const nx = x / w, ny = y / w; // use width for both
       if (nx >= b.x && nx <= b.x + b.w && ny >= b.y && ny <= b.y + b.h) {
         lassoDragStartRef.current = { x, y };
-        dragDeltaRef.current = { dx: 0, dy: 0 };
         pushUndo();
-        takeDragSnapshotExcludingSelected();
         return;
       } else {
         setLassoSelection(null);
@@ -1142,30 +1047,22 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     applyToolSettings();
     drawCtx.beginPath();
     drawCtx.moveTo(x, y);
-  }, [getCanvasPoint, getNormalizedPoint, closeAllPopups, applyToolSettings, eraseStrokeAt, lassoSelection, pushUndo, redrawAll, triggerAutoSave, takeDragSnapshotExcludingSelected]);
+  }, [getCanvasPoint, getNormalizedPoint, closeAllPopups, applyToolSettings, eraseStrokeAt, lassoSelection, pushUndo, redrawAll, triggerAutoSave]);
 
   const handlePointerMove = useCallback((clientX: number, clientY: number) => {
     if (!isDrawingRef.current && !lassoDragStartRef.current) return;
     const { x, y } = getCanvasPoint(clientX, clientY);
     const tool = toolRef.current;
 
-    // Lasso dragging selection — accumulate delta in a ref and render via a snapshot+offset
-    // each rAF. We deliberately do NOT mutate strokeData per-event or call redrawAll here;
-    // mutation happens once on pointerUp. This keeps the drag at O(selected_strokes) per
-    // frame instead of O(all_strokes) of the full redrawAll.
+    // Lasso dragging selection — mutate strokes per event and redraw. Not the fastest path
+    // for huge pages, but a rAF-throttled snapshot attempt regressed pen-drawing latency.
+    // Prioritize handwriting responsiveness; revisit drag perf separately.
     if (lassoDragStartRef.current && lassoSelection) {
       const start = lassoDragStartRef.current;
       const dx = x - start.x;
       const dy = y - start.y;
       lassoDragStartRef.current = { x, y };
-      dragDeltaRef.current.dx += dx;
-      dragDeltaRef.current.dy += dy;
-      if (selectionRafRef.current === null) {
-        selectionRafRef.current = requestAnimationFrame(() => {
-          selectionRafRef.current = null;
-          renderDragFrame();
-        });
-      }
+      moveLassoSelection(dx, dy);
       return;
     }
 
@@ -1228,22 +1125,11 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     drawCtx.lineTo(x, y);
     drawCtx.stroke();
     checkAutoExpand(y);
-  }, [getCanvasPoint, checkAutoExpand, eraseStrokeAt, lassoSelection, renderDragFrame, redrawAll]);
+  }, [getCanvasPoint, checkAutoExpand, eraseStrokeAt, lassoSelection, moveLassoSelection, redrawAll]);
 
   const handlePointerUp = useCallback(() => {
     const tool = toolRef.current;
     if (lassoDragStartRef.current) {
-      // Cancel any pending drag-preview frame so it doesn't clobber the final redraw.
-      if (selectionRafRef.current !== null) {
-        cancelAnimationFrame(selectionRafRef.current);
-        selectionRafRef.current = null;
-      }
-      // Commit the accumulated delta in one shot — mutates stroke points, updates bounds
-      // state, and triggers a final redrawAll via moveLassoSelection.
-      const { dx, dy } = dragDeltaRef.current;
-      if (dx !== 0 || dy !== 0) moveLassoSelection(dx, dy);
-      else redrawAll(); // nothing moved; just clean the transient preview
-      dragDeltaRef.current = { dx: 0, dy: 0 };
       lassoDragStartRef.current = null;
       return;
     }
@@ -1262,7 +1148,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     if (isDrawingRef.current) commitCurrentStroke();
     isDrawingRef.current = false;
     applyDeferredExpand();
-  }, [commitCurrentStroke, finishLasso, finishRectSelection, selectionMode, moveLassoSelection, redrawAll, applyDeferredExpand]);
+  }, [commitCurrentStroke, finishLasso, applyDeferredExpand]);
 
   // ── Single-page navigation helpers ─────────────────────────────────────
 
