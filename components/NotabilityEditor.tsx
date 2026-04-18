@@ -284,6 +284,12 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const selectionSnapshotRef = useRef<HTMLCanvasElement | null>(null);
   const lassoPointsRef = useRef<{ x: number; y: number }[]>([]);
   const rectEndRef = useRef<{ x: number; y: number } | null>(null);
+  // Live-stroke render batching: pointermove at 240Hz is faster than the display. Each
+  // stroke() call dispatches canvas ops to the GPU; at 240Hz on a multi-page canvas the
+  // GPU backs up. Batch all points arrived in a frame into one stroke() call in rAF —
+  // keeps visuals at screen refresh and drops GPU dispatches by ~4x.
+  const strokeRafRef = useRef<number | null>(null);
+  const strokeRenderedUptoRef = useRef(0); // index into currentStrokePointsRef that has already been drawn
   // Undo history holds either a full JSON snapshot (for text/image/lasso edits) OR a
   // light-weight action marker for pen strokes. Snapshotting on every stroke-commit
   // is O(doc_size) and makes pen-up visibly lag once the page has many strokes.
@@ -1053,10 +1059,10 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     if (!drawCtx) return;
     isDrawingRef.current = true;
     currentStrokePointsRef.current = [{ x, y }];
+    strokeRenderedUptoRef.current = 0;
     applyToolSettings();
-    // NOTE: we do NOT beginPath/stroke a growing path here. Each pointermove strokes only
-    // the latest segment (moveTo prev → lineTo curr → stroke). Re-stroking one growing path
-    // is O(points) per event, so a long stroke becomes O(N²) total and lags the pencil.
+    // Live drawing happens in an rAF batch (see handlePointerMove) — start of stroke only
+    // records the anchor point; the first segment is drawn on the first rAF after a move.
   }, [getCanvasPoint, getNormalizedPoint, closeAllPopups, applyToolSettings, eraseStrokeAt, lassoSelection, pushUndo, redrawAll, triggerAutoSave]);
 
   const handlePointerMove = useCallback((clientX: number, clientY: number) => {
@@ -1128,18 +1134,26 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 
     if (tool === 'eraser') { eraseStrokeAt(x, y); return; }
 
-    // Draw live stroke on the correct layer canvas. Stroke only the NEW segment
-    // (prev → curr) each event so total cost is O(N) for an N-point stroke, not O(N²).
-    const drawCtx = drawingLayerRef.current === 'above' ? overlayCtxRef.current : ctxRef.current;
-    if (!drawCtx) return;
-    const pts = currentStrokePointsRef.current;
-    const prev = pts[pts.length - 1];
-    pts.push({ x, y });
-    if (prev) {
-      drawCtx.beginPath();
-      drawCtx.moveTo(prev.x, prev.y);
-      drawCtx.lineTo(x, y);
-      drawCtx.stroke();
+    // Accumulate points; draw in an rAF batch to avoid per-event GPU dispatches.
+    currentStrokePointsRef.current.push({ x, y });
+    if (strokeRafRef.current === null) {
+      strokeRafRef.current = requestAnimationFrame(() => {
+        strokeRafRef.current = null;
+        const drawCtx = drawingLayerRef.current === 'above' ? overlayCtxRef.current : ctxRef.current;
+        if (!drawCtx) return;
+        const pts = currentStrokePointsRef.current;
+        const start = strokeRenderedUptoRef.current;
+        if (pts.length <= start + 1) return;
+        // One beginPath/stroke for all new segments since last frame — browsers rasterize
+        // the whole path in one pass and issue a single GPU command.
+        drawCtx.beginPath();
+        drawCtx.moveTo(pts[start].x, pts[start].y);
+        for (let i = start + 1; i < pts.length; i++) {
+          drawCtx.lineTo(pts[i].x, pts[i].y);
+        }
+        drawCtx.stroke();
+        strokeRenderedUptoRef.current = pts.length - 1;
+      });
     }
     checkAutoExpand(y);
   }, [getCanvasPoint, checkAutoExpand, eraseStrokeAt, lassoSelection, moveLassoSelection, redrawAll]);
@@ -1162,7 +1176,24 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       return;
     }
     if (tool === 'eraser') { eraserActiveRef.current = false; isDrawingRef.current = false; applyDeferredExpand(); return; }
-    if (isDrawingRef.current) commitCurrentStroke();
+    if (isDrawingRef.current) {
+      // Flush any segments that haven't been painted yet (the rAF may not have run yet).
+      if (strokeRafRef.current !== null) {
+        cancelAnimationFrame(strokeRafRef.current);
+        strokeRafRef.current = null;
+      }
+      const drawCtx = drawingLayerRef.current === 'above' ? overlayCtxRef.current : ctxRef.current;
+      const pts = currentStrokePointsRef.current;
+      const start = strokeRenderedUptoRef.current;
+      if (drawCtx && pts.length > start + 1) {
+        drawCtx.beginPath();
+        drawCtx.moveTo(pts[start].x, pts[start].y);
+        for (let i = start + 1; i < pts.length; i++) drawCtx.lineTo(pts[i].x, pts[i].y);
+        drawCtx.stroke();
+      }
+      strokeRenderedUptoRef.current = 0;
+      commitCurrentStroke();
+    }
     isDrawingRef.current = false;
     applyDeferredExpand();
   }, [commitCurrentStroke, finishLasso, applyDeferredExpand]);
