@@ -824,8 +824,11 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     }
 
     if (selectedIndices.length > 0) {
-      // Calculate bounding box
-      let minX = 1, minY = 1, maxX = 0, maxY = 0;
+      // Strokes normalize by width (not height), so p.y can exceed 1 on a multi-page
+      // canvas. Seed min with Infinity so strokes that live entirely below the first
+      // page still produce correct bounds — using 1 meant minY stayed at 1 and the
+      // bounds box looked much taller than the selected strokes.
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       for (const idx of selectedIndices) {
         for (const p of strokes[idx].points) {
           if (p.x < minX) minX = p.x;
@@ -868,7 +871,8 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     }
 
     if (selectedIndices.length > 0) {
-      let minX = 1, minY = 1, maxX = 0, maxY = 0;
+      // See finishLasso for why Infinity (p.y > 1 on multi-page canvases).
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
       for (const idx of selectedIndices) {
         for (const p of strokes[idx].points) {
           if (p.x < minX) minX = p.x;
