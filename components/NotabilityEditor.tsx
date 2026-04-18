@@ -270,6 +270,8 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const isDrawingRef = useRef(false);
   const strokeDataRef = useRef<ExtendedCanvasData>({ ...createEmptyCanvasData(initialPaperType), textBoxes: [], images: [] });
   const currentStrokePointsRef = useRef<{ x: number; y: number }[]>([]);
+  // rAF handle for coalescing high-frequency selection-preview redraws (Apple Pencil ~240Hz)
+  const selectionRafRef = useRef<number | null>(null);
   const undoHistoryRef = useRef<string[]>([]);
   const redoHistoryRef = useRef<string[]>([]);
   const displayWidthRef = useRef(0);
@@ -303,6 +305,18 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   // Ref to track which text box is being edited (avoids stale closures in save/undo)
   const editingTextIdRef = useRef<string | null>(null);
   useEffect(() => { editingTextIdRef.current = editingTextId; }, [editingTextId]);
+
+  // When a text box enters edit mode, focus its contentEditable element. Needed because
+  // contentEditable is gated on `isEditing` (to block iOS Scribble when not editing),
+  // so the element only becomes focusable after this state transition.
+  useEffect(() => {
+    if (!editingTextId) return;
+    const el = contentEditableRefs.current.get(editingTextId);
+    if (!el) return;
+    if (document.activeElement === el) return;
+    const raf = requestAnimationFrame(() => el.focus());
+    return () => cancelAnimationFrame(raf);
+  }, [editingTextId]);
 
   // ── Snapshot for undo ─────────────────────────────────────────────────
 
@@ -1013,7 +1027,14 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       } else {
         setLassoPoints(prev => [...prev, { x, y }]);
       }
-      redrawAll();
+      // Coalesce redraws to the display refresh rate. Apple Pencil fires pointermove up
+      // to ~240Hz; redrawAll is O(strokes) so running it per-event makes selection sluggish.
+      if (selectionRafRef.current === null) {
+        selectionRafRef.current = requestAnimationFrame(() => {
+          selectionRafRef.current = null;
+          redrawAll();
+        });
+      }
       return;
     }
 
@@ -1032,6 +1053,11 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     const tool = toolRef.current;
     if (lassoDragStart) { setLassoDragStart(null); return; }
     if (tool === 'lasso') {
+      // Drop any pending throttled redraw — finishLasso/finishRectSelection does the final redraw.
+      if (selectionRafRef.current !== null) {
+        cancelAnimationFrame(selectionRafRef.current);
+        selectionRafRef.current = null;
+      }
       if (selectionMode === 'rectangle') { finishRectSelection(); }
       else { finishLasso(); }
       isDrawingRef.current = false;
@@ -2274,7 +2300,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                       contentEditableRefs.current.delete(tb.id);
                     }
                   }}
-                  contentEditable={true}
+                  contentEditable={isEditing}
                   suppressContentEditableWarning
                   data-placeholder="Type here..."
                   onFocus={() => {
@@ -2296,7 +2322,9 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                     if (!isEditing) { e.preventDefault(); handleItemPointerDown(e, tb.id, 'text'); }
                   }}
                   onTouchStart={e => {
-                    if (!isEditing) handleItemPointerDown(e, tb.id, 'text');
+                    // Always preventDefault when not editing to block iOS Scribble (Apple Pencil
+                    // handwriting-to-text) from activating on the contentEditable surface.
+                    if (!isEditing) { e.preventDefault(); handleItemPointerDown(e, tb.id, 'text'); }
                   }}
                   onDoubleClick={() => setEditingTextId(tb.id)}
                   style={{
