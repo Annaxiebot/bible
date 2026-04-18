@@ -236,7 +236,11 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const [rectStart, setRectStart] = useState<{ x: number; y: number } | null>(null);
   const [rectEnd, setRectEnd] = useState<{ x: number; y: number } | null>(null);
   const [lassoSelection, setLassoSelection] = useState<{ strokeIndices: number[]; bounds: { x: number; y: number; w: number; h: number } } | null>(null);
-  const [lassoDragStart, setLassoDragStart] = useState<{ x: number; y: number } | null>(null);
+  // Ref (not state) — drag start must update synchronously so the dx/dy delta computed
+  // in the next pointermove is always relative to the most recent position. Using state
+  // here caused movement compounding because React batches the setState, so multiple
+  // pointermoves within one frame all read the stale initial position.
+  const lassoDragStartRef = useRef<{ x: number; y: number } | null>(null);
 
   // Text box resize (any edge or corner)
   const [isResizingText, setIsResizingText] = useState(false);
@@ -951,7 +955,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       const b = lassoSelection.bounds;
       const nx = x / w, ny = y / w; // use width for both
       if (nx >= b.x && nx <= b.x + b.w && ny >= b.y && ny <= b.y + b.h) {
-        setLassoDragStart({ x, y });
+        lassoDragStartRef.current = { x, y };
         pushUndo();
         return;
       } else {
@@ -1042,16 +1046,18 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   }, [getCanvasPoint, getNormalizedPoint, closeAllPopups, applyToolSettings, eraseStrokeAt, lassoSelection, pushUndo, redrawAll, triggerAutoSave]);
 
   const handlePointerMove = useCallback((clientX: number, clientY: number) => {
-    if (!isDrawingRef.current && !lassoDragStart) return;
+    if (!isDrawingRef.current && !lassoDragStartRef.current) return;
     const { x, y } = getCanvasPoint(clientX, clientY);
     const tool = toolRef.current;
 
-    // Lasso dragging selection
-    if (lassoDragStart && lassoSelection) {
-      const dx = x - lassoDragStart.x;
-      const dy = y - lassoDragStart.y;
+    // Lasso dragging selection — read/write the ref synchronously so subsequent events
+    // compute their delta against the most recent position, not a stale React state.
+    if (lassoDragStartRef.current && lassoSelection) {
+      const start = lassoDragStartRef.current;
+      const dx = x - start.x;
+      const dy = y - start.y;
+      lassoDragStartRef.current = { x, y };
       moveLassoSelection(dx, dy);
-      setLassoDragStart({ x, y });
       return;
     }
 
@@ -1114,11 +1120,11 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     drawCtx.lineTo(x, y);
     drawCtx.stroke();
     checkAutoExpand(y);
-  }, [getCanvasPoint, checkAutoExpand, eraseStrokeAt, lassoDragStart, lassoSelection, moveLassoSelection, redrawAll]);
+  }, [getCanvasPoint, checkAutoExpand, eraseStrokeAt, lassoSelection, moveLassoSelection, redrawAll]);
 
   const handlePointerUp = useCallback(() => {
     const tool = toolRef.current;
-    if (lassoDragStart) { setLassoDragStart(null); return; }
+    if (lassoDragStartRef.current) { lassoDragStartRef.current = null; return; }
     if (tool === 'lasso') {
       // Drop any pending throttled redraw — finishLasso/finishRectSelection does the final redraw.
       if (selectionRafRef.current !== null) {
@@ -1134,7 +1140,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     if (isDrawingRef.current) commitCurrentStroke();
     isDrawingRef.current = false;
     applyDeferredExpand();
-  }, [commitCurrentStroke, finishLasso, lassoDragStart, applyDeferredExpand]);
+  }, [commitCurrentStroke, finishLasso, applyDeferredExpand]);
 
   // ── Single-page navigation helpers ─────────────────────────────────────
 
@@ -1324,29 +1330,63 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const handleMouseMove = useCallback((e: MouseEvent) => handlePointerMove(e.clientX, e.clientY), [handlePointerMove]);
   const handleMouseUp = useCallback(() => handlePointerUp(), [handlePointerUp]);
 
-  // Event listener setup — attach to both main and overlay canvases
+  // Keep the latest handlers in refs so the DOM listener effect can mount once
+  // (empty deps). Without this, any prop change upstream — e.g. JournalView passes
+  // a fresh onSave arrow every render after `setEntries` — cascades into rebuilt
+  // callbacks here and forces the touch listeners to detach/re-attach. If a
+  // pointermove or pointerup fires during that window it is lost, which is how
+  // strokes were going missing after auto-save.
+  const handlersRef = useRef({
+    touchStart: handleTouchStart,
+    touchMove: handleTouchMove,
+    touchEnd: handleTouchEnd,
+    mouseDown: handleMouseDown,
+    mouseMove: handleMouseMove,
+    mouseUp: handleMouseUp,
+  });
+  useEffect(() => {
+    handlersRef.current = {
+      touchStart: handleTouchStart,
+      touchMove: handleTouchMove,
+      touchEnd: handleTouchEnd,
+      mouseDown: handleMouseDown,
+      mouseMove: handleMouseMove,
+      mouseUp: handleMouseUp,
+    };
+  }, [handleTouchStart, handleTouchMove, handleTouchEnd, handleMouseDown, handleMouseMove, handleMouseUp]);
+
+  // Event listener setup — attach ONCE and dispatch through the ref. Never detaches
+  // during the component's lifetime, so no events can slip through between renders.
   useEffect(() => {
     const canvas = canvasRef.current;
     const overlay = overlayCanvasRef.current;
     if (!canvas) return;
+    const onTouchStart = (e: TouchEvent) => handlersRef.current.touchStart(e);
+    const onTouchMove = (e: TouchEvent) => handlersRef.current.touchMove(e);
+    const onTouchEnd = (e: TouchEvent) => handlersRef.current.touchEnd(e);
+    const onMouseDown = (e: MouseEvent) => handlersRef.current.mouseDown(e);
+    const onMouseMove = (e: MouseEvent) => handlersRef.current.mouseMove(e);
+    const onMouseUp = (_e: MouseEvent) => handlersRef.current.mouseUp();
+    const onContext = (e: MouseEvent) => e.preventDefault();
     const attachEvents = (el: HTMLCanvasElement) => {
-      el.addEventListener('touchstart', handleTouchStart, { passive: false });
-      el.addEventListener('touchmove', handleTouchMove, { passive: false });
-      el.addEventListener('touchend', handleTouchEnd, { passive: false });
-      el.addEventListener('mousedown', handleMouseDown);
-      el.addEventListener('mousemove', handleMouseMove);
-      el.addEventListener('mouseup', handleMouseUp);
-      el.addEventListener('mouseout', handleMouseUp);
-      el.addEventListener('contextmenu', (e) => e.preventDefault());
+      el.addEventListener('touchstart', onTouchStart, { passive: false });
+      el.addEventListener('touchmove', onTouchMove, { passive: false });
+      el.addEventListener('touchend', onTouchEnd, { passive: false });
+      el.addEventListener('mousedown', onMouseDown);
+      el.addEventListener('mousemove', onMouseMove);
+      el.addEventListener('mouseup', onMouseUp);
+      el.addEventListener('mouseout', onMouseUp);
+      el.addEventListener('contextmenu', onContext);
     };
     const detachEvents = (el: HTMLCanvasElement) => {
-      el.removeEventListener('touchstart', handleTouchStart);
-      el.removeEventListener('touchmove', handleTouchMove);
-      el.removeEventListener('touchend', handleTouchEnd);
-      el.removeEventListener('mousedown', handleMouseDown);
-      el.removeEventListener('mousemove', handleMouseMove);
-      el.removeEventListener('mouseup', handleMouseUp);
-      el.removeEventListener('mouseout', handleMouseUp);
+      el.removeEventListener('touchstart', onTouchStart);
+      el.removeEventListener('touchmove', onTouchMove);
+      el.removeEventListener('touchend', onTouchEnd);
+      el.removeEventListener('mousedown', onMouseDown);
+      el.removeEventListener('mousemove', onMouseMove);
+      el.removeEventListener('mouseup', onMouseUp);
+      el.removeEventListener('mouseout', onMouseUp);
+      el.removeEventListener('contextmenu', onContext);
     };
     attachEvents(canvas);
     if (overlay) attachEvents(overlay);
@@ -1354,7 +1394,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       detachEvents(canvas);
       if (overlay) detachEvents(overlay);
     };
-  }, [handleTouchStart, handleTouchMove, handleTouchEnd, handleMouseDown, handleMouseMove, handleMouseUp]);
+  }, []);
 
   // ── Undo / Redo ────────────────────────────────────────────────────────
 
