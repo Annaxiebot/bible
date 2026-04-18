@@ -1070,9 +1070,13 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
         const mainCtx = ctxRef.current;
         const snap = selectionSnapshotRef.current;
         if (!main || !mainCtx || !snap) return;
-        // Restore pre-drag pixels (O(1) GPU blit), then draw just the selection shape.
-        mainCtx.clearRect(0, 0, main.width, main.height);
-        mainCtx.drawImage(snap, 0, 0);
+        // The ctx has scale(dpr, dpr) applied, so we draw in LOGICAL px. snap.width/height
+        // are RASTER px — pass the logical size explicitly so the blit isn't dpr-scaled.
+        const logicalW = displayWidthRef.current;
+        const logicalH = displayHeightRef.current;
+        // Restore pre-drag pixels (one GPU blit), then draw just the selection shape.
+        mainCtx.clearRect(0, 0, logicalW, logicalH);
+        mainCtx.drawImage(snap, 0, 0, logicalW, logicalH);
         mainCtx.save();
         mainCtx.strokeStyle = '#4f46e5';
         mainCtx.lineWidth = 2;
@@ -2388,6 +2392,17 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                   onKeyUp={saveSelection}
                   onMouseUp={saveSelection}
                   onKeyDown={e => { if (e.key === 'Escape') closeEditing(); }}
+                  onPointerDownCapture={e => {
+                    // iOS Scribble activates from pointerdown with pointerType='pen', NOT from
+                    // touchstart — so preventing touchstart alone isn't enough. In text/pointer
+                    // modes the text box is never meant to accept handwriting input, so block
+                    // pencil pointerdown at the capture phase. Drag in pointer mode continues to
+                    // work because touchstart fires separately on iOS.
+                    const tool = toolRef.current;
+                    if (e.pointerType === 'pen' && (tool === 'text' || tool === 'pointer')) {
+                      e.preventDefault();
+                    }
+                  }}
                   onMouseDown={e => {
                     if (!isEditing) { e.preventDefault(); handleItemPointerDown(e, tb.id, 'text'); }
                   }}
