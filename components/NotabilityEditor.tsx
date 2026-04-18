@@ -145,11 +145,41 @@ function parseExtended(raw: string): ExtendedCanvasData | null {
 
 // ── Component ──────────────────────────────────────────────────────────────
 
+/**
+ * Convert markdown-like AI output into HTML suitable for contentEditable display.
+ * Handles: **bold**, *italic*, `code`, line breaks, bullet points.
+ * AI responses often include these — without parsing they show as literal asterisks.
+ */
+function markdownToHtml(text: string): string {
+  if (!text) return '';
+  // Escape HTML first (but preserve any existing tags the AI emits — models sometimes
+  // emit <strong> etc. directly). We only escape the bare characters that aren't already
+  // part of a tag. Simple approach: escape <, >, & unless they look like an HTML tag.
+  let out = text;
+  // Escape stray & not in entities
+  out = out.replace(/&(?!(#?\w+;))/g, '&amp;');
+
+  // **bold**
+  out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  // *italic* (single asterisk, not adjacent to another)
+  out = out.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
+  // `code`
+  out = out.replace(/`([^`]+)`/g, '<code>$1</code>');
+  // Lines starting with * or - → bullet (simple, no nesting)
+  out = out.replace(/^[\s]*[*\-]\s+(.+)$/gm, '<div>• $1</div>');
+  // Numbered list items (1. 2. 3.)
+  out = out.replace(/^[\s]*(\d+\.)\s+(.+)$/gm, '<div>$1 $2</div>');
+  // Double newline → paragraph break, single → <br>
+  out = out.replace(/\n\n+/g, '<br><br>');
+  out = out.replace(/\n/g, '<br>');
+  return out;
+}
+
 const AI_ACTIONS = [
   { id: 'reflect', label: '💭 Reflect', prompt: 'Write a short spiritual reflection on the following journal entry. Be warm and personal, reference one relevant Bible verse, and keep it to 3-4 sentences. Start directly with the reflection (no "Dear friend" or similar opener):\n\n' },
   { id: 'extend', label: '✨ Extend', prompt: 'Extend the thinking in this journal entry with one concrete, deeper insight. 2-3 sentences:\n\n' },
   { id: 'summarize', label: '📋 Summarize', prompt: 'Summarize the key themes and insights from this journal entry in 2 sentences:\n\n' },
-  { id: 'scripture', label: '📖 Scripture', prompt: 'Suggest 3 relevant Bible verses for this journal entry. For each verse, give the reference and one sentence explaining the connection. Format each as: "Book Chapter:Verse — explanation":\n\n' },
+  { id: 'scripture', label: '📖 Scripture', prompt: 'Suggest 3 relevant Bible verses for this journal entry. Format EACH verse on its own line as:\n\n**Book Chapter:Verse** — "the verse text" — one sentence explaining how it connects to the entry.\n\nPut a blank line between each of the 3 verses. Here is the entry:\n\n' },
 ];
 
 const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
@@ -1794,9 +1824,16 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       let accumulated = '';
       await onAIStream(prompt, (chunk) => {
         accumulated += chunk;
+        const html = markdownToHtml(accumulated);
+        // Persist to state
         setTextBoxes(prev => prev.map(tb =>
-          tb.id === aiBox.id ? { ...tb, content: accumulated } : tb
+          tb.id === aiBox.id ? { ...tb, content: html } : tb
         ));
+        // Imperatively update DOM — React doesn't re-render contentEditable innerHTML
+        // after initial mount, so streaming chunks would otherwise stay invisible
+        // until the view is closed and reopened.
+        const el = contentEditableRefs.current.get(aiBox.id);
+        if (el) el.innerHTML = html;
       });
       // Auto-fit AI box height after streaming completes
       setTimeout(() => {
