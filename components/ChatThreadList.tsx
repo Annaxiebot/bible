@@ -31,9 +31,15 @@ function formatRelativeDate(iso: string): string {
 }
 
 function groupByDate(threads: ChatHistoryRecord[]): Array<{ label: string; threads: ChatHistoryRecord[] }> {
+  // Group by last activity (lastModified), not creation time — a thread you
+  // created weeks ago but just replied to should appear under "Today", not
+  // "2 weeks ago". Threads are already sorted by lastModified desc upstream.
   const groups = new Map<string, ChatHistoryRecord[]>();
   for (const t of threads) {
-    const label = formatRelativeDate(t.createdAt || new Date(t.lastModified).toISOString());
+    const activityIso = t.lastModified
+      ? new Date(t.lastModified).toISOString()
+      : (t.createdAt || new Date().toISOString());
+    const label = formatRelativeDate(activityIso);
     if (!groups.has(label)) groups.set(label, []);
     groups.get(label)!.push(t);
   }
