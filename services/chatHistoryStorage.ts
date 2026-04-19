@@ -108,10 +108,22 @@ export async function saveThreadMessages(
   if (!existing) return;
 
   const title = messages.length > 0 ? deriveTitle(messages) : existing.title;
+  const serialised = messages.map(serialiseMessage);
+  // Skip writes when nothing actually changed — otherwise selecting a thread
+  // can bump lastModified and reorder the list without any real edit.
+  const sameLength = existing.messages.length === serialised.length;
+  const sameTitle = existing.title === title;
+  const sameLastTs = sameLength && (
+    serialised.length === 0
+      || (existing.messages[serialised.length - 1] as any)?.timestamp
+         === (serialised[serialised.length - 1] as any)?.timestamp
+  );
+  if (sameLength && sameTitle && sameLastTs) return;
+
   const record: ChatHistoryRecord = {
     ...existing,
     title,
-    messages: messages.map(serialiseMessage),
+    messages: serialised,
     lastModified: Date.now(),
   };
   await idbService.put('chatHistory', record);

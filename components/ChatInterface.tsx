@@ -597,6 +597,13 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
   // --- Chat persistence: save whenever messages change ---
   const lastSavedRef = useRef<string>('');
 
+  // Key format must match the one computed in the save effect below; mismatches
+  // cause spurious saves that bump lastModified and reorder the thread list.
+  const makeSavedKey = (msgs: ChatMessage[]): string => {
+    const lastTs = msgs.length > 0 ? msgs[msgs.length - 1].timestamp ?? 0 : 0;
+    return `${msgs.length}-${lastTs}`;
+  };
+
   // --- Chat persistence: load/create thread when chapter changes ---
   useEffect(() => {
     if (!currentBookId || currentChapter == null) return;
@@ -608,12 +615,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
         // Existing thread found — load its messages
         const saved = await loadThreadMessages(thread.id);
         if (cancelled) return;
-        lastSavedRef.current = JSON.stringify(saved.map(m => m.timestamp));
+        lastSavedRef.current = makeSavedKey(saved);
         setActiveThreadId(thread.id);
         setMessages(saved);
       } else {
         // No thread for this chapter — just clear the chat (don't create one yet)
-        lastSavedRef.current = JSON.stringify([]);
+        lastSavedRef.current = makeSavedKey([]);
         setActiveThreadId(null);
         setMessages([]);
       }
@@ -1177,7 +1184,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
                 switchingThreadRef.current = true;
                 try {
                   const saved = await loadThreadMessages(threadId);
-                  lastSavedRef.current = JSON.stringify(saved.map(m => m.timestamp));
+                  lastSavedRef.current = makeSavedKey(saved);
                   setActiveThreadId(threadId);
                   setMessages(saved);
                 } catch (e) {
