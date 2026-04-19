@@ -86,9 +86,58 @@ export async function getThread(id: string): Promise<ChatHistoryRecord | undefin
   return idbService.get('chatHistory', id);
 }
 
+// One-time migration flag for the lastModified-normalization pass below.
+const LAST_MODIFIED_CLEANUP_KEY = 'bible_chat_lastModified_cleaned_v1';
+
+/**
+ * One-time cleanup: in earlier builds, simply navigating between Bible chapters
+ * could bump a chat thread's lastModified to "now" due to a save-key format
+ * mismatch. That caused unrelated threads to appear under "Today" in the list.
+ *
+ * This pass re-derives each thread's lastModified from the timestamp of its
+ * latest real message (or createdAt when the thread is empty), then sets a
+ * localStorage flag so it runs at most once per device.
+ */
+async function normalizeLastModifiedOnce(all: ChatHistoryRecord[]): Promise<ChatHistoryRecord[]> {
+  try {
+    if (typeof localStorage === 'undefined') return all;
+    if (localStorage.getItem(LAST_MODIFIED_CLEANUP_KEY)) return all;
+  } catch {
+    return all;
+  }
+
+  const updated: ChatHistoryRecord[] = [];
+  for (const t of all) {
+    // Derive "real" last activity from actual message timestamps.
+    let derived: number | undefined;
+    if (t.messages && t.messages.length > 0) {
+      const lastMsg = t.messages[t.messages.length - 1] as any;
+      const ts = typeof lastMsg?.timestamp === 'number' ? lastMsg.timestamp : Number(lastMsg?.timestamp) || NaN;
+      if (!Number.isNaN(ts) && ts > 0) derived = ts;
+    }
+    if (!derived && t.createdAt) {
+      const c = new Date(t.createdAt).getTime();
+      if (!Number.isNaN(c)) derived = c;
+    }
+    // Only correct when current lastModified is meaningfully ahead of real
+    // activity (> 60s skew). Otherwise leave untouched.
+    if (derived && t.lastModified && t.lastModified - derived > 60_000) {
+      const fixed = { ...t, lastModified: derived };
+      try { await idbService.put('chatHistory', fixed); } catch {}
+      updated.push(fixed);
+    } else {
+      updated.push(t);
+    }
+  }
+
+  try { localStorage.setItem(LAST_MODIFIED_CLEANUP_KEY, '1'); } catch {}
+  return updated;
+}
+
 /** Get all threads, sorted by lastModified descending (newest first). */
 export async function getAllThreads(): Promise<ChatHistoryRecord[]> {
-  const all = await idbService.getAll('chatHistory');
+  const raw = await idbService.getAll('chatHistory');
+  const all = await normalizeLastModifiedOnce(raw);
   return all.sort((a, b) => b.lastModified - a.lastModified);
 }
 
