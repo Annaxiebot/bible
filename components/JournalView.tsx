@@ -47,6 +47,13 @@ interface JournalViewProps {
   chapter?: number;
   bookName?: string;
   onNavigate?: (bookId: string, chapter: number) => void;
+  /** Optional: switch the host app's layout from inside the Notability editor. */
+  onSwitchLayout?: (mode: import('./LayoutToolbar').LayoutMode) => void;
+  /**
+   * Incremented by the host to request that the Notability editor open.
+   * Opens for the currently-selected entry, or the most recent if none is selected.
+   */
+  openNotabilityTrigger?: number;
 }
 
 function formatDate(iso: string, includeTime = false): string {
@@ -108,6 +115,8 @@ const JournalView: React.FC<JournalViewProps> = ({
   chapter,
   bookName,
   onNavigate,
+  onSwitchLayout,
+  openNotabilityTrigger,
 }) => {
   const [entries, setEntries] = useState<JournalEntry[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -620,6 +629,26 @@ const JournalView: React.FC<JournalViewProps> = ({
   const [noteMode, setNoteMode] = useState<NoteMode>('text');
   const [showNotabilityEditor, setShowNotabilityEditor] = useState(false);
   const [editorBlocks, setEditorBlocks] = useState<JournalBlock[]>([createTextBlock()]);
+
+  // External trigger: host (LayoutToolbar Notability button) requests opening the editor.
+  // Ignore the initial undefined/0 value so we only react to real bumps.
+  const notabilityTriggerPrevRef = useRef<number | undefined>(openNotabilityTrigger);
+  useEffect(() => {
+    if (openNotabilityTrigger === undefined) return;
+    if (notabilityTriggerPrevRef.current === openNotabilityTrigger) return;
+    notabilityTriggerPrevRef.current = openNotabilityTrigger;
+    // Pick the currently-selected entry, or fall back to the most recent.
+    if (!selectedId && entries.length > 0) {
+      const mostRecent = [...entries].sort((a, b) =>
+        new Date(b.updatedAt || b.createdAt).getTime() - new Date(a.updatedAt || a.createdAt).getTime()
+      )[0];
+      if (mostRecent) setSelectedId(mostRecent.id);
+    }
+    // Only open if we have (or just picked) an entry.
+    if (selectedId || entries.length > 0) {
+      setShowNotabilityEditor(true);
+    }
+  }, [openNotabilityTrigger, selectedId, entries]);
 
   // Flush any pending auto-save before switching notes
   const flushPendingSave = useCallback(async () => {
@@ -2301,6 +2330,7 @@ const JournalView: React.FC<JournalViewProps> = ({
       onAIStream={async (prompt, onChunk) => {
         await streamAI(prompt, onChunk);
       }}
+      onSwitchLayout={onSwitchLayout}
     />
   ) : null;
 

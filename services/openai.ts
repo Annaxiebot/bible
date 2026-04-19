@@ -2,6 +2,7 @@
  * OpenAI ChatGPT Integration
  * Using OpenAI's Chat Completions API
  */
+import { AI_LANGUAGE_DIRECTIVE } from './aiLanguageDirective';
 
 interface OpenAIMessage {
   role: 'system' | 'user' | 'assistant';
@@ -83,7 +84,7 @@ Please let me know if you would like more in-depth details or a specific deep di
 BILINGUAL KEYWORDS: In the Chinese section, append the English equivalent in parentheses after key theological terms, proper nouns, and important concepts on first mention — e.g. 圣灵 (Holy Spirit), 圣约 (Covenant), 以弗所书 (Ephesians). This helps the reader anchor Chinese terms to their English counterparts.
 
 Maintain professional scholarship even in brevity.
-Use LaTeX notation for complex theological or linguistic terms if needed, e.g., $\\text{Elohim}$.`
+Use LaTeX notation for complex theological or linguistic terms if needed, e.g., $\\text{Elohim}$.${AI_LANGUAGE_DIRECTIVE}`
   });
 
   // Add conversation history

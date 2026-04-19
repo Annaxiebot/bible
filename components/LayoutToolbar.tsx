@@ -8,6 +8,8 @@ interface LayoutToolbarProps {
   onLayoutChange: (mode: LayoutMode) => void;
   isIPhone?: boolean;
   isMobile?: boolean;
+  /** Optional action: open the Notability full-screen editor for the current/latest journal entry. */
+  onOpenNotability?: () => void;
 }
 
 /** Derive the active layout mode from vertical/horizontal split percentages. */
@@ -77,7 +79,7 @@ const LAYOUT_ITEMS: { mode: LayoutMode; label: string; icon: React.ReactNode }[]
   },
 ];
 
-const LayoutToolbar: React.FC<LayoutToolbarProps> = ({ currentMode, onLayoutChange, isIPhone, isMobile }) => {
+const LayoutToolbar: React.FC<LayoutToolbarProps> = ({ currentMode, onLayoutChange, isIPhone, isMobile, onOpenNotability }) => {
   const handleClick = (mode: LayoutMode) => {
     localStorage.setItem(STORAGE_KEYS.PREFERRED_LAYOUT, mode);
     onLayoutChange(mode);
@@ -111,6 +113,20 @@ const LayoutToolbar: React.FC<LayoutToolbarProps> = ({ currentMode, onLayoutChan
             </button>
           );
         })}
+        {onOpenNotability && (
+          <button
+            onClick={onOpenNotability}
+            className="flex flex-col items-center justify-center px-3 py-1 rounded-lg transition-all text-slate-500 hover:text-slate-700 hover:bg-slate-50"
+            title="Notability"
+            aria-label="Open Notability editor"
+            data-testid="layout-btn-notability"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+            </svg>
+            <span className="text-[10px] font-medium mt-0.5 leading-none">Notability</span>
+          </button>
+        )}
       </div>
     </div>
   );

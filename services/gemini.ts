@@ -1,6 +1,7 @@
 
 import { GoogleGenAI, Modality, Type, GenerateContentResponse, VideoGenerationReferenceImage, VideoGenerationReferenceType } from "@google/genai";
 import { AI, AUDIO, TIMING } from '../constants/appConfig';
+import { AI_LANGUAGE_DIRECTIVE } from './aiLanguageDirective';
 
 // Audio decoding utilities as per guidelines
 function decode(base64: string) {
@@ -91,7 +92,7 @@ export const chatWithAI = async (
 
     If you use Google Search, provide links at the end of EACH language section.
     Maintain professional scholarship even in brevity.
-    Use LaTeX notation for complex theological or linguistic terms if needed, e.g., $\text{Elohim}$.`,
+    Use LaTeX notation for complex theological or linguistic terms if needed, e.g., $\text{Elohim}$.${AI_LANGUAGE_DIRECTIVE}`,
   };
 
   if (options.search) {
