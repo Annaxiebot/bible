@@ -2271,16 +2271,22 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
           color: #9ca3af;
           pointer-events: none;
         }
+        /* Apply list styles whether the text box is in edit or display mode —
+           gating on [contenteditable="true"] alone causes bullets/numbers to
+           vanish when the user clicks Done. Target all text box nodes. */
+        .notability-textbox ul,
         [contenteditable="true"] ul {
           list-style-type: disc;
           padding-left: 1.5em;
           margin: 0.25em 0;
         }
+        .notability-textbox ol,
         [contenteditable="true"] ol {
           list-style-type: decimal;
           padding-left: 1.5em;
           margin: 0.25em 0;
         }
+        .notability-textbox li,
         [contenteditable="true"] li {
           list-style: inherit;
           display: list-item;
@@ -2636,6 +2642,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                   }}
                   contentEditable={isEditing}
                   suppressContentEditableWarning
+                  className="notability-textbox"
                   data-placeholder="Type here..."
                   onFocus={() => {
                     setEditingTextId(tb.id);
