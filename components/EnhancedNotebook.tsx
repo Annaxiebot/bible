@@ -126,6 +126,10 @@ interface EnhancedNotebookProps {
   currentBookId?: string;
   currentChapter?: number;
   currentBookName?: string;
+  /** Optional: switch the host app's layout (Bible / AI Chat / Study) from inside this view. */
+  onSwitchLayout?: (mode: import('./LayoutToolbar').LayoutMode) => void;
+  /** Incremented by the host to open the Notability editor on the current/latest entry. */
+  openNotabilityTrigger?: number;
 }
 
 type TabType = 'research' | 'notes' | 'all';
@@ -144,6 +148,8 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
   currentBookId,
   currentChapter,
   currentBookName,
+  onSwitchLayout,
+  openNotabilityTrigger,
 }) => {
   // Top-level dual-mode: Journal vs Verse Notes
   const [viewMode, setViewMode] = useState<NotesViewMode>(() => {
@@ -158,6 +164,15 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
       setViewMode('verse-notes');
     }
   }, [selection?.id]);
+
+  // When host requests Notability, ensure JournalView is mounted so it can receive the trigger.
+  const notabilityTriggerPrevRef = useRef<number | undefined>(openNotabilityTrigger);
+  useEffect(() => {
+    if (openNotabilityTrigger === undefined) return;
+    if (notabilityTriggerPrevRef.current === openNotabilityTrigger) return;
+    notabilityTriggerPrevRef.current = openNotabilityTrigger;
+    if (viewMode !== 'journal') setViewMode('journal');
+  }, [openNotabilityTrigger, viewMode]);
 
   const handleViewModeChange = (mode: NotesViewMode) => {
     setViewMode(mode);
@@ -1187,6 +1202,8 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
               chapter={currentChapter || selection?.chapter}
               bookName={currentBookName || selection?.bookName}
               onNavigate={onNavigate ? (bookId, chapter) => onNavigate(bookId, chapter) : undefined}
+              onSwitchLayout={onSwitchLayout}
+              openNotabilityTrigger={openNotabilityTrigger}
             />
           </Suspense>
         </div>

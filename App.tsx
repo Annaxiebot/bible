@@ -111,6 +111,14 @@ const App: React.FC = () => {
     split.setVertical(vertical);
     split.setHorizontal(horizontal);
   }, [split, isMobile]);
+
+  // Incrementing counter to request JournalView open the Notability editor.
+  const [openNotabilityTrigger, setOpenNotabilityTrigger] = useState(0);
+  const handleOpenNotability = useCallback(() => {
+    // Ensure the Notes pane is actually visible so JournalView mounts.
+    handleLayoutModeChange('notes');
+    setOpenNotabilityTrigger(n => n + 1);
+  }, [handleLayoutModeChange]);
   const [initialBookId, setInitialBookId] = useState<string | undefined>();
   const [initialChapter, setInitialChapter] = useState<number | undefined>();
   const [showResumeNotification, setShowResumeNotification] = useState(false);
@@ -567,6 +575,8 @@ const App: React.FC = () => {
               }}
               currentBookId={currentBibleContext?.bookId}
               currentChapter={currentBibleContext?.chapter}
+              onSwitchLayout={handleLayoutModeChange}
+              openNotabilityTrigger={openNotabilityTrigger}
             />
           </div>
         </div>
@@ -674,6 +684,7 @@ const App: React.FC = () => {
         onLayoutChange={handleLayoutModeChange}
         isIPhone={isIPhone}
         isMobile={isMobile}
+        onOpenNotability={handleOpenNotability}
       />
     </div>
     </Suspense>

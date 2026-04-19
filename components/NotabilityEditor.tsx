@@ -5,6 +5,7 @@
  */
 
 import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
+import type { LayoutMode } from './LayoutToolbar';
 import {
   type AbsoluteStroke,
   type StrokeTool,
@@ -108,6 +109,8 @@ export interface NotabilityEditorProps {
   bibleContext?: { bookId?: string; chapter?: number; bookName?: string; verse?: number } | null;
   /** AI stream function */
   onAIStream?: (prompt: string, onChunk: (text: string) => void) => Promise<void>;
+  /** Optional: switch the host app's layout (Bible, AI Chat, Study). Saves & closes first. */
+  onSwitchLayout?: (mode: LayoutMode) => void;
 }
 
 // ── Constants ──────────────────────────────────────────────────────────────
@@ -192,6 +195,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   entryPlainText,
   bibleContext,
   onAIStream,
+  onSwitchLayout,
 }) => {
   // ── State ──────────────────────────────────────────────────────────────
 
@@ -2165,6 +2169,28 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     onClose();
   }, [onSave, onClose, pageMode, editingTextId]);
 
+  // Save current work, close the editor, then switch the host app's layout.
+  const handleSwitchLayout = useCallback((mode: LayoutMode) => {
+    if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+    if (editingTextId) {
+      const el = contentEditableRefs.current.get(editingTextId);
+      if (el) {
+        textBoxesRef.current = textBoxesRef.current.map(tb =>
+          tb.id === editingTextId ? { ...tb, content: el.innerHTML } : tb
+        );
+      }
+    }
+    const data: ExtendedCanvasData = {
+      ...strokeDataRef.current,
+      textBoxes: textBoxesRef.current,
+      images: imagesRef.current,
+      pageMode,
+    };
+    onSave(serializeExtended(data));
+    onClose();
+    onSwitchLayout?.(mode);
+  }, [onSave, onClose, onSwitchLayout, pageMode, editingTextId]);
+
   // ── Export PDF ──────────────────────────────────────────────────────────
 
   const handleExportPDF = useCallback(() => {
@@ -2267,14 +2293,56 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       {/* ── Toolbar ─────────────────────────────────────────────────────── */}
       <div className="flex items-center justify-between px-2 py-1.5 border-b border-slate-200 bg-white/95 backdrop-blur-sm shrink-0"
            style={{ height: '48px', paddingTop: 'env(safe-area-inset-top, 0px)', zIndex: 50, position: 'relative' }}>
-        {/* Left: Done */}
-        <button onClick={handleDone}
-          className="flex items-center gap-1 px-3 py-1.5 bg-indigo-500 text-white rounded-lg text-sm font-medium hover:bg-indigo-600 transition-colors">
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
-          Done
-        </button>
+        {/* Left: Done + Quick-switch to Bible / AI Chat / Study */}
+        <div className="flex items-center gap-1">
+          <button onClick={handleDone}
+            className="flex items-center gap-1 px-3 py-1.5 bg-indigo-500 text-white rounded-lg text-sm font-medium hover:bg-indigo-600 transition-colors">
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+            Done
+          </button>
+          {onSwitchLayout && (
+            <div className="flex items-center gap-0.5 ml-1 pl-1 border-l border-slate-200">
+              <button
+                onClick={() => handleSwitchLayout('bible')}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-slate-600 hover:bg-slate-100 hover:text-indigo-600 transition-colors"
+                title="Save and switch to Bible view"
+                aria-label="Switch to Bible view"
+                data-testid="notability-switch-bible"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
+                </svg>
+                <span className="hidden sm:inline">Bible</span>
+              </button>
+              <button
+                onClick={() => handleSwitchLayout('chat')}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-slate-600 hover:bg-slate-100 hover:text-indigo-600 transition-colors"
+                title="Save and switch to AI Chat view"
+                aria-label="Switch to AI Chat view"
+                data-testid="notability-switch-chat"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                </svg>
+                <span className="hidden sm:inline">Chat</span>
+              </button>
+              <button
+                onClick={() => handleSwitchLayout('study')}
+                className="flex items-center gap-1 px-2 py-1 rounded-lg text-xs text-slate-600 hover:bg-slate-100 hover:text-indigo-600 transition-colors"
+                title="Save and switch to Study view"
+                aria-label="Switch to Study view"
+                data-testid="notability-switch-study"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7" />
+                </svg>
+                <span className="hidden sm:inline">Study</span>
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Center: Tools */}
         <div className="flex items-center gap-0.5">
