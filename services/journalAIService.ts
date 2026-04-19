@@ -44,16 +44,23 @@ export async function streamAI(
 
   const useServer = localStorage.getItem('useServerAI') !== 'false';
 
+  // Inject language directive at the top of every journal-AI prompt so replies
+  // are Chinese-with-English-keywords even when the backend's own system prompt
+  // is absent or different. Placed as a USER-prompt prefix because streamAI
+  // sends no dedicated system message.
+  const JOURNAL_LANG_DIRECTIVE = `INSTRUCTION (overrides any other language preference): Write your entire response in Simplified Chinese (简体中文) as the primary language, but keep key theological/technical terms, proper nouns, book names, and Bible references in English (e.g. covenant, atonement, Genesis 15:6, John 3:16). Optionally add a short Chinese gloss in parentheses after the first occurrence of an English term, e.g. "covenant（约）". Do NOT use the [SPLIT] format here — produce a single unified response in Chinese with English keywords embedded.\n\n`;
+  const finalPrompt = JOURNAL_LANG_DIRECTIVE + prompt;
+
   if (useServer && streamViaEdgeFunction) {
     await streamViaEdgeFunction(
-      prompt, [], { fast: true },
+      finalPrompt, [], { fast: true },
       onChunk,
       (m, p, pool) => { model = m; provider = p; racePool = pool; },
       (err) => { throw err; },
     );
   } else {
     // Fallback to non-streaming
-    const result = await chatWithAI(prompt, [], { fast: true });
+    const result = await chatWithAI(finalPrompt, [], { fast: true });
     const text = typeof result === 'string' ? result : result.text;
     model = typeof result === 'string' ? undefined : result.model;
     provider = typeof result === 'string' ? undefined : (result as any).provider;

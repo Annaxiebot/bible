@@ -645,7 +645,13 @@ Please let me know if you would like more in-depth details or a specific deep di
 
 BILINGUAL KEYWORDS: In the Chinese section, append the English equivalent in parentheses after key theological terms, proper nouns, and important concepts on first mention — e.g. 圣灵 (Holy Spirit), 圣约 (Covenant), 以弗所书 (Ephesians). This helps the reader anchor Chinese terms to their English counterparts.
 
-Maintain professional scholarship even in brevity.`;
+Maintain professional scholarship even in brevity.
+
+LANGUAGE REQUIREMENT (MANDATORY):
+- Always write your response in Simplified Chinese (简体中文) as the primary language.
+- Keep these items in English: key theological/technical terms (e.g. covenant, atonement, eschatology), proper nouns (people, places), book names, and Bible references (e.g. Genesis 15:6, John 3:16).
+- Optionally add a brief Chinese gloss in parentheses after the first occurrence of an English term, e.g. "covenant（约）".
+- This applies to every response — reflections, summaries, scripture suggestions, chat replies, titles, tags, and all other output — regardless of the language of the user's input.`;
 
     const messages = [
       { role: "system", content: SYSTEM_PROMPT },

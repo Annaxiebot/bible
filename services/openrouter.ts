@@ -7,6 +7,7 @@
 
 import { STORAGE_KEYS } from '../constants/storageKeys';
 import { withRetry } from '../utils/retryUtils';
+import { AI_LANGUAGE_DIRECTIVE } from './aiLanguageDirective';
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const OPENROUTER_MODELS_URL = 'https://openrouter.ai/api/v1/models';
@@ -258,7 +259,7 @@ Please let me know if you would like more in-depth details or a specific deep di
 
 BILINGUAL KEYWORDS: In the Chinese section, append the English equivalent in parentheses after key theological terms, proper nouns, and important concepts on first mention — e.g. 圣灵 (Holy Spirit), 圣约 (Covenant), 以弗所书 (Ephesians). This helps the reader anchor Chinese terms to their English counterparts.
 
-Maintain professional scholarship even in brevity.`;
+Maintain professional scholarship even in brevity.${AI_LANGUAGE_DIRECTIVE}`;
 
   // Build messages array
   const messages = [
