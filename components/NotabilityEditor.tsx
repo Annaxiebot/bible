@@ -308,7 +308,8 @@ function looksLikeMarkdown(text: string): boolean {
     /`[^`\n]+`/.test(text) ||                    // `code`
     /^#{1,6}\s+/m.test(text) ||                  // # heading
     /^[\s]*[*\-]\s+/m.test(text) ||              // - bullet
-    /^[\s]*\d+\.\s+/m.test(text)                 // 1. numbered
+    /^[\s]*\d+\.\s+/m.test(text) ||              // 1. numbered
+    /\|\s*:?-{3,}:?\s*\|/.test(text)             // GFM table separator  |---|
   );
 }
 
