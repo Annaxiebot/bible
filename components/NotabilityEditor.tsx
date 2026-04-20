@@ -288,12 +288,6 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const selectionSnapshotRef = useRef<HTMLCanvasElement | null>(null);
   const lassoPointsRef = useRef<{ x: number; y: number }[]>([]);
   const rectEndRef = useRef<{ x: number; y: number } | null>(null);
-  // Live-stroke render batching: pointermove at 240Hz is faster than the display. Each
-  // stroke() call dispatches canvas ops to the GPU; at 240Hz on a multi-page canvas the
-  // GPU backs up. Batch all points arrived in a frame into one stroke() call in rAF —
-  // keeps visuals at screen refresh and drops GPU dispatches by ~4x.
-  const strokeRafRef = useRef<number | null>(null);
-  const strokeRenderedUptoRef = useRef(0); // index into currentStrokePointsRef that has already been drawn
   // Undo history holds either a full JSON snapshot (for text/image/lasso edits) OR a
   // light-weight action marker for pen strokes. Snapshotting on every stroke-commit
   // is O(doc_size) and makes pen-up visibly lag once the page has many strokes.
@@ -618,9 +612,16 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 
   useEffect(() => { setupCanvases(); }, [setupCanvases]);
   useEffect(() => {
-    const handleResize = () => setupCanvases();
+    const handleResize = () => { setupCanvases(); cachedCanvasRectRef.current = null; };
+    const handleScroll = () => { cachedCanvasRectRef.current = null; };
     window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    // Scroll changes the canvas's screen position (rect.top) — invalidate the cached rect.
+    const sc = scrollContainerRef.current;
+    if (sc) sc.addEventListener('scroll', handleScroll, { passive: true });
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      if (sc) sc.removeEventListener('scroll', handleScroll);
+    };
   }, [setupCanvases]);
 
   // ── Load initial data ──────────────────────────────────────────────────
@@ -709,11 +710,27 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   }, [images, redrawAll]);
 
   // ── Coordinate helper ──────────────────────────────────────────────────
+  // Cache the canvas rect across the duration of a stroke. getBoundingClientRect forces
+  // a synchronous style + layout pass if anything in the DOM has changed since the last
+  // layout — at Apple Pencil's 240Hz that adds up fast on a page with many text boxes
+  // and SVG connectors. We refresh the cached rect at pointerDown.
+  const cachedCanvasRectRef = useRef<{ left: number; top: number; width: number; height: number } | null>(null);
+  const refreshCanvasRect = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) { cachedCanvasRectRef.current = null; return; }
+    const r = canvas.getBoundingClientRect();
+    cachedCanvasRectRef.current = { left: r.left, top: r.top, width: r.width, height: r.height };
+  }, []);
 
   const getCanvasPoint = useCallback((clientX: number, clientY: number) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return { x: 0, y: 0 };
-    const rect = canvas.getBoundingClientRect();
+    let rect = cachedCanvasRectRef.current;
+    if (!rect) {
+      const canvas = canvasRef.current;
+      if (!canvas) return { x: 0, y: 0 };
+      const r = canvas.getBoundingClientRect();
+      rect = { left: r.left, top: r.top, width: r.width, height: r.height };
+      cachedCanvasRectRef.current = rect;
+    }
     const scaleX = displayWidthRef.current / rect.width;
     const scaleY = displayHeightRef.current / rect.height;
     return {
@@ -952,6 +969,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   // ── Touch/Mouse handlers ───────────────────────────────────────────────
 
   const handlePointerDown = useCallback((clientX: number, clientY: number) => {
+    refreshCanvasRect();
     const { x, y } = getCanvasPoint(clientX, clientY);
     const tool = toolRef.current;
 
@@ -1068,11 +1086,10 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     if (!drawCtx) return;
     isDrawingRef.current = true;
     currentStrokePointsRef.current = [{ x, y }];
-    strokeRenderedUptoRef.current = 0;
     applyToolSettings();
     // Live drawing happens in an rAF batch (see handlePointerMove) — start of stroke only
     // records the anchor point; the first segment is drawn on the first rAF after a move.
-  }, [getCanvasPoint, getNormalizedPoint, closeAllPopups, applyToolSettings, eraseStrokeAt, lassoSelection, pushUndo, redrawAll, triggerAutoSave]);
+  }, [getCanvasPoint, getNormalizedPoint, closeAllPopups, applyToolSettings, eraseStrokeAt, lassoSelection, pushUndo, redrawAll, triggerAutoSave, refreshCanvasRect]);
 
   const handlePointerMove = useCallback((clientX: number, clientY: number) => {
     if (!isDrawingRef.current && !lassoDragStartRef.current) return;
@@ -1143,26 +1160,19 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 
     if (tool === 'eraser') { eraseStrokeAt(x, y); return; }
 
-    // Accumulate points; draw in an rAF batch to avoid per-event GPU dispatches.
-    currentStrokePointsRef.current.push({ x, y });
-    if (strokeRafRef.current === null) {
-      strokeRafRef.current = requestAnimationFrame(() => {
-        strokeRafRef.current = null;
-        const drawCtx = drawingLayerRef.current === 'above' ? overlayCtxRef.current : ctxRef.current;
-        if (!drawCtx) return;
-        const pts = currentStrokePointsRef.current;
-        const start = strokeRenderedUptoRef.current;
-        if (pts.length <= start + 1) return;
-        // One beginPath/stroke for all new segments since last frame — browsers rasterize
-        // the whole path in one pass and issue a single GPU command.
-        drawCtx.beginPath();
-        drawCtx.moveTo(pts[start].x, pts[start].y);
-        for (let i = start + 1; i < pts.length; i++) {
-          drawCtx.lineTo(pts[i].x, pts[i].y);
-        }
-        drawCtx.stroke();
-        strokeRenderedUptoRef.current = pts.length - 1;
-      });
+    // Stroke the new segment immediately. rAF batching added perceptible input lag on
+    // Apple Pencil (which fires at ~240Hz) without giving meaningful throughput wins —
+    // user reports said batched mode felt the same or worse than per-event drawing.
+    const drawCtx = drawingLayerRef.current === 'above' ? overlayCtxRef.current : ctxRef.current;
+    if (!drawCtx) return;
+    const pts = currentStrokePointsRef.current;
+    const prev = pts[pts.length - 1];
+    pts.push({ x, y });
+    if (prev) {
+      drawCtx.beginPath();
+      drawCtx.moveTo(prev.x, prev.y);
+      drawCtx.lineTo(x, y);
+      drawCtx.stroke();
     }
     checkAutoExpand(y);
   }, [getCanvasPoint, checkAutoExpand, eraseStrokeAt, lassoSelection, moveLassoSelection, redrawAll]);
@@ -1185,24 +1195,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       return;
     }
     if (tool === 'eraser') { eraserActiveRef.current = false; isDrawingRef.current = false; applyDeferredExpand(); return; }
-    if (isDrawingRef.current) {
-      // Flush any segments that haven't been painted yet (the rAF may not have run yet).
-      if (strokeRafRef.current !== null) {
-        cancelAnimationFrame(strokeRafRef.current);
-        strokeRafRef.current = null;
-      }
-      const drawCtx = drawingLayerRef.current === 'above' ? overlayCtxRef.current : ctxRef.current;
-      const pts = currentStrokePointsRef.current;
-      const start = strokeRenderedUptoRef.current;
-      if (drawCtx && pts.length > start + 1) {
-        drawCtx.beginPath();
-        drawCtx.moveTo(pts[start].x, pts[start].y);
-        for (let i = start + 1; i < pts.length; i++) drawCtx.lineTo(pts[i].x, pts[i].y);
-        drawCtx.stroke();
-      }
-      strokeRenderedUptoRef.current = 0;
-      commitCurrentStroke();
-    }
+    if (isDrawingRef.current) commitCurrentStroke();
     isDrawingRef.current = false;
     applyDeferredExpand();
   }, [commitCurrentStroke, finishLasso, applyDeferredExpand]);
