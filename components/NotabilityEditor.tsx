@@ -1434,6 +1434,29 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     return !isStylusTouch(touch); // drawing modes: iPhone finger draws, iPad finger navigates
   }, [isStylusTouch]);
 
+  // Tracks the previous successful tap to detect a double-tap (see handleTouchEnd).
+  const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
+
+  // Hit-test document-coord (x, y) against text boxes in z-order. Returns the id of
+  // the topmost box containing the point, or null. Used by the canvas tap handler to
+  // enter edit mode when a tap lands on a text box that is currently pointer-events:none.
+  const hitTestTextBox = useCallback((docX: number, docY: number): string | null => {
+    const w = displayWidthRef.current;
+    if (w <= 0) return null;
+    const nx = docX / w;
+    const ny = docY / w; // height is normalized by width too (see stroke normalization comment)
+    // Iterate in descending z-order so topmost box wins.
+    const boxes = [...textBoxesRef.current].sort(
+      (a, b) => (b.zOrder || 0) - (a.zOrder || 0),
+    );
+    for (const tb of boxes) {
+      const right = tb.x + tb.width;
+      const bottom = tb.y + (tb.height || 0.15);
+      if (nx >= tb.x && nx <= right && ny >= tb.y && ny <= bottom) return tb.id;
+    }
+    return null;
+  }, []);
+
   // Touch events — finger scrolls/swipes, stylus draws (except pointer mode)
   const handleTouchStart = useCallback((e: TouchEvent) => {
     if (e.touches.length > 1) return;
@@ -1448,10 +1471,12 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     isFingerTouchRef.current = nav;
 
     if (nav) {
-      // Navigation touch — allow native scroll in seamless, track swipe in single-page
+      // Navigation touch — allow native scroll in seamless, track swipe in single-page.
+      // Always stash the start in swipeStartRef (both modes) so touchEnd can decide
+      // between "tap to enter edit" and "swipe / scroll".
+      swipeStartRef.current = { x: t.clientX, y: t.clientY, time: Date.now() };
       if (pageMode === 'single') {
         e.preventDefault();
-        swipeStartRef.current = { x: t.clientX, y: t.clientY, time: Date.now() };
       }
       // In seamless mode: do NOT preventDefault → native vertical scroll works
       return;
@@ -1491,34 +1516,57 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const handleTouchEnd = useCallback((e: TouchEvent) => {
     if (isFingerTouchRef.current) {
       isFingerTouchRef.current = false;
-      // Single-page swipe completion
-      if (pageMode === 'single' && swipeStartRef.current) {
-        e.preventDefault();
-        const elapsed = Date.now() - swipeStartRef.current.time;
-        const startPt = swipeStartRef.current;
-        const lastTouch = e.changedTouches[0];
-        const dx = lastTouch ? lastTouch.clientX - startPt.x : swipeOffset;
-        const dy = lastTouch ? lastTouch.clientY - startPt.y : 0;
+      const start = swipeStartRef.current;
+      const last = e.changedTouches[0];
+      const dx = last && start ? last.clientX - start.x : 0;
+      const dy = last && start ? last.clientY - start.y : 0;
+      const elapsed = start ? Date.now() - start.time : 999;
+      const movedSq = dx * dx + dy * dy;
 
+      // Single-page swipe completion
+      if (pageMode === 'single' && start) {
+        e.preventDefault();
         if (elapsed < 500) {
           if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > SWIPE_THRESHOLD) {
-            // Horizontal swipe — left/right page nav
             goToPage(dx < 0 ? currentPage + 1 : currentPage - 1);
           } else if (Math.abs(dy) > SWIPE_THRESHOLD) {
-            // Vertical swipe — up = next page, down = previous page
             goToPage(dy < 0 ? currentPage + 1 : currentPage - 1);
           }
         }
-        swipeStartRef.current = null;
         setSwipeOffset(0);
       }
+
+      // Double-tap-to-edit: in pointer mode, two quick taps in nearly the same spot
+      // enter edit mode for whichever text box is hit. We detect the double-tap here
+      // (not through native onDoubleClick) because text boxes are pointer-events:none
+      // in pointer mode so their own DOM handlers never see the taps.
+      if (toolRef.current === 'pointer' && last && elapsed < 400 && movedSq < 12 * 12) {
+        const now = Date.now();
+        const prev = lastTapRef.current;
+        if (prev && now - prev.time < 350) {
+          const ddx = last.clientX - prev.x;
+          const ddy = last.clientY - prev.y;
+          if (ddx * ddx + ddy * ddy < 30 * 30) {
+            const pt = getCanvasPoint(last.clientX, last.clientY);
+            const hitId = hitTestTextBox(pt.x, pt.y);
+            if (hitId) setEditingTextId(hitId);
+            lastTapRef.current = null;
+          } else {
+            lastTapRef.current = { time: now, x: last.clientX, y: last.clientY };
+          }
+        } else {
+          lastTapRef.current = { time: now, x: last.clientX, y: last.clientY };
+        }
+      }
+
+      swipeStartRef.current = null;
       return;
     }
 
     // Drawing end (stylus)
     e.preventDefault();
     handlePointerUp();
-  }, [handlePointerUp, pageMode, swipeOffset, currentPage, goToPage]);
+  }, [handlePointerUp, pageMode, currentPage, goToPage, getCanvasPoint, hitTestTextBox]);
 
   // Mouse events
   const handleMouseDown = useCallback((e: MouseEvent) => handlePointerDown(e.clientX, e.clientY), [handlePointerDown]);
@@ -2738,10 +2786,15 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                   width: `${tbW}%`,
                   minHeight: `${tbH}px`,
                   zIndex: 5 + (tb.zOrder || 0),
-                  // In pointer mode, let the browser turn a vertical finger gesture into
-                  // a scroll so sliding across a big text box still flips the page.
-                  // In other modes (text/lasso/drawing), we capture touches ourselves
-                  // for drag/draw, so suppress the browser's default gestures.
+                  // In pointer mode (not editing), the text box is transparent to touches —
+                  // they fall through to the canvas, which handles swipe / scroll / tap.
+                  // A tap that lands on a text box is detected there and enters edit mode.
+                  // Once editing, pointer-events return so the user can actually type /
+                  // interact with the resize handles & drag grip.
+                  pointerEvents: activeTool === 'pointer' && !isEditing ? 'none' : 'auto',
+                  // In non-pointer tools, capture the touch (touchAction:none); in pointer
+                  // mode the pan-y is redundant (pointerEvents:none already passes through)
+                  // but kept for consistency when editing (pointerEvents:auto case).
                   touchAction: activeTool === 'pointer' ? 'pan-y' : 'none',
                 }}
               >
