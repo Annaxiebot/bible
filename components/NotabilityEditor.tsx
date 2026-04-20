@@ -193,6 +193,25 @@ function markdownToHtml(text: string): string {
 }
 
 /**
+ * If `content` (a stored text-box HTML string) is plain text/markdown — i.e. it has
+ * no rich formatting tags yet but does contain markdown patterns — convert it through
+ * markdownToHtml. Otherwise return the content unchanged. Used for already-saved boxes
+ * so that historical raw markdown renders formatted without the user having to re-edit.
+ */
+function maybeConvertMarkdown(content: string): string {
+  if (!content) return content;
+  const hasRichFormatting = /<(strong|b|em|i|u|s|h[1-6]|ul|ol|li|code|pre|blockquote|a)\b/i.test(content);
+  if (hasRichFormatting) return content;
+  const text = content
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(div|p)>\s*<(div|p)[^>]*>/gi, '\n')
+    .replace(/<\/?(div|p)[^>]*>/gi, '')
+    .replace(/&nbsp;/g, ' ');
+  if (!looksLikeMarkdown(text)) return content;
+  return markdownToHtml(text);
+}
+
+/**
  * Heuristic — does this string look like markdown worth converting? Used for paste so
  * we don't aggressively reformat plain prose that happens to contain a single asterisk.
  */
@@ -662,8 +681,13 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     if (parsed) {
       strokeDataRef.current = parsed;
       if (parsed.paperType) setPaperType(parsed.paperType);
-      // Migrate old text boxes that don't have height
-      if (parsed.textBoxes) setTextBoxes(parsed.textBoxes.map(tb => ({ ...tb, height: tb.height || 0.15 })));
+      // Migrate old text boxes that don't have height; auto-convert any saved raw
+      // markdown content (from earlier sessions before paste/blur conversion landed).
+      if (parsed.textBoxes) setTextBoxes(parsed.textBoxes.map(tb => ({
+        ...tb,
+        height: tb.height || 0.15,
+        content: maybeConvertMarkdown(tb.content || ''),
+      })));
       if (parsed.images) setImages(parsed.images);
       if (parsed.pageMode) setPageMode(parsed.pageMode);
 
@@ -2615,9 +2639,10 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                   ref={el => {
                     if (el) {
                       contentEditableRefs.current.set(tb.id, el);
-                      // Set initial content only when the element is first mounted
+                      // Set initial content only when the element is first mounted.
+                      // Convert any raw markdown that snuck in from earlier sessions.
                       if (el.innerHTML === '' && tb.content) {
-                        el.innerHTML = tb.content;
+                        el.innerHTML = maybeConvertMarkdown(tb.content);
                       }
                     } else {
                       contentEditableRefs.current.delete(tb.id);
@@ -2969,8 +2994,10 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                   </div>
                 )}
 
-                {/* Resize handles (visible when selected but NOT editing — editing auto-fits) */}
-                {isSelected && !isEditing && (
+                {/* Resize handles. Shown both when the box is selected AND while it's being
+                    edited — editing auto-fits height, but a paste of huge content can blow the
+                    box up so the user needs to manually shrink/resize without first dismissing. */}
+                {isSelected && (
                   <>
                     {/* 4 corner handles */}
                     {(['nw', 'ne', 'sw', 'se'] as const).map(corner => (
