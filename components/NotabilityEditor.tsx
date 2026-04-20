@@ -294,15 +294,6 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   // keeps visuals at screen refresh and drops GPU dispatches by ~4x.
   const strokeRafRef = useRef<number | null>(null);
   const strokeRenderedUptoRef = useRef(0); // index into currentStrokePointsRef that has already been drawn
-  // Live-stroke overlay canvas: a page-sized transparent canvas positioned over the
-  // current drawing page. During a stroke we paint only here, so the main (below) and
-  // overlay (above) canvases — which can be multi-page and huge — don't get damaged
-  // and iOS doesn't composite their giant textures on every pointermove. The committed
-  // stroke is rendered onto the real layer once on pointerUp.
-  const liveStrokeCanvasRef = useRef<HTMLCanvasElement>(null);
-  const liveStrokeCtxRef = useRef<CanvasRenderingContext2D | null>(null);
-  const liveStrokeTopRef = useRef(0); // document y-offset where the live canvas starts
-  const liveStrokeActiveRef = useRef(false);
   // Undo history holds either a full JSON snapshot (for text/image/lasso edits) OR a
   // light-weight action marker for pen strokes. Snapshotting on every stroke-commit
   // is O(doc_size) and makes pen-up visibly lag once the page has many strokes.
@@ -543,7 +534,10 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     }
   }, [pageMode]);
 
-  const applyToolSettingsTo = useCallback((ctx: CanvasRenderingContext2D) => {
+  const applyToolSettings = useCallback(() => {
+    // Apply tool settings to the correct canvas context
+    const ctx = drawingLayerRef.current === 'above' ? overlayCtxRef.current : ctxRef.current;
+    if (!ctx) return;
     const tool = toolRef.current;
     if (tool === 'highlighter') {
       ctx.globalCompositeOperation = 'multiply';
@@ -565,12 +559,6 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     ctx.lineJoin = 'round';
   }, []);
 
-  const applyToolSettings = useCallback(() => {
-    const ctx = drawingLayerRef.current === 'above' ? overlayCtxRef.current : ctxRef.current;
-    if (!ctx) return;
-    applyToolSettingsTo(ctx);
-  }, [applyToolSettingsTo]);
-
   // ── Canvas setup ───────────────────────────────────────────────────────
 
   const setupCanvases = useCallback(() => {
@@ -578,13 +566,12 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     const bgCanvas = bgCanvasRef.current;
     const overlayCanvas = overlayCanvasRef.current;
     if (!canvas || !bgCanvas) return;
-    // Cap device-pixel-ratio — at 2x DPR a 4-page canvas is ~15M pixels, and every
-    // stroke() triggers an iOS composite of that entire layer. On long notes we cap
-    // more aggressively to keep drawing responsive; short notes stay at the sharper
-    // 1.5x since compositing a small canvas is cheap either way.
+    // Cap device-pixel-ratio at 1.5 on tall canvases — at 2x DPR a 4-page canvas is
+    // ~15M pixels, and every stroke() triggers an iOS composite of that entire layer.
+    // 1.5x keeps strokes visibly crisp (pencil doesn't expose sub-pixel hinting) while
+    // cutting bitmap size by ~44% and composite time accordingly.
     const rawDpr = window.devicePixelRatio || 1;
-    const longDoc = canvasHeight > PAGE_HEIGHT * 1.5;
-    const dpr = Math.min(rawDpr, longDoc ? 1 : 1.5);
+    const dpr = Math.min(rawDpr, 1.5);
     const rect = canvas.getBoundingClientRect();
     const width = rect.width;
     const height = canvasHeight;
@@ -1076,43 +1063,16 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       return;
     }
 
-    // Drawing tools — live strokes go to a page-sized liveStroke canvas to avoid
-    // damaging the big main/overlay bitmaps on every pointermove. Commit transfers
-    // the stroke to the real layer (main ctx or overlay ctx) once on pointerUp.
-    const liveEl = liveStrokeCanvasRef.current;
-    if (!liveEl) return;
+    // Drawing tools — use overlay canvas when drawing above text
+    const drawCtx = drawingLayerRef.current === 'above' ? overlayCtxRef.current : ctxRef.current;
+    if (!drawCtx) return;
     isDrawingRef.current = true;
     currentStrokePointsRef.current = [{ x, y }];
     strokeRenderedUptoRef.current = 0;
-
-    const w = displayWidthRef.current;
-    const rawDpr = window.devicePixelRatio || 1;
-    const longDoc = canvasHeight > PAGE_HEIGHT * 1.5;
-    const dpr = Math.min(rawDpr, longDoc ? 1 : 1.5);
-    // Live canvas is PAGE_HEIGHT tall, positioned to cover the page where the stroke starts.
-    // Strokes that extend past the page are clipped live; the full stroke is rendered on
-    // the real layer at commit time.
-    const pageTop = Math.floor(y / PAGE_HEIGHT) * PAGE_HEIGHT;
-    const liveH = PAGE_HEIGHT;
-    liveEl.width = w * dpr;
-    liveEl.height = liveH * dpr;
-    liveEl.style.top = `${pageTop}px`;
-    liveEl.style.height = `${liveH}px`;
-    liveEl.style.width = '100%';
-    liveEl.style.display = 'block';
-    // Match the live-stroke z-index to the active drawing layer so the stroke appears in
-    // the correct visual slot (above or below text boxes / overlay) during the drag.
-    liveEl.style.zIndex = drawingLayerRef.current === 'above' ? '11' : '4';
-    const ctx = liveEl.getContext('2d');
-    if (!ctx) return;
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.scale(dpr, dpr);
-    ctx.clearRect(0, 0, liveH, liveH); // clear transparent
-    applyToolSettingsTo(ctx);
-    liveStrokeCtxRef.current = ctx;
-    liveStrokeTopRef.current = pageTop;
-    liveStrokeActiveRef.current = true;
-  }, [getCanvasPoint, getNormalizedPoint, closeAllPopups, applyToolSettingsTo, eraseStrokeAt, lassoSelection, pushUndo, redrawAll, triggerAutoSave, canvasHeight]);
+    applyToolSettings();
+    // Live drawing happens in an rAF batch (see handlePointerMove) — start of stroke only
+    // records the anchor point; the first segment is drawn on the first rAF after a move.
+  }, [getCanvasPoint, getNormalizedPoint, closeAllPopups, applyToolSettings, eraseStrokeAt, lassoSelection, pushUndo, redrawAll, triggerAutoSave]);
 
   const handlePointerMove = useCallback((clientX: number, clientY: number) => {
     if (!isDrawingRef.current && !lassoDragStartRef.current) return;
@@ -1183,24 +1143,24 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 
     if (tool === 'eraser') { eraseStrokeAt(x, y); return; }
 
-    // Accumulate points; draw in an rAF batch on the small liveStroke canvas.
+    // Accumulate points; draw in an rAF batch to avoid per-event GPU dispatches.
     currentStrokePointsRef.current.push({ x, y });
     if (strokeRafRef.current === null) {
       strokeRafRef.current = requestAnimationFrame(() => {
         strokeRafRef.current = null;
-        const liveCtx = liveStrokeCtxRef.current;
-        if (!liveCtx) return;
+        const drawCtx = drawingLayerRef.current === 'above' ? overlayCtxRef.current : ctxRef.current;
+        if (!drawCtx) return;
         const pts = currentStrokePointsRef.current;
         const start = strokeRenderedUptoRef.current;
         if (pts.length <= start + 1) return;
-        // Translate doc y to live-canvas y (the live canvas starts at liveStrokeTopRef).
-        const offsetY = liveStrokeTopRef.current;
-        liveCtx.beginPath();
-        liveCtx.moveTo(pts[start].x, pts[start].y - offsetY);
+        // One beginPath/stroke for all new segments since last frame — browsers rasterize
+        // the whole path in one pass and issue a single GPU command.
+        drawCtx.beginPath();
+        drawCtx.moveTo(pts[start].x, pts[start].y);
         for (let i = start + 1; i < pts.length; i++) {
-          liveCtx.lineTo(pts[i].x, pts[i].y - offsetY);
+          drawCtx.lineTo(pts[i].x, pts[i].y);
         }
-        liveCtx.stroke();
+        drawCtx.stroke();
         strokeRenderedUptoRef.current = pts.length - 1;
       });
     }
@@ -1226,35 +1186,26 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     }
     if (tool === 'eraser') { eraserActiveRef.current = false; isDrawingRef.current = false; applyDeferredExpand(); return; }
     if (isDrawingRef.current) {
-      // Cancel any pending live-stroke render frame.
+      // Flush any segments that haven't been painted yet (the rAF may not have run yet).
       if (strokeRafRef.current !== null) {
         cancelAnimationFrame(strokeRafRef.current);
         strokeRafRef.current = null;
       }
-      // Transfer the full stroke onto the real layer (main or overlay) at document coords,
-      // then clear + hide the liveStroke canvas.
-      const realCtx = drawingLayerRef.current === 'above' ? overlayCtxRef.current : ctxRef.current;
+      const drawCtx = drawingLayerRef.current === 'above' ? overlayCtxRef.current : ctxRef.current;
       const pts = currentStrokePointsRef.current;
-      if (realCtx && pts.length >= 2) {
-        applyToolSettingsTo(realCtx);
-        realCtx.beginPath();
-        realCtx.moveTo(pts[0].x, pts[0].y);
-        for (let i = 1; i < pts.length; i++) realCtx.lineTo(pts[i].x, pts[i].y);
-        realCtx.stroke();
+      const start = strokeRenderedUptoRef.current;
+      if (drawCtx && pts.length > start + 1) {
+        drawCtx.beginPath();
+        drawCtx.moveTo(pts[start].x, pts[start].y);
+        for (let i = start + 1; i < pts.length; i++) drawCtx.lineTo(pts[i].x, pts[i].y);
+        drawCtx.stroke();
       }
-      const liveEl = liveStrokeCanvasRef.current;
-      const liveCtx = liveStrokeCtxRef.current;
-      if (liveEl && liveCtx) {
-        liveCtx.clearRect(0, 0, liveEl.width, liveEl.height);
-        liveEl.style.display = 'none';
-      }
-      liveStrokeActiveRef.current = false;
       strokeRenderedUptoRef.current = 0;
       commitCurrentStroke();
     }
     isDrawingRef.current = false;
     applyDeferredExpand();
-  }, [commitCurrentStroke, finishLasso, applyDeferredExpand, applyToolSettingsTo]);
+  }, [commitCurrentStroke, finishLasso, applyDeferredExpand]);
 
   // ── Single-page navigation helpers ─────────────────────────────────────
 
@@ -2557,14 +2508,6 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
             transition: swipeOffset === 0 ? 'transform 0.3s ease-out' : 'none',
           } : {}),
         }}>
-          {/* Live-stroke overlay — only active while a pen stroke is being drawn. Page-sized
-              (not multi-page) so iOS composites a small texture per pointermove instead of
-              the full main/overlay canvases. Hidden between strokes. */}
-          <canvas ref={liveStrokeCanvasRef}
-            style={{
-              position: 'absolute', left: 0, top: 0, width: '100%', height: `${PAGE_HEIGHT}px`,
-              display: 'none', pointerEvents: 'none', zIndex: 11,
-            }} />
           {/* Background canvas */}
           <canvas ref={bgCanvasRef} className="absolute inset-0"
             style={{ width: '100%', height: `${canvasHeight}px`, pointerEvents: 'none' }} />
