@@ -1967,7 +1967,9 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 
   const handleItemPointerDown = useCallback((e: React.MouseEvent | React.TouchEvent, id: string, type: 'text' | 'image') => {
     e.stopPropagation();
-    if (editingTextId === id) return; // don't drag while editing
+    // (Content-surface drag is guarded by the onMouseDown/onTouchStart handlers at the
+    // text box div — they only dispatch here when NOT editing. The editing-mode drag
+    // grip calls into us intentionally, so no editingTextId early-return here.)
     setSelectedItemId(id);
     setSelectedItemType(type);
 
@@ -1983,7 +1985,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       setDragOffset({ x: np.x - item.x, y: np.y - item.y });
       setIsDragging(true); // state-based so global move/up listeners wire up
     }
-  }, [editingTextId, getNormalizedPoint, textBoxes, images]);
+  }, [getNormalizedPoint, textBoxes, images]);
 
   const handleItemPointerMove = useCallback((e: React.MouseEvent | React.TouchEvent) => {
     if (!isDragging || !selectedItemId) return;
@@ -2808,6 +2810,10 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                     }
                   }}
                   onMouseDown={e => {
+                    // In pointer mode the text-box surface is inert so reading / page flips
+                    // aren't hijacked by accidental drags. To move the box, enter edit mode
+                    // (double-tap) and use the grip handle, or switch to a drawing/text tool.
+                    if (toolRef.current === 'pointer') return;
                     if (!isEditing) { e.preventDefault(); handleItemPointerDown(e, tb.id, 'text'); }
                   }}
                   onTouchStart={e => {
@@ -2817,6 +2823,9 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                       e.preventDefault();
                       return;
                     }
+                    // In pointer mode: don't start a drag; let the scroll / page-flip gesture
+                    // pass through to the scroll container.
+                    if (toolRef.current === 'pointer') return;
                     // Always preventDefault when not editing to block iOS Scribble (Apple Pencil
                     // handwriting-to-text) from activating on the contentEditable surface.
                     if (!isEditing) { e.preventDefault(); handleItemPointerDown(e, tb.id, 'text'); }
@@ -3180,6 +3189,38 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                       }}
                       onClick={(e) => { e.stopPropagation(); deleteTextBox(tb.id); }}
                     >×</button>
+                    {/* Drag grip — lets the user MOVE the box from inside edit mode
+                        (text-surface drag is disabled in pointer mode to protect scrolling).
+                        Top-left corner, opposite the delete button. */}
+                    {isEditing && (
+                      <div
+                        aria-label="Drag to move text box"
+                        style={{
+                          position: 'absolute', left: -22, top: -22,
+                          width: 44, height: 44, zIndex: 9,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          cursor: 'move', touchAction: 'none',
+                        }}
+                        onMouseDown={e => {
+                          e.stopPropagation(); e.preventDefault();
+                          handleItemPointerDown(e, tb.id, 'text');
+                        }}
+                        onTouchStart={e => {
+                          e.stopPropagation(); e.preventDefault();
+                          handleItemPointerDown(e, tb.id, 'text');
+                        }}
+                      >
+                        <div style={{
+                          width: 24, height: 24, borderRadius: 6,
+                          background: '#4f46e5', color: 'white',
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontSize: 13, fontWeight: 700,
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
+                          pointerEvents: 'none',
+                          lineHeight: 1,
+                        }}>⠿</div>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
