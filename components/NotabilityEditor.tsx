@@ -1476,13 +1476,18 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const handleTouchStart = useCallback((e: TouchEvent) => {
     if (e.touches.length > 1) return;
     const t = e.touches[0];
-    // Pencil goes through the pointer event path (setPointerCapture +
-    // getCoalescedEvents for fidelity under load). preventDefault here
-    // though — that's still what blocks the browser from starting a scroll
-    // gesture on the same stylus touch (pointer-event preventDefault alone
-    // doesn't override touch-action: pan-y on the canvas). Processing is
-    // deferred to handlePenPointerDown so we don't double-fire.
-    if (hasPointerEvents && isStylusTouch(t)) { e.preventDefault(); return; }
+    // Pencil in DRAWING modes (pen/marker/highlighter/eraser/lasso) goes through
+    // the pointer event path (setPointerCapture + getCoalescedEvents for fidelity
+    // under load). Skip here so it's not double-processed. preventDefault still
+    // runs so the browser doesn't start a scroll gesture on the stylus touch —
+    // pointer-event preventDefault alone doesn't override touch-action: pan-y.
+    // In POINTER mode we intentionally don't skip stylus: the touch handler's
+    // navigation path (swipe / double-tap-to-edit) treats pencil identically
+    // to finger, so the pencil can flip pages again.
+    if (hasPointerEvents && isStylusTouch(t) && toolRef.current !== 'pointer') {
+      e.preventDefault();
+      return;
+    }
     // Text mode is keyboard-only: Apple Pencil is inert. Blocks Scribble, accidental
     // strokes, and accidental new text boxes from pencil taps while typing.
     if (toolRef.current === 'text' && isStylusTouch(t)) {
@@ -1511,10 +1516,12 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 
   const handleTouchMove = useCallback((e: TouchEvent) => {
     if (e.touches.length > 1) { isDrawingRef.current = false; return; }
-    // Pencil goes through the pointer path — see handleTouchStart.
-    // preventDefault here for the same reason: block browser native scroll for
-    // the stylus gesture; pointer handler does the actual draw via coalesced events.
-    if (hasPointerEvents && isStylusTouch(e.touches[0])) { e.preventDefault(); return; }
+    // Pencil in drawing modes → pointer path (see handleTouchStart). In pointer
+    // mode we keep the stylus in the touch navigation path so pencil can scroll.
+    if (hasPointerEvents && isStylusTouch(e.touches[0]) && toolRef.current !== 'pointer') {
+      e.preventDefault();
+      return;
+    }
 
     if (isFingerTouchRef.current) {
       // Navigation move — handle swipe in single-page mode
@@ -1540,9 +1547,13 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   }, [handlePointerMove, pageMode]);
 
   const handleTouchEnd = useCallback((e: TouchEvent) => {
-    // Pencil goes through the pointer path — see handleTouchStart.
+    // Pencil in drawing modes → pointer path. Pencil in pointer mode → this handler
+    // (for swipe-to-flip and double-tap-to-edit, identical to finger navigation).
     const last0 = e.changedTouches[0];
-    if (hasPointerEvents && last0 && isStylusTouch(last0)) { e.preventDefault(); return; }
+    if (hasPointerEvents && last0 && isStylusTouch(last0) && toolRef.current !== 'pointer') {
+      e.preventDefault();
+      return;
+    }
     if (isFingerTouchRef.current) {
       isFingerTouchRef.current = false;
       const start = swipeStartRef.current;
