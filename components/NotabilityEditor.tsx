@@ -1477,9 +1477,12 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     if (e.touches.length > 1) return;
     const t = e.touches[0];
     // Pencil goes through the pointer event path (setPointerCapture +
-    // getCoalescedEvents for fidelity under load). Skip it here to avoid
-    // double-firing the stroke pipeline.
-    if (hasPointerEvents && isStylusTouch(t)) return;
+    // getCoalescedEvents for fidelity under load). preventDefault here
+    // though — that's still what blocks the browser from starting a scroll
+    // gesture on the same stylus touch (pointer-event preventDefault alone
+    // doesn't override touch-action: pan-y on the canvas). Processing is
+    // deferred to handlePenPointerDown so we don't double-fire.
+    if (hasPointerEvents && isStylusTouch(t)) { e.preventDefault(); return; }
     // Text mode is keyboard-only: Apple Pencil is inert. Blocks Scribble, accidental
     // strokes, and accidental new text boxes from pencil taps while typing.
     if (toolRef.current === 'text' && isStylusTouch(t)) {
@@ -1509,7 +1512,9 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const handleTouchMove = useCallback((e: TouchEvent) => {
     if (e.touches.length > 1) { isDrawingRef.current = false; return; }
     // Pencil goes through the pointer path — see handleTouchStart.
-    if (hasPointerEvents && isStylusTouch(e.touches[0])) return;
+    // preventDefault here for the same reason: block browser native scroll for
+    // the stylus gesture; pointer handler does the actual draw via coalesced events.
+    if (hasPointerEvents && isStylusTouch(e.touches[0])) { e.preventDefault(); return; }
 
     if (isFingerTouchRef.current) {
       // Navigation move — handle swipe in single-page mode
@@ -1537,7 +1542,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const handleTouchEnd = useCallback((e: TouchEvent) => {
     // Pencil goes through the pointer path — see handleTouchStart.
     const last0 = e.changedTouches[0];
-    if (hasPointerEvents && last0 && isStylusTouch(last0)) return;
+    if (hasPointerEvents && last0 && isStylusTouch(last0)) { e.preventDefault(); return; }
     if (isFingerTouchRef.current) {
       isFingerTouchRef.current = false;
       const start = swipeStartRef.current;
