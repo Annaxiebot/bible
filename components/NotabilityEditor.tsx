@@ -3350,6 +3350,20 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           cursor: 'move', touchAction: 'none',
                         }}
+                        // Capture the pointerId to this element at pointerdown so every
+                        // follow-up pointermove/pointerup for that pointer goes here —
+                        // not to the canvas underneath. Without this, once the pencil
+                        // slides off the 44×44 grip area mid-drag, follow-up pointer
+                        // events hit the canvas; if a canvas pointerdown also managed
+                        // to fire for the same gesture, strokes would appear while the
+                        // box was being moved. stopPropagation ensures a pointerdown
+                        // on the grip cannot bubble to any ancestor pointer listener.
+                        onPointerDown={e => {
+                          e.stopPropagation();
+                          try {
+                            (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+                          } catch { /* ignore */ }
+                        }}
                         onMouseDown={e => {
                           e.stopPropagation(); e.preventDefault();
                           handleItemPointerDown(e, tb.id, 'text');
