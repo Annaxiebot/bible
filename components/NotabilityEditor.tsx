@@ -285,8 +285,15 @@ function markdownToHtml(text: string): string {
  */
 function maybeConvertMarkdown(content: string): string {
   if (!content) return content;
-  const hasRichFormatting = /<(strong|b|em|i|u|s|h[1-6]|ul|ol|li|code|pre|blockquote|a)\b/i.test(content);
-  if (hasRichFormatting) return content;
+  // If a <table> is already present, the content has been processed before — don't
+  // double-process. (We do NOT bail on other rich tags like <strong> anymore, because
+  // a previously-rendered bold run was causing sibling raw markdown tables below it
+  // to never get converted.)
+  if (/<table\b/i.test(content)) return content;
+  // Normalize block wrappers to plain-text lines so the line-based parser (headings,
+  // bullets, tables) can see them. Inline tags (<strong>, <em>, <code>…) are left
+  // alone — markdownToHtml's escape rule only touches stray & characters, so they
+  // round-trip untouched.
   const text = content
     .replace(/<br\s*\/?>/gi, '\n')
     .replace(/<\/(div|p)>\s*<(div|p)[^>]*>/gi, '\n')
@@ -1721,24 +1728,14 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     const el = contentEditableRefs.current.get(id);
     if (!el) return;
     let content = el.innerHTML;
-    // If the content is "plain" (no rich formatting tags yet) AND the text contains
-    // markdown patterns the user typed (**, _, `, headings, lists), auto-convert to
-    // formatted HTML on blur. We skip this when rich tags are already present so we
-    // don't double-process or corrupt earlier formatting.
-    const hasRichFormatting = /<(strong|b|em|i|u|s|h[1-6]|ul|ol|li|code|pre|blockquote|a)\b/i.test(content);
-    if (!hasRichFormatting) {
-      const text = content
-        .replace(/<br\s*\/?>/gi, '\n')
-        .replace(/<\/(div|p)>\s*<(div|p)[^>]*>/gi, '\n')
-        .replace(/<\/?(div|p)[^>]*>/gi, '')
-        .replace(/&nbsp;/g, ' ');
-      if (looksLikeMarkdown(text)) {
-        const newHtml = markdownToHtml(text);
-        if (newHtml !== content) {
-          el.innerHTML = newHtml;
-          content = newHtml;
-        }
-      }
+    // Auto-convert any raw markdown that's still present (typed-but-not-yet-rendered).
+    // Delegate to maybeConvertMarkdown so paste / load / blur all apply the same rules —
+    // notably: conversion runs even if the box already has <strong>/<em>/etc. from earlier,
+    // as long as no <table> has been rendered yet.
+    const converted = maybeConvertMarkdown(content);
+    if (converted !== content) {
+      el.innerHTML = converted;
+      content = converted;
     }
     // Auto-fit height to (possibly newly-converted) content
     const w = displayWidthRef.current;
