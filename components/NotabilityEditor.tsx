@@ -2676,6 +2676,15 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                       ? markdownToHtml(text)
                       : text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
                     document.execCommand('insertHTML', false, html);
+                    // Auto-fit width to (almost) the full page on paste so a long block of
+                    // text isn't crammed into a narrow column and stretched into a giant tower.
+                    // Height keeps auto-fitting to content; the user can then shrink either
+                    // dimension manually via the corner handles (visible while editing).
+                    const PAGE_MARGIN = 0.05;
+                    const pageWidth = 1 - 2 * PAGE_MARGIN;
+                    if (tb.width < pageWidth) {
+                      updateTextBox(tb.id, { x: PAGE_MARGIN, width: pageWidth });
+                    }
                     handleTextInput(tb.id);
                   }}
                   onSelect={saveSelection}
