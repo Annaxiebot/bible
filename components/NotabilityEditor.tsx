@@ -164,6 +164,13 @@ function markdownToHtml(text: string): string {
   // Escape stray & not in entities
   out = out.replace(/&(?!(#?\w+;))/g, '&amp;');
 
+  // Headings (process before other inline rules so the # marker is consumed first).
+  out = out.replace(/^######\s+(.+)$/gm, '<h6>$1</h6>');
+  out = out.replace(/^#####\s+(.+)$/gm, '<h5>$1</h5>');
+  out = out.replace(/^####\s+(.+)$/gm, '<h4>$1</h4>');
+  out = out.replace(/^###\s+(.+)$/gm, '<h3>$1</h3>');
+  out = out.replace(/^##\s+(.+)$/gm, '<h2>$1</h2>');
+  out = out.replace(/^#\s+(.+)$/gm, '<h1>$1</h1>');
   // **bold**
   out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
   // *italic* (single asterisk, not adjacent to another)
@@ -175,9 +182,30 @@ function markdownToHtml(text: string): string {
   // Numbered list items (1. 2. 3.)
   out = out.replace(/^[\s]*(\d+\.)\s+(.+)$/gm, '<div>$1 $2</div>');
   // Double newline → paragraph break, single → <br>
+  // (skip newlines that are immediately around heading/bullet block tags so we don't
+  //  introduce stray <br>s right before/after them)
   out = out.replace(/\n\n+/g, '<br><br>');
   out = out.replace(/\n/g, '<br>');
+  // Clean up <br> immediately adjacent to block elements we just emitted.
+  out = out.replace(/(<\/(?:h[1-6]|div)>)<br>/g, '$1');
+  out = out.replace(/<br>(<(?:h[1-6]|div)>)/g, '$1');
   return out;
+}
+
+/**
+ * Heuristic — does this string look like markdown worth converting? Used for paste so
+ * we don't aggressively reformat plain prose that happens to contain a single asterisk.
+ */
+function looksLikeMarkdown(text: string): boolean {
+  if (!text) return false;
+  return (
+    /\*\*[^*\n]+\*\*/.test(text) ||              // **bold**
+    /(^|[^*])\*[^*\n]+\*(?!\*)/.test(text) ||    // *italic*
+    /`[^`\n]+`/.test(text) ||                    // `code`
+    /^#{1,6}\s+/m.test(text) ||                  // # heading
+    /^[\s]*[*\-]\s+/m.test(text) ||              // - bullet
+    /^[\s]*\d+\.\s+/m.test(text)                 // 1. numbered
+  );
 }
 
 const AI_ACTIONS = [
@@ -1533,15 +1561,34 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   // Save HTML content from contentEditable ref
   const syncContentFromRef = useCallback((id: string) => {
     const el = contentEditableRefs.current.get(id);
-    if (el) {
-      // Auto-fit height to content
-      const w = displayWidthRef.current;
-      const scrollH = el.scrollHeight;
-      const minH = 24;
-      const fittedPx = Math.max(scrollH, minH);
-      const normalizedH = w > 0 ? fittedPx / w : 0.15;
-      updateTextBox(id, { content: el.innerHTML, height: normalizedH });
+    if (!el) return;
+    let content = el.innerHTML;
+    // If the content is "plain" (no rich formatting tags yet) AND the text contains
+    // markdown patterns the user typed (**, _, `, headings, lists), auto-convert to
+    // formatted HTML on blur. We skip this when rich tags are already present so we
+    // don't double-process or corrupt earlier formatting.
+    const hasRichFormatting = /<(strong|b|em|i|u|s|h[1-6]|ul|ol|li|code|pre|blockquote|a)\b/i.test(content);
+    if (!hasRichFormatting) {
+      const text = content
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<\/(div|p)>\s*<(div|p)[^>]*>/gi, '\n')
+        .replace(/<\/?(div|p)[^>]*>/gi, '')
+        .replace(/&nbsp;/g, ' ');
+      if (looksLikeMarkdown(text)) {
+        const newHtml = markdownToHtml(text);
+        if (newHtml !== content) {
+          el.innerHTML = newHtml;
+          content = newHtml;
+        }
+      }
     }
+    // Auto-fit height to (possibly newly-converted) content
+    const w = displayWidthRef.current;
+    const scrollH = el.scrollHeight;
+    const minH = 24;
+    const fittedPx = Math.max(scrollH, minH);
+    const normalizedH = w > 0 ? fittedPx / w : 0.15;
+    updateTextBox(id, { content, height: normalizedH });
   }, [updateTextBox]);
 
   // ── Slash commands (/date, /time, /location, /divider, /heading, /bible) ──
@@ -2591,6 +2638,21 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                     // This prevents iOS touch-triggered blur from killing the toolbar.
                   }}
                   onInput={() => handleTextInput(tb.id)}
+                  onPaste={e => {
+                    // Always intercept paste: convert markdown to formatted HTML,
+                    // and strip arbitrary HTML from clipboard sources (Word, web pages)
+                    // to plain text so it doesn't drag in foreign styles or scripts.
+                    e.preventDefault();
+                    const cd = e.clipboardData;
+                    if (!cd) return;
+                    const text = cd.getData('text/plain');
+                    if (!text) return;
+                    const html = looksLikeMarkdown(text)
+                      ? markdownToHtml(text)
+                      : text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+                    document.execCommand('insertHTML', false, html);
+                    handleTextInput(tb.id);
+                  }}
                   onSelect={saveSelection}
                   onKeyUp={saveSelection}
                   onMouseUp={saveSelection}
