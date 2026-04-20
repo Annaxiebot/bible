@@ -2738,7 +2738,11 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                   width: `${tbW}%`,
                   minHeight: `${tbH}px`,
                   zIndex: 5 + (tb.zOrder || 0),
-                  touchAction: 'none',
+                  // In pointer mode, let the browser turn a vertical finger gesture into
+                  // a scroll so sliding across a big text box still flips the page.
+                  // In other modes (text/lasso/drawing), we capture touches ourselves
+                  // for drag/draw, so suppress the browser's default gestures.
+                  touchAction: activeTool === 'pointer' ? 'pan-y' : 'none',
                 }}
               >
                 {/* Rich text contentEditable div */}
