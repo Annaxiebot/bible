@@ -1958,6 +1958,13 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 
   // ── Item drag/resize ───────────────────────────────────────────────────
 
+  // Movement threshold — a tap on a text box/image SELECTS it (shows the resize handles)
+  // but doesn't move it. Only an intentional drag that exceeds the threshold starts the
+  // actual move. Fixes the "finger barely touched the box and it slid off" problem.
+  const dragStartPxRef = useRef<{ x: number; y: number } | null>(null);
+  const thresholdCrossedRef = useRef(false);
+  const DRAG_THRESHOLD_PX = 8;
+
   const handleItemPointerDown = useCallback((e: React.MouseEvent | React.TouchEvent, id: string, type: 'text' | 'image') => {
     e.stopPropagation();
     if (editingTextId === id) return; // don't drag while editing
@@ -1971,8 +1978,10 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       ? textBoxes.find(t => t.id === id)
       : images.find(i => i.id === id);
     if (item) {
+      dragStartPxRef.current = { x: clientX, y: clientY };
+      thresholdCrossedRef.current = false;
       setDragOffset({ x: np.x - item.x, y: np.y - item.y });
-      setIsDragging(true);
+      setIsDragging(true); // state-based so global move/up listeners wire up
     }
   }, [editingTextId, getNormalizedPoint, textBoxes, images]);
 
@@ -1981,6 +1990,14 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     e.stopPropagation();
     const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
     const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    // Gate actual movement on the threshold — ignore tiny finger jitter between
+    // pointerDown and pointerUp so taps don't move the box.
+    if (!thresholdCrossedRef.current && dragStartPxRef.current) {
+      const dx = clientX - dragStartPxRef.current.x;
+      const dy = clientY - dragStartPxRef.current.y;
+      if (dx * dx + dy * dy < DRAG_THRESHOLD_PX * DRAG_THRESHOLD_PX) return;
+      thresholdCrossedRef.current = true;
+    }
     const np = getNormalizedPoint(clientX, clientY);
     const nx = np.x - dragOffset.x;
     const ny = np.y - dragOffset.y;
@@ -1994,8 +2011,11 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   }, [isDragging, selectedItemId, selectedItemType, dragOffset, getNormalizedPoint, redrawAll]);
 
   const handleItemPointerUp = useCallback(() => {
-    if (isDragging) { triggerAutoSave(); }
+    // Only persist on a real drag — a tap that never crossed threshold shouldn't dirty the doc.
+    if (isDragging && thresholdCrossedRef.current) triggerAutoSave();
     setIsDragging(false);
+    dragStartPxRef.current = null;
+    thresholdCrossedRef.current = false;
   }, [isDragging, triggerAutoSave]);
 
   // ── Text box resize (left/right edge handles like Notability) ──────────
