@@ -157,39 +157,124 @@ function parseExtended(raw: string): ExtendedCanvasData | null {
  */
 function markdownToHtml(text: string): string {
   if (!text) return '';
-  // Escape HTML first (but preserve any existing tags the AI emits — models sometimes
-  // emit <strong> etc. directly). We only escape the bare characters that aren't already
-  // part of a tag. Simple approach: escape <, >, & unless they look like an HTML tag.
-  let out = text;
-  // Escape stray & not in entities
-  out = out.replace(/&(?!(#?\w+;))/g, '&amp;');
 
-  // Headings (process before other inline rules so the # marker is consumed first).
-  out = out.replace(/^######\s+(.+)$/gm, '<h6>$1</h6>');
-  out = out.replace(/^#####\s+(.+)$/gm, '<h5>$1</h5>');
-  out = out.replace(/^####\s+(.+)$/gm, '<h4>$1</h4>');
-  out = out.replace(/^###\s+(.+)$/gm, '<h3>$1</h3>');
-  out = out.replace(/^##\s+(.+)$/gm, '<h2>$1</h2>');
-  out = out.replace(/^#\s+(.+)$/gm, '<h1>$1</h1>');
-  // **bold**
-  out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-  // *italic* (single asterisk, not adjacent to another)
-  out = out.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
-  // `code`
-  out = out.replace(/`([^`]+)`/g, '<code>$1</code>');
-  // Lines starting with * or - → bullet (simple, no nesting)
-  out = out.replace(/^[\s]*[*\-]\s+(.+)$/gm, '<div>• $1</div>');
-  // Numbered list items (1. 2. 3.)
-  out = out.replace(/^[\s]*(\d+\.)\s+(.+)$/gm, '<div>$1 $2</div>');
-  // Double newline → paragraph break, single → <br>
-  // (skip newlines that are immediately around heading/bullet block tags so we don't
-  //  introduce stray <br>s right before/after them)
-  out = out.replace(/\n\n+/g, '<br><br>');
-  out = out.replace(/\n/g, '<br>');
-  // Clean up <br> immediately adjacent to block elements we just emitted.
-  out = out.replace(/(<\/(?:h[1-6]|div)>)<br>/g, '$1');
-  out = out.replace(/<br>(<(?:h[1-6]|div)>)/g, '$1');
-  return out;
+  // Inline rules — applied to a single line of plain text. Caller is responsible
+  // for HTML-escaping the line first if it came from untrusted input.
+  const applyInline = (s: string): string => {
+    let out = s;
+    out = out.replace(/&(?!(#?\w+;))/g, '&amp;');
+    // **bold**
+    out = out.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+    // *italic*
+    out = out.replace(/(^|[^*])\*([^*\n]+)\*(?!\*)/g, '$1<em>$2</em>');
+    // `code`
+    out = out.replace(/`([^`]+)`/g, '<code>$1</code>');
+    return out;
+  };
+
+  // Recognise a GFM-style table starting at lines[i]. Returns the consumed line count
+  // and the rendered <table> HTML, or null if no table here.
+  const tryParseTable = (lines: string[], i: number): { html: string; consumed: number } | null => {
+    if (i + 1 >= lines.length) return null;
+    const header = lines[i].trim();
+    const sep = lines[i + 1].trim();
+    if (!header.includes('|') || !sep.includes('|')) return null;
+    // Separator is a row of dashes / pipes / colons (alignment).
+    if (!/^\|?\s*:?-{3,}:?\s*(\|\s*:?-{3,}:?\s*)+\|?$/.test(sep)) return null;
+    const splitRow = (row: string): string[] => {
+      const trimmed = row.replace(/^\||\|$/g, '');
+      return trimmed.split('|').map(c => c.trim());
+    };
+    const headerCells = splitRow(header);
+    const sepCells = splitRow(sep);
+    const aligns = sepCells.map(c => {
+      const left = c.startsWith(':');
+      const right = c.endsWith(':');
+      if (left && right) return 'center';
+      if (right) return 'right';
+      if (left) return 'left';
+      return '';
+    });
+    const bodyRows: string[][] = [];
+    let j = i + 2;
+    while (j < lines.length) {
+      const row = lines[j].trim();
+      if (!row.includes('|')) break;
+      bodyRows.push(splitRow(row));
+      j++;
+    }
+    let html = '<table style="border-collapse:collapse;margin:6px 0;font-size:inherit;">';
+    html += '<thead><tr>';
+    for (let k = 0; k < headerCells.length; k++) {
+      const align = aligns[k] ? `text-align:${aligns[k]};` : '';
+      html += `<th style="border:1px solid #cbd5e1;padding:4px 8px;background:#f8fafc;${align}">${applyInline(headerCells[k])}</th>`;
+    }
+    html += '</tr></thead><tbody>';
+    for (const row of bodyRows) {
+      html += '<tr>';
+      for (let k = 0; k < row.length; k++) {
+        const align = aligns[k] ? `text-align:${aligns[k]};` : '';
+        html += `<td style="border:1px solid #cbd5e1;padding:4px 8px;${align}">${applyInline(row[k])}</td>`;
+      }
+      html += '</tr>';
+    }
+    html += '</tbody></table>';
+    return { html, consumed: j - i };
+  };
+
+  // Walk lines so block constructs (tables, headings, lists) can span / replace
+  // multiple lines without confusing the inline rules.
+  const lines = text.split('\n');
+  const out: string[] = [];
+  let prevBlock = false; // last emit was a block element (table/heading/list)
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Table?
+    const tbl = tryParseTable(lines, i);
+    if (tbl) {
+      out.push(tbl.html);
+      i += tbl.consumed - 1;
+      prevBlock = true;
+      continue;
+    }
+
+    // Heading?
+    const h = line.match(/^(#{1,6})\s+(.+)$/);
+    if (h) {
+      out.push(`<h${h[1].length}>${applyInline(h[2])}</h${h[1].length}>`);
+      prevBlock = true;
+      continue;
+    }
+
+    // Bullet list?
+    const bullet = line.match(/^[\s]*[*\-]\s+(.+)$/);
+    if (bullet) {
+      out.push(`<div>• ${applyInline(bullet[1])}</div>`);
+      prevBlock = true;
+      continue;
+    }
+
+    // Numbered list?
+    const num = line.match(/^[\s]*(\d+\.)\s+(.+)$/);
+    if (num) {
+      out.push(`<div>${num[1]} ${applyInline(num[2])}</div>`);
+      prevBlock = true;
+      continue;
+    }
+
+    // Plain text line — apply inline rules. Empty line → blank break, but skip if
+    // we just emitted a block element (which already provides its own visual break).
+    if (line.trim() === '') {
+      if (!prevBlock) out.push('<br>');
+      prevBlock = false;
+      continue;
+    }
+    out.push(applyInline(line));
+    if (i + 1 < lines.length) out.push('<br>');
+    prevBlock = false;
+  }
+  return out.join('');
 }
 
 /**
@@ -3008,35 +3093,62 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                     box up so the user needs to manually shrink/resize without first dismissing. */}
                 {isSelected && (
                   <>
-                    {/* 4 corner handles */}
+                    {/* 4 corner handles. Touch target is 44x44 (Apple's HIG minimum) but the
+                        visible dot is small (18px) so it doesn't cover content. The wrapper is
+                        transparent and catches the touch; the inner dot is purely visual. */}
                     {(['nw', 'ne', 'sw', 'se'] as const).map(corner => (
                       <div key={corner}
                         style={{
                           position: 'absolute',
-                          width: 10, height: 10,
-                          background: '#4f46e5', borderRadius: '50%', border: '2px solid white',
+                          width: 44, height: 44,
                           zIndex: 8,
                           cursor: corner === 'nw' || corner === 'se' ? 'nwse-resize' : 'nesw-resize',
-                          ...(corner.includes('n') ? { top: -5 } : { bottom: -5 }),
-                          ...(corner.includes('w') ? { left: -5 } : { right: -5 }),
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          touchAction: 'none',
+                          ...(corner.includes('n') ? { top: -22 } : { bottom: -22 }),
+                          ...(corner.includes('w') ? { left: -22 } : { right: -22 }),
                         }}
                         onMouseDown={e => handleTextResizeStart(e, tb.id, corner)}
                         onTouchStart={e => handleTextResizeStart(e, tb.id, corner)}
-                      />
+                      >
+                        <div style={{
+                          width: 18, height: 18,
+                          background: '#4f46e5', borderRadius: '50%', border: '2px solid white',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
+                          pointerEvents: 'none',
+                        }} />
+                      </div>
                     ))}
-                    {/* 4 edge midpoint handles */}
-                    <div style={{ position: 'absolute', top: -4, left: '50%', transform: 'translateX(-50%)', width: 8, height: 8, background: '#4f46e5', borderRadius: '50%', border: '2px solid white', zIndex: 8, cursor: 'ns-resize' }}
-                      onMouseDown={e => handleTextResizeStart(e, tb.id, 'n')}
-                      onTouchStart={e => handleTextResizeStart(e, tb.id, 'n')} />
-                    <div style={{ position: 'absolute', bottom: -4, left: '50%', transform: 'translateX(-50%)', width: 8, height: 8, background: '#4f46e5', borderRadius: '50%', border: '2px solid white', zIndex: 8, cursor: 'ns-resize' }}
-                      onMouseDown={e => handleTextResizeStart(e, tb.id, 's')}
-                      onTouchStart={e => handleTextResizeStart(e, tb.id, 's')} />
-                    <div style={{ position: 'absolute', left: -4, top: '50%', transform: 'translateY(-50%)', width: 8, height: 8, background: '#4f46e5', borderRadius: '50%', border: '2px solid white', zIndex: 8, cursor: 'ew-resize' }}
-                      onMouseDown={e => handleTextResizeStart(e, tb.id, 'w')}
-                      onTouchStart={e => handleTextResizeStart(e, tb.id, 'w')} />
-                    <div style={{ position: 'absolute', right: -4, top: '50%', transform: 'translateY(-50%)', width: 8, height: 8, background: '#4f46e5', borderRadius: '50%', border: '2px solid white', zIndex: 8, cursor: 'ew-resize' }}
-                      onMouseDown={e => handleTextResizeStart(e, tb.id, 'e')}
-                      onTouchStart={e => handleTextResizeStart(e, tb.id, 'e')} />
+                    {/* 4 edge midpoint handles — same 44px touch target pattern. */}
+                    {(['n', 's', 'w', 'e'] as const).map(edge => {
+                      const horiz = edge === 'w' || edge === 'e';
+                      const wrapStyle: React.CSSProperties = {
+                        position: 'absolute',
+                        width: 44, height: 44,
+                        zIndex: 8,
+                        cursor: horiz ? 'ew-resize' : 'ns-resize',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        touchAction: 'none',
+                      };
+                      if (edge === 'n') { wrapStyle.top = -22; wrapStyle.left = '50%'; wrapStyle.transform = 'translateX(-50%)'; }
+                      if (edge === 's') { wrapStyle.bottom = -22; wrapStyle.left = '50%'; wrapStyle.transform = 'translateX(-50%)'; }
+                      if (edge === 'w') { wrapStyle.left = -22; wrapStyle.top = '50%'; wrapStyle.transform = 'translateY(-50%)'; }
+                      if (edge === 'e') { wrapStyle.right = -22; wrapStyle.top = '50%'; wrapStyle.transform = 'translateY(-50%)'; }
+                      return (
+                        <div key={edge}
+                          style={wrapStyle}
+                          onMouseDown={e => handleTextResizeStart(e, tb.id, edge)}
+                          onTouchStart={e => handleTextResizeStart(e, tb.id, edge)}
+                        >
+                          <div style={{
+                            width: horiz ? 6 : 18, height: horiz ? 18 : 6,
+                            background: '#4f46e5', borderRadius: 6, border: '2px solid white',
+                            boxShadow: '0 1px 3px rgba(0,0,0,0.25)',
+                            pointerEvents: 'none',
+                          }} />
+                        </div>
+                      );
+                    })}
                     {/* Delete button */}
                     <button
                       style={{
