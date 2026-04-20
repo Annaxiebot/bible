@@ -1465,10 +1465,21 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     return null;
   }, []);
 
+  // On iPad the Apple Pencil fires BOTH pointer events and touch events for the
+  // same gesture. We handle pencil strictly through the pointer path below (for
+  // setPointerCapture + getCoalescedEvents) so skip stylus touches here to avoid
+  // double-processing each ink point. Feature-detect PointerEvent so we don't
+  // leave pencil unhandled on older browsers.
+  const hasPointerEvents = typeof window !== 'undefined' && 'PointerEvent' in window;
+
   // Touch events — finger scrolls/swipes, stylus draws (except pointer mode)
   const handleTouchStart = useCallback((e: TouchEvent) => {
     if (e.touches.length > 1) return;
     const t = e.touches[0];
+    // Pencil goes through the pointer event path (setPointerCapture +
+    // getCoalescedEvents for fidelity under load). Skip it here to avoid
+    // double-firing the stroke pipeline.
+    if (hasPointerEvents && isStylusTouch(t)) return;
     // Text mode is keyboard-only: Apple Pencil is inert. Blocks Scribble, accidental
     // strokes, and accidental new text boxes from pencil taps while typing.
     if (toolRef.current === 'text' && isStylusTouch(t)) {
@@ -1497,6 +1508,8 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 
   const handleTouchMove = useCallback((e: TouchEvent) => {
     if (e.touches.length > 1) { isDrawingRef.current = false; return; }
+    // Pencil goes through the pointer path — see handleTouchStart.
+    if (hasPointerEvents && isStylusTouch(e.touches[0])) return;
 
     if (isFingerTouchRef.current) {
       // Navigation move — handle swipe in single-page mode
@@ -1522,6 +1535,9 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   }, [handlePointerMove, pageMode]);
 
   const handleTouchEnd = useCallback((e: TouchEvent) => {
+    // Pencil goes through the pointer path — see handleTouchStart.
+    const last0 = e.changedTouches[0];
+    if (hasPointerEvents && last0 && isStylusTouch(last0)) return;
     if (isFingerTouchRef.current) {
       isFingerTouchRef.current = false;
       const start = swipeStartRef.current;
@@ -1581,6 +1597,47 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const handleMouseMove = useCallback((e: MouseEvent) => handlePointerMove(e.clientX, e.clientY), [handlePointerMove]);
   const handleMouseUp = useCallback(() => handlePointerUp(), [handlePointerUp]);
 
+  // Pencil-only Pointer Events. Additive to the touch/mouse pipeline: we use the
+  // pointer path just for pen input, and pencil touches are filtered out of the
+  // touch handlers above. Two specific wins we need here:
+  //   - setPointerCapture: follow-up move/up/cancel events for this pointerId
+  //     stay on our element even if DOM changes. Prevents pen events from
+  //     leaking to the canvas during a text-box drag and surviving React
+  //     re-renders under load.
+  //   - getCoalescedEvents(): replays every sub-event iOS queued since the
+  //     last pointermove. Apple Pencil runs at ~240Hz; when the main thread
+  //     is briefly busy iOS batches the extra points and only fires one
+  //     pointermove — losing the rest. getCoalescedEvents recovers them.
+  const handlePenPointerDown = useCallback((e: PointerEvent, el: HTMLElement) => {
+    if (e.pointerType !== 'pen') return;
+    const tool = toolRef.current;
+    if (tool === 'pointer' || tool === 'text') return; // not a drawing path
+    e.preventDefault();
+    try { el.setPointerCapture(e.pointerId); } catch { /* older iOS */ }
+    isFingerTouchRef.current = false;
+    handlePointerDown(e.clientX, e.clientY);
+  }, [handlePointerDown]);
+
+  const handlePenPointerMove = useCallback((e: PointerEvent) => {
+    if (e.pointerType !== 'pen') return;
+    if (!isDrawingRef.current) return;
+    e.preventDefault();
+    const coalesced = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : null;
+    if (coalesced && coalesced.length > 0) {
+      for (const sub of coalesced) handlePointerMove(sub.clientX, sub.clientY);
+    } else {
+      handlePointerMove(e.clientX, e.clientY);
+    }
+  }, [handlePointerMove]);
+
+  const handlePenPointerUp = useCallback((e: PointerEvent, el: HTMLElement) => {
+    if (e.pointerType !== 'pen') return;
+    if (!isDrawingRef.current) return;
+    try { el.releasePointerCapture(e.pointerId); } catch { /* older iOS */ }
+    e.preventDefault();
+    handlePointerUp();
+  }, [handlePointerUp]);
+
   // Keep the latest handlers in refs so the DOM listener effect can mount once
   // (empty deps). Without this, any prop change upstream — e.g. JournalView passes
   // a fresh onSave arrow every render after `setEntries` — cascades into rebuilt
@@ -1594,6 +1651,9 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     mouseDown: handleMouseDown,
     mouseMove: handleMouseMove,
     mouseUp: handleMouseUp,
+    penDown: handlePenPointerDown,
+    penMove: handlePenPointerMove,
+    penUp: handlePenPointerUp,
   });
   useEffect(() => {
     handlersRef.current = {
@@ -1603,8 +1663,11 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       mouseDown: handleMouseDown,
       mouseMove: handleMouseMove,
       mouseUp: handleMouseUp,
+      penDown: handlePenPointerDown,
+      penMove: handlePenPointerMove,
+      penUp: handlePenPointerUp,
     };
-  }, [handleTouchStart, handleTouchMove, handleTouchEnd, handleMouseDown, handleMouseMove, handleMouseUp]);
+  }, [handleTouchStart, handleTouchMove, handleTouchEnd, handleMouseDown, handleMouseMove, handleMouseUp, handlePenPointerDown, handlePenPointerMove, handlePenPointerUp]);
 
   // Event listener setup — attach ONCE and dispatch through the ref. Never detaches
   // during the component's lifetime, so no events can slip through between renders.
@@ -1628,23 +1691,34 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       el.addEventListener('mouseup', onMouseUp);
       el.addEventListener('mouseout', onMouseUp);
       el.addEventListener('contextmenu', onContext);
+      // Pen-only Pointer Events for capture + coalesced replay. Only fires for
+      // pointerType === 'pen'; handlers ignore everything else.
+      const onPenDown = (e: PointerEvent) => handlersRef.current.penDown(e, el);
+      const onPenMove = (e: PointerEvent) => handlersRef.current.penMove(e);
+      const onPenUp = (e: PointerEvent) => handlersRef.current.penUp(e, el);
+      el.addEventListener('pointerdown', onPenDown, { passive: false });
+      el.addEventListener('pointermove', onPenMove, { passive: false });
+      el.addEventListener('pointerup', onPenUp);
+      el.addEventListener('pointercancel', onPenUp);
+      // Return a detach that covers the pointer listeners too.
+      return () => {
+        el.removeEventListener('touchstart', onTouchStart);
+        el.removeEventListener('touchmove', onTouchMove);
+        el.removeEventListener('touchend', onTouchEnd);
+        el.removeEventListener('mousedown', onMouseDown);
+        el.removeEventListener('mousemove', onMouseMove);
+        el.removeEventListener('mouseup', onMouseUp);
+        el.removeEventListener('mouseout', onMouseUp);
+        el.removeEventListener('contextmenu', onContext);
+        el.removeEventListener('pointerdown', onPenDown);
+        el.removeEventListener('pointermove', onPenMove);
+        el.removeEventListener('pointerup', onPenUp);
+        el.removeEventListener('pointercancel', onPenUp);
+      };
     };
-    const detachEvents = (el: HTMLCanvasElement) => {
-      el.removeEventListener('touchstart', onTouchStart);
-      el.removeEventListener('touchmove', onTouchMove);
-      el.removeEventListener('touchend', onTouchEnd);
-      el.removeEventListener('mousedown', onMouseDown);
-      el.removeEventListener('mousemove', onMouseMove);
-      el.removeEventListener('mouseup', onMouseUp);
-      el.removeEventListener('mouseout', onMouseUp);
-      el.removeEventListener('contextmenu', onContext);
-    };
-    attachEvents(canvas);
-    if (overlay) attachEvents(overlay);
-    return () => {
-      detachEvents(canvas);
-      if (overlay) detachEvents(overlay);
-    };
+    const detachCanvas = attachEvents(canvas);
+    const detachOverlay = overlay ? attachEvents(overlay) : () => {};
+    return () => { detachCanvas(); detachOverlay(); };
   }, []);
 
   // ── Undo / Redo ────────────────────────────────────────────────────────
@@ -3255,6 +3329,16 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                           width: 44, height: 44, zIndex: 9,
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
                           cursor: 'move', touchAction: 'none',
+                        }}
+                        // setPointerCapture on pointerdown so the pen's follow-up events
+                        // stay on the grip instead of leaking to the canvas underneath.
+                        // The pointerdown arrives independently of the touchstart path
+                        // that actually starts the drag, so having both is fine — the
+                        // capture just ensures no pen pointermove reaches the canvas
+                        // listener once this grip has been grabbed.
+                        onPointerDown={e => {
+                          e.stopPropagation();
+                          try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* ignore */ }
                         }}
                         onMouseDown={e => {
                           e.stopPropagation(); e.preventDefault();
