@@ -397,7 +397,6 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   // Single-page swipe state
   const swipeStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const [swipeOffset, setSwipeOffset] = useState(0); // px offset during swipe animation
-  const isFingerTouchRef = useRef(false); // true when current touch is a finger (not stylus)
 
   // Drawing layer: 'below' draws under text boxes, 'above' draws over them
   const [drawingLayer, setDrawingLayer] = useState<'below' | 'above'>('above');
@@ -1434,15 +1433,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     return true; // default to stylus on desktop/unknown
   }, [isApplePencilDevice]);
 
-  // Determine if a touch should navigate (scroll/swipe) instead of draw.
-  // Navigation happens when: pointer tool (any input), OR finger on iPad (pencil draws).
-  // On iPhone: finger draws in drawing modes, navigates only in pointer mode.
-  const shouldNavigate = useCallback((touch: Touch): boolean => {
-    if (toolRef.current === 'pointer') return true; // pointer mode: both finger & pencil navigate
-    return !isStylusTouch(touch); // drawing modes: iPhone finger draws, iPad finger navigates
-  }, [isStylusTouch]);
-
-  // Tracks the previous successful tap to detect a double-tap (see handleTouchEnd).
+  // Tracks the previous successful tap to detect a double-tap (see pointerup handler).
   const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
 
   // Hit-test document-coord (x, y) against text boxes in z-order. Returns the id of
@@ -1465,73 +1456,162 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     return null;
   }, []);
 
-  // Touch events — finger scrolls/swipes, stylus draws (except pointer mode)
-  const handleTouchStart = useCallback((e: TouchEvent) => {
-    if (e.touches.length > 1) return;
-    const t = e.touches[0];
-    // Text mode is keyboard-only: Apple Pencil is inert. Blocks Scribble, accidental
-    // strokes, and accidental new text boxes from pencil taps while typing.
-    if (toolRef.current === 'text' && isStylusTouch(t)) {
+  // Tracks the single active drawing/navigation pointer. iPadOS can surface more
+  // than one pointer (e.g. finger + pencil resting on the glass); we pin ourselves
+  // to the first one that wins and reject the rest until it lifts.
+  const activePointerIdRef = useRef<number | null>(null);
+  // Which canvas element captured the pointer — we need to release capture on the
+  // same element we captured it on, regardless of DOM changes in between.
+  const capturedTargetRef = useRef<HTMLCanvasElement | null>(null);
+  // Mode of the current pointer: 'draw' routes to handlePointerMove/Up; 'nav'
+  // drives swipe/tap/double-tap. Stored so pointermove can branch without
+  // re-classifying every event.
+  const pointerModeRef = useRef<'draw' | 'nav' | null>(null);
+
+  // Classify a pointerdown for the current tool. Mirrors the old
+  // shouldNavigate + isStylusTouch rules but keyed off PointerEvent.pointerType
+  // (which is the reliable source on iPadOS 13+; `touchType === 'stylus'` only
+  // fires on the legacy Touch API). Returns null to block the event entirely
+  // (Scribble prevention when typing).
+  const classifyPointer = useCallback((pointerType: string): 'draw' | 'nav' | null => {
+    const tool = toolRef.current;
+    // Text mode is keyboard-only: Apple Pencil is inert. Blocks iOS Scribble,
+    // accidental strokes, and accidental new text boxes from pencil taps while typing.
+    if (tool === 'text' && pointerType === 'pen') return null;
+    // Pointer tool = navigation for every input type (finger, pencil, mouse).
+    if (tool === 'pointer') return 'nav';
+    // Drawing tools: route based on pointer type.
+    if (pointerType === 'pen') return 'draw';       // Apple Pencil always draws
+    if (pointerType === 'mouse') return 'draw';     // desktop: mouse draws
+    if (pointerType === 'touch') {
+      // iPad finger = navigation (pencil is the drawing tool).
+      // iPhone finger = drawing (no pencil exists).
+      return isApplePencilDevice ? 'nav' : 'draw';
+    }
+    // Unknown pointer type — default to drawing so we don't silently ignore it.
+    return 'draw';
+  }, [isApplePencilDevice]);
+
+  // Pointer Events pipeline — replaces the previous Touch + Mouse handlers.
+  //
+  // Why this refactor exists: under Apple Pencil's ~240 Hz rate, the Touch API
+  // silently coalesces events when the main thread is busy (auto-save serialization,
+  // React re-renders, etc.) and has no recovery mechanism — strokes drop. Pointer
+  // Events solve this with three techniques used together; each alone is insufficient:
+  //   1. setPointerCapture: locks all follow-up events for a pointerId to the
+  //      element we captured on, so a DOM change mid-stroke (React re-render,
+  //      pointerEvents flip) cannot steal the events.
+  //   2. getCoalescedEvents: recovers the sub-frame-rate points iOS hid behind
+  //      the outer pointermove event. This is how we get the fine-grained
+  //      pencil positions back.
+  //   3. Stable listener via pointerHandlersRef: the DOM listeners never detach
+  //      during the component's lifetime, so upstream prop churn (e.g. a fresh
+  //      onSave arrow from JournalView on every render after setEntries) cannot
+  //      cause re-attach cycles that drop events between frames.
+
+  const handlePointerDownEvt = useCallback((e: PointerEvent, el: HTMLCanvasElement) => {
+    // Single-pointer only — reject concurrent pointers until the active one lifts.
+    if (activePointerIdRef.current !== null) return;
+
+    const mode = classifyPointer(e.pointerType);
+    if (mode === null) {
+      // Scribble prevention etc.
       e.preventDefault();
       return;
     }
-    const nav = shouldNavigate(t);
-    isFingerTouchRef.current = nav;
 
-    if (nav) {
-      // Navigation touch — allow native scroll in seamless, track swipe in single-page.
-      // Always stash the start in swipeStartRef (both modes) so touchEnd can decide
-      // between "tap to enter edit" and "swipe / scroll".
-      swipeStartRef.current = { x: t.clientX, y: t.clientY, time: Date.now() };
+    activePointerIdRef.current = e.pointerId;
+    pointerModeRef.current = mode;
+
+    // CAPTURE — lock all follow-up events for this pointerId to `el` regardless
+    // of DOM changes. Without this, a React re-render that flips canvas
+    // pointerEvents, or a layer swap, can silently steal pointermove/pointerup.
+    try {
+      el.setPointerCapture(e.pointerId);
+      capturedTargetRef.current = el;
+    } catch {
+      // Older browsers may throw; the rest of the pipeline still works without
+      // capture, just with the normal event-dispatch rules.
+    }
+
+    if (mode === 'nav') {
+      // Navigation pointerdown — stash the start so pointerup can decide between
+      // tap / double-tap / swipe / scroll. Preserve the seamless-mode contract:
+      // do NOT preventDefault so native vertical scroll still works (touch-action:
+      // pan-y on the canvas in seamless + nav handles this on the browser side too).
+      swipeStartRef.current = { x: e.clientX, y: e.clientY, time: Date.now() };
       if (pageMode === 'single') {
         e.preventDefault();
       }
-      // In seamless mode: do NOT preventDefault → native vertical scroll works
       return;
     }
 
-    // Drawing touch (stylus with non-pointer tool) — prevent default and draw
+    // Drawing pointerdown.
     e.preventDefault();
-    handlePointerDown(t.clientX, t.clientY);
-  }, [handlePointerDown, pageMode, shouldNavigate]);
+    handlePointerDown(e.clientX, e.clientY);
+  }, [classifyPointer, handlePointerDown, pageMode]);
 
-  const handleTouchMove = useCallback((e: TouchEvent) => {
-    if (e.touches.length > 1) { isDrawingRef.current = false; return; }
+  const handlePointerMoveEvt = useCallback((e: PointerEvent) => {
+    // Ignore events for pointers we aren't tracking (e.g. hovering pencil, second finger).
+    if (activePointerIdRef.current !== e.pointerId) return;
 
-    if (isFingerTouchRef.current) {
-      // Navigation move — handle swipe in single-page mode
+    const mode = pointerModeRef.current;
+    if (mode === 'nav') {
+      // Navigation move — swipe preview in single-page mode.
       if (pageMode === 'single' && swipeStartRef.current) {
         e.preventDefault();
-        const t = e.touches[0];
-        const dx = t.clientX - swipeStartRef.current.x;
-        const dy = t.clientY - swipeStartRef.current.y;
-        // Use dominant axis for visual feedback
+        const dx = e.clientX - swipeStartRef.current.x;
+        const dy = e.clientY - swipeStartRef.current.y;
         if (Math.abs(dx) > Math.abs(dy)) {
           setSwipeOffset(dx);
         } else {
           setSwipeOffset(0);
         }
       }
-      // In seamless mode: no preventDefault, native scroll works
+      // In seamless mode: no preventDefault → native scroll works.
       return;
     }
 
-    // Drawing move (stylus)
+    if (mode !== 'draw') return;
+
     e.preventDefault();
-    handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
+
+    // COALESCED — on iPadOS, the outer pointermove fires at ~display rate but
+    // carries many sub-frame samples inside getCoalescedEvents(). Replaying each
+    // is what recovers the fine-grained pencil positions iOS otherwise hides.
+    // Fall back to [e] when the API isn't available (older browsers).
+    const events = e.getCoalescedEvents ? e.getCoalescedEvents() : [];
+    if (events && events.length > 0) {
+      for (const ev of events) {
+        handlePointerMove(ev.clientX, ev.clientY);
+      }
+    } else {
+      handlePointerMove(e.clientX, e.clientY);
+    }
   }, [handlePointerMove, pageMode]);
 
-  const handleTouchEnd = useCallback((e: TouchEvent) => {
-    if (isFingerTouchRef.current) {
-      isFingerTouchRef.current = false;
+  const handlePointerUpEvt = useCallback((e: PointerEvent) => {
+    if (activePointerIdRef.current !== e.pointerId) return;
+
+    const mode = pointerModeRef.current;
+
+    // Release capture on the same element we captured on.
+    const capturedEl = capturedTargetRef.current;
+    if (capturedEl) {
+      try { capturedEl.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+    }
+    capturedTargetRef.current = null;
+    activePointerIdRef.current = null;
+    pointerModeRef.current = null;
+
+    if (mode === 'nav') {
       const start = swipeStartRef.current;
-      const last = e.changedTouches[0];
-      const dx = last && start ? last.clientX - start.x : 0;
-      const dy = last && start ? last.clientY - start.y : 0;
+      const dx = start ? e.clientX - start.x : 0;
+      const dy = start ? e.clientY - start.y : 0;
       const elapsed = start ? Date.now() - start.time : 999;
       const movedSq = dx * dx + dy * dy;
 
-      // Single-page swipe completion
+      // Single-page swipe completion.
       if (pageMode === 'single' && start) {
         e.preventDefault();
         if (elapsed < 500) {
@@ -1545,25 +1625,25 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       }
 
       // Double-tap-to-edit: in pointer mode, two quick taps in nearly the same spot
-      // enter edit mode for whichever text box is hit. We detect the double-tap here
-      // (not through native onDoubleClick) because text boxes are pointer-events:none
-      // in pointer mode so their own DOM handlers never see the taps.
-      if (toolRef.current === 'pointer' && last && elapsed < 400 && movedSq < 12 * 12) {
+      // enter edit mode for whichever text box is hit. We detect this here (not via
+      // native onDoubleClick) because text boxes are pointer-events:none in pointer
+      // mode, so their own DOM handlers never see the taps.
+      if (toolRef.current === 'pointer' && elapsed < 400 && movedSq < 12 * 12) {
         const now = Date.now();
         const prev = lastTapRef.current;
         if (prev && now - prev.time < 350) {
-          const ddx = last.clientX - prev.x;
-          const ddy = last.clientY - prev.y;
+          const ddx = e.clientX - prev.x;
+          const ddy = e.clientY - prev.y;
           if (ddx * ddx + ddy * ddy < 30 * 30) {
-            const pt = getCanvasPoint(last.clientX, last.clientY);
+            const pt = getCanvasPoint(e.clientX, e.clientY);
             const hitId = hitTestTextBox(pt.x, pt.y);
             if (hitId) setEditingTextId(hitId);
             lastTapRef.current = null;
           } else {
-            lastTapRef.current = { time: now, x: last.clientX, y: last.clientY };
+            lastTapRef.current = { time: now, x: e.clientX, y: e.clientY };
           }
         } else {
-          lastTapRef.current = { time: now, x: last.clientX, y: last.clientY };
+          lastTapRef.current = { time: now, x: e.clientX, y: e.clientY };
         }
       }
 
@@ -1571,79 +1651,93 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       return;
     }
 
-    // Drawing end (stylus)
-    e.preventDefault();
-    handlePointerUp();
+    if (mode === 'draw') {
+      e.preventDefault();
+      handlePointerUp();
+    }
   }, [handlePointerUp, pageMode, currentPage, goToPage, getCanvasPoint, hitTestTextBox]);
 
-  // Mouse events
-  const handleMouseDown = useCallback((e: MouseEvent) => handlePointerDown(e.clientX, e.clientY), [handlePointerDown]);
-  const handleMouseMove = useCallback((e: MouseEvent) => handlePointerMove(e.clientX, e.clientY), [handlePointerMove]);
-  const handleMouseUp = useCallback(() => handlePointerUp(), [handlePointerUp]);
+  const handlePointerCancelEvt = useCallback((e: PointerEvent) => {
+    if (activePointerIdRef.current !== e.pointerId) return;
+    const mode = pointerModeRef.current;
+    const capturedEl = capturedTargetRef.current;
+    if (capturedEl) {
+      try { capturedEl.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+    }
+    capturedTargetRef.current = null;
+    activePointerIdRef.current = null;
+    pointerModeRef.current = null;
+    if (mode === 'nav') {
+      setSwipeOffset(0);
+      swipeStartRef.current = null;
+      return;
+    }
+    if (mode === 'draw') {
+      // Treat cancellation as a clean lift so we don't leave a half-committed stroke.
+      handlePointerUp();
+    }
+  }, [handlePointerUp]);
 
   // Keep the latest handlers in refs so the DOM listener effect can mount once
   // (empty deps). Without this, any prop change upstream — e.g. JournalView passes
   // a fresh onSave arrow every render after `setEntries` — cascades into rebuilt
-  // callbacks here and forces the touch listeners to detach/re-attach. If a
+  // callbacks here and forces the listeners to detach/re-attach. If a
   // pointermove or pointerup fires during that window it is lost, which is how
   // strokes were going missing after auto-save.
-  const handlersRef = useRef({
-    touchStart: handleTouchStart,
-    touchMove: handleTouchMove,
-    touchEnd: handleTouchEnd,
-    mouseDown: handleMouseDown,
-    mouseMove: handleMouseMove,
-    mouseUp: handleMouseUp,
+  const pointerHandlersRef = useRef({
+    down: handlePointerDownEvt,
+    move: handlePointerMoveEvt,
+    up: handlePointerUpEvt,
+    cancel: handlePointerCancelEvt,
   });
   useEffect(() => {
-    handlersRef.current = {
-      touchStart: handleTouchStart,
-      touchMove: handleTouchMove,
-      touchEnd: handleTouchEnd,
-      mouseDown: handleMouseDown,
-      mouseMove: handleMouseMove,
-      mouseUp: handleMouseUp,
+    pointerHandlersRef.current = {
+      down: handlePointerDownEvt,
+      move: handlePointerMoveEvt,
+      up: handlePointerUpEvt,
+      cancel: handlePointerCancelEvt,
     };
-  }, [handleTouchStart, handleTouchMove, handleTouchEnd, handleMouseDown, handleMouseMove, handleMouseUp]);
+  }, [handlePointerDownEvt, handlePointerMoveEvt, handlePointerUpEvt, handlePointerCancelEvt]);
 
-  // Event listener setup — attach ONCE and dispatch through the ref. Never detaches
-  // during the component's lifetime, so no events can slip through between renders.
+  // Event listener setup — attach ONCE on mount and dispatch through the ref.
+  // Never detaches during the component's lifetime, so no events can slip through
+  // between renders. Paired with setPointerCapture this is the belt-and-braces
+  // fix that keeps every pointer sample under load.
   useEffect(() => {
     const canvas = canvasRef.current;
     const overlay = overlayCanvasRef.current;
     if (!canvas) return;
-    const onTouchStart = (e: TouchEvent) => handlersRef.current.touchStart(e);
-    const onTouchMove = (e: TouchEvent) => handlersRef.current.touchMove(e);
-    const onTouchEnd = (e: TouchEvent) => handlersRef.current.touchEnd(e);
-    const onMouseDown = (e: MouseEvent) => handlersRef.current.mouseDown(e);
-    const onMouseMove = (e: MouseEvent) => handlersRef.current.mouseMove(e);
-    const onMouseUp = (_e: MouseEvent) => handlersRef.current.mouseUp();
-    const onContext = (e: MouseEvent) => e.preventDefault();
-    const attachEvents = (el: HTMLCanvasElement) => {
-      el.addEventListener('touchstart', onTouchStart, { passive: false });
-      el.addEventListener('touchmove', onTouchMove, { passive: false });
-      el.addEventListener('touchend', onTouchEnd, { passive: false });
-      el.addEventListener('mousedown', onMouseDown);
-      el.addEventListener('mousemove', onMouseMove);
-      el.addEventListener('mouseup', onMouseUp);
-      el.addEventListener('mouseout', onMouseUp);
-      el.addEventListener('contextmenu', onContext);
+
+    const makeListeners = (el: HTMLCanvasElement) => ({
+      down: (e: PointerEvent) => pointerHandlersRef.current.down(e, el),
+      move: (e: PointerEvent) => pointerHandlersRef.current.move(e),
+      up: (e: PointerEvent) => pointerHandlersRef.current.up(e),
+      cancel: (e: PointerEvent) => pointerHandlersRef.current.cancel(e),
+      context: (e: MouseEvent) => e.preventDefault(),
+    });
+    const canvasListeners = makeListeners(canvas);
+    const overlayListeners = overlay ? makeListeners(overlay) : null;
+
+    const attach = (el: HTMLCanvasElement, ls: ReturnType<typeof makeListeners>) => {
+      el.addEventListener('pointerdown', ls.down);
+      el.addEventListener('pointermove', ls.move);
+      el.addEventListener('pointerup', ls.up);
+      el.addEventListener('pointercancel', ls.cancel);
+      el.addEventListener('contextmenu', ls.context);
     };
-    const detachEvents = (el: HTMLCanvasElement) => {
-      el.removeEventListener('touchstart', onTouchStart);
-      el.removeEventListener('touchmove', onTouchMove);
-      el.removeEventListener('touchend', onTouchEnd);
-      el.removeEventListener('mousedown', onMouseDown);
-      el.removeEventListener('mousemove', onMouseMove);
-      el.removeEventListener('mouseup', onMouseUp);
-      el.removeEventListener('mouseout', onMouseUp);
-      el.removeEventListener('contextmenu', onContext);
+    const detach = (el: HTMLCanvasElement, ls: ReturnType<typeof makeListeners>) => {
+      el.removeEventListener('pointerdown', ls.down);
+      el.removeEventListener('pointermove', ls.move);
+      el.removeEventListener('pointerup', ls.up);
+      el.removeEventListener('pointercancel', ls.cancel);
+      el.removeEventListener('contextmenu', ls.context);
     };
-    attachEvents(canvas);
-    if (overlay) attachEvents(overlay);
+
+    attach(canvas, canvasListeners);
+    if (overlay && overlayListeners) attach(overlay, overlayListeners);
     return () => {
-      detachEvents(canvas);
-      if (overlay) detachEvents(overlay);
+      detach(canvas, canvasListeners);
+      if (overlay && overlayListeners) detach(overlay, overlayListeners);
     };
   }, []);
 
