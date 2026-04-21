@@ -40,6 +40,15 @@ Every accepted feature is a permanent tax on debugging. Before accepting work: a
 ### R10. Log the reasoning, not just the code
 Commits explain *why*, not just *what*. Future-you (and future-AI) need to reconstruct intent. Architectural decisions get an ADR in `docs/adr/` — not just a commit message.
 
+### R11. Search before you write
+Every session that adds a string literal >40 chars, a function, a config key, or a constant MUST first grep the codebase for similar existing values. The commit message must include a one-line confirmation, e.g. `Searched: "[SPLIT]", "bilingual" — no duplicates.` No exceptions. This rule would have prevented the 5-copy `[SPLIT]` regression: a single grep before writing the first duplicate would have revealed the existing one.
+
+### R12. Test the user flow, not the function
+Any commit touching sync, AI, input handling, or persistence must include or update at least one integration test that a real user would recognize (e.g. "open journal → create entry → sync → reload → see entry"). Unit tests on isolated functions are insufficient for these subsystems — they have already let multiple product-breaking regressions through.
+
+### R13. Second-session review before merge
+After a session completes a change, a fresh session (no conversation history, given only PLAN.md + the diff + the PR description) reviews it. The reviewing session is not biased toward its own earlier output, catches duplication, flags principle violations, and enforces R1–R12. For solo work this means: start a new Claude/Cursor session, paste the diff, ask for a review against PLAN.md. Merge only after the reviewer finds nothing blocking.
+
 ---
 
 ## Part II — Active TODO Backlog
@@ -59,6 +68,7 @@ Legend: 🔥 P0 (product-blocking) · 🟠 P1 (important) · 🟢 P2 (when ready
   - `NotabilityAI.tsx` (AI action handler + connector lines)
   - `NotabilitySlashMenu.tsx` (slash command menu + executors)
 - [ ] 🟠 Audit all `try/catch` blocks against R5 (no silent swallowing)
+- [ ] 🔥 Build Playwright pointer-event integration test matrix for `NotabilityEditor.tsx` — ~20 tests covering `{pen, touch, mouse} × {pointer, text, lasso, scroll} × {drag, click, hold}`. Every future Apple-Pencil bugfix must ship paired with the failing test it fixes (R12).
 - [ ] 🟢 Remove Husky deprecation warning in `.husky/pre-commit` (remove the two flagged lines)
 
 ### Phase 1 — Observability & safety net (next)
@@ -149,3 +159,4 @@ Append a one-line note each session. This is the lightweight history that makes 
 
 - **2026-04-20** Created PLAN.md, established hard rules, deleted orphans, started prompt consolidation (branch `cleanup-session`, paused for parallel-session conflict).
 - **2026-04-21** Reconciled with 41 remote commits including parallel `aiLanguageDirective.ts`. Consolidated both into single `services/systemPrompts.ts`; deleted the interim directive file; migrated all 5 browser providers. Edge function still has inline prompt — queued as Phase 0 TODO.
+- **2026-04-21** Added R11 (search before you write), R12 (test user flow), R13 (second-session review). Queued Playwright pointer-event matrix as Phase 0 P0 task — the highest-ROI fix for accumulated Apple Pencil bugs.
