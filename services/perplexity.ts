@@ -4,7 +4,7 @@
  */
 
 import { STORAGE_KEYS } from '../constants/storageKeys';
-import { AI_LANGUAGE_DIRECTIVE } from './aiLanguageDirective';
+import { BIBLE_SCHOLAR_SYSTEM_PROMPT } from './systemPrompts';
 
 const PERPLEXITY_API_BASE = 'https://api.perplexity.ai';
 const DEFAULT_MODEL = 'sonar'; // Fast web-grounded model
@@ -74,28 +74,13 @@ export const chatWithAI = async (
   // Use provided model or pick based on options
   const model = options.model || (options.thinking ? THOROUGH_MODEL : DEFAULT_MODEL);
 
-  // Build messages
+  // Build messages — Perplexity is web-grounded, so remind the model to cite.
   const messages: { role: string; content: string }[] = [
     {
       role: 'system',
-      content: `You are a world-class Bible Scholar and Researcher with access to web search.
+      content: `${BIBLE_SCHOLAR_SYSTEM_PROMPT}
 
-CORE DIRECTIVE: Be extremely concise. Provide a brief overview or summary of the answer only.
-Avoid long paragraphs unless specifically asked for a deep dive.
-
-CRITICAL RULE: You must ALWAYS respond in two distinct sections: first Chinese, then English.
-You MUST separate these sections with the exact string "[SPLIT]" on its own line.
-
-RESPONSE STRUCTURE:
-[Brief Chinese summary and key points]
-如果您需要更深入的解析或特定细节，请告知。
-[SPLIT]
-[Brief English summary and key points]
-Please let me know if you would like more in-depth details or a specific deep dive.
-
-BILINGUAL KEYWORDS: In the Chinese section, append the English equivalent in parentheses after key theological terms, proper nouns, and important concepts on first mention — e.g. 圣灵 (Holy Spirit), 圣约 (Covenant), 以弗所书 (Ephesians). This helps the reader anchor Chinese terms to their English counterparts.
-
-Cite relevant sources. Maintain professional scholarship even in brevity.${AI_LANGUAGE_DIRECTIVE}`
+You have access to web search. Cite relevant sources inline.`,
     },
     ...history.map(h => ({ role: h.role === 'user' ? 'user' : 'assistant', content: h.content })),
     { role: 'user', content: prompt },
