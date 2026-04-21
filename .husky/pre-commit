@@ -1,16 +1,10 @@
-#!/bin/sh
-. "$(dirname "$0")/_/husky.sh"
-
-echo "🧪 Running tests before commit..."
-npm run test -- --run
-
-if [ $? -ne 0 ]; then
-  echo ""
-  echo "❌ TESTS FAILED!"
-  echo "Fix the failing tests before committing."
-  echo "Run 'npm run test' to see details."
-  exit 1
-fi
-
-echo "✅ All tests passed!"
-echo ""
+#!/usr/bin/env bash
+# Pre-commit: intentionally minimal.
+#
+# The previous version ran `npm test` (~845 tests, ~30s) on every commit.
+# That gave false confidence — most tests are mocked and did not catch any
+# of the real product regressions (SPLIT, sync, pencil, egress). We moved
+# review to `.husky/pre-push` (R13 Claude review, fast) and deferred tests
+# to CI / manual invocation. Run `npm test` yourself when touching risky
+# code; the R13 reviewer will flag sync/AI/input changes that lack tests (R6).
+exit 0

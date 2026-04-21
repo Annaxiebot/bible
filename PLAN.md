@@ -25,8 +25,8 @@ Any string that must be identical in multiple places (system prompts, magic mark
 ### R5. No silent error swallowing
 Every `try/catch` must either (a) rethrow with context, (b) surface a user-visible error, or (c) write a one-line comment explaining why silent failure is correct here. `console.error` alone does not count — the user never sees it.
 
-### R6. End-to-end tests over unit tests for product behavior
-Unit tests catch local contract violations. They do not catch "the app doesn't sync" or "the English pane is stuck on Synthesizing…". A minimum of 10 e2e tests must exercise real user flows: create journal → sync → reopen on another device → see entry. Unit tests supplement these, not replace them.
+### R6. Test the user flow, not the function
+Unit tests catch local contract violations. They do not catch "the app doesn't sync" or "the English pane is stuck on Synthesizing…". Any commit touching sync, AI, input handling, or persistence MUST include or update at least one integration/e2e test that a real user would recognize (e.g. "open journal → create entry → sync → reload → see entry"). Minimum corpus: 10 e2e tests covering the critical user flows.
 
 ### R7. Orphan files get deleted on sight
 `.backup`, `.old`, `_v2`, stray HTML experiments, test scaffolds at repo root — all get deleted the moment they are noticed. Git history is the backup.
@@ -43,8 +43,7 @@ Commits explain *why*, not just *what*. Future-you (and future-AI) need to recon
 ### R11. Search before you write
 Every session that adds a string literal >40 chars, a function, a config key, or a constant MUST first grep the codebase for similar existing values. The commit message must include a one-line confirmation, e.g. `Searched: "[SPLIT]", "bilingual" — no duplicates.` No exceptions. This rule would have prevented the 5-copy `[SPLIT]` regression: a single grep before writing the first duplicate would have revealed the existing one.
 
-### R12. Test the user flow, not the function
-Any commit touching sync, AI, input handling, or persistence must include or update at least one integration test that a real user would recognize (e.g. "open journal → create entry → sync → reload → see entry"). Unit tests on isolated functions are insufficient for these subsystems — they have already let multiple product-breaking regressions through.
+### R12. (merged into R6)
 
 ### R13. Second-session review before merge
 After a session completes a change, a fresh session (no conversation history, given only PLAN.md + the diff + the PR description) reviews it. The reviewing session is not biased toward its own earlier output, catches duplication, flags principle violations, and enforces R1–R12. For solo work this means: start a new Claude/Cursor session, paste the diff, ask for a review against PLAN.md. Merge only after the reviewer finds nothing blocking.
@@ -68,8 +67,10 @@ Legend: 🔥 P0 (product-blocking) · 🟠 P1 (important) · 🟢 P2 (when ready
   - `NotabilityAI.tsx` (AI action handler + connector lines)
   - `NotabilitySlashMenu.tsx` (slash command menu + executors)
 - [ ] 🟠 Audit all `try/catch` blocks against R5 (no silent swallowing)
-- [ ] 🔥 Build Playwright pointer-event integration test matrix for `NotabilityEditor.tsx` — ~20 tests covering `{pen, touch, mouse} × {pointer, text, lasso, scroll} × {drag, click, hold}`. Every future Apple-Pencil bugfix must ship paired with the failing test it fixes (R12).
-- [ ] 🟢 Remove Husky deprecation warning in `.husky/pre-commit` (remove the two flagged lines)
+- [ ] 🔥 Build Playwright pointer-event integration test matrix for `NotabilityEditor.tsx` — ~20 tests covering `{pen, touch, mouse} × {pointer, text, lasso, scroll} × {drag, click, hold}`. Every future Apple-Pencil bugfix must ship paired with the failing test it fixes (R6).
+- [ ] 🔥 Audit the 845 existing tests: delete or demote to `npm run test:slow` any that are pure mock-shuffling with no integration value. Target ≤150 tests that each have caught a real regression or exercise a real flow. Running 845 mocked unit tests on every commit provided false confidence and did not catch SPLIT, sync, or pencil regressions.
+- [x] ✅ Replace `.husky/pre-commit` (845-test runner) with R13 pre-push hook (Claude review, docs-only skip). Tests now run manually or in CI, not on every commit.
+- [x] ✅ R13 automation live: `~/.claude/review-prompt.md` + `.husky/pre-push` pipe diff to `claude -p` and block push on violations.
 
 ### Phase 1 — Observability & safety net (next)
 
@@ -160,3 +161,4 @@ Append a one-line note each session. This is the lightweight history that makes 
 - **2026-04-20** Created PLAN.md, established hard rules, deleted orphans, started prompt consolidation (branch `cleanup-session`, paused for parallel-session conflict).
 - **2026-04-21** Reconciled with 41 remote commits including parallel `aiLanguageDirective.ts`. Consolidated both into single `services/systemPrompts.ts`; deleted the interim directive file; migrated all 5 browser providers. Edge function still has inline prompt — queued as Phase 0 TODO.
 - **2026-04-21** Added R11 (search before you write), R12 (test user flow), R13 (second-session review). Queued Playwright pointer-event matrix as Phase 0 P0 task — the highest-ROI fix for accumulated Apple Pencil bugs.
+- **2026-04-21** Moved R1–R13 to `~/.claude/CLAUDE.md` (global, every session on this machine). Merged R12 into R6 (rules file was itself violating R3). Automated R13 via `.husky/pre-push` hook piping diff to `claude -p`. Neutered `.husky/pre-commit` — the 845-test runner on every commit was ceremony, not safety. Tests now run manually or in CI.
