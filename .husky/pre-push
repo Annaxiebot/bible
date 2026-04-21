@@ -1,0 +1,81 @@
+#!/usr/bin/env bash
+# R13 pre-push hook — fresh-session review of what's about to be pushed.
+# Docs-only pushes skip. Everything else gets a Claude review.
+# Bypass in emergencies with `git push --no-verify`.
+
+set -e
+
+# Determine what's being pushed. If the remote branch is unknown (first push),
+# fall back to the last commit.
+range=""
+if git rev-parse --abbrev-ref --symbolic-full-name @{u} >/dev/null 2>&1; then
+  range="@{u}..HEAD"
+else
+  range="HEAD~1..HEAD"
+fi
+
+files=$(git diff --name-only "$range")
+
+if [ -z "$files" ]; then
+  echo "🟢 pre-push: no changes to review"
+  exit 0
+fi
+
+# Skip docs-only pushes — zero ceremony for typo fixes.
+if ! echo "$files" | grep -vE '(^|/)([A-Z_]+\.md|.*\.txt|\.gitignore|LICENSE)$|^docs/' | grep -q .; then
+  echo "📄 pre-push: docs-only, skipping R13"
+  exit 0
+fi
+
+# Check claude CLI is installed.
+if ! command -v claude >/dev/null 2>&1; then
+  echo "⚠️  pre-push: claude CLI not found, skipping R13 review"
+  echo "   install: https://docs.claude.com/claude-code"
+  exit 0
+fi
+
+# Check the prompt file exists.
+prompt_file="$HOME/.claude/review-prompt.md"
+if [ ! -f "$prompt_file" ]; then
+  echo "⚠️  pre-push: $prompt_file not found, skipping R13 review"
+  exit 0
+fi
+
+echo "🔍 pre-push: R13 review of $range ..."
+
+# Build the review input: prompt template + commit messages + diff.
+diff_content=$(git log "$range" --format='%n===== commit %h =====%n%B' && git diff "$range")
+
+# Non-interactive claude — pipe prompt + diff, capture stdout AND stderr
+# so CLI errors (auth, network, rate limit) surface instead of being swallowed
+# into a blank "violations found" message.
+review_tmp=$(mktemp)
+if ! printf '%s\n\n---\n\nCOMMIT MESSAGES AND DIFF TO REVIEW:\n\n%s\n' \
+      "$(cat "$prompt_file")" \
+      "$diff_content" \
+      | claude -p > "$review_tmp" 2>&1; then
+  echo ""
+  echo "⚠️  pre-push: claude CLI failed — skipping R13 review"
+  echo "    (re-run manually or bypass with --no-verify)"
+  sed 's/^/    /' "$review_tmp"
+  rm -f "$review_tmp"
+  exit 0
+fi
+review_output=$(cat "$review_tmp")
+rm -f "$review_tmp"
+
+# Success condition: output is literally "CLEAN" (possibly with trailing whitespace).
+trimmed=$(echo "$review_output" | tr -d '[:space:]')
+if [ "$trimmed" = "CLEAN" ]; then
+  echo "✅ pre-push: CLEAN — no violations"
+  exit 0
+fi
+
+# Violations found — print them and block the push.
+echo ""
+echo "❌ pre-push: R13 review found violations:"
+echo ""
+echo "$review_output"
+echo ""
+echo "Fix the violations and re-push, or bypass with: git push --no-verify"
+exit 1
