@@ -26,6 +26,7 @@ import { bookmarkStorage } from './bookmarkStorage';
 import { bibleStorage, BibleTranslation } from './bibleStorage';
 import type { VerseData } from '../types/verseData';
 import type { Bookmark } from './idbService';
+import { augmentNotabilityJSON } from './notabilityCanvasMigration';
 
 // =====================================================
 // SYNC STATE
@@ -920,6 +921,13 @@ export const JOURNAL_BODY_COLUMNS =
  * Shared by syncJournal() and the direct Realtime listener.
  */
 function remoteToLocalJournal(remote: any): import('./idbService').JournalEntry {
+  // Repair multi-page hint on download. See notabilityCanvasMigration.ts
+  // for the full rationale — briefly, a legacy payload pushed by an
+  // older device can arrive without the `canvasHeightPages` hint, and
+  // we fill it in here so the receiver's renderer can reconstruct
+  // multi-page layout correctly. A payload that already has a current
+  // hint is returned unchanged (augmentNotabilityJSON is idempotent).
+  const repairedNotability = augmentNotabilityJSON(remote.notability_data) || undefined;
   return {
     id: remote.id,
     title: remote.title || '',
@@ -927,7 +935,7 @@ function remoteToLocalJournal(remote: any): import('./idbService').JournalEntry 
     plainText: remote.plain_text || '',
     drawing: remote.drawing || '',
     blocks: remote.blocks || undefined,
-    notabilityData: remote.notability_data || undefined,
+    notabilityData: repairedNotability,
     latitude: remote.latitude,
     longitude: remote.longitude,
     locationName: remote.location_name,
@@ -948,6 +956,13 @@ function remoteToLocalJournal(remote: any): import('./idbService').JournalEntry 
  */
 function localToRemoteJournal(e: import('./idbService').JournalEntry, userId: string): Record<string, any> {
   const drawing = (e as any).drawing || '';
+  // Multi-page sync fix (user report 2026-04-21): augment the notability
+  // JSON with a `canvasHeightPages` hint so the receiving device can
+  // reconstruct the canvas height correctly. Without this hint the
+  // receiver's old reconstruction logic (maxContentY * window.innerWidth)
+  // collapses page 2+ content onto page 1. See
+  // services/notabilityCanvasMigration.ts for the full story.
+  const augmentedNotability = augmentNotabilityJSON(e.notabilityData) || null;
   return {
     id: e.id,
     user_id: userId,
@@ -956,7 +971,7 @@ function localToRemoteJournal(e: import('./idbService').JournalEntry, userId: st
     plain_text: e.plainText,
     drawing: drawing.length > 512000 ? '' : drawing,
     blocks: e.blocks || [],
-    notability_data: e.notabilityData || null,
+    notability_data: augmentedNotability,
     latitude: e.latitude || null,
     longitude: e.longitude || null,
     location_name: e.locationName || null,
@@ -1146,6 +1161,11 @@ export async function fetchJournalEntryBody(id: string): Promise<void> {
     return;
   }
 
+  // Multi-page sync repair (see remoteToLocalJournal). A legacy payload
+  // from a pre-fix device may arrive without the `canvasHeightPages`
+  // hint — augmentNotabilityJSON fills it in. Idempotent for already-
+  // augmented payloads.
+  const repairedNotability = augmentNotabilityJSON(remote.notability_data) || undefined;
   await idbService.put('journal', {
     ...(local || {
       id,
@@ -1157,7 +1177,7 @@ export async function fetchJournalEntryBody(id: string): Promise<void> {
     id,
     content: remote.content || '',
     blocks: remote.blocks || undefined,
-    notabilityData: remote.notability_data || undefined,
+    notabilityData: repairedNotability,
     drawing: remote.drawing || '',
     updatedAt: remote.updated_at,
   });
