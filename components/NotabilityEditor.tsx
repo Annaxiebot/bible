@@ -96,6 +96,27 @@ interface ExtendedCanvasData extends NormalizedCanvasData {
   images?: CanvasImage[];
   pages?: NotabilityPageData[];
   pageMode?: 'seamless' | 'single';
+  /**
+   * F3 — y-coordinate normalization base.
+   *
+   * Legacy documents (pre-F3): y is normalized by width (y_norm =
+   * y_pixel / width). On rotation, y_pixel changes proportionally to
+   * width, which drifts strokes/text on page N DOWN by a factor of N
+   * (because a stroke at y_norm=1.5 sits at 1.5*oldWidth px in portrait
+   * and 1.5*newWidth px in landscape). Page 1 barely drifts (y_norm<1),
+   * page 2 drifts by PAGE_HEIGHT*delta, page 3 double that — matches
+   * the user's report.
+   *
+   * New documents (F3+): y is normalized by PAGE_HEIGHT (y_norm =
+   * y_pixel / PAGE_HEIGHT). PAGE_HEIGHT is a constant, so y_pixel is
+   * invariant under rotation. Only x and lineWidth scale with width.
+   *
+   * Migration (on load): legacy docs are converted to new encoding
+   * assuming capture_width == current_load_width (true when the user
+   * has not rotated since save). Post-migration, the document gets
+   * yNormBase='page-height' and all future saves use the new encoding.
+   */
+  yNormBase?: 'page-height';
 }
 
 export interface NotabilityEditorProps {
@@ -564,6 +585,9 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
         textBoxes: boxes,
         images: imagesRef.current,
         pageMode,
+        // F3 — persist the new y-normalization encoding on every save so
+        // future loads know not to run the legacy→page-height migration.
+        yNormBase: 'page-height',
       };
       const serialized = serializeExtended(data);
       if (serialized !== lastSavedDataRef.current) {
@@ -595,22 +619,29 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     // Check if any strokes use layers
     const hasLayeredStrokes = strokeDataRef.current.strokes.some(s => s.layer === 'above');
 
+    // F3 — render y by PAGE_HEIGHT (constant) instead of width, matching
+    // the F3 commit normalization. Second arg stays width (x-axis scales
+    // with page width).
     if (hasLayeredStrokes && overlayCtx && overlayCanvas) {
       // Render below-layer strokes on main canvas, above-layer on overlay
       overlayCtx.globalCompositeOperation = 'source-over';
       overlayCtx.globalAlpha = 1.0;
       overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-      renderStrokesByLayer(ctx, strokeDataRef.current, w, w, 'below');
-      renderStrokesByLayer(overlayCtx, strokeDataRef.current, w, w, 'above');
+      renderStrokesByLayer(ctx, strokeDataRef.current, w, PAGE_HEIGHT, 'below');
+      renderStrokesByLayer(overlayCtx, strokeDataRef.current, w, PAGE_HEIGHT, 'above');
     } else {
       // All strokes on main canvas (backward compatible)
-      renderAllStrokes(ctx, strokeDataRef.current, w, w);
+      renderAllStrokes(ctx, strokeDataRef.current, w, PAGE_HEIGHT);
       if (overlayCtx && overlayCanvas) {
         overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
       }
     }
 
     // Draw images on canvas using pre-cached images (synchronous, no flicker)
+    // F3 scope note: images still normalize all four axes by width (legacy),
+    // matching textboxes. Image drag/resize share getNormalizedPoint with
+    // strokes so cross-axis mixing would break those paths. Image drift on
+    // rotation is a known follow-up.
     imagesRef.current.forEach(img => {
       const cached = imageCacheRef.current.get(img.id);
       if (!cached || !cached.complete) return; // skip if not yet loaded
@@ -666,7 +697,10 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       ctx.strokeStyle = '#4f46e5';
       ctx.lineWidth = 2;
       ctx.setLineDash([4, 3]);
-      ctx.strokeRect(b.x * w, b.y * w, b.w * w, b.h * w); // use width for both
+      // F3 — x/w by width, y/h by PAGE_HEIGHT. Lasso bounds must match the
+      // stroke encoding so the dashed selection rectangle sits on the
+      // selected strokes after rotation.
+      ctx.strokeRect(b.x * w, b.y * PAGE_HEIGHT, b.w * w, b.h * PAGE_HEIGHT);
       ctx.restore();
     }
   }, [lassoPoints, lassoSelection, rectStart, rectEnd]);
@@ -835,6 +869,27 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     if (!initialData) return;
     const parsed = parseExtended(initialData);
     if (parsed) {
+      // F3 migration: legacy documents (yNormBase unset) stored stroke y
+      // as y_pixel / width. New documents store stroke y as y_pixel /
+      // PAGE_HEIGHT. Re-encode legacy stroke points assuming
+      // capture_width == current canvas width (true when the user
+      // hasn't rotated since save). Multi-rotation legacy docs will
+      // still drift on page 2+ — but going forward, the new encoding
+      // is rotation-invariant.
+      //
+      // Text boxes and images stay on the legacy width-normalized y
+      // (see hitTestTextBox / image renderer). Migrating them cleanly
+      // requires reworking the resize math (tb.height is width-based).
+      if (parsed.yNormBase !== 'page-height') {
+        const refW = window.innerWidth || 800;
+        const scale = refW / PAGE_HEIGHT;
+        if (parsed.strokes) {
+          for (const s of parsed.strokes) {
+            s.points = s.points.map(p => ({ x: p.x, y: p.y * scale }));
+          }
+        }
+        parsed.yNormBase = 'page-height';
+      }
       strokeDataRef.current = parsed;
       if (parsed.paperType) setPaperType(parsed.paperType);
       // Migrate old text boxes that don't have height; auto-convert any saved raw
@@ -847,16 +902,23 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       if (parsed.images) setImages(parsed.images);
       if (parsed.pageMode) setPageMode(parsed.pageMode);
 
-      // Restore canvas height from content: find the lowest content point
-      const maxContentY = Math.max(
-        ...(parsed.strokes || []).flatMap(s => s.points.map(p => p.y)),
-        ...(parsed.textBoxes || []).map(tb => (tb.y || 0) + (tb.height || 0.15)),
-        ...(parsed.images || []).map(img => (img.y || 0) + (img.height || 0)),
+      // Restore canvas height from content: find the lowest content point.
+      // Post-F3: stroke y-values are y_pixel / PAGE_HEIGHT (direct pixel
+      // via * PAGE_HEIGHT). Text boxes and images stay width-based.
+      const refW = window.innerWidth || 800;
+      const strokeMaxYPx = Math.max(
         0,
+        ...(parsed.strokes || []).flatMap(s => s.points.map(p => p.y * PAGE_HEIGHT)),
       );
-      // Convert normalized y to pixels (use width as reference since y is normalized by width)
-      // Then ensure at least enough pages to show all content
-      const estimatedContentHeight = maxContentY * (window.innerWidth || 800);
+      const textBoxMaxYPx = Math.max(
+        0,
+        ...(parsed.textBoxes || []).map(tb => ((tb.y || 0) + (tb.height || 0.15)) * refW),
+      );
+      const imageMaxYPx = Math.max(
+        0,
+        ...(parsed.images || []).map(img => ((img.y || 0) + (img.height || 0)) * refW),
+      );
+      const estimatedContentHeight = Math.max(strokeMaxYPx, textBoxMaxYPx, imageMaxYPx);
       const neededPages = Math.ceil(estimatedContentHeight / PAGE_HEIGHT);
       if (neededPages > 1) {
         setCanvasHeight(neededPages * PAGE_HEIGHT);
@@ -950,9 +1012,10 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const getNormalizedPoint = useCallback((clientX: number, clientY: number) => {
     const { x, y } = getCanvasPoint(clientX, clientY);
     const w = displayWidthRef.current;
-    const h = displayHeightRef.current;
-    // Use width for both dimensions so positions don't shift when height changes
-    return { x: w > 0 ? x / w : 0, y: w > 0 ? y / w : 0 };
+    // F3 — x by width, y by PAGE_HEIGHT (constant). Post-F3 invariant:
+    // y normalized value stays put under rotation; only x-pixel changes
+    // proportionally to the new canvas width.
+    return { x: w > 0 ? x / w : 0, y: y / PAGE_HEIGHT };
   }, [getCanvasPoint]);
 
   // ── Stroke commit ──────────────────────────────────────────────────────
@@ -976,8 +1039,13 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       points: [...points], color: colorRef.current, lineWidth: sizeRef.current,
       tool: toolRef.current as StrokeTool, opacity: getToolOpacity(),
     };
-    // Use width for both dimensions so strokes don't stretch when height changes
-    const normalized = normalizeStroke(abs, w, w);
+    // F3 — x normalized by width (so horizontal layout scales with page
+    // width on rotation), y normalized by PAGE_HEIGHT (a constant, so y
+    // is invariant under rotation). Previously y was also normalized by
+    // width, which caused strokes on page N to drift down by (N−1)×
+    // (PAGE_HEIGHT × widthDelta/PAGE_HEIGHT) on every rotation. lineWidth
+    // continues to scale with width in strokeNormalizer.ts.
+    const normalized = normalizeStroke(abs, w, PAGE_HEIGHT);
     // Tag stroke with current drawing layer
     normalized.layer = drawingLayerRef.current;
     strokeDataRef.current.strokes.push(normalized);
@@ -997,16 +1065,20 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const eraseStrokeAt = useCallback((px: number, py: number) => {
     const w = displayWidthRef.current;
     if (w <= 0) return;
-    // Use width for both dimensions (matching stroke normalization)
-    const nx = px / w;
-    const ny = py / w;
-    const hitRadius = 15 / w;
+    // F3 — stroke x is normalized by width, y by PAGE_HEIGHT. Hit-testing
+    // in normalized space with the two axes on different scales produces
+    // an ellipsoidal "hit" region, so we compare in PIXEL space: denormalize
+    // each stroke point via the same formula render uses and compare with
+    // a fixed pixel radius.
+    const hitRadiusPx = 15;
     const strokes = strokeDataRef.current.strokes;
     let hitIndex = -1;
     for (let i = strokes.length - 1; i >= 0; i--) {
       for (const pt of strokes[i].points) {
-        const dx = pt.x - nx, dy = pt.y - ny;
-        if (dx * dx + dy * dy < hitRadius * hitRadius) { hitIndex = i; break; }
+        const ptPxX = pt.x * w;
+        const ptPxY = pt.y * PAGE_HEIGHT;
+        const dx = ptPxX - px, dy = ptPxY - py;
+        if (dx * dx + dy * dy < hitRadiusPx * hitRadiusPx) { hitIndex = i; break; }
       }
       if (hitIndex >= 0) break;
     }
@@ -1029,9 +1101,10 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     const h = displayHeightRef.current;
     if (w <= 0 || h <= 0) { resetPts(); return; }
 
-    // Convert lasso points to normalized
-    // Use width for both dimensions
-    const normalizedLasso = pts.map(p => ({ x: p.x / w, y: p.y / w }));
+    // Convert lasso points to normalized — F3: x by width, y by PAGE_HEIGHT,
+    // matching stroke normalization so point-in-polygon compares like with
+    // like.
+    const normalizedLasso = pts.map(p => ({ x: p.x / w, y: p.y / PAGE_HEIGHT }));
 
     // Point-in-polygon test
     const isInside = (px: number, py: number): boolean => {
@@ -1087,11 +1160,13 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     const w = displayWidthRef.current;
     if (w <= 0) { reset(); return; }
 
-    // Normalize rect coords (use width for both dims, matching stroke normalization)
+    // Normalize rect coords — F3: x by width, y by PAGE_HEIGHT, matching
+    // stroke normalization so the rect-in-stroke test compares like with
+    // like.
     const nx1 = Math.min(rectStart.x, end.x) / w;
-    const ny1 = Math.min(rectStart.y, end.y) / w;
+    const ny1 = Math.min(rectStart.y, end.y) / PAGE_HEIGHT;
     const nx2 = Math.max(rectStart.x, end.x) / w;
-    const ny2 = Math.max(rectStart.y, end.y) / w;
+    const ny2 = Math.max(rectStart.y, end.y) / PAGE_HEIGHT;
 
     // Find strokes with any point inside rectangle
     const selectedIndices: number[] = [];
@@ -1128,9 +1203,11 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     if (!lassoSelection) return;
     const w = displayWidthRef.current;
     if (w <= 0) return;
-    // Use width for both dimensions
+    // F3 — x delta by width, y delta by PAGE_HEIGHT (matches stroke
+    // normalization, so dragging a selection keeps strokes at the same
+    // pixel location regardless of rotation).
     const ndx = dx / w;
-    const ndy = dy / w;
+    const ndy = dy / PAGE_HEIGHT;
     const strokes = strokeDataRef.current.strokes;
     for (const idx of lassoSelection.strokeIndices) {
       if (strokes[idx]) {
@@ -1188,9 +1265,10 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 
     // Lasso drag
     if (lassoSelection && tool === 'lasso') {
-      const w = displayWidthRef.current, h = displayHeightRef.current;
+      const w = displayWidthRef.current;
       const b = lassoSelection.bounds;
-      const nx = x / w, ny = y / w; // use width for both
+      // F3 — x by width, y by PAGE_HEIGHT (matches bounds normalization).
+      const nx = x / w, ny = y / PAGE_HEIGHT;
       if (nx >= b.x && nx <= b.x + b.w && ny >= b.y && ny <= b.y + b.h) {
         lassoDragStartRef.current = { x, y };
         pushUndo();
@@ -1520,11 +1598,18 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   // Hit-test document-coord (x, y) against text boxes in z-order. Returns the id of
   // the topmost box containing the point, or null. Used by the canvas tap handler to
   // enter edit mode when a tap lands on a text box that is currently pointer-events:none.
+  //
+  // F3 note: text boxes still normalize x, y, width, height ALL by width
+  // (legacy convention). The per-page drift on rotation still affects
+  // text boxes. Fixing it cleanly requires changing tb.height's axis too
+  // (currently width-normalized for font-line-height scaling), which
+  // cascades into the resize math. Tracked as F3-follow-up; F3 ships
+  // with strokes + images fixed.
   const hitTestTextBox = useCallback((docX: number, docY: number): string | null => {
     const w = displayWidthRef.current;
     if (w <= 0) return null;
     const nx = docX / w;
-    const ny = docY / w; // height is normalized by width too (see stroke normalization comment)
+    const ny = docY / w;
     // Iterate in descending z-order so topmost box wins.
     const boxes = [...textBoxesRef.current].sort(
       (a, b) => (b.zOrder || 0) - (a.zOrder || 0),
@@ -2546,6 +2631,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       textBoxes: textBoxesRef.current,
       images: imagesRef.current,
       pageMode,
+      yNormBase: 'page-height', // F3 — persist the new y encoding
     };
     onSave(serializeExtended(data));
     onClose();
@@ -2567,6 +2653,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       textBoxes: textBoxesRef.current,
       images: imagesRef.current,
       pageMode,
+      yNormBase: 'page-height', // F3 — persist the new y encoding
     };
     onSave(serializeExtended(data));
     onClose();
@@ -2590,8 +2677,9 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 
     // Draw background
     drawPaperBackground(ectx, w, h, paperType);
-    // Draw strokes
-    renderAllStrokes(ectx, strokeDataRef.current, w, w); // use width for both
+    // Draw strokes — F3: y by PAGE_HEIGHT, x by width. Must match the
+    // encoding used at commit time (see commitCurrentStroke).
+    renderAllStrokes(ectx, strokeDataRef.current, w, PAGE_HEIGHT);
 
     // Open in new window for printing/saving
     const dataUrl = exportCanvas.toDataURL('image/png');
@@ -3053,6 +3141,8 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
             {textBoxes.filter(tb => tb.isAIReflection && tb.sourceId).map(aiTb => {
               const src = textBoxes.find(s => s.id === aiTb.sourceId);
               if (!src) return null;
+              // F3 scope: text boxes stay on legacy width-based y normalization
+              // (see hitTestTextBox comment); keep these connectors in step.
               const srcCenterX = (src.x + src.width / 2) * (w || 1);
               const srcBottomY = (src.y + (src.height || 0.15)) * (w || 1);
               const aiCenterX = (aiTb.x + aiTb.width / 2) * (w || 1);
@@ -3077,7 +3167,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
             const isSelected = selectedItemId === tb.id && selectedItemType === 'text';
             const tbW = tb.width * 100;
             const tbH = (tb.height || 0.15) * (w || 1);
-            const tbTop = tb.y * (w || 1);
+            const tbTop = tb.y * (w || 1); // F3 scope: text boxes stay width-based (see hitTestTextBox comment)
             // Scale font size proportionally to canvas width so text wraps
             // consistently across devices (reference width: 700px)
             const refWidth = 700;
@@ -3609,7 +3699,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                 style={{
                   position: 'absolute',
                   left: `${img.x * 100}%`,
-                  top: `${img.y * (w || 1)}px`,
+                  top: `${img.y * (w || 1)}px`, // F3 scope: images stay width-based
                   width: `${img.width * 100}%`,
                   height: `${img.height * (w || 1)}px`,
                   zIndex: 4,
