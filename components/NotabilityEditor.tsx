@@ -132,6 +132,10 @@ const AUTOSAVE_DELAY = 2000;
 const MAX_HISTORY = 100;
 const PAGE_HEIGHT = 1200; // px per page in seamless mode
 const SWIPE_THRESHOLD = 50; // px minimum swipe distance to trigger page change
+// Apple Pencil / iPad palm classification: iPad Safari reports ~15–22 px
+// radiusX for a finger, 25+ for a palm. Touches above this threshold in
+// drawing modes are ignored so a resting palm doesn't drive nav or scroll.
+const PALM_RADIUS_THRESHOLD = 25;
 
 function genId() { return Math.random().toString(36).slice(2, 10); }
 
@@ -1502,13 +1506,15 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       e.preventDefault();
       return;
     }
-    // Palm rejection on iPad: when a drawing tool is selected, the user is about
-    // to write with the Apple Pencil. Their resting pinky / palm shows up as a
-    // single-finger touch whose natural micro-movements used to trigger page
-    // navigation (single-page) or native scroll (seamless). Neither is wanted.
-    // Ignore the finger entirely in drawing modes on iPad — pencil still draws
-    // via the pointer path; finger scroll / nav only exists in pointer mode.
-    if (isApplePencilDevice && isDrawingToolActive() && !isStylusTouch(t)) {
+    // Palm-shape rejection: a resting palm has a much larger contact area than
+    // a fingertip. iPads report ~15–22 px radiusX for fingers and 25+ for palms.
+    // Reject the large-radius touch outright so a palm rest doesn't kick off
+    // a swipe before the Pencil has a chance to land. Real finger nav (radiusX
+    // ≤ 25) still flows through to shouldNavigate below — this matches the
+    // Notability behavior the user expects: finger swipe flips pages in
+    // drawing modes, palm rest does not.
+    if (isApplePencilDevice && isDrawingToolActive() && !isStylusTouch(t)
+        && t.radiusX !== undefined && t.radiusX > PALM_RADIUS_THRESHOLD) {
       e.preventDefault();
       isFingerTouchRef.current = false;
       swipeStartRef.current = null;
@@ -1542,9 +1548,12 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       e.preventDefault();
       return;
     }
-    // Mirror of the palm-rejection guard in handleTouchStart: block native
-    // scroll from a palm drag in drawing modes on iPad.
-    if (isApplePencilDevice && isDrawingToolActive() && !isStylusTouch(e.touches[0])) {
+    // Mirror of the palm-shape guard in handleTouchStart: a large-radius touch
+    // that has already been classified as palm (isFingerTouchRef === false at
+    // this point in the move) should not drive scroll or swipe. Normal fingers
+    // fall through to the isFingerTouchRef branch below.
+    if (isApplePencilDevice && isDrawingToolActive() && !isStylusTouch(e.touches[0])
+        && e.touches[0].radiusX !== undefined && e.touches[0].radiusX > PALM_RADIUS_THRESHOLD) {
       e.preventDefault();
       return;
     }
@@ -1589,14 +1598,15 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       const elapsed = start ? Date.now() - start.time : 999;
       const movedSq = dx * dx + dy * dy;
 
-      // Single-page swipe completion
+      // Single-page swipe completion — HORIZONTAL ONLY. Vertical swipes were
+      // previously also flipping pages, which conflicts with the user's mental
+      // model: single-page = horizontal flip (side-by-side like a book), and
+      // the separate seamless mode is where vertical scroll navigates.
       if (pageMode === 'single' && start) {
         e.preventDefault();
         if (elapsed < 500) {
           if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > SWIPE_THRESHOLD) {
             goToPage(dx < 0 ? currentPage + 1 : currentPage - 1);
-          } else if (Math.abs(dy) > SWIPE_THRESHOLD) {
-            goToPage(dy < 0 ? currentPage + 1 : currentPage - 1);
           }
         }
         setSwipeOffset(0);
@@ -1656,7 +1666,17 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     if (tool === 'pointer' || tool === 'text') return; // not a drawing path
     e.preventDefault();
     try { el.setPointerCapture(e.pointerId); } catch { /* older iOS */ }
+    // Stylus-cancels-finger: the Pencil just made contact. Any finger touch
+    // currently active is the user's palm resting — retroactively cancel its
+    // swipe state so the palm's pre-Pencil movement doesn't commit a page
+    // flip on touchend. handleTouchEnd guards on isFingerTouchRef, which we
+    // clear here; swipeStartRef and swipeOffset are cleared defensively so
+    // the visual feedback doesn't linger.
     isFingerTouchRef.current = false;
+    if (swipeStartRef.current) {
+      swipeStartRef.current = null;
+      setSwipeOffset(0);
+    }
     handlePointerDown(e.clientX, e.clientY);
   }, [handlePointerDown]);
 
@@ -2540,12 +2560,18 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const totalPagesDisplay = Math.max(1, Math.ceil(canvasHeight / PAGE_HEIGHT));
 
   // Single source of truth for the touch-action applied to the editor surface
-  // and both canvases. Pre-fix version also allowed pan-y on iPad in drawing
-  // mode via `isApplePencilDevice` — that let a resting palm scroll the page.
-  // Drawing-tool classification is shared with the palm-rejection guards via
-  // isDrawingTool(), so adding a new tool needs a one-line edit, not three.
+  // and both canvases. Seamless mode needs native vertical pan so finger scroll
+  // works while a drawing tool is selected (Notability-style). Palm rest is
+  // handled separately at the JS level via:
+  //   (a) radiusX > 25 heuristic at touchstart (see handleTouchStart), and
+  //   (b) stylus-cancels-finger: when the Pencil's pointerdown fires during
+  //       an active finger touch, the swipe state is cleared.
+  // Drawing-tool classification is shared via isDrawingTool() so adding a
+  // new tool needs a one-line edit, not three.
   const editorTouchAction: 'pan-y' | 'none' =
-    pageMode === 'seamless' && !isDrawingTool(activeTool) ? 'pan-y' : 'none';
+    pageMode === 'seamless' && (isApplePencilDevice || !isDrawingTool(activeTool))
+      ? 'pan-y'
+      : 'none';
 
   // ── Render ─────────────────────────────────────────────────────────────
 
