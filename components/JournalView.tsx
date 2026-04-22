@@ -355,6 +355,20 @@ const JournalView: React.FC<JournalViewProps> = ({
     setSuggestedTags([]);
   }, [selectedId]);
 
+  // Lazy-fetch the heavy body columns (blocks / notabilityData / drawing /
+  // content) for the selected entry. The periodic sync only pulls lightweight
+  // metadata to save egress — see JOURNAL_LIST_COLUMNS in syncService.ts.
+  // Without this, a handwritten note made on device A would show up on
+  // device B's list but render empty when opened. Fire-and-forget: on
+  // success it reloads via the journal-synced event listener above.
+  useEffect(() => {
+    if (!selectedId) return;
+    if (!syncService.canSync()) return;
+    syncService.fetchJournalEntryBody(selectedId).catch((err) => {
+      console.warn('[journal] lazy body fetch failed:', err);
+    });
+  }, [selectedId]);
+
   // Accept a suggested tag
   const acceptTag = async (tag: string) => {
     if (!selectedEntry) return;

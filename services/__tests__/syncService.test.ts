@@ -6,34 +6,77 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockSupabaseData: Record<string, any[]> = {};
 const mockUpsertCalls: Array<{ table: string; data: any; options: any }> = [];
+/**
+ * Tracks every .from(table).select(cols)... chain, including the args that
+ * subsequent .eq() / .gte() calls were invoked with. Used by the server-side
+ * filter / column-selection tests below.
+ */
+const mockSelectCalls: Array<{
+  table: string;
+  columns: string;
+  eqCalls: Array<{ col: string; val: any }>;
+  gteCalls: Array<{ col: string; val: any }>;
+}> = [];
 
 function resetSupabaseMock() {
   for (const key of Object.keys(mockSupabaseData)) delete mockSupabaseData[key];
   mockUpsertCalls.length = 0;
+  mockSelectCalls.length = 0;
 }
 
 const mockFrom = (table: string) => ({
-  select: (_cols?: string) => ({
-    eq: (_col: string, _val: string) => ({
-      gte: (_col2: string, _val2: string) => Promise.resolve({ data: mockSupabaseData[table] || [], error: null }),
+  select: (cols?: string, _opts?: any) => {
+    const call = {
+      table,
+      columns: cols || '*',
+      eqCalls: [] as Array<{ col: string; val: any }>,
+      gteCalls: [] as Array<{ col: string; val: any }>,
+    };
+    mockSelectCalls.push(call);
+
+    const builder: any = {
+      eq: (col: string, val: any) => {
+        call.eqCalls.push({ col, val });
+        return builder;
+      },
+      gte: (col: string, val: any) => {
+        call.gteCalls.push({ col, val });
+        return builder;
+      },
       single: () => Promise.resolve({ data: (mockSupabaseData[table] || [])[0] || null, error: null }),
-      // plain eq terminal
-      then: undefined as any,
-      // Return the data array directly for queries without further chaining
-      ...Promise.resolve({ data: mockSupabaseData[table] || [], error: null }),
-    }),
-    // Also support bare select without eq
-    ...Promise.resolve({ data: mockSupabaseData[table] || [], error: null }),
-  }),
+      maybeSingle: () => Promise.resolve({ data: (mockSupabaseData[table] || [])[0] || null, error: null }),
+      in: (_col: string, _vals: any[]) => Promise.resolve({ data: mockSupabaseData[table] || [], error: null }),
+    };
+    // Make the builder itself thenable so that `await supabase.from().select().eq().gte()`
+    // resolves to the same shape legacy tests expect.
+    builder.then = (resolve: any) =>
+      resolve({
+        data: mockSupabaseData[table] || [],
+        error: null,
+        count: (mockSupabaseData[table] || []).length,
+      });
+    return builder;
+  },
   upsert: (data: any, options?: any) => {
     mockUpsertCalls.push({ table, data, options });
     return Promise.resolve({ data: null, error: null });
   },
+  channel: vi.fn(() => ({
+    on: vi.fn().mockReturnThis(),
+    subscribe: vi.fn().mockReturnThis(),
+  })),
 });
 
 // Mock supabase module
 vi.mock('../supabase', () => ({
-  supabase: { from: (t: string) => mockFrom(t) },
+  supabase: {
+    from: (t: string) => mockFrom(t),
+    channel: vi.fn(() => ({
+      on: vi.fn().mockReturnThis(),
+      subscribe: vi.fn().mockReturnThis(),
+    })),
+    removeChannel: vi.fn(),
+  },
   authManager: {
     getUserId: () => 'test-user-123',
     subscribe: vi.fn(),
@@ -62,6 +105,9 @@ const idbStores: Record<string, Map<string, any>> = {
   metadata: new Map(),
   notes: new Map(),
   annotations: new Map(),
+  journal: new Map(),
+  chatHistory: new Map(),
+  spiritualMemory: new Map(),
 };
 
 function resetIdbStores() {
@@ -516,5 +562,126 @@ describe('sync data transformation', () => {
 
       expect(toUpload).toHaveLength(0);
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Egress-mitigation integration tests (2026-04 egress-mitigation branch)
+// These assert the on-the-wire shape: which columns we select and which
+// filters we apply. If these regress, egress goes back up.
+// ---------------------------------------------------------------------------
+
+describe('egress mitigation — server-side filters', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetSupabaseMock();
+    resetIdbStores();
+    for (const key of Object.keys(localStorageData)) delete localStorageData[key];
+    vi.resetModules();
+  });
+
+  it('syncReadingHistory applies a server-side filter on last_read', async () => {
+    const { syncService } = await import('../syncService');
+    await syncService.syncReadingHistory();
+
+    const readingHistoryPull = mockSelectCalls.find(
+      (c) => c.table === 'reading_history' && c.columns === '*'
+    );
+    expect(readingHistoryPull).toBeDefined();
+    expect(readingHistoryPull!.gteCalls).toHaveLength(1);
+    expect(readingHistoryPull!.gteCalls[0].col).toBe('last_read');
+  });
+
+  it('syncBookmarks applies a server-side filter on updated_at', async () => {
+    const { syncService } = await import('../syncService');
+    await syncService.syncBookmarks();
+
+    const bookmarksPull = mockSelectCalls.find(
+      (c) => c.table === 'bookmarks' && c.columns === '*'
+    );
+    expect(bookmarksPull).toBeDefined();
+    expect(bookmarksPull!.gteCalls).toHaveLength(1);
+    expect(bookmarksPull!.gteCalls[0].col).toBe('updated_at');
+  });
+
+  it('syncJournal pull selects lightweight metadata columns, NOT blocks or notability_data', async () => {
+    const { syncService } = await import('../syncService');
+    // Seed a fake count response by inserting a dummy row so remoteCount > 0
+    mockSupabaseData['journal'] = [
+      {
+        id: 'j1',
+        user_id: 'test-user-123',
+        title: 't',
+        plain_text: '',
+        updated_at: new Date().toISOString(),
+        created_at: new Date().toISOString(),
+        tags: [],
+      },
+    ];
+    await syncService.syncJournal();
+
+    // Find the body-fetch select (not the count-only head select)
+    const journalPull = mockSelectCalls.find(
+      (c) => c.table === 'journal' && c.columns !== 'id' && c.columns !== '*'
+    );
+    expect(journalPull).toBeDefined();
+    // Must NOT include heavy columns
+    expect(journalPull!.columns).not.toMatch(/blocks/);
+    expect(journalPull!.columns).not.toMatch(/notability_data/);
+    expect(journalPull!.columns).not.toMatch(/drawing/);
+    expect(journalPull!.columns).not.toMatch(/\bcontent\b/);
+    // Must include the fields the list UI needs
+    expect(journalPull!.columns).toMatch(/title/);
+    expect(journalPull!.columns).toMatch(/updated_at/);
+    expect(journalPull!.columns).toMatch(/location_name/);
+    expect(journalPull!.columns).toMatch(/verse_ref/);
+    // Must apply the server-side cutoff
+    expect(journalPull!.gteCalls.some((g) => g.col === 'updated_at')).toBe(true);
+  });
+
+  it('fetchJournalEntryBody selects heavy columns for a single entry', async () => {
+    const { syncService } = await import('../syncService');
+    mockSupabaseData['journal'] = [
+      {
+        id: 'j1',
+        content: '<p>hi</p>',
+        blocks: [],
+        notability_data: null,
+        drawing: '',
+        updated_at: new Date().toISOString(),
+      },
+    ];
+    await syncService.fetchJournalEntryBody('j1');
+
+    const bodyFetch = mockSelectCalls.find(
+      (c) => c.table === 'journal' && c.columns.includes('blocks')
+    );
+    expect(bodyFetch).toBeDefined();
+    expect(bodyFetch!.columns).toMatch(/blocks/);
+    expect(bodyFetch!.columns).toMatch(/notability_data/);
+    expect(bodyFetch!.columns).toMatch(/drawing/);
+    expect(bodyFetch!.columns).toMatch(/content/);
+    // Targeted to one id
+    expect(bodyFetch!.eqCalls.some((e) => e.col === 'id' && e.val === 'j1')).toBe(true);
+  });
+
+  it('exports fetchJournalEntryBody on the syncService public API', async () => {
+    const { syncService } = await import('../syncService');
+    expect(typeof syncService.fetchJournalEntryBody).toBe('function');
+  });
+});
+
+describe('egress mitigation — realtime subscription audit', () => {
+  it('only subscribes to sync_metadata, NOT journal, as of 2026-04-21', async () => {
+    // The journal-realtime channel would double our egress during heavy
+    // writes (each drawing stroke push wakes realtime). PLAN.md Phase 2
+    // explicitly disabled it; this test locks that decision in until the
+    // architecture changes.
+    const src = await import('fs').then((fs) =>
+      fs.readFileSync('services/syncService.ts', 'utf8')
+    );
+    expect(src).toMatch(/\/\/ setupJournalRealtimeSync\(\)/); // commented out at call site
+    // The sync_metadata channel stays live — it's the cross-device trigger.
+    expect(src).toMatch(/setupRealtimeSync\(\);/);
   });
 });
