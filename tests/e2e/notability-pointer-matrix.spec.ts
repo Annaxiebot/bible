@@ -535,6 +535,53 @@ test.describe('NotabilityEditor palm rejection (iPad-simulated)', () => {
     expect(scrollAfter, `palm-shape must not scroll — drifted ${scrollBefore} → ${scrollAfter}`).toBe(scrollBefore);
   });
 
+  // Static invariant: the three pointer-move / pointer-up gates that must
+  // allow lasso-drag to proceed are all going through the SAME classifier.
+  // Runtime verification of the lasso-drag fix would require real iPad
+  // hardware (React batches setRectStart in synthetic events, so no
+  // lassoSelection ever forms in headless Chromium — the drag-move test
+  // has nothing to drag). This invariant catches the only regression
+  // shape that matters: a future edit that re-introduces the bare
+  // `!isDrawingRef` guard in any of the three places.
+  test('pen/touch move and up handlers gate on isGestureInProgress (lasso-drag fix tripwire)', async () => {
+    const fs = await import('node:fs');
+    const url = await import('node:url');
+    const path = await import('node:path');
+    // ESM-safe __dirname (Playwright specs run as ESM in this project).
+    const here = path.dirname(url.fileURLToPath(import.meta.url));
+    const src = fs.readFileSync(
+      path.resolve(here, '..', '..', 'components/NotabilityEditor.tsx'),
+      'utf8',
+    );
+    // The shared classifier must exist.
+    expect(src).toMatch(/const isGestureInProgress\s*=\s*useCallback/);
+    // handlePointerMove, handlePenPointerMove, handlePenPointerUp all call it.
+    const callSites = src.match(/!isGestureInProgress\(\)/g) ?? [];
+    expect(callSites.length, 'expected three !isGestureInProgress() guards').toBe(3);
+    // And the bare `!isDrawingRef.current` gate must NOT appear as a
+    // stand-alone guard followed by `return` (the regression shape).
+    expect(src, 'bare !isDrawingRef.current guard resurfaced; lasso-drag will regress')
+      .not.toMatch(/if\s*\(\s*!isDrawingRef\.current\s*\)\s*return\s*;/);
+  });
+
+  test('finger tap in text mode creates a text box on iPad (was silently stolen by shouldNavigate)', async ({ page }) => {
+    // User-reported regression: "selecting text mode, no text box area
+    // created using either finger or apple pencil". Pencil in text mode is
+    // intentionally inert (Scribble block). Finger was SUPPOSED to create
+    // a text box on tap, but shouldNavigate classified finger touches as
+    // page-swipes and stole them before handlePointerDown could run the
+    // text-tool branch. Same structural fix as lasso: tool-specific finger
+    // routing in handleTouchStart.
+    const canvas = await openNotability(page);
+    await selectTool(page, 'Text');
+    const countBefore = await page.locator('[contenteditable]').count();
+    // Synthetic touch tap — pointerType: 'touch' with a finger-shape radius.
+    await tap(page, canvas, { x: 160, y: 160 }, { pointerType: 'touch', radiusX: 18 });
+    await expect
+      .poll(() => page.locator('[contenteditable]').count(), { timeout: 2_000 })
+      .toBeGreaterThan(countBefore);
+  });
+
   test('pencil drag in pen mode still draws on iPad (happy path not regressed)', async ({ page }) => {
     const canvas = await openNotability(page);
     await selectTool(page, 'Pen');
