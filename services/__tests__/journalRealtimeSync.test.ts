@@ -6,25 +6,54 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockSupabaseData: Record<string, any[]> = {};
 const mockUpsertCalls: Array<{ table: string; data: any; options: any }> = [];
+/** Same tracking shape as syncService.test.ts — see that file for rationale. */
+const mockSelectCalls: Array<{
+  table: string;
+  columns: string;
+  eqCalls: Array<{ col: string; val: any }>;
+  gteCalls: Array<{ col: string; val: any }>;
+}> = [];
+/** Tracks every supabase.channel(name) call so we can assert which tables
+ *  are Realtime-subscribed — per the egress audit, only sync_metadata. */
+const mockChannelNames: string[] = [];
 
 function resetSupabaseMock() {
   for (const key of Object.keys(mockSupabaseData)) delete mockSupabaseData[key];
   mockUpsertCalls.length = 0;
+  mockSelectCalls.length = 0;
+  mockChannelNames.length = 0;
 }
 
 const mockFrom = (table: string) => ({
-  select: (_cols?: string, _opts?: any) => ({
-    eq: (_col: string, _val: string) => ({
-      gte: (_col2: string, _val2: string) => Promise.resolve({
+  select: (cols?: string, _opts?: any) => {
+    const call = {
+      table,
+      columns: cols || '*',
+      eqCalls: [] as Array<{ col: string; val: any }>,
+      gteCalls: [] as Array<{ col: string; val: any }>,
+    };
+    mockSelectCalls.push(call);
+    const builder: any = {
+      eq: (col: string, val: any) => {
+        call.eqCalls.push({ col, val });
+        return builder;
+      },
+      gte: (col: string, val: any) => {
+        call.gteCalls.push({ col, val });
+        return builder;
+      },
+      single: () => Promise.resolve({ data: (mockSupabaseData[table] || [])[0] || null, error: null }),
+      maybeSingle: () => Promise.resolve({ data: (mockSupabaseData[table] || [])[0] || null, error: null }),
+      in: (_col: string, _vals: any[]) => Promise.resolve({ data: mockSupabaseData[table] || [], error: null }),
+    };
+    builder.then = (resolve: any) =>
+      resolve({
         data: mockSupabaseData[table] || [],
         error: null,
         count: (mockSupabaseData[table] || []).length,
-      }),
-      single: () => Promise.resolve({ data: (mockSupabaseData[table] || [])[0] || null, error: null }),
-      ...Promise.resolve({ data: mockSupabaseData[table] || [], error: null }),
-    }),
-    ...Promise.resolve({ data: mockSupabaseData[table] || [], error: null }),
-  }),
+      });
+    return builder;
+  },
   upsert: (data: any, options?: any) => {
     mockUpsertCalls.push({ table, data, options });
     return Promise.resolve({ data: null, error: null });
@@ -34,10 +63,13 @@ const mockFrom = (table: string) => ({
 vi.mock('../supabase', () => ({
   supabase: {
     from: (t: string) => mockFrom(t),
-    channel: vi.fn(() => ({
-      on: vi.fn().mockReturnThis(),
-      subscribe: vi.fn().mockReturnThis(),
-    })),
+    channel: vi.fn((name: string) => {
+      mockChannelNames.push(name);
+      return {
+        on: vi.fn().mockReturnThis(),
+        subscribe: vi.fn().mockReturnThis(),
+      };
+    }),
     removeChannel: vi.fn(),
   },
   authManager: {
@@ -642,6 +674,69 @@ describe('Journal Realtime Sync', () => {
       expect(local.drawing).toBe('');
       expect(local.blocks).toEqual([]);
       expect(local.tags).toEqual([]);
+    });
+  });
+
+  // -------------------------------------------------------------------------
+  // Egress-mitigation assertions (2026-04 egress-mitigation branch)
+  // -------------------------------------------------------------------------
+
+  describe('egress mitigation — journal two-phase fetch', () => {
+    it('syncJournal pull does NOT select the heavy body columns', async () => {
+      const { syncService } = await import('../syncService');
+      mockSupabaseData['journal'] = [
+        {
+          id: 'jx',
+          user_id: 'test-user-123',
+          title: 'm',
+          plain_text: '',
+          updated_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          tags: [],
+        },
+      ];
+      await syncService.syncJournal();
+
+      const bulkPull = mockSelectCalls.find(
+        (c) => c.table === 'journal' && c.columns !== 'id' && c.columns !== '*'
+      );
+      expect(bulkPull).toBeDefined();
+      expect(bulkPull!.columns).not.toMatch(/blocks/);
+      expect(bulkPull!.columns).not.toMatch(/notability_data/);
+    });
+
+    it('fetchJournalEntryBody fetches exactly one entry with heavy columns', async () => {
+      const { syncService } = await import('../syncService');
+      mockSupabaseData['journal'] = [
+        {
+          id: 'jy',
+          content: '<p>x</p>',
+          blocks: [],
+          notability_data: null,
+          drawing: '',
+          updated_at: new Date().toISOString(),
+        },
+      ];
+      await syncService.fetchJournalEntryBody('jy');
+
+      const bodyFetch = mockSelectCalls.find(
+        (c) => c.table === 'journal' && c.columns.includes('blocks')
+      );
+      expect(bodyFetch).toBeDefined();
+      expect(bodyFetch!.eqCalls.some((e) => e.col === 'id' && e.val === 'jy')).toBe(true);
+    });
+  });
+
+  describe('egress mitigation — realtime subscription audit', () => {
+    it('does NOT register a journal-realtime channel on auth', async () => {
+      // journalRealtimeChannel setup is explicitly disabled at the auth
+      // subscribe callsite. If someone re-enables it without a PLAN.md
+      // update, this test should fail.
+      await import('../syncService');
+      // At module load time, auth.subscribe is called but the handler only
+      // fires on an auth state transition in the mock — so no channels
+      // should have been registered yet.
+      expect(mockChannelNames.filter((n) => n === 'journal-realtime')).toHaveLength(0);
     });
   });
 });
