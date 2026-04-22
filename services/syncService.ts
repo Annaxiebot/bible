@@ -194,16 +194,57 @@ export function notifySettingsChanged(): void {
 // NOTES SYNC
 // =====================================================
 
+/**
+ * Per-entry sync_at tracking for notes (ADR-0001 recommendation 6 /
+ * brief Bug 3). Stored as `{ [reference]: timestampMs }`. Replaces the
+ * single `lastNotesSync` timestamp for pull-merge decisions so that a
+ * local edit made AFTER the last per-entry sync but BEFORE the next
+ * pull is not silently stomped by a newer remote `updated_at`.
+ *
+ * Migration: if an entry has no recorded sync_at (existing data), we
+ * treat it as 0 — the first pull resolves correctly because remote
+ * `updated_at` > 0 forces the remote into local when there is no
+ * ambiguity, OR we defer to the tie-breaker (keep local) when the
+ * local note's `lastModified` is also > 0.
+ */
+const NOTES_SYNC_AT_KEY = 'bible-sync-at-notes';
+
+function getNoteSyncAt(): Record<string, number> {
+  try {
+    const raw = localStorage.getItem(NOTES_SYNC_AT_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function setNoteSyncAt(ref: string, ts: number): void {
+  const cur = getNoteSyncAt();
+  cur[ref] = ts;
+  try { localStorage.setItem(NOTES_SYNC_AT_KEY, JSON.stringify(cur)); } catch {}
+}
+
 async function syncNotes(): Promise<void> {
   if (!supabase || !canSync()) return;
 
   const userId = authManager.getUserId();
   if (!userId) return;
 
-  // Get local notes
+  // Get local notes (map of reference → content) and raw records (for lastModified).
   const localNotes = await notesStorage.getAllNotes();
-  
-  // Get remote notes modified since last sync
+  const { idbService } = await import('./idbService');
+  const localRaw = await idbService.getAll('notes');
+  const localLastModified = new Map<string, number>();
+  for (const rec of localRaw) {
+    if (rec?.reference != null) {
+      localLastModified.set(rec.reference, Number(rec.lastModified) || 0);
+    }
+  }
+
+  // Get remote notes modified since last sync.
+  // The global `lastNotesSync` is still used as a CUTOFF for the server-side
+  // filter (so we don't pull the whole table every time). The per-entry
+  // sync_at is the authority for the merge decision below.
   const syncState = getSyncState();
   const { data: remoteNotes, error } = await supabase
     .from('notes')
@@ -212,33 +253,63 @@ async function syncNotes(): Promise<void> {
     .gte('updated_at', new Date(syncState.lastNotesSync).toISOString());
 
   if (error) {
-    // TODO: use error reporting service
+    console.error('[sync] notes pull failed:', (error as any)?.message || String(error));
     throw error;
   }
 
-  // Build a map of remote notes by reference for quick lookup
+  const syncAtMap = getNoteSyncAt();
   const remoteByRef = new Map((remoteNotes || []).map(n => [n.reference, n]));
 
-  // Merge remote notes into local — only if remote is actually newer
+  // Merge remote notes into local using PER-ENTRY sync_at (ADR-0001 Bug 3).
+  // Previously this compared remote.updated_at against the GLOBAL
+  // lastNotesSync, which meant:
+  //    T=1000 last sync
+  //    T=2000 local edit       ← lives only in localNotes[ref].lastModified
+  //    T=3000 stale remote write arrives (older-body / new timestamp)
+  //    next pull: remote(3000) > lastNotesSync(1000) → remote wins → local edit gone.
+  // Per-entry sync_at makes the compare meaningful: if the local entry's
+  // lastModified is newer than its sync_at, it has unacknowledged edits
+  // and must not be silently clobbered.
   for (const remoteNote of remoteNotes || []) {
-    const localContent = localNotes[remoteNote.reference];
+    const ref = remoteNote.reference;
     const remoteTime = new Date(remoteNote.updated_at).getTime();
-    const localTime = syncState.lastNotesSync; // local was saved before last sync
+    const entrySyncAt = syncAtMap[ref] || 0; // migration: missing → 0
+    const localContent = localNotes[ref];
+    const localMod = localLastModified.get(ref) || 0;
 
-    // Only overwrite local if remote is newer than our last sync
-    // (meaning another device updated it), or if we don't have it locally
-    if (!localContent || remoteTime > localTime) {
-      await notesStorage.saveNote(remoteNote.reference, remoteNote.content);
+    // The local copy is "dirty" (has unacknowledged edits) if local was
+    // modified after we last synced this specific entry.
+    const localDirty = localMod > entrySyncAt;
+
+    if (!localContent) {
+      // No local copy — always accept remote.
+      await notesStorage.saveNote(ref, remoteNote.content);
+      setNoteSyncAt(ref, remoteTime);
+    } else if (localDirty) {
+      // Local has unacknowledged edits. R5: do not silently overwrite.
+      // Strategy (minimal, correct): keep local. The push below will upload
+      // it on this same sync, and the remote tie-break (remote
+      // updated_at is newer wall-clock) would otherwise have caused a
+      // silent data loss. If a real conflict-resolution UI lands later it
+      // can hook here; this is the safe default until then.
+      console.warn(`[sync] notes pull — preserving local edit for ${ref} (localMod=${localMod} > sync_at=${entrySyncAt}); remote updated_at=${remoteTime}`);
+    } else if (remoteTime > entrySyncAt) {
+      // Local is clean and remote is newer than what we last synced for
+      // this entry — accept remote.
+      await notesStorage.saveNote(ref, remoteNote.content);
+      setNoteSyncAt(ref, remoteTime);
     }
   }
 
-  // Upload local notes that don't exist remotely or are newer locally
+  // Upload local notes that don't exist remotely, OR whose local lastModified
+  // is newer than their per-entry sync_at (dirty).
   const notesToUpload = Object.entries(localNotes)
     .filter(([reference]) => {
       const remote = remoteByRef.get(reference);
-      // Upload if: no remote version exists, or remote version is from before last sync
-      // (meaning we created/edited locally since last sync)
-      return !remote;
+      const localMod = localLastModified.get(reference) || 0;
+      const entrySyncAt = syncAtMap[reference] || 0;
+      const dirty = localMod > entrySyncAt;
+      return !remote || dirty;
     })
     .map(([reference, content]) => {
       const parts = reference.split(' ');
@@ -257,7 +328,17 @@ async function syncNotes(): Promise<void> {
     });
 
   if (notesToUpload.length > 0 && canSync()) {
-    await supabase.from('notes').upsert(notesToUpload, { onConflict: 'user_id,reference' });
+    const { error: upsertErr } = await supabase.from('notes').upsert(notesToUpload, { onConflict: 'user_id,reference' });
+    if (upsertErr) {
+      console.error('[sync] notes push failed:', (upsertErr as any)?.message || String(upsertErr));
+      throw upsertErr;
+    }
+    // Confirm sync_at for each uploaded entry with the remote-confirmed wall-clock.
+    // We used Date.now() above to stamp updated_at; use the same value for sync_at.
+    const uploadedAt = Date.now();
+    for (const row of notesToUpload) {
+      setNoteSyncAt(row.reference, uploadedAt);
+    }
   }
 
   setSyncState({ lastNotesSync: Date.now() });
@@ -973,7 +1054,7 @@ async function syncJournal(): Promise<void> {
   if (toUpload.length > 0) {
     console.log(`[sync] journal push start — rows=${toUpload.length}`);
     const rows = toUpload.map(e => localToRemoteJournal(e, userId));
-    let uploadSuccess = true;
+    let lastUpsertError: { message: string } | null = null;
 
     for (let i = 0; i < rows.length; i += 50) {
       if (!canSync()) break;
@@ -981,14 +1062,18 @@ async function syncJournal(): Promise<void> {
       const { error: upsertError } = await supabase.from('journal').upsert(batch, { onConflict: 'id' });
       if (upsertError) {
         console.error('[sync] journal push batch failed:', upsertError.message);
-        uploadSuccess = false;
+        lastUpsertError = upsertError;
       }
     }
 
-    // Only advance sync timestamp if upload succeeded — failed entries will be retried next cycle
-    if (!uploadSuccess) {
+    // Only advance sync timestamp if upload succeeded — failed entries will be retried next cycle.
+    // ADR-0001 Bug 2 fix: previously this returned silently on partial failure, which hid
+    // the error from performFullSync's per-step surface. Now we throw so the caller's catch
+    // logs `[sync]` and sets syncManager status to `error`. This is the same instance of R5
+    // silent-swallow the ADR flagged alongside L1133 — identical family, same subsystem.
+    if (lastUpsertError) {
       console.warn('[sync] journal push partial failure — not advancing lastJournalSync');
-      return;
+      throw new Error(`journal push failed: ${lastUpsertError.message}`);
     }
     console.log(`[sync] journal push end — rows=${rows.length}`);
   }
@@ -1260,13 +1345,32 @@ export async function performFullSync(): Promise<void> {
     const withTimeout = (fn: () => Promise<void>, ms = 15000) =>
       Promise.race([fn(), new Promise<void>((_, reject) => setTimeout(() => reject(new Error('timeout')), ms))]);
 
+    // ADR-0001 Bug 2 fix: do NOT silently swallow per-step failures. Previously
+    // this catch was `catch {}` with a comment ("doesn't block others"). That
+    // meant a failing notes/journal/annotations push left the user with a
+    // green "synced" indicator while data silently failed to upload — which
+    // per the architecture review is a likely contributor to the egress
+    // mystery (users retry syncs that look fine). R5: surface it.
+    //
+    // Contract: every failure gets a `[sync]` console.error AND advances the
+    // syncManager status to 'error' with the reason. We still continue to
+    // the next step (partial progress is better than none on a long sync),
+    // but the status is correctly `error` at the end if any step failed.
+    const stepFailures: Array<{ name: string; message: string }> = [];
     for (const step of steps) {
       if (syncManager.isCancelled() || !canSync()) break;
       syncManager.stepStart(step.name);
       try {
         await withTimeout(step.fn);
-      } catch {
-        // Individual step failure or timeout doesn't block others
+      } catch (stepErr) {
+        const message = stepErr instanceof Error ? stepErr.message : String(stepErr);
+        stepFailures.push({ name: step.name, message });
+        // Greppable `[sync]` prefix — matches PR #11's instrumentation convention
+        // used elsewhere in this file (reading_history / journal / bookmarks logs).
+        console.error(`[sync] step "${step.name}" failed:`, message, stepErr);
+        // Surface to the sync-status store immediately so JournalView / the
+        // status pill see the failure as it happens, not only at the end.
+        syncManager.setStatus('error', `${step.name}: ${message}`);
       }
       syncManager.stepDone(step.name);
     }
@@ -1280,11 +1384,25 @@ export async function performFullSync(): Promise<void> {
         const rows = ALL_MODULES.map(m => ({
           user_id: userId, module: m, last_modified: ts, updated_at: new Date(ts).toISOString(),
         }));
-        try { await supabase.from('sync_metadata').upsert(rows, { onConflict: 'user_id,module' }); } catch {}
+        // Non-critical: this is telemetry metadata (server-side "last seen"
+        // counters) used as a coarse incremental-sync hint. If it fails the
+        // next incremental pass falls back to the local timestamps, so a
+        // single failure here is recoverable. We still log it so it's not
+        // invisible (R5 — "silent" requires an explicit reason).
+        try {
+          await supabase.from('sync_metadata').upsert(rows, { onConflict: 'user_id,module' });
+        } catch (metaErr) {
+          console.error('[sync] sync_metadata upsert failed (non-critical, next incremental pass will self-heal):',
+            metaErr instanceof Error ? metaErr.message : String(metaErr));
+        }
       }
     }
 
-    syncManager.setStatus('idle');
+    // Only claim idle if every step actually succeeded. If any step failed,
+    // leave the 'error' status on the manager so the UI keeps surfacing it.
+    if (stepFailures.length === 0) {
+      syncManager.setStatus('idle');
+    }
   } catch (error) {
     syncManager.setStatus('error', error instanceof Error ? error.message : 'Sync failed');
     throw error;
