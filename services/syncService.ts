@@ -341,16 +341,25 @@ async function syncReadingHistory(): Promise<void> {
   const localHistory = readingHistory.getHistory();
   const lastRead = readingHistory.getLastRead();
 
-  // Get remote history
+  // EGRESS FIX: server-side filter on `last_read` (the reading_history table
+  // has no `updated_at` column — see database/supabase-schema.sql line 103).
+  // Previously this pulled the entire reading_history table every 5 min,
+  // which for a user with 200+ read chapters meant ~50KB per sync × 288/day.
+  // Now we only download rows whose last_read advanced since our last sync.
+  const syncState = getSyncState();
+  const historyCutoffISO = new Date(syncState.lastHistorySync).toISOString();
+  console.log(`[sync] reading_history pull start — cutoff=${historyCutoffISO}`);
   const { data: remoteHistory, error: historyError } = await supabase
     .from('reading_history')
     .select('*')
-    .eq('user_id', userId);
+    .eq('user_id', userId)
+    .gte('last_read', historyCutoffISO);
 
   if (historyError) {
-    // TODO: use error reporting service
+    console.error('[sync] reading_history pull failed:', historyError.message);
     throw historyError;
   }
+  console.log(`[sync] reading_history pull end — rows=${(remoteHistory || []).length}`);
 
   // Merge remote into local
   for (const remote of remoteHistory || []) {
@@ -623,13 +632,23 @@ async function syncBookmarks(): Promise<void> {
   // Get all local bookmarks
   const localBookmarks: Bookmark[] = await bookmarkStorage.getAllBookmarks();
 
-  // Get all remote bookmarks
+  // EGRESS FIX: server-side filter on updated_at. Previously pulled every
+  // bookmark on every sync. With N bookmarks and a 5-min poll that's
+  // O(N × 288) rows/day of pure redundancy.
+  const syncState = getSyncState();
+  const bookmarksCutoffISO = new Date(syncState.lastBookmarksSync).toISOString();
+  console.log(`[sync] bookmarks pull start — cutoff=${bookmarksCutoffISO}`);
   const { data: remoteBookmarks, error } = await supabase
     .from('bookmarks')
     .select('*')
-    .eq('user_id', userId);
+    .eq('user_id', userId)
+    .gte('updated_at', bookmarksCutoffISO);
 
-  if (error) throw error;
+  if (error) {
+    console.error('[sync] bookmarks pull failed:', error.message);
+    throw error;
+  }
+  console.log(`[sync] bookmarks pull end — rows=${(remoteBookmarks || []).length}`);
 
   // Build a set of local bookmark IDs for quick lookup
   const localIds = new Set(localBookmarks.map(b => b.id));
@@ -775,6 +794,27 @@ async function syncBibleCache(): Promise<void> {
 //   blocks (JSONB), latitude, longitude, location_name, book_id,
 //   chapter, verse_ref, tags, created_at, updated_at
 // Realtime enabled: ALTER PUBLICATION supabase_realtime ADD TABLE journal;
+//
+// EGRESS STRATEGY — two-phase fetch (PLAN.md Phase 2):
+//   1. Bulk pull (syncJournal) selects ONLY lightweight metadata columns
+//      (JOURNAL_LIST_COLUMNS). Heavy columns (`blocks`, `notability_data`,
+//      `drawing`, `content`) are NOT downloaded here. This keeps the
+//      periodic sync cheap: a typical journal row list is ~1KB vs ~200KB+
+//      when `notability_data` is present.
+//   2. Lazy pull (fetchJournalEntryBody) is called when the user opens
+//      an entry in JournalView. It fetches the heavy columns for one row
+//      and merges them into local IDB.
+//
+// Critical string constants — R3. Changing these requires updating every
+// consumer below AND the column list in database/journal-schema-update.sql.
+
+/** Metadata columns — cheap to fetch, used for journal list rendering. */
+export const JOURNAL_LIST_COLUMNS =
+  'id,user_id,title,plain_text,latitude,longitude,location_name,book_id,chapter,verse_ref,tags,created_at,updated_at';
+
+/** Heavy body columns — only fetched when an entry is opened. */
+export const JOURNAL_BODY_COLUMNS =
+  'id,content,blocks,notability_data,drawing,updated_at';
 
 /**
  * Map a remote journal row (snake_case) to a local JournalEntry (camelCase).
@@ -841,7 +881,9 @@ async function syncJournal(): Promise<void> {
   const syncState = getSyncState();
   const lastSyncISO = new Date(syncState.lastJournalSync).toISOString();
 
-  // Quick check: count remote changes before fetching full rows
+  console.log(`[sync] journal pull start — cutoff=${lastSyncISO}`);
+
+  // Quick check: count remote changes before fetching any rows
   const { count: remoteCount } = await supabase
     .from('journal')
     .select('id', { count: 'exact', head: true })
@@ -854,47 +896,68 @@ async function syncJournal(): Promise<void> {
 
   // Nothing to sync — early exit
   if (!remoteCount && localChanged.length === 0) {
+    console.log('[sync] journal pull end — no changes');
     setSyncState({ lastJournalSync: Date.now() });
     return;
   }
 
-  // Fetch full remote rows only if there are changes
+  // EGRESS FIX: fetch only lightweight metadata columns here.
+  // Heavy columns (blocks, notability_data, drawing, content) are
+  // fetched lazily per-entry via fetchJournalEntryBody() when opened.
+  // See JOURNAL_LIST_COLUMNS comment for rationale.
   let remoteEntries: any[] = [];
   if (remoteCount && remoteCount > 0) {
     const { data, error } = await supabase
       .from('journal')
-      .select('*')
+      .select(JOURNAL_LIST_COLUMNS)
       .eq('user_id', userId)
       .gte('updated_at', lastSyncISO);
-    if (error) throw error;
+    if (error) {
+      console.error('[sync] journal pull failed:', error.message);
+      throw error;
+    }
     remoteEntries = data || [];
+    console.log(`[sync] journal pull end — rows=${remoteEntries.length} (metadata-only)`);
+  } else {
+    console.log('[sync] journal pull end — no remote changes');
   }
 
-  // Merge remote into local (last-write-wins: remote wins on conflict)
+  // Merge remote metadata into local IDB (last-write-wins: remote wins on tie-break by >).
+  // CROSS-DEVICE FIX: preserve the REMOTE updated_at timestamp — previously
+  // journalStorage.updateEntry() bumped updatedAt to Date.now() on the
+  // receiving device, which made the just-synced row look locally-changed
+  // and triggered a redundant re-upload (and could clobber a newer write
+  // from a third device). We now go through idbService.put directly to
+  // write the exact remote timestamp, and preserve local-only heavy fields
+  // (blocks / notability_data) so that lazy-fetch can fill them in.
+  const { idbService } = await import('./idbService');
   for (const remote of remoteEntries) {
     const local = await journalStorage.getEntry(remote.id);
-    if (!local || new Date(remote.updated_at).getTime() > new Date(local.updatedAt).getTime()) {
-      const mapped = remoteToLocalJournal(remote);
-      if (local) {
-        await journalStorage.updateEntry(remote.id, {
-          title: mapped.title,
-          content: mapped.content,
-          plainText: mapped.plainText,
-          drawing: mapped.drawing,
-          notabilityData: mapped.notabilityData,
-          blocks: mapped.blocks,
-          latitude: mapped.latitude,
-          longitude: mapped.longitude,
-          locationName: mapped.locationName,
-          bookId: mapped.bookId,
-          chapter: mapped.chapter,
-          verseRef: mapped.verseRef,
-          tags: mapped.tags,
-        });
-      } else {
-        const { idbService } = await import('./idbService');
-        await idbService.put('journal', mapped);
-      }
+    const remoteTs = new Date(remote.updated_at).getTime();
+    if (!local || remoteTs > new Date(local.updatedAt).getTime()) {
+      const meta = remoteToLocalJournal(remote);
+      await idbService.put('journal', {
+        ...(local || {}),
+        id: remote.id,
+        title: meta.title,
+        plainText: meta.plainText,
+        latitude: meta.latitude,
+        longitude: meta.longitude,
+        locationName: meta.locationName,
+        bookId: meta.bookId,
+        chapter: meta.chapter,
+        verseRef: meta.verseRef,
+        tags: meta.tags,
+        createdAt: local?.createdAt || meta.createdAt,
+        updatedAt: meta.updatedAt, // preserve remote timestamp
+        // Heavy fields: keep local copy if present; lazy-fetch will refresh
+        // them when the user opens the entry. New entries will have these
+        // undefined until lazy-fetch runs.
+        content: local?.content ?? '',
+        blocks: local?.blocks,
+        notabilityData: local?.notabilityData,
+        drawing: local?.drawing,
+      });
     }
   }
 
@@ -908,6 +971,7 @@ async function syncJournal(): Promise<void> {
     new Date(local.updatedAt).getTime() > syncState.lastJournalSync
   );
   if (toUpload.length > 0) {
+    console.log(`[sync] journal push start — rows=${toUpload.length}`);
     const rows = toUpload.map(e => localToRemoteJournal(e, userId));
     let uploadSuccess = true;
 
@@ -916,19 +980,90 @@ async function syncJournal(): Promise<void> {
       const batch = rows.slice(i, i + 50);
       const { error: upsertError } = await supabase.from('journal').upsert(batch, { onConflict: 'id' });
       if (upsertError) {
-        console.error('[syncJournal] upsert failed:', upsertError.message);
+        console.error('[sync] journal push batch failed:', upsertError.message);
         uploadSuccess = false;
       }
     }
 
     // Only advance sync timestamp if upload succeeded — failed entries will be retried next cycle
     if (!uploadSuccess) {
-      console.warn('[syncJournal] skipping lastJournalSync update due to upsert failure');
+      console.warn('[sync] journal push partial failure — not advancing lastJournalSync');
       return;
     }
+    console.log(`[sync] journal push end — rows=${rows.length}`);
   }
 
   setSyncState({ lastJournalSync: Date.now() });
+}
+
+/**
+ * Lazy-fetch the heavy body columns (blocks, notability_data, drawing,
+ * content) for a single journal entry. Called from JournalView when the
+ * user opens an entry whose body we haven't downloaded yet (or whose
+ * remote version is newer than our local cache).
+ *
+ * Egress model: this replaces the old behavior where every periodic sync
+ * pulled all heavy columns for every changed entry. Now they are only
+ * pulled when the user actually opens the entry on this device.
+ *
+ * Safe to call repeatedly — if the local copy is already at or past the
+ * remote updated_at, this is a noop after one cheap metadata comparison.
+ */
+export async function fetchJournalEntryBody(id: string): Promise<void> {
+  if (!supabase || !canSync()) return;
+  const userId = authManager.getUserId();
+  if (!userId) return;
+
+  const { journalStorage } = await import('./journalStorage');
+  const { idbService } = await import('./idbService');
+  const local = await journalStorage.getEntry(id);
+
+  console.log(`[sync] journal lazy-fetch start — id=${id}`);
+  const { data: remote, error } = await supabase
+    .from('journal')
+    .select(JOURNAL_BODY_COLUMNS)
+    .eq('user_id', userId)
+    .eq('id', id)
+    .maybeSingle();
+
+  if (error) {
+    console.error(`[sync] journal lazy-fetch failed — id=${id}:`, error.message);
+    return;
+  }
+  if (!remote) {
+    console.log(`[sync] journal lazy-fetch end — id=${id} not found on remote`);
+    return;
+  }
+
+  // Last-write-wins: only overwrite local body if remote is newer.
+  const remoteTs = new Date(remote.updated_at).getTime();
+  const localTs = local ? new Date(local.updatedAt).getTime() : 0;
+  if (local && remoteTs <= localTs && local.blocks !== undefined) {
+    console.log(`[sync] journal lazy-fetch end — id=${id} local is current`);
+    return;
+  }
+
+  await idbService.put('journal', {
+    ...(local || {
+      id,
+      title: '',
+      plainText: '',
+      tags: [],
+      createdAt: new Date(remote.updated_at).toISOString(),
+    }),
+    id,
+    content: remote.content || '',
+    blocks: remote.blocks || undefined,
+    notabilityData: remote.notability_data || undefined,
+    drawing: remote.drawing || '',
+    updatedAt: remote.updated_at,
+  });
+
+  console.log(`[sync] journal lazy-fetch end — id=${id} body merged`);
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('journal-synced'));
+  }
 }
 
 // =====================================================
@@ -1334,6 +1469,27 @@ if (typeof window !== 'undefined') {
 // =====================================================
 // REALTIME SYNC (instant cross-device updates)
 // =====================================================
+//
+// AUDIT (PLAN.md Phase 2): only one Realtime channel is active in
+// production — `sync-realtime`, subscribed to the `sync_metadata` table.
+// It is KEPT because it is how a secondary device discovers that the
+// primary device pushed a change: the server updates sync_metadata,
+// Realtime delivers a notification within seconds, and the secondary
+// device pulls only the modules whose timestamps advanced. Without this,
+// cross-device sync would depend on the 5-min periodic poll (or manual
+// sync). That's unacceptable latency for "I wrote a journal entry on
+// my phone, now I open the iPad".
+//
+// sync_metadata is a tiny table (one row per module per user, ~10 rows),
+// so the realtime egress cost is trivial — a few KB/day even under
+// heavy write load.
+//
+// The per-table `journal-realtime` channel (setupJournalRealtimeSync
+// below) is INTENTIONALLY NOT subscribed — journal body changes can be
+// large (blocks/notability JSONB), and waking the realtime pipe for
+// each drawing stroke push would dwarf the egress budget. Journal syncs
+// piggy-back on the sync_metadata notification above plus lazy body
+// fetch (fetchJournalEntryBody) when the user opens an entry.
 
 let realtimeChannel: ReturnType<typeof supabase.channel> | null = null;
 
@@ -1362,6 +1518,7 @@ function setupRealtimeSync(): void {
 
         // Only pull if server is newer than local (another device pushed)
         if (serverTs > localTs && MODULE_SYNC_MAP[module]) {
+          console.log(`[sync] realtime trigger — module=${module} serverTs=${serverTs}`);
           MODULE_SYNC_MAP[module].fn()
             .then(() => {
               setLocalTimestamp(module, serverTs);
@@ -1370,19 +1527,20 @@ function setupRealtimeSync(): void {
                 window.dispatchEvent(new Event(`${module}-synced`));
               }
             })
-            .catch((err) => console.warn('[Sync]', err));
+            .catch((err) => console.warn('[sync] realtime pull failed:', err));
         }
       }
     )
     .subscribe();
+  console.log('[sync] realtime subscribed — table=sync_metadata');
 }
 
 // =====================================================
-// DIRECT REALTIME: journal table (instant cross-device block sync)
+// DIRECT REALTIME: journal table (DISABLED — see audit above)
 // =====================================================
-// Listens directly on the journal table for INSERT/UPDATE events
-// from the current user. This gives sub-second updates for blocks
-// (text, drawing, image) without waiting for the sync_metadata round-trip.
+// The code below is preserved (and still tested) so the feature can be
+// re-enabled quickly if we decide the latency tradeoff flips. As of
+// 2026-04-21 it is intentionally not subscribed to save egress.
 
 let journalRealtimeChannel: ReturnType<typeof supabase.channel> | null = null;
 
@@ -1493,6 +1651,7 @@ export const syncService = {
   syncBookmarks,
   syncBibleCache,
   syncJournal,
+  fetchJournalEntryBody,
   syncChatHistory,
   syncSpiritualMemory,
   canSync,
