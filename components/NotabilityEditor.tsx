@@ -1240,8 +1240,17 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     // records the anchor point; the first segment is drawn on the first rAF after a move.
   }, [getCanvasPoint, getNormalizedPoint, closeAllPopups, applyToolSettings, eraseStrokeAt, lassoSelection, pushUndo, redrawAll, triggerAutoSave, refreshCanvasRect]);
 
+  // A pointer gesture is "in progress" when either a stroke is being drawn
+  // (isDrawingRef) or a lasso selection is being dragged (lassoDragStartRef).
+  // Used at three move/up guard sites to ignore spurious events between
+  // gestures. Extracting here keeps the three call sites byte-identical.
+  const isGestureInProgress = useCallback(
+    () => isDrawingRef.current || lassoDragStartRef.current !== null,
+    [],
+  );
+
   const handlePointerMove = useCallback((clientX: number, clientY: number) => {
-    if (!isDrawingRef.current && !lassoDragStartRef.current) return;
+    if (!isGestureInProgress()) return;
     const { x, y } = getCanvasPoint(clientX, clientY);
     const tool = toolRef.current;
 
@@ -1324,7 +1333,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       drawCtx.stroke();
     }
     checkAutoExpand(y);
-  }, [getCanvasPoint, checkAutoExpand, eraseStrokeAt, lassoSelection, moveLassoSelection, redrawAll]);
+  }, [getCanvasPoint, checkAutoExpand, eraseStrokeAt, lassoSelection, moveLassoSelection, redrawAll, isGestureInProgress]);
 
   const handlePointerUp = useCallback(() => {
     const tool = toolRef.current;
@@ -1520,6 +1529,19 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       swipeStartRef.current = null;
       return;
     }
+    // Lasso & text tools: tool-specific finger routing. shouldNavigate (below)
+    // classifies every finger touch as a page-swipe, which silently steals
+    // taps in these modes — the user reported (a) cannot drag a lasso
+    // selection with finger and (b) cannot create a text box by tapping.
+    // Route finger touches into handlePointerDown so it can run the
+    // tool-specific branch (lasso: new-selection-or-drag; text: create box
+    // at tap). Stylus in text mode is blocked earlier; stylus in lasso mode
+    // goes through the pointer-event path and already works.
+    if (toolRef.current === 'lasso' || toolRef.current === 'text') {
+      e.preventDefault();
+      handlePointerDown(t.clientX, t.clientY);
+      return;
+    }
     const nav = shouldNavigate(t);
     isFingerTouchRef.current = nav;
 
@@ -1682,7 +1704,11 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 
   const handlePenPointerMove = useCallback((e: PointerEvent) => {
     if (e.pointerType !== 'pen') return;
-    if (!isDrawingRef.current) return;
+    // Drag a lasso selection with the Pencil: the down-handler sets
+    // lassoDragStartRef but NOT isDrawingRef (no new stroke is being laid),
+    // so a plain `!isDrawingRef` guard would drop every move event and the
+    // selection would stay put. The shared classifier covers both cases.
+    if (!isGestureInProgress()) return;
     e.preventDefault();
     const coalesced = typeof e.getCoalescedEvents === 'function' ? e.getCoalescedEvents() : null;
     if (coalesced && coalesced.length > 0) {
@@ -1690,15 +1716,16 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     } else {
       handlePointerMove(e.clientX, e.clientY);
     }
-  }, [handlePointerMove]);
+  }, [handlePointerMove, isGestureInProgress]);
 
   const handlePenPointerUp = useCallback((e: PointerEvent, el: HTMLElement) => {
     if (e.pointerType !== 'pen') return;
-    if (!isDrawingRef.current) return;
+    // Same: lasso drag ends here too. Shared classifier.
+    if (!isGestureInProgress()) return;
     try { el.releasePointerCapture(e.pointerId); } catch { /* older iOS */ }
     e.preventDefault();
     handlePointerUp();
-  }, [handlePointerUp]);
+  }, [handlePointerUp, isGestureInProgress]);
 
   // Keep the latest handlers in refs so the DOM listener effect can mount once
   // (empty deps). Without this, any prop change upstream — e.g. JournalView passes
