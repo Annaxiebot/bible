@@ -48,6 +48,34 @@ Every session that adds a string literal >40 chars, a function, a config key, or
 ### R13. Second-session review before merge
 After a session completes a change, a fresh session (no conversation history, given only PLAN.md + the diff + the PR description) reviews it. The reviewing session is not biased toward its own earlier output, catches duplication, flags principle violations, and enforces R1–R12. For solo work this means: start a new Claude/Cursor session, paste the diff, ask for a review against PLAN.md. Merge only after the reviewer finds nothing blocking.
 
+### R14. Performance budgets
+Every production build measures these; CI fails on regression.
+- Initial page load: ≤ 500 KB gzipped (stop-ship threshold: 600 KB)
+- Per-route lazy chunk: ≤ 100 KB gzipped
+- Full vendor bundle sum: ≤ 1.5 MB gzipped
+- Hot-path frame budget: Apple Pencil drawing holds 60 fps minimum, 120 fps target
+
+Commits that touch dependencies, lazy-loading boundaries, or known hot paths (the canvas draw path, the sync path, any per-event handler) must cite before/after numbers in the commit message. Add a heavy dep silently and the R13 reviewer rejects. The `vendor-opencc` chunk is 1.1 MB on its own — most of that budget is already committed; be ruthless with anything new.
+
+### R15. Measure, then optimize — never the reverse
+No "this might be faster" / "this might be slower" refactors without a measurement. Sequence: (1) measure, (2) propose, (3) apply, (4) re-measure, (5) before/after in commit message. Half the Pencil-path "fixes" in git history were un-measured — some helped, some regressed. R15 forces the evidence. Well-known algorithmic wins (O(n²)→O(n), removing a re-render) are an exception, but the commit must name the class of fix.
+
+### R16. AI must demonstrate, not claim
+"It should work" is not acceptable. Every AI-authored commit ships proof of correctness — one of:
+- Test output (new test exercising the fix, or an existing test that was red and is now green).
+- Screenshot or video for UI changes (`test-results/**/*.png` from a failing Playwright run is fine — it captures the actual rendered state).
+- Explicit "I could not verify X because Y" with the scope of the unverified change clearly named.
+
+LLMs produce plausible-looking code that compiles and lints but encodes wrong assumptions. R16 forces demonstration in the commit. PR bodies link to the CI runs. If the AI can't run the app (no device, no deps installed), it says so and enumerates the manual-verification steps.
+
+### R17. Dead code is not neutral
+CI fails on:
+- Unused exports (`ts-prune` or `knip`).
+- Unused imports / unused locals (ESLint `no-unused-vars` as **error**, not warning).
+- Orphan files with no inbound imports (extends R7 to tooling).
+
+R7 says "delete on sight"; R17 mechanizes it so the next session doesn't inherit a pile. Files that are public-API entry points consumed externally (e.g., a module a test imports via `await import(...)`) get an annotation `// exported-for: <consumer>` to silence.
+
 ---
 
 ## Part II — Active TODO Backlog
