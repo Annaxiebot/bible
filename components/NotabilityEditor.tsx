@@ -1762,12 +1762,45 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       // the separate seamless mode is where vertical scroll navigates.
       if (pageMode === 'single' && start) {
         e.preventDefault();
-        if (elapsed < 500) {
-          if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > SWIPE_THRESHOLD) {
-            goToPage(dx < 0 ? currentPage + 1 : currentPage - 1);
-          }
+        const flipped = elapsed < 500
+          && Math.abs(dx) > Math.abs(dy)
+          && Math.abs(dx) > SWIPE_THRESHOLD;
+        if (flipped) {
+          // F4 — continuous book-flip animation.
+          //
+          // Old behavior: goToPage instantly set currentPage (outer.translateY
+          // jumps to the new page), then swipeOffset animated 0→0 (no motion).
+          // The user saw the page snap at the last moment of the swipe.
+          //
+          // New behavior:
+          //   1. Set currentPage to the target so the canvas NOW shows the
+          //      new page's content (via outer.translateY).
+          //   2. Push the swipe layer OFF-SCREEN in the swipe direction
+          //      (swipeOffset = ±viewportWidth) WITHOUT a transition —
+          //      the new page's content is momentarily invisible because it
+          //      sits past the card edge.
+          //   3. On the next animation frame, set swipeOffset back to 0 —
+          //      the CSS transition kicks in and slides the new page in
+          //      from the edge. Net: the incoming page's CONTENT is visible
+          //      during the slide (not a mid-swipe snap).
+          const direction = dx < 0 ? 1 : -1; // swipe-left (dx<0) → next page slides in from RIGHT (swipeOffset start = +W)
+          const target = dx < 0 ? currentPage + 1 : currentPage - 1;
+          const card = pageCardRef.current;
+          const viewportW = card?.clientWidth ?? window.innerWidth ?? 0;
+          goToPage(target);
+          // goToPage already sets swipeOffset(0); override with off-screen
+          // start position so the transition animates back to 0.
+          setSwipeOffset(direction * viewportW);
+          // Next frame: transition swipeOffset → 0. requestAnimationFrame
+          // gives React a paint cycle at the ±viewportW state before we
+          // animate back; without it, both state updates batch into the
+          // same paint and the transition never fires.
+          requestAnimationFrame(() => {
+            setSwipeOffset(0);
+          });
+        } else {
+          setSwipeOffset(0);
         }
-        setSwipeOffset(0);
       }
 
       // Double-tap-to-edit: in pointer mode, two quick taps in nearly the same spot
