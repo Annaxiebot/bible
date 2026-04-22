@@ -280,3 +280,89 @@ describe('Bug 3 — syncNotes uses per-entry sync_at, not a single lastNotesSync
     expect(afterSync.data).toBe(LOCAL_NEWEST);
   });
 });
+
+// ============================================================================
+// Helper error paths (R16 — prove the new logging branches actually fire)
+// These tests force localStorage.getItem / setItem to throw and assert that
+// our helpers degrade gracefully AND emit a `[sync]` console.error rather
+// than silently swallowing. R5 compliance self-test.
+// ============================================================================
+
+describe('Bug 3 helper — getNoteSyncAt / setNoteSyncAt error paths (R5)', () => {
+  let errorSpy: ReturnType<typeof vi.spyOn>;
+  const originalLs = globalThis.localStorage;
+
+  beforeEach(async () => {
+    vi.resetModules();
+    resetBehavior();
+    resetIdb();
+    for (const k of Object.keys(lsData)) delete lsData[k];
+    errorSpy = vi.spyOn(console, 'error').mockImplementation(() => { /* suppress */ });
+  });
+
+  afterEach(() => {
+    errorSpy.mockRestore();
+    vi.stubGlobal('localStorage', originalLs);
+  });
+
+  it('getNoteSyncAt: on localStorage read failure, logs [sync] prefix AND degrades to empty map', async () => {
+    // Force localStorage.getItem to throw — the catch must log + degrade.
+    vi.stubGlobal('localStorage', {
+      getItem: (_k: string) => { throw new Error('LS getItem boom'); },
+      setItem: (_k: string, _v: string) => { /* not used here */ },
+      removeItem: (_k: string) => { /* noop */ },
+    });
+
+    // Seed a remote note so the pull runs — if getNoteSyncAt throws uncaught
+    // the whole sync fails before we can assert.
+    tableBehavior['notes'] = {
+      selectRows: [
+        { reference: 'PSA 23:1', content: 'remote psalm', updated_at: new Date(5000).toISOString(), user_id: 'test-user-silent-fail', book_id: 'PSA', chapter: 23, verse: 1 },
+      ],
+      selectCount: 1,
+    };
+
+    const { syncService } = await import('../syncService');
+    await expect(syncService.syncNotes()).resolves.not.toThrow();
+
+    const matched = errorSpy.mock.calls.filter((args: any[]) =>
+      typeof args[0] === 'string' && args[0].includes('[sync] getNoteSyncAt')
+    );
+    expect(matched.length).toBeGreaterThan(0);
+  });
+
+  it('setNoteSyncAt: on localStorage write failure (e.g. QuotaExceeded), logs [sync] prefix', async () => {
+    // Narrow the stub to ONLY fail writes for the sync_at key. Other
+    // localStorage writes (sync-state persistence, module timestamps)
+    // must succeed so syncNotes completes end-to-end and reaches the
+    // setNoteSyncAt path.
+    vi.stubGlobal('localStorage', {
+      getItem: (k: string) => lsData[k] ?? null,
+      setItem: (k: string, v: string) => {
+        if (k === 'bible-sync-at-notes') {
+          throw new Error('QuotaExceededError (simulated)');
+        }
+        lsData[k] = v;
+      },
+      removeItem: (k: string) => { delete lsData[k]; },
+    });
+
+    // Seed: one remote note the pull will accept (no local copy → remote wins
+    // cleanly and setNoteSyncAt is called).
+    tableBehavior['notes'] = {
+      selectRows: [
+        { reference: 'JHN 3:16', content: 'remote john', updated_at: new Date(9000).toISOString(), user_id: 'test-user-silent-fail', book_id: 'JHN', chapter: 3, verse: 16 },
+      ],
+      selectCount: 1,
+    };
+
+    const { syncService } = await import('../syncService');
+    // The sync should NOT throw — a failed sync_at persist is logged, not fatal.
+    await expect(syncService.syncNotes()).resolves.not.toThrow();
+
+    const matched = errorSpy.mock.calls.filter((args: any[]) =>
+      typeof args[0] === 'string' && args[0].includes('[sync] setNoteSyncAt')
+    );
+    expect(matched.length).toBeGreaterThan(0);
+  });
+});
