@@ -1434,6 +1434,14 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     return true; // default to stylus on desktop/unknown
   }, [isApplePencilDevice]);
 
+  // A "drawing tool" is anything that inks or erases (pen/marker/highlighter/
+  // eraser/lasso). `pointer` and `text` are non-drawing. Single source of
+  // truth so palm-rejection, navigation branches, and the render-time
+  // touchAction CSS stay in sync if a new tool type is added.
+  const isDrawingTool = (tool: ActiveTool): boolean =>
+    tool !== 'pointer' && tool !== 'text';
+  const isDrawingToolActive = useCallback(() => isDrawingTool(toolRef.current), []);
+
   // Determine if a touch should navigate (scroll/swipe) instead of draw.
   // Navigation happens when: pointer tool (any input), OR finger on iPad (pencil draws).
   // On iPhone: finger draws in drawing modes, navigates only in pointer mode.
@@ -1494,6 +1502,18 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       e.preventDefault();
       return;
     }
+    // Palm rejection on iPad: when a drawing tool is selected, the user is about
+    // to write with the Apple Pencil. Their resting pinky / palm shows up as a
+    // single-finger touch whose natural micro-movements used to trigger page
+    // navigation (single-page) or native scroll (seamless). Neither is wanted.
+    // Ignore the finger entirely in drawing modes on iPad — pencil still draws
+    // via the pointer path; finger scroll / nav only exists in pointer mode.
+    if (isApplePencilDevice && isDrawingToolActive() && !isStylusTouch(t)) {
+      e.preventDefault();
+      isFingerTouchRef.current = false;
+      swipeStartRef.current = null;
+      return;
+    }
     const nav = shouldNavigate(t);
     isFingerTouchRef.current = nav;
 
@@ -1512,13 +1532,19 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     // Drawing touch (stylus with non-pointer tool) — prevent default and draw
     e.preventDefault();
     handlePointerDown(t.clientX, t.clientY);
-  }, [handlePointerDown, pageMode, shouldNavigate]);
+  }, [handlePointerDown, pageMode, shouldNavigate, isDrawingToolActive]);
 
   const handleTouchMove = useCallback((e: TouchEvent) => {
     if (e.touches.length > 1) { isDrawingRef.current = false; return; }
     // Pencil in drawing modes → pointer path (see handleTouchStart). In pointer
     // mode we keep the stylus in the touch navigation path so pencil can scroll.
     if (hasPointerEvents && isStylusTouch(e.touches[0]) && toolRef.current !== 'pointer') {
+      e.preventDefault();
+      return;
+    }
+    // Mirror of the palm-rejection guard in handleTouchStart: block native
+    // scroll from a palm drag in drawing modes on iPad.
+    if (isApplePencilDevice && isDrawingToolActive() && !isStylusTouch(e.touches[0])) {
       e.preventDefault();
       return;
     }
@@ -1544,7 +1570,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     // Drawing move (stylus)
     e.preventDefault();
     handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
-  }, [handlePointerMove, pageMode]);
+  }, [handlePointerMove, pageMode, isDrawingToolActive]);
 
   const handleTouchEnd = useCallback((e: TouchEvent) => {
     // Pencil in drawing modes → pointer path. Pencil in pointer mode → this handler
@@ -2513,10 +2539,18 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const h = displayHeightRef.current;
   const totalPagesDisplay = Math.max(1, Math.ceil(canvasHeight / PAGE_HEIGHT));
 
+  // Single source of truth for the touch-action applied to the editor surface
+  // and both canvases. Pre-fix version also allowed pan-y on iPad in drawing
+  // mode via `isApplePencilDevice` — that let a resting palm scroll the page.
+  // Drawing-tool classification is shared with the palm-rejection guards via
+  // isDrawingTool(), so adding a new tool needs a one-line edit, not three.
+  const editorTouchAction: 'pan-y' | 'none' =
+    pageMode === 'seamless' && !isDrawingTool(activeTool) ? 'pan-y' : 'none';
+
   // ── Render ─────────────────────────────────────────────────────────────
 
   return (
-    <div className="fixed inset-0 bg-white flex flex-col" style={{ touchAction: pageMode === 'seamless' && (isApplePencilDevice || activeTool === 'pointer' || activeTool === 'text') ? 'pan-y' : 'none', zIndex: 9998 }}
+    <div className="fixed inset-0 bg-white flex flex-col" style={{ touchAction: editorTouchAction, zIndex: 9998 }}
          onMouseMove={e => { if (isDragging) handleItemPointerMove(e); if (isResizing) handleResizeMove(e); }}
          onMouseUp={() => { handleItemPointerUp(); handleResizeEnd(); }}
          onTouchMove={e => { if (isDragging || isResizing) { e.preventDefault(); } if (isDragging) handleItemPointerMove(e); if (isResizing) handleResizeMove(e); }}
@@ -2751,7 +2785,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
           {/* ··· Menu */}
           <div className="relative">
             <button onClick={() => { setShowMenu(!showMenu); setShowColorPicker(false); setShowSizeSlider(false); setShowAIMenu(false); }}
-              className="p-1.5 rounded-lg hover:bg-slate-100" title="Menu">
+              className="p-1.5 rounded-lg hover:bg-slate-100" title="Menu" data-testid="notability-menu-button">
               <svg className="w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <circle cx="12" cy="5" r="1" /><circle cx="12" cy="12" r="1" /><circle cx="12" cy="19" r="1" />
               </svg>
@@ -2771,7 +2805,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                 <div className="h-[1px] bg-slate-100 my-1" />
                 <div className="px-3 py-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Page Mode</div>
                 {(['seamless', 'single'] as const).map(pm => (
-                  <button key={pm} onClick={() => { setPageMode(pm); setShowMenu(false); triggerAutoSave(); }}
+                  <button key={pm} data-testid={`page-mode-${pm}`} onClick={() => { setPageMode(pm); setShowMenu(false); triggerAutoSave(); }}
                     className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 flex items-center justify-between ${
                       pageMode === pm ? 'text-indigo-600 font-medium' : 'text-slate-700'
                     }`}>
@@ -2808,13 +2842,27 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
              overflowY: pageMode === 'single' ? 'hidden' : 'auto',
            }}
            onClick={closeAllPopups}>
-        <div className="relative w-full" style={{
+        {/*
+          Single-page mode uses TWO nested transforms so a page flip doesn't
+          also animate the vertical jump between pages:
+            - outer: translateY to the current page's stack position (no transition — instant jump)
+            - inner: translateX for the live swipe offset (transitions back to 0 on release)
+          The previous single-transform form caused horizontal swipes to look
+          vertical because translateY changed at the same time as translateX
+          and both interpolated through the same 0.3s easing.
+        */}
+        <div data-testid="page-stack-outer" className="relative w-full" style={{
           height: `${canvasHeight}px`,
           ...(pageMode === 'single' ? {
-            transform: `translateY(-${currentPage * PAGE_HEIGHT}px) translateX(${swipeOffset}px)`,
-            transition: swipeOffset === 0 ? 'transform 0.3s ease-out' : 'none',
+            transform: `translateY(-${currentPage * PAGE_HEIGHT}px)`,
+            transition: 'none',
           } : {}),
         }}>
+        <div data-testid="page-stack-swipe" className="relative w-full" style={pageMode === 'single' ? {
+          height: `${canvasHeight}px`,
+          transform: `translateX(${swipeOffset}px)`,
+          transition: swipeOffset === 0 ? 'transform 0.3s ease-out' : 'none',
+        } : { height: `${canvasHeight}px` }}>
           {/* Background canvas */}
           <canvas ref={bgCanvasRef} className="absolute inset-0"
             style={{ width: '100%', height: `${canvasHeight}px`, pointerEvents: 'none' }} />
@@ -2822,7 +2870,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
           <canvas ref={canvasRef} className="absolute inset-0"
             style={{
               width: '100%', height: `${canvasHeight}px`,
-              touchAction: pageMode === 'seamless' && (isApplePencilDevice || activeTool === 'pointer' || activeTool === 'text') ? 'pan-y' : 'none',
+              touchAction: editorTouchAction,
               WebkitTouchCallout: 'none', WebkitUserSelect: 'none',
               userSelect: 'none', cursor: getCursor(),
               // Disable pointer events when editing text, or when drawing on the above layer
@@ -3431,7 +3479,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
             style={{
               width: '100%', height: `${canvasHeight}px`,
               zIndex: 10,
-              touchAction: pageMode === 'seamless' && (isApplePencilDevice || activeTool === 'pointer' || activeTool === 'text') ? 'pan-y' : 'none',
+              touchAction: editorTouchAction,
               WebkitTouchCallout: 'none', WebkitUserSelect: 'none',
               userSelect: 'none',
               cursor: getCursor(),
@@ -3449,6 +3497,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
               Page {i + 1}
             </div>
           ))}
+        </div>
         </div>
 
         {/* ── Floating page indicator (Notability-style: appears on scroll, fades out) */}
