@@ -43,7 +43,9 @@
  *  NotabilityEditor.PAGE_HEIGHT (line 133 of components/NotabilityEditor.tsx).
  *  Duplicated deliberately here because the sync layer cannot import from
  *  the component layer without pulling in React. If the editor's PAGE_HEIGHT
- *  changes, update this constant too. */
+ *  changes, update this constant too. Exported for the round-trip test —
+ *  test/component must agree on the same magic number. */
+// exported-for: services/__tests__/multipageSync.test.ts (R17)
 export const NOTABILITY_PAGE_HEIGHT_PX = 1200;
 
 /** Typical mobile viewport width used as a reference when converting
@@ -157,6 +159,12 @@ export function augmentNotabilityJSON(raw: string | null | undefined): string | 
   try {
     parsed = JSON.parse(raw);
   } catch {
+    // R5: silent-return is correct here. This helper runs on every
+    // journal upload/download; a malformed `notability_data` blob must
+    // not throw and break the entire sync step. Returning `raw`
+    // unchanged makes augmentation a no-op for any non-JSON payload —
+    // the server already stores whatever bytes we send, and downstream
+    // parseExtended() handles the malformed case with its own try/catch.
     return raw;
   }
   if (!parsed || typeof parsed !== 'object') return raw;
