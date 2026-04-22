@@ -591,3 +591,60 @@ test.describe('NotabilityEditor palm rejection (iPad-simulated)', () => {
     await expect.poll(() => canvasHasInk(page), { timeout: 3_000 }).toBe(true);
   });
 });
+
+// ── Single-page visual affordance ────────────────────────────────────────
+// Notability-style UX: when the user flips to single-page mode, the page
+// should visually "float" as a shadowed white card against a gray backdrop.
+// Without this affordance the only difference from seamless mode is the
+// scroll behavior — indistinguishable at a glance. Asserts the shadow +
+// non-white container bg appear in single-page AND are absent in seamless.
+test.describe('NotabilityEditor single-page visual affordance', () => {
+  // Locator helpers — the editor's scroll container is the immediate parent
+  // of the page-stack-outer div. Using the parent-of-testid chain keeps this
+  // resilient to className churn (Tailwind class renames etc.).
+  const getScrollContainer = (page: Page) =>
+    page.locator('[data-testid="page-stack-outer"]').locator('..');
+
+  async function switchPageMode(page: Page, mode: 'single' | 'seamless') {
+    await page.locator('button[title="Menu"]').click();
+    await page.locator(`[data-testid="page-mode-${mode}"]`).click();
+    // Menu closes on click — wait a tick for the React state flush.
+    await page.waitForTimeout(100);
+  }
+
+  test('single-page mode: swipe card has shadow + rounded corners; scroll container has gray bg', async ({ page }) => {
+    await openNotability(page);
+    await switchPageMode(page, 'single');
+
+    const swipe = page.locator('[data-testid="page-stack-swipe"]');
+    const boxShadow = await swipe.evaluate(el => getComputedStyle(el as HTMLElement).boxShadow);
+    // "none" means no shadow; anything else includes the rgba() values we set.
+    expect(boxShadow, 'single-page swipe card must have a drop shadow').not.toBe('none');
+    expect(boxShadow).toMatch(/rgba?\(/);
+
+    const radius = await swipe.evaluate(el => getComputedStyle(el as HTMLElement).borderRadius);
+    // Expect 4px (or browser-normalized "4px 4px 4px 4px"). Reject "0px".
+    expect(radius, 'single-page swipe card must have rounded corners').not.toMatch(/^0px/);
+
+    const bg = await getScrollContainer(page).evaluate(el => getComputedStyle(el as HTMLElement).backgroundColor);
+    // Non-transparent, non-white: the "floating page" backdrop.
+    expect(bg, 'scroll container must have a non-white backdrop in single-page mode').not.toBe('rgba(0, 0, 0, 0)');
+    expect(bg).not.toBe('rgb(255, 255, 255)');
+  });
+
+  test('seamless mode: swipe card has no shadow; scroll container bg is default (transparent / white)', async ({ page }) => {
+    await openNotability(page);
+    // Default IS seamless, but explicitly re-enter to guard against a future
+    // default change — the test's claim is about the mode, not the default.
+    await switchPageMode(page, 'seamless');
+
+    const swipe = page.locator('[data-testid="page-stack-swipe"]');
+    const boxShadow = await swipe.evaluate(el => getComputedStyle(el as HTMLElement).boxShadow);
+    expect(boxShadow, 'seamless swipe must have no shadow (continuous flow, not a card)').toBe('none');
+
+    const bg = await getScrollContainer(page).evaluate(el => getComputedStyle(el as HTMLElement).backgroundColor);
+    // Either transparent (no bg applied — inherits the white editor bg) or
+    // white. Both are acceptable "default"s; the gray card bg is NOT.
+    expect(['rgba(0, 0, 0, 0)', 'rgb(255, 255, 255)'], `seamless bg must be default, got ${bg}`).toContain(bg);
+  });
+});
