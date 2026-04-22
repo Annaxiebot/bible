@@ -315,3 +315,91 @@ test.describe('NotabilityEditor pointer-event matrix', () => {
     // canvas rect. Needs journal-level setup; flag for future.
   });
 });
+
+// ── iPad palm-rejection suite ──────────────────────────────────────────────
+// Spoofs the iPad UA + maxTouchPoints so NotabilityEditor's `isApplePencilDevice`
+// branch activates. Exercises the specific user-reported bug: resting pinky /
+// palm on the screen while preparing to write was moving pages (single-page)
+// or scrolling (seamless).
+test.describe('NotabilityEditor palm rejection (iPad-simulated)', () => {
+  test.use({
+    userAgent: 'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+    hasTouch: true,
+  });
+
+  test.beforeEach(async ({ page }) => {
+    // maxTouchPoints is the second prong of the iPad UA sniff in NotabilityEditor.
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'maxTouchPoints', { value: 5, configurable: true });
+    });
+  });
+
+  test('palm drag in pen mode does NOT flip page in single-page mode', async ({ page }) => {
+    const canvas = await openNotability(page);
+
+    // Switch the editor into single-page mode via the overflow menu. Default
+    // is seamless; this test specifically guards the goToPage-on-swipe path.
+    // The outer wrapper's inline transform is the reliable signal that
+    // single-page mode is active — seamless leaves its transform empty.
+    // Note: button-title selectors are brittler than data-testid, but the dev
+    // server's HMR occasionally misses component-prop changes, so we use the
+    // stable attributes that Vite definitely serves on first load.
+    const pageStack = page.locator('[data-testid="page-stack-outer"]');
+    await page.locator('button[title="Menu"]').click();
+    // "Single Page" is a label with an emoji prefix — match by partial text via
+    // exact button role to avoid matching the paper-type "Plain" / heading row.
+    await page.getByRole('button', { name: /Single Page/ }).click();
+    await expect
+      .poll(() => pageStack.evaluate(el => (el as HTMLElement).style.transform), { timeout: 3_000 })
+      .toMatch(/translateY/);
+
+    await selectTool(page, 'Pen');
+
+    // Wiggle a palm-shaped finger (radiusX=22) across the canvas. Before the
+    // fix a finger drag of >50px in single-page mode would call goToPage()
+    // and the translateY would shift from 0 to -PAGE_HEIGHT.
+    const initialTransform = await pageStack.evaluate(
+      el => getComputedStyle(el as HTMLElement).transform,
+    );
+    await drag(page, canvas, { x: 80, y: 80 }, { x: 240, y: 120 }, {
+      pointerType: 'touch', radiusX: 22, steps: 10,
+    });
+    // Poll until the transform has had time to settle — guards against race
+    // with the 0.3s transform transition. The invariant must hold for the
+    // full poll window; we assert at the end.
+    await expect
+      .poll(() => pageStack.evaluate(el => getComputedStyle(el as HTMLElement).transform), { timeout: 1_500 })
+      .toBe(initialTransform);
+    expect(await canvasHasInk(page), 'palm must not leave ink either').toBe(false);
+  });
+
+  test('finger pan in pen mode does NOT scroll in seamless mode', async ({ page }) => {
+    const canvas = await openNotability(page);
+    // Seamless is the default pageMode; no toggle needed.
+    await selectTool(page, 'Pen');
+
+    // The scroll container's class selector is brittle but stable in this
+    // codebase — isolated into a local helper so a future rename needs one
+    // change, not two.
+    const getScrollTop = () => page.evaluate(() => {
+      const containers = document.querySelectorAll('.overflow-x-hidden');
+      return (containers[containers.length - 1] as HTMLElement | undefined)?.scrollTop ?? 0;
+    });
+
+    const scrollBefore = await getScrollTop();
+    await drag(page, canvas, { x: 80, y: 300 }, { x: 80, y: 80 }, {
+      pointerType: 'touch', radiusX: 22, steps: 10,
+    });
+    const scrollAfter = await getScrollTop();
+    expect(scrollAfter, `seamless scroll drifted from ${scrollBefore} to ${scrollAfter}`).toBe(scrollBefore);
+  });
+
+  test('pencil drag in pen mode still draws on iPad (happy path not regressed)', async ({ page }) => {
+    const canvas = await openNotability(page);
+    await selectTool(page, 'Pen');
+    await drag(page, canvas, { x: 80, y: 80 }, { x: 220, y: 140 }, {
+      pointerType: 'pen', radiusX: 1, steps: 12,
+    });
+    await expect.poll(() => canvasHasInk(page), { timeout: 3_000 }).toBe(true);
+  });
+});
