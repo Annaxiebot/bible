@@ -137,6 +137,21 @@ const SWIPE_THRESHOLD = 50; // px minimum swipe distance to trigger page change
 // drawing modes are ignored so a resting palm doesn't drive nav or scroll.
 const PALM_RADIUS_THRESHOLD = 25;
 
+// ── Single-page visual affordance ──────────────────────────────────────────
+// In single-page mode the page card "floats" against a soft gray backdrop.
+// The shadow + rounded corners + horizontal margin give the user a visual
+// cue they're in paged (not seamless) mode — independent of the scroll
+// behavior. Seamless mode keeps the edge-to-edge look (continuous flow).
+const SINGLE_PAGE_BG_COLOR = '#e5e7eb'; // slate-200; tuned to contrast white paper
+const SINGLE_PAGE_MARGIN_PX = 24; // horizontal gap each side (visible shadow room)
+const SINGLE_PAGE_VERTICAL_MARGIN_PX = 16; // top/bottom breathing room
+const SINGLE_PAGE_BORDER_RADIUS_PX = 4;
+const SINGLE_PAGE_SHADOW = '0 4px 20px rgba(0,0,0,0.12), 0 1px 3px rgba(0,0,0,0.08)';
+// Floor for the viewport-fitted single-page card. A tiny viewport (dev tools
+// open, half-screen browser) should not shrink the page to unusable size; at
+// MIN_PAGE_HEIGHT_PX the user still sees a recognizable page.
+const MIN_PAGE_HEIGHT_PX = 400;
+
 function genId() { return Math.random().toString(36).slice(2, 10); }
 
 function serializeExtended(data: ExtendedCanvasData): string {
@@ -353,6 +368,11 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const [canvasHeight, setCanvasHeight] = useState(PAGE_HEIGHT);
   const [pageMode, setPageMode] = useState<'seamless' | 'single'>('seamless');
   const [currentPage, setCurrentPage] = useState(0);
+  // Tracks the scroll container's inner height. In single-page mode this caps
+  // the visible page-card height so a 1200px page doesn't clip the bottom
+  // 400+px on iPad landscape (~754px of canvas area). 0 = not yet measured;
+  // fall back to PAGE_HEIGHT until the first measurement lands.
+  const [viewportHeight, setViewportHeight] = useState(0);
 
   // Text boxes & images
   const [textBoxes, setTextBoxes] = useState<TextBox[]>([]);
@@ -767,6 +787,37 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       if (sc) sc.removeEventListener('scroll', handleScroll);
     };
   }, [setupCanvases]);
+
+  // Track the scroll container's inner height so single-page mode can size
+  // the page card to min(PAGE_HEIGHT, viewport). Without this, iPad landscape
+  // (~754 px of canvas area) clips the bottom ~446 px of a 1200 px page.
+  //
+  // Why ResizeObserver in addition to window 'resize': iOS Safari fires a
+  // resize event for visual-viewport changes (keyboard open/close, toolbar
+  // slide) but not always for layout changes to the scroll container (sidebar
+  // toggles, split-pane drag). The observer covers both while resize +
+  // orientationchange handle cases where the element ref may not be attached
+  // yet (initial mount, tab becoming visible).
+  useEffect(() => {
+    const sc = scrollContainerRef.current;
+    const measure = () => {
+      const el = scrollContainerRef.current;
+      if (el && el.clientHeight > 0) setViewportHeight(el.clientHeight);
+    };
+    measure();
+    let ro: ResizeObserver | null = null;
+    if (sc && typeof ResizeObserver !== 'undefined') {
+      ro = new ResizeObserver(measure);
+      ro.observe(sc);
+    }
+    window.addEventListener('resize', measure);
+    window.addEventListener('orientationchange', measure);
+    return () => {
+      if (ro) ro.disconnect();
+      window.removeEventListener('resize', measure);
+      window.removeEventListener('orientationchange', measure);
+    };
+  }, []);
 
   // ── Load initial data ──────────────────────────────────────────────────
 
@@ -2586,6 +2637,25 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const h = displayHeightRef.current;
   const totalPagesDisplay = Math.max(1, Math.ceil(canvasHeight / PAGE_HEIGHT));
 
+  // Viewport-fitted page card height — single-page mode only. This is the
+  // VISIBLE height of the card; the canvas bitmap + stroke coordinate system
+  // stay at PAGE_HEIGHT so stroke normalization (width-based, see
+  // commitCurrentStroke where normalizeStroke(abs, w, w) is called) is
+  // unaffected by viewport changes. A 1200 px page on a 754 px iPad viewport
+  // renders as a 722 px card; canvas pixels 722..1200 are clipped by the
+  // swipe div's overflow:hidden, but the stored stroke data is unchanged and
+  // the page returns to full height when switched back to seamless.
+  //
+  // viewportHeight === 0 means "not yet measured" (first render); fall back
+  // to PAGE_HEIGHT so the initial paint doesn't collapse to MIN_PAGE_HEIGHT.
+  const availableHeight = viewportHeight > 0
+    ? viewportHeight - 2 * SINGLE_PAGE_VERTICAL_MARGIN_PX
+    : PAGE_HEIGHT;
+  const singlePageCardHeight = Math.max(
+    MIN_PAGE_HEIGHT_PX,
+    Math.min(PAGE_HEIGHT, availableHeight),
+  );
+
   // Single source of truth for the touch-action applied to the editor surface
   // and both canvases. Seamless mode needs native vertical pan so finger scroll
   // works while a drawing tool is selected (Notability-style). Palm rest is
@@ -2888,22 +2958,56 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       </div>
 
       {/* ── Canvas Area ─────────────────────────────────────────────────── */}
+      {/*
+        Single-page mode gives the scroll container a soft gray backdrop so
+        the white page card visually "floats" — a Notability-style affordance
+        that tells the user at a glance they're in paged mode even before
+        they try to scroll. Seamless mode keeps the flat white look because
+        its continuous flow semantics would be misrepresented by a card.
+      */}
       <div ref={scrollContainerRef}
+           data-testid="notability-scroll-container"
            className="flex-1 overflow-x-hidden"
            style={{
              WebkitOverflowScrolling: 'touch',
              overflowY: pageMode === 'single' ? 'hidden' : 'auto',
+             background: pageMode === 'single' ? SINGLE_PAGE_BG_COLOR : undefined,
+             paddingTop: pageMode === 'single' ? SINGLE_PAGE_VERTICAL_MARGIN_PX : undefined,
+             paddingBottom: pageMode === 'single' ? SINGLE_PAGE_VERTICAL_MARGIN_PX : undefined,
            }}
            onClick={closeAllPopups}>
         {/*
-          Single-page mode uses TWO nested transforms so a page flip doesn't
-          also animate the vertical jump between pages:
-            - outer: translateY to the current page's stack position (no transition — instant jump)
-            - inner: translateX for the live swipe offset (transitions back to 0 on release)
-          The previous single-transform form caused horizontal swipes to look
-          vertical because translateY changed at the same time as translateX
-          and both interpolated through the same 0.3s easing.
+          Layer roles (single-page mode):
+            - page-card-clip: STATIONARY white card, viewport-fitted height,
+              shadow + rounded corners + horizontal margin. Owns overflow:hidden
+              so everything below the card's bottom (canvas pixels beyond
+              singlePageCardHeight) is clipped into nonexistence — that's what
+              makes the card look bounded on the iPad viewport. The shadow
+              lives here (NOT on swipe) because the shadow needs to render
+              OUTSIDE its host; if it were on swipe, overflow:hidden on the
+              card would clip it into invisibility.
+            - page-stack-outer: translateY by currentPage*PAGE_HEIGHT to pick
+              which logical page is at the top of the card. No transition so
+              page flips don't interpolate vertically. Height = canvasHeight
+              (the full bitmap stack) so translateY has somewhere to land.
+            - page-stack-swipe: translateX by swipeOffset for the live swipe
+              gesture. Height = canvasHeight (tracks outer). When swipeOffset
+              releases back to 0 it animates; during the gesture no transition.
+          Seamless mode skips the card entirely — card-clip is a pass-through.
+          Existing tests (palm rejection, horizontal-only swipe etc.) read the
+          transform off page-stack-outer, so outer keeps the translateY role.
         */}
+        <div data-testid="page-card-clip"
+             className={pageMode === 'single' ? 'mx-auto' : 'w-full'}
+             style={pageMode === 'single' ? {
+          position: 'relative',
+          height: `${singlePageCardHeight}px`,
+          width: `calc(100% - ${SINGLE_PAGE_MARGIN_PX * 2}px)`,
+          background: '#ffffff',
+          boxShadow: SINGLE_PAGE_SHADOW,
+          borderRadius: `${SINGLE_PAGE_BORDER_RADIUS_PX}px`,
+          overflow: 'hidden',
+        } : undefined}>
         <div data-testid="page-stack-outer" className="relative w-full" style={{
           height: `${canvasHeight}px`,
           ...(pageMode === 'single' ? {
@@ -2911,7 +3015,9 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
             transition: 'none',
           } : {}),
         }}>
-        <div data-testid="page-stack-swipe" className="relative w-full" style={pageMode === 'single' ? {
+        <div data-testid="page-stack-swipe"
+             className="relative w-full"
+             style={pageMode === 'single' ? {
           height: `${canvasHeight}px`,
           transform: `translateX(${swipeOffset}px)`,
           transition: swipeOffset === 0 ? 'transform 0.3s ease-out' : 'none',
@@ -3550,6 +3656,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
               Page {i + 1}
             </div>
           ))}
+        </div>
         </div>
         </div>
 

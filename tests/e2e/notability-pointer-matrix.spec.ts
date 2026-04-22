@@ -591,3 +591,160 @@ test.describe('NotabilityEditor palm rejection (iPad-simulated)', () => {
     await expect.poll(() => canvasHasInk(page), { timeout: 3_000 }).toBe(true);
   });
 });
+
+// ── Single-page visual affordance ────────────────────────────────────────
+// Notability-style UX: when the user flips to single-page mode, the page
+// should visually "float" as a shadowed white card against a gray backdrop,
+// viewport-sized so the iPad toolbar doesn't clip the bottom of a page.
+// Without this affordance the only difference from seamless mode is the
+// scroll behavior — indistinguishable at a glance. The card chrome (shadow,
+// rounded corners, bg, viewport clipping) lives on page-card-clip; swipe
+// and outer retain their translate responsibilities (navigation tests
+// elsewhere in this file depend on that contract).
+async function switchPageMode(page: Page, mode: 'single' | 'seamless') {
+  await page.locator('button[title="Menu"]').click();
+  await page.locator(`[data-testid="page-mode-${mode}"]`).click();
+  // Menu closes on click — wait a tick for the React state flush.
+  await page.waitForTimeout(100);
+}
+
+test.describe('NotabilityEditor single-page visual affordance', () => {
+  test('single-page mode: card has shadow + rounded corners; scroll container has gray bg', async ({ page }) => {
+    await openNotability(page);
+    await switchPageMode(page, 'single');
+
+    const card = page.locator('[data-testid="page-card-clip"]');
+    const boxShadow = await card.evaluate(el => getComputedStyle(el as HTMLElement).boxShadow);
+    // "none" means no shadow; anything else includes the rgba() values we set.
+    expect(boxShadow, 'single-page card must have a drop shadow').not.toBe('none');
+    expect(boxShadow).toMatch(/rgba?\(/);
+
+    const radius = await card.evaluate(el => getComputedStyle(el as HTMLElement).borderRadius);
+    // Expect 4px (or browser-normalized "4px 4px 4px 4px"). Reject "0px".
+    expect(radius, 'single-page card must have rounded corners').not.toMatch(/^0px/);
+
+    const scroll = page.locator('[data-testid="notability-scroll-container"]');
+    const bg = await scroll.evaluate(el => getComputedStyle(el as HTMLElement).backgroundColor);
+    // Non-transparent, non-white: the "floating page" backdrop.
+    expect(bg, 'scroll container must have a non-white backdrop in single-page mode').not.toBe('rgba(0, 0, 0, 0)');
+    expect(bg).not.toBe('rgb(255, 255, 255)');
+  });
+
+  test('seamless mode: card has no shadow; scroll container bg is default (transparent / white)', async ({ page }) => {
+    await openNotability(page);
+    // Default IS seamless, but explicitly re-enter to guard against a future
+    // default change — the test's claim is about the mode, not the default.
+    await switchPageMode(page, 'seamless');
+
+    const card = page.locator('[data-testid="page-card-clip"]');
+    const boxShadow = await card.evaluate(el => getComputedStyle(el as HTMLElement).boxShadow);
+    expect(boxShadow, 'seamless card must have no shadow (continuous flow, not a card)').toBe('none');
+
+    const scroll = page.locator('[data-testid="notability-scroll-container"]');
+    const bg = await scroll.evaluate(el => getComputedStyle(el as HTMLElement).backgroundColor);
+    // Either transparent (no bg applied — inherits the white editor bg) or
+    // white. Both are acceptable "default"s; the gray card bg is NOT.
+    expect(['rgba(0, 0, 0, 0)', 'rgb(255, 255, 255)'], `seamless bg must be default, got ${bg}`).toContain(bg);
+  });
+});
+
+// ── Viewport-aware single-page height ────────────────────────────────────
+// User bug: on iPad 11" landscape (~834 px of vertical canvas area after the
+// 48px toolbar + bottom bar), the 1200-px PAGE_HEIGHT constant clipped the
+// bottom ~400px of every page in single-page mode. Fix: the page-card-clip
+// div (bug 1's floating card) is sized to min(PAGE_HEIGHT, viewport-margins)
+// so the card matches the screen. Canvas bitmap + stroke coords stay at
+// PAGE_HEIGHT — strokes cannot drift when the viewport changes.
+test.describe('NotabilityEditor viewport-aware page height', () => {
+  test.use({ viewport: { width: 1194, height: 834 } }); // iPad 11" landscape
+
+  test('single-page card height ≤ viewport; seamless stack stays PAGE_HEIGHT-tall', async ({ page }) => {
+    await openNotability(page);
+    await switchPageMode(page, 'single');
+
+    const card = page.locator('[data-testid="page-card-clip"]');
+    const cardBox = await card.boundingBox();
+    expect(cardBox, 'page-card-clip must be laid out').not.toBeNull();
+
+    const scroll = page.locator('[data-testid="notability-scroll-container"]');
+    const scrollBox = await scroll.boundingBox();
+    expect(scrollBox, 'scroll container must be laid out').not.toBeNull();
+
+    // Card fits inside the scroll container's visible area (tolerance: 4 px
+    // for sub-pixel rounding). Without the viewport-fit fix the card would
+    // be 1200 tall, blowing past scrollBox.height (~754 on iPad landscape).
+    expect(cardBox!.height).toBeLessThanOrEqual(scrollBox!.height + 4);
+    // And it's not collapsed to MIN_PAGE_HEIGHT — the viewport IS big enough
+    // for a respectable card. Guard against a future regression where a
+    // measurement race sets viewportHeight to a tiny value.
+    expect(cardBox!.height).toBeGreaterThan(400);
+
+    // Back to seamless: the outer stack is still canvasHeight = PAGE_HEIGHT
+    // for a 1-page canvas (no viewport fit applied in seamless mode). This
+    // proves the fix is scoped to single-page and doesn't regress seamless.
+    await switchPageMode(page, 'seamless');
+    const outer = page.locator('[data-testid="page-stack-outer"]');
+    const outerHeightPx = await outer.evaluate(el => (el as HTMLElement).offsetHeight);
+    expect(outerHeightPx, 'seamless outer stack stays PAGE_HEIGHT-tall per page').toBe(1200);
+  });
+
+  test('stroke position does NOT drift after viewport resize (stroke invariant)', async ({ page }) => {
+    // Stroke normalization in commitCurrentStroke is width-based: both x and
+    // y are divided by canvas WIDTH (not height). A pure height change must
+    // leave stroke pixel positions unchanged as long as width is unchanged.
+    // Sample a tight ROI around the drag endpoint before+after resize; the
+    // ink must remain inside that ROI.
+    const canvas = await openNotability(page);
+    await selectTool(page, 'Pen');
+    // Draw deliberately ON the drawing layer (nth(1)) — canvasHasInk checks
+    // both layers but this coordinate check needs a single known source.
+    const target = { x: 160, y: 160 };
+    await drag(page, canvas, { x: 80, y: 80 }, target, { pointerType: 'mouse', steps: 16 });
+    await expect.poll(() => canvasHasInk(page), { timeout: 3_000 }).toBe(true);
+
+    // Helper: is there ink within 32 CSS px of the target on either canvas?
+    // Height-only resize shouldn't change width so stroke pixel positions
+    // must be unchanged — we use a generous ROI to tolerate line-cap
+    // rounding, not to tolerate drift.
+    const inkNearTarget = () => page.evaluate((pt) => {
+      const canvases = [...document.querySelectorAll('canvas')] as HTMLCanvasElement[];
+      for (let idx = 1; idx < canvases.length; idx++) {
+        const c = canvases[idx];
+        const ctx = c.getContext('2d'); if (!ctx) continue;
+        const rect = c.getBoundingClientRect();
+        if (rect.width === 0 || c.width === 0) continue;
+        const dpr = Math.max(1, c.width / rect.width);
+        const cx = Math.round(pt.x * dpr);
+        const cy = Math.round(pt.y * dpr);
+        const roi = Math.round(32 * dpr);
+        const x0 = Math.max(0, cx - roi);
+        const y0 = Math.max(0, cy - roi);
+        const w = Math.min(c.width - x0, roi * 2);
+        const h = Math.min(c.height - y0, roi * 2);
+        if (w <= 0 || h <= 0) continue;
+        try {
+          const data = ctx.getImageData(x0, y0, w, h).data;
+          for (let i = 3; i < data.length; i += 4) if (data[i] > 10) return true;
+        } catch {
+          // getImageData throws SecurityError on a cross-origin-tainted
+          // canvas (never the case here — all canvases are same-origin —
+          // but defensive). Skip this canvas and probe the next one;
+          // failing the whole check on one canvas's read error would
+          // produce a confusing false negative for a stroke invariant.
+        }
+      }
+      return false;
+    }, target);
+
+    expect(await inkNearTarget(), 'ink at target before resize').toBe(true);
+
+    // Height-only resize (width constant so normalization doesn't scale the
+    // stroke horizontally). The setupCanvases effect will re-size the canvas
+    // bitmaps; strokes get re-rendered via the same width-based denormalize.
+    await page.setViewportSize({ width: 1194, height: 600 });
+    // Give React + the resize listener one tick to repaint.
+    await page.waitForTimeout(300);
+
+    expect(await inkNearTarget(), 'ink must land at same pixel target after height-only resize').toBe(true);
+  });
+});
