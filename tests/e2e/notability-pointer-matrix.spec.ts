@@ -748,3 +748,98 @@ test.describe('NotabilityEditor viewport-aware page height', () => {
     expect(await inkNearTarget(), 'ink must land at same pixel target after height-only resize').toBe(true);
   });
 });
+
+// ── F1: landscape scroll range inside single-page card ──────────────────
+// User bug: "when I rotate from portrait to landscape, the vertical size
+// of the screen should be extended to the original length in portrait
+// mode so that user can scroll down to view the contents at the bottom
+// of the page. Currently user can't see the bottom of the page once
+// turned from portrait to landscape mode."
+//
+// Root cause: PR #13 clipped the page card to min(PAGE_HEIGHT, viewport).
+// On iPad landscape (~754 px card vs 1200 px PAGE_HEIGHT) the bottom
+// ~446 px of every page became unreachable because the card had
+// overflow:hidden. Fix: the card now has overflowY:auto when its
+// own height is smaller than PAGE_HEIGHT, so the user can scroll
+// within the card to reach the full PAGE_HEIGHT worth of content.
+test.describe('NotabilityEditor F1: landscape scroll range', () => {
+  test.use({ viewport: { width: 1194, height: 834 } }); // iPad 11" landscape
+
+  test('single-page card becomes scrollable when cardHeight < PAGE_HEIGHT', async ({ page }) => {
+    await openNotability(page);
+    await page.locator('button[title="Menu"]').click();
+    await page.locator('[data-testid="page-mode-single"]').click();
+    await page.waitForTimeout(150);
+
+    const card = page.locator('[data-testid="page-card-clip"]');
+    const cardBox = await card.boundingBox();
+    expect(cardBox).not.toBeNull();
+
+    // Card is viewport-fitted and smaller than PAGE_HEIGHT (1200).
+    expect(cardBox!.height).toBeLessThan(1200);
+
+    // Card must expose scroll so the user can reach content beyond the
+    // visible fold. The scrollHeight is canvasHeight (≥ PAGE_HEIGHT);
+    // clientHeight is cardHeight. scrollHeight > clientHeight means the
+    // browser will render a scrollable region. overflowY must be 'auto'
+    // (not 'hidden') so the scroll actually works.
+    const overflowY = await card.evaluate(el => getComputedStyle(el as HTMLElement).overflowY);
+    expect(overflowY, 'card must be scrollable when shorter than PAGE_HEIGHT').toBe('auto');
+
+    const scrollable = await card.evaluate(el => {
+      const e = el as HTMLElement;
+      return e.scrollHeight > e.clientHeight + 4;
+    });
+    expect(scrollable, 'card.scrollHeight must exceed clientHeight so bottom of page is reachable').toBe(true);
+
+    // Exercise the scroll: programmatic scrollTo and read back scrollTop.
+    await card.evaluate(el => { (el as HTMLElement).scrollTop = 400; });
+    const scrollTop = await card.evaluate(el => (el as HTMLElement).scrollTop);
+    expect(scrollTop, 'scrollTop must change after programmatic scrollTo (proves scroll works)').toBeGreaterThan(0);
+  });
+});
+
+// ── F2: no auto-page creation on bottom-edge strokes ────────────────────
+// User bug: "there is code that automatically creates a next empty page
+// when user handwriting is at the bottom of the page, but it did not
+// create a complete new page, it only creates a partial new page, not
+// a complete sized page, but it increments the total page count."
+//
+// Fix: removed AUTO_EXPAND_* — the "Add Page" button is the only growth
+// path. Test draws near the bottom edge of page 1 and asserts
+// totalPages stays at 1.
+test.describe('NotabilityEditor F2: no auto-page on bottom stroke', () => {
+  test('drawing near bottom of canvas does NOT add a partial page', async ({ page }) => {
+    const canvas = await openNotability(page);
+    await selectTool(page, 'Pen');
+
+    // Capture initial bitmap height (proxy for canvasHeight * dpr).
+    // The drawing canvas is index 1; its .height scales by dpr.
+    const initialHeight = await page.locator('canvas').nth(1).evaluate(el => (el as HTMLCanvasElement).height);
+
+    // Draw a stroke close to the visible bottom. The old AUTO_EXPAND
+    // heuristic fired when y > displayHeight - 80; we drag from y=500
+    // down to y close to the bottom of the viewport.
+    const canvasBox = await canvas.boundingBox();
+    expect(canvasBox).not.toBeNull();
+    // Target the lower ~40 px of the visible canvas — comfortably
+    // within AUTO_EXPAND_THRESHOLD (80) of the bottom.
+    const nearBottomY = canvasBox!.height - 20;
+    await drag(
+      page,
+      canvas,
+      { x: 120, y: nearBottomY - 60 },
+      { x: 240, y: nearBottomY },
+      { pointerType: 'mouse', steps: 10 },
+    );
+    // Wait a frame for any potential re-layout.
+    await page.waitForTimeout(250);
+
+    const afterHeight = await page.locator('canvas').nth(1).evaluate(el => (el as HTMLCanvasElement).height);
+    expect(afterHeight, 'canvas bitmap height must NOT grow on bottom-edge stroke (F2 removal)').toBe(initialHeight);
+
+    // Also assert ink actually landed — guards against a no-op test
+    // where no stroke was registered at all.
+    await expect.poll(() => canvasHasInk(page), { timeout: 3_000 }).toBe(true);
+  });
+});
