@@ -213,7 +213,13 @@ function getNoteSyncAt(): Record<string, number> {
   try {
     const raw = localStorage.getItem(NOTES_SYNC_AT_KEY);
     return raw ? JSON.parse(raw) : {};
-  } catch {
+  } catch (err) {
+    // R5: a corrupt sync_at map (bad JSON, or SecurityError from a sandboxed
+    // storage context) is recoverable — treating every entry as sync_at=0
+    // degrades gracefully to "first pull" semantics, which keeps local
+    // content when localMod > 0 and otherwise accepts remote. We log so a
+    // truly broken store surfaces in devtools rather than being invisible.
+    console.error('[sync] getNoteSyncAt: failed to read per-entry sync_at map, degrading to {}:', err);
     return {};
   }
 }
@@ -221,7 +227,19 @@ function getNoteSyncAt(): Record<string, number> {
 function setNoteSyncAt(ref: string, ts: number): void {
   const cur = getNoteSyncAt();
   cur[ref] = ts;
-  try { localStorage.setItem(NOTES_SYNC_AT_KEY, JSON.stringify(cur)); } catch {}
+  try {
+    localStorage.setItem(NOTES_SYNC_AT_KEY, JSON.stringify(cur));
+  } catch (err) {
+    // R5: persisting sync_at can fail with QuotaExceededError (Safari
+    // private browsing most often) or SecurityError. If it fails the
+    // next pull for this entry will re-evaluate against an older
+    // sync_at — which is conservative (we'd at worst re-accept remote
+    // for an already-synced entry or preserve a local edit twice),
+    // not corrupting. We log loudly so the user sees persistent
+    // failures; silencing it here would let full-storage machines
+    // drift into divergent state without anyone noticing.
+    console.error(`[sync] setNoteSyncAt: failed to persist sync_at for ${ref}:`, err);
+  }
 }
 
 async function syncNotes(): Promise<void> {
