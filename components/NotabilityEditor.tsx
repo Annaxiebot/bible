@@ -126,8 +126,11 @@ const PEN_COLORS = [
 ];
 const MIN_SIZE = 1;
 const MAX_SIZE = 12;
-const AUTO_EXPAND_THRESHOLD = 80;
-const AUTO_EXPAND_AMOUNT = 300;
+// F2 — Removed auto-expand constants (AUTO_EXPAND_THRESHOLD/AUTO_EXPAND_AMOUNT).
+// Previously a stroke near the bottom triggered a 300 px height bump,
+// which created a confusing "partial page N+1" (totalPages ticks up but only
+// 300 px of usable area exists, not a full PAGE_HEIGHT). The user has an
+// explicit "Add Page" button for deliberate growth — no heuristic needed.
 const AUTOSAVE_DELAY = 2000;
 const MAX_HISTORY = 100;
 const PAGE_HEIGHT = 1200; // px per page in seamless mode
@@ -435,6 +438,11 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null); // Above-text strokes
   const bgCanvasRef = useRef<HTMLCanvasElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  // F1 — The single-page card has overflowY:auto when the viewport is
+  // smaller than PAGE_HEIGHT (iPad landscape). We need a ref so page flips
+  // can reset scrollTop; otherwise the previous page's scroll position
+  // carries over and the user lands mid-page on flip.
+  const pageCardRef = useRef<HTMLDivElement>(null);
   const ctxRef = useRef<CanvasRenderingContext2D | null>(null);
   const overlayCtxRef = useRef<CanvasRenderingContext2D | null>(null);
   const bgCtxRef = useRef<CanvasRenderingContext2D | null>(null);
@@ -947,23 +955,6 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     return { x: w > 0 ? x / w : 0, y: w > 0 ? y / w : 0 };
   }, [getCanvasPoint]);
 
-  // ── Auto-expand ────────────────────────────────────────────────────────
-
-  const needsExpandRef = useRef(false);
-
-  const checkAutoExpand = useCallback((y: number) => {
-    if (y > displayHeightRef.current - AUTO_EXPAND_THRESHOLD) {
-      needsExpandRef.current = true; // defer until stroke completes
-    }
-  }, []);
-
-  const applyDeferredExpand = useCallback(() => {
-    if (needsExpandRef.current) {
-      needsExpandRef.current = false;
-      setCanvasHeight(prev => prev + AUTO_EXPAND_AMOUNT);
-    }
-  }, []);
-
   // ── Stroke commit ──────────────────────────────────────────────────────
 
   const getToolOpacity = useCallback((): number => {
@@ -1383,8 +1374,10 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       drawCtx.lineTo(x, y);
       drawCtx.stroke();
     }
-    checkAutoExpand(y);
-  }, [getCanvasPoint, checkAutoExpand, eraseStrokeAt, lassoSelection, moveLassoSelection, redrawAll, isGestureInProgress]);
+    // F2 — No auto-expand on bottom-of-page strokes. Users add pages
+    // deliberately via the "Add Page" button; the heuristic created
+    // confusing partial pages (see commit message).
+  }, [getCanvasPoint, eraseStrokeAt, lassoSelection, moveLassoSelection, redrawAll, isGestureInProgress]);
 
   const handlePointerUp = useCallback(() => {
     const tool = toolRef.current;
@@ -1403,11 +1396,11 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       isDrawingRef.current = false;
       return;
     }
-    if (tool === 'eraser') { eraserActiveRef.current = false; isDrawingRef.current = false; applyDeferredExpand(); return; }
+    if (tool === 'eraser') { eraserActiveRef.current = false; isDrawingRef.current = false; return; }
     if (isDrawingRef.current) commitCurrentStroke();
     isDrawingRef.current = false;
-    applyDeferredExpand();
-  }, [commitCurrentStroke, finishLasso, applyDeferredExpand]);
+    // F2 — No deferred auto-expand; manual "Add Page" is the only growth path.
+  }, [commitCurrentStroke, finishLasso]);
 
   // ── Single-page navigation helpers ─────────────────────────────────────
 
@@ -1423,6 +1416,13 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
         top: clamped * PAGE_HEIGHT,
         behavior: 'smooth',
       });
+    }
+    // F1 — In single-page mode the card may be scrolled (iPad landscape with
+    // card < PAGE_HEIGHT). Reset the card's scrollTop so flipping pages
+    // always lands the user at the top of the new page rather than
+    // inheriting the previous page's scroll offset.
+    if (pageMode === 'single' && pageCardRef.current) {
+      pageCardRef.current.scrollTop = 0;
     }
   }, [totalPages, pageMode]);
 
@@ -2998,6 +2998,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
           transform off page-stack-outer, so outer keeps the translateY role.
         */}
         <div data-testid="page-card-clip"
+             ref={pageCardRef}
              className={pageMode === 'single' ? 'mx-auto' : 'w-full'}
              style={pageMode === 'single' ? {
           position: 'relative',
@@ -3006,7 +3007,18 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
           background: '#ffffff',
           boxShadow: SINGLE_PAGE_SHADOW,
           borderRadius: `${SINGLE_PAGE_BORDER_RADIUS_PX}px`,
-          overflow: 'hidden',
+          // F1 — In landscape on iPad the card is ~754 px but a full page is
+          // PAGE_HEIGHT (1200 px). If we clip with overflow:hidden the user
+          // cannot reach the bottom ~446 px of the page. Switch y-axis to
+          // auto so the card itself becomes scrollable. x stays hidden to
+          // preserve the bounded-card look and to prevent horizontal
+          // scrollbars from appearing on narrow viewports. Swipe-based page
+          // flips still work because handleTouchMove preventDefaults the
+          // native scroll on horizontal drags; vertical native scroll inside
+          // the card is now the intended behavior.
+          overflowX: 'hidden',
+          overflowY: singlePageCardHeight < PAGE_HEIGHT ? 'auto' : 'hidden',
+          WebkitOverflowScrolling: 'touch',
         } : undefined}>
         <div data-testid="page-stack-outer" className="relative w-full" style={{
           height: `${canvasHeight}px`,
