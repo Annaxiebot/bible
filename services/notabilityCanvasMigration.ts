@@ -41,11 +41,17 @@
 
 /** Canvas height per page, in pixels. Must stay in sync with
  *  NotabilityEditor.PAGE_HEIGHT (line 133 of components/NotabilityEditor.tsx).
- *  Duplicated deliberately here because the sync layer cannot import from
- *  the component layer without pulling in React. If the editor's PAGE_HEIGHT
- *  changes, update this constant too. Exported for the round-trip test —
- *  test/component must agree on the same magic number. */
-// exported-for: services/__tests__/multipageSync.test.ts (R17)
+ *
+ *  R3 NOTE: this is a documented duplicate of the editor's local
+ *  PAGE_HEIGHT. A proper single-source-of-truth extraction into
+ *  constants/notabilityLayout.ts requires editing
+ *  components/NotabilityEditor.tsx, which is owned by a parallel session
+ *  this sprint — R8 says we do that as its own refactor session, not
+ *  alongside this bug fix. Tracked in HANDOFF.md as a follow-up.
+ *
+ *  Exported so the test file can assert both ends of the duplicate
+ *  agree on the same magic number. */
+// exported-for: services/__tests__/notabilityCanvasMigration.test.ts (R17)
 export const NOTABILITY_PAGE_HEIGHT_PX = 1200;
 
 /** Typical mobile viewport width used as a reference when converting
