@@ -2,7 +2,7 @@
 
 > **Purpose.** This file brings a fresh Claude session (or a returning human) up to speed in under 2 minutes. It captures *decisions and reasoning* that aren't in the code or in PLAN.md. It is regenerated whenever the next session needs to know something the current session learned. Think of it as the runway between sessions.
 
-_Last updated: 2026-04-21 by end-of-day session. Commit: `87d4898`._
+_Last updated: 2026-04-21 by Mac mini bootstrap session. Commits: `3292471` (prior) + 3 branches in review ([PR #4](https://github.com/Annaxiebot/bible/pull/4), [#5](https://github.com/Annaxiebot/bible/pull/5), [#6](https://github.com/Annaxiebot/bible/pull/6))._
 
 ---
 
@@ -29,6 +29,20 @@ Personal AI-powered Bible study + journal app (`Annaxiebot/bible` on GitHub). Re
 - **R13 automation live** (`87d4898`). `.husky/pre-push` pipes the outgoing diff to `claude -p` against `~/.claude/review-prompt.md`. Docs-only pushes skip. Blocks push on violations. Bypass with `--no-verify` only for emergencies or when fixing the hook itself.
 - **Pre-commit test runner retired** (`87d4898`). Previously ran 845 tests on every commit (~30s). Those tests are mostly mocked and did not catch any real product regression (SPLIT, sync, pencil, egress). Tests now run manually or in CI.
 
+### Mac mini bootstrap session (2026-04-21)
+
+Three PRs in review, open for merge:
+
+- **[PR #4](https://github.com/Annaxiebot/bible/pull/4)** — `refactor(edge-function): import shared BIBLE_SCHOLAR_SYSTEM_PROMPT`. Closes the last R3 loophole in the AI stack. Adds a tripwire test (`services/__tests__/systemPrompts.singleSource.test.ts`) that fails on any future copy-paste of the scholar prompt. **Deploy still pending** — verify the Deno relative import bundles at `supabase functions deploy ai-chat`.
+- **[PR #5](https://github.com/Annaxiebot/bible/pull/5)** — `test(notability): Apple Pencil pointer-event matrix`. Phase-0-P0 safety net (PLAN). 12 green Chromium tests, 5 `test.fixme` for iPad-only scenarios. Ends the "fix A → regress B" pattern — per R6 every future Pencil fix ships paired with its failing test now.
+- **[PR #6](https://github.com/Annaxiebot/bible/pull/6)** — `docs(tests): first-pass audit of the 861-test corpus`. TEST-AUDIT.md categorizes each file keep/review/demote/delete. Concrete follow-up: regression-catch replay at pre-fix commits.
+
+Side findings:
+- Test suite runs in **3.23s**, not 30s. Speed concern is settled.
+- `drawingLayer` defaults to `'above'` — strokes land on the OVERLAY canvas (index 2) by default, not the drawing canvas.
+- Chromium pointer matrix caught no coordinate-drift bugs; iPad hardware verification remains the only authoritative test.
+- R13 reviewer over-applies R4 and R6 to pure refactors and test-add commits — refining `~/.claude/review-prompt.md` is a queued follow-up.
+
 ## What's working well right now
 
 - R13 hook catches process violations before push — demonstrated live on its own bootstrap commit.
@@ -49,13 +63,13 @@ Personal AI-powered Bible study + journal app (`Annaxiebot/bible` on GitHub). Re
 ## Next session should (priority order)
 
 ### If you have ~30 minutes
-**P0: Edge function R3 cleanup.** Make `supabase/functions/ai-chat/index.ts` import `BIBLE_SCHOLAR_SYSTEM_PROMPT` from the shared module. Deno supports relative TS imports if the module is pure (no Node-specific imports). `services/systemPrompts.ts` already is. Try `import { BIBLE_SCHOLAR_SYSTEM_PROMPT } from "../../../services/systemPrompts.ts";` (path depth may vary). Test with `supabase functions serve ai-chat`. Ship.
+**Merge [PR #4](https://github.com/Annaxiebot/bible/pull/4) and deploy the edge function.** Code is ready and R3 tripwire test passes. Only action needed: run `SUPABASE_ACCESS_TOKEN=... npx supabase functions deploy ai-chat --no-verify-jwt`. If the CLI refuses to bundle imports outside `supabase/functions/`, fall back to moving constants into `supabase/functions/_shared/systemPrompts.ts`.
 
 ### If you have ~3 hours
-**P0: Audit the 845 tests.** Run `npx vitest run --reporter=verbose | tee /tmp/tests.txt`. For each test file: does it mock the external boundary, or exercise real behavior? Mocked-only tests move to `npm run test:slow` (CI only) or get deleted if they've never caught a real bug. Target: ≤150 tests that each pull their weight. This is the single highest-ROI quality investment.
+**Regression-catch replay for the test audit.** [PR #6](https://github.com/Annaxiebot/bible/pull/6) landed the first-pass verdict. Now walk back to the pre-fix commit of each major incident (`git checkout 6b26e7d^` for SPLIT, `97d48a6^` for sync, `ab9775f^` for pencil), run `npm test`, and record which existing tests actually fail. Tests that passed through every incident go to the delete list. Tests that caught a real bug stay. This is the concrete weight metric PLAN asks for.
 
 ### If you have a full day
-**P0: Playwright pointer-event matrix for Apple Pencil.** `~20` tests covering `{pen, touch, mouse} × {pointer, text, lasso, scroll} × {drag, click, hold}`. Use Playwright's pointer synthesis. Every future pencil bugfix ships paired with the failing test it fixes (R6). Kills the whack-a-mole pattern.
+**Verify PR #5's matrix on a real iPad.** The 5 `test.fixme`'d scenarios (coalesced events, orientation drift, sidebar drift, tool-switch mid-stroke, fast scribble) cannot be faithfully synthesized in headless Chromium. Plug in an iPad, open the Notability editor on the dev server, and run the fixme scenarios by hand. Record which are already passing vs. which have a real bug, then flip them from `test.fixme` to implemented tests (or open bug tickets).
 
 ### Big strategic move (week-plus)
 **Phase 3: Google Drive migration.** Detailed plan in PLAN.md. Start with `services/googleDriveSyncService.ts` behind a feature flag, parallel to Supabase. Four-week rollout. Drive + IndexedDB + browser-side AI racing replaces the entire Supabase stack.
