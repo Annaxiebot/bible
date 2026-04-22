@@ -78,71 +78,61 @@ interface NotabilityPayloadLike {
   [key: string]: unknown;
 }
 
+/** Max y in a list of stroke-point arrays (height-normalized in [0, 1]). */
+function maxStrokeY(strokes: NotabilityPayloadLike['strokes']): number {
+  if (!Array.isArray(strokes)) return 0;
+  let max = 0;
+  for (const s of strokes) {
+    if (!s || !Array.isArray(s.points)) continue;
+    for (const p of s.points) {
+      if (typeof p?.y === 'number' && Number.isFinite(p.y) && p.y > max) max = p.y;
+    }
+  }
+  return max;
+}
+
+/** Max y+height (bottom edge) in a list of width-normalized rectangles. */
+function maxRectBottom(rects: Array<{ y?: number; height?: number }> | undefined): number {
+  if (!Array.isArray(rects)) return 0;
+  let max = 0;
+  for (const r of rects) {
+    if (typeof r?.y !== 'number' || !Number.isFinite(r.y)) continue;
+    const bottom = r.y + (typeof r.height === 'number' ? r.height : 0);
+    if (bottom > max) max = bottom;
+  }
+  return max;
+}
+
+/** Lower-bound page count from height-normalized stroke y. Ambiguous above
+ *  0.75 — cap at 4. Textbox/image widthNorm signal is the authoritative
+ *  channel when present. */
+function pagesFromStrokeMaxY(maxY: number): number {
+  if (maxY > 3 / 4) return 4;
+  if (maxY > 2 / 3) return 3;
+  if (maxY > 0.5) return 2;
+  return 1;
+}
+
 /**
  * Compute the number of PAGE_HEIGHT-tall pages required to display all
  * content in a parsed notability payload.
  *
  * Algorithm:
- *   1. For text boxes and images (width-normalized y): pages =
- *      ceil(maxBottom_width_norm * REFERENCE_WIDTH_PX / PAGE_HEIGHT).
- *   2. For strokes (height-normalized y): if max y > 0.5 the canvas was
- *      at least 2 pages; if > 2/3 then at least 3; general formula
- *      pages = max(1, ceil(maxY / 0.5)) treating each 0.5-tall band as
- *      one page boundary.
+ *   1. Text boxes and images (width-normalized y) → pages =
+ *      ceil(maxBottom * REFERENCE_WIDTH_PX / PAGE_HEIGHT).
+ *   2. Strokes (height-normalized y) → lower bound per pagesFromStrokeMaxY.
  *   3. Report the MAX of (1), (2), and a 1-page floor.
  *
- * Returns an integer in [1, 20].
+ * Returns an integer in [1, MAX_PAGES].
  */
 export function computeNotabilityPagesHint(payload: NotabilityPayloadLike): number {
-  let widthNormMaxY = 0; // textboxes + images
-  let heightNormMaxY = 0; // strokes
+  const widthNormMaxY = Math.max(maxRectBottom(payload.textBoxes), maxRectBottom(payload.images));
+  const heightNormMaxY = maxStrokeY(payload.strokes);
 
-  // Strokes: height-normalized y
-  if (Array.isArray(payload.strokes)) {
-    for (const s of payload.strokes) {
-      if (!s || !Array.isArray(s.points)) continue;
-      for (const p of s.points) {
-        if (typeof p?.y === 'number' && Number.isFinite(p.y)) {
-          if (p.y > heightNormMaxY) heightNormMaxY = p.y;
-        }
-      }
-    }
-  }
-
-  // Text boxes: width-normalized y + height
-  if (Array.isArray(payload.textBoxes)) {
-    for (const tb of payload.textBoxes) {
-      if (typeof tb?.y !== 'number' || !Number.isFinite(tb.y)) continue;
-      const bottom = tb.y + (typeof tb.height === 'number' ? tb.height : 0);
-      if (bottom > widthNormMaxY) widthNormMaxY = bottom;
-    }
-  }
-
-  // Images: width-normalized y + height
-  if (Array.isArray(payload.images)) {
-    for (const img of payload.images) {
-      if (typeof img?.y !== 'number' || !Number.isFinite(img.y)) continue;
-      const bottom = img.y + (typeof img.height === 'number' ? img.height : 0);
-      if (bottom > widthNormMaxY) widthNormMaxY = bottom;
-    }
-  }
-
-  // Page count from width-normalized content (most reliable signal).
   const pagesFromWidthNorm = widthNormMaxY > 0
     ? Math.ceil((widthNormMaxY * REFERENCE_WIDTH_PX) / NOTABILITY_PAGE_HEIGHT_PX)
     : 0;
-
-  // Page count lower bound from height-normalized strokes: treat each
-  // band of 0.5 as a page boundary. maxY of 0.7 → 2 pages; 0.85 → 2
-  // (since 2 bands of 0.5 wouldn't fit 0.85); 0.34 → 1. We conservatively
-  // floor-divide then add 1 so strokes strictly above the 0.5 line
-  // force a 2nd page.
-  let pagesFromHeightNorm = 1;
-  if (heightNormMaxY > 0.5) pagesFromHeightNorm = 2;
-  if (heightNormMaxY > 2 / 3) pagesFromHeightNorm = 3;
-  if (heightNormMaxY > 3 / 4) pagesFromHeightNorm = 4;
-  // Anything >0.75 is ambiguous — we stop inferring and cap at 4 pages
-  // from strokes alone. Textbox/image widthNorm signal takes over if present.
+  const pagesFromHeightNorm = pagesFromStrokeMaxY(heightNormMaxY);
 
   const pages = Math.max(1, pagesFromWidthNorm, pagesFromHeightNorm);
   return Math.max(1, Math.min(MAX_PAGES, pages));
