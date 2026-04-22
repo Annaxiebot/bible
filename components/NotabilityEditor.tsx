@@ -137,6 +137,17 @@ const SWIPE_THRESHOLD = 50; // px minimum swipe distance to trigger page change
 // drawing modes are ignored so a resting palm doesn't drive nav or scroll.
 const PALM_RADIUS_THRESHOLD = 25;
 
+// ── Single-page visual affordance ──────────────────────────────────────────
+// In single-page mode the page card "floats" against a soft gray backdrop.
+// The shadow + rounded corners + horizontal margin give the user a visual
+// cue they're in paged (not seamless) mode — independent of the scroll
+// behavior. Seamless mode keeps the edge-to-edge look (continuous flow).
+const SINGLE_PAGE_BG_COLOR = '#e5e7eb'; // slate-200; tuned to contrast white paper
+const SINGLE_PAGE_MARGIN_PX = 24; // horizontal gap each side (visible shadow room)
+const SINGLE_PAGE_VERTICAL_MARGIN_PX = 16; // top/bottom breathing room
+const SINGLE_PAGE_BORDER_RADIUS_PX = 4;
+const SINGLE_PAGE_SHADOW = '0 4px 20px rgba(0,0,0,0.12), 0 1px 3px rgba(0,0,0,0.08)';
+
 function genId() { return Math.random().toString(36).slice(2, 10); }
 
 function serializeExtended(data: ExtendedCanvasData): string {
@@ -2888,11 +2899,21 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       </div>
 
       {/* ── Canvas Area ─────────────────────────────────────────────────── */}
+      {/*
+        Single-page mode gives the scroll container a soft gray backdrop so
+        the white page card visually "floats" — a Notability-style affordance
+        that tells the user at a glance they're in paged mode even before
+        they try to scroll. Seamless mode keeps the flat white look because
+        its continuous flow semantics would be misrepresented by a card.
+      */}
       <div ref={scrollContainerRef}
            className="flex-1 overflow-x-hidden"
            style={{
              WebkitOverflowScrolling: 'touch',
              overflowY: pageMode === 'single' ? 'hidden' : 'auto',
+             background: pageMode === 'single' ? SINGLE_PAGE_BG_COLOR : undefined,
+             paddingTop: pageMode === 'single' ? SINGLE_PAGE_VERTICAL_MARGIN_PX : undefined,
+             paddingBottom: pageMode === 'single' ? SINGLE_PAGE_VERTICAL_MARGIN_PX : undefined,
            }}
            onClick={closeAllPopups}>
         {/*
@@ -2911,10 +2932,29 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
             transition: 'none',
           } : {}),
         }}>
-        <div data-testid="page-stack-swipe" className="relative w-full" style={pageMode === 'single' ? {
+        {/*
+          In single-page mode the swipe div IS the page card: white paper with
+          a soft drop shadow, rounded corners, and horizontal margin so the
+          shadow is visible on either side. Seamless mode leaves this div
+          invisible (full-bleed, inheriting the editor's white background) so
+          the continuous page flow is unbroken.
+
+          Width = calc(100% - 2 * SINGLE_PAGE_MARGIN_PX) plus mx-auto centers
+          the card. The underlying canvas bitmap width follows displayWidth,
+          so strokes renormalize to the new narrower width without drifting
+          (normalization is always by width — see commitCurrentStroke).
+        */}
+        <div data-testid="page-stack-swipe"
+             className={`relative ${pageMode === 'single' ? 'mx-auto' : 'w-full'}`}
+             style={pageMode === 'single' ? {
           height: `${canvasHeight}px`,
+          width: `calc(100% - ${SINGLE_PAGE_MARGIN_PX * 2}px)`,
           transform: `translateX(${swipeOffset}px)`,
           transition: swipeOffset === 0 ? 'transform 0.3s ease-out' : 'none',
+          background: '#ffffff',
+          boxShadow: SINGLE_PAGE_SHADOW,
+          borderRadius: `${SINGLE_PAGE_BORDER_RADIUS_PX}px`,
+          overflow: 'hidden',
         } : { height: `${canvasHeight}px` }}>
           {/* Background canvas */}
           <canvas ref={bgCanvasRef} className="absolute inset-0"
