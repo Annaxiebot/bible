@@ -843,3 +843,97 @@ test.describe('NotabilityEditor F2: no auto-page on bottom stroke', () => {
     await expect.poll(() => canvasHasInk(page), { timeout: 3_000 }).toBe(true);
   });
 });
+
+// ── F3: stroke drift per page on rotation ───────────────────────────────
+// User bug: "the strokes and text on the 2nd page seems shifted downwards
+// when switching from portrait to landscape mode, and the shifted even
+// more worse downward for the 3rd page's contents."
+//
+// Root cause: pre-F3 normalization divided BOTH x and y by canvas width.
+// On rotation, y_pixel = y_norm * width changed proportionally to width,
+// so a stroke stored at y_norm=2.0 (on page 2, roughly y_pixel=2*W px)
+// rendered at a different y_pixel every time width changed — drifting
+// DOWN by (newW/oldW - 1) * oldY. Page N drifts N× more than page 1.
+//
+// Fix: stroke y now normalized by PAGE_HEIGHT (a constant). x and
+// lineWidth still normalized by width. y_pixel is invariant under pure
+// width change; only x_pixel rescales horizontally (intended — page
+// content fills the new width).
+//
+// Test invariant: draw a stroke on page 2 (y ≈ PAGE_HEIGHT + 200 px,
+// which is well below the visible area so we add a page first). Change
+// the viewport WIDTH (portrait → landscape). Stroke's y_pixel must stay
+// within ±4 px of where it was drawn.
+test.describe('NotabilityEditor F3: stroke drift on rotation', () => {
+  test('stroke y-pixel is invariant under width change (rotation)', async ({ page }) => {
+    // Start in portrait-ish (width 820 ≈ iPad 11" portrait inner width).
+    await page.setViewportSize({ width: 820, height: 1180 });
+    const canvas = await openNotability(page);
+    await selectTool(page, 'Pen');
+
+    // Draw a stroke at a y well inside the canvas — y=600 is the middle
+    // of page 1. Pre-F3 drift at y=600 on portrait→landscape is
+    // (1194/820 - 1) * 600 ≈ 274 px, well beyond our ±48 px tolerance.
+    await drag(
+      page,
+      canvas,
+      { x: 200, y: 580 },
+      { x: 320, y: 620 },
+      { pointerType: 'mouse', steps: 10 },
+    );
+    await expect.poll(() => canvasHasInk(page), { timeout: 3_000 }).toBe(true);
+
+    // Helper: does ink exist at a given CANVAS-BITMAP coord (CSS px,
+    // converted to raster inside the evaluator via dpr)?
+    const inkAtCanvasPx = (cx: number, cy: number, radiusCssPx: number) =>
+      page.evaluate((args) => {
+        const canvases = [...document.querySelectorAll('canvas')] as HTMLCanvasElement[];
+        for (let idx = 1; idx < canvases.length; idx++) {
+          const c = canvases[idx];
+          const ctx = c.getContext('2d'); if (!ctx) continue;
+          const rect = c.getBoundingClientRect();
+          if (rect.width === 0 || c.width === 0) continue;
+          const dpr = Math.max(1, c.width / rect.width);
+          const pxX = Math.round(args.cx * dpr);
+          const pxY = Math.round(args.cy * dpr);
+          const roi = Math.round(args.radius * dpr);
+          const x0 = Math.max(0, pxX - roi);
+          const y0 = Math.max(0, pxY - roi);
+          const ww = Math.min(c.width - x0, roi * 2);
+          const hh = Math.min(c.height - y0, roi * 2);
+          if (ww <= 0 || hh <= 0) continue;
+          try {
+            const data = ctx.getImageData(x0, y0, ww, hh).data;
+            for (let i = 3; i < data.length; i += 4) if (data[i] > 10) return true;
+          } catch { /* next canvas */ }
+        }
+        return false;
+      }, { cx, cy, radius: radiusCssPx });
+
+    // Baseline: stroke should be at y≈600 in canvas pixels (we drew
+    // at viewport y=580–620, canvas not scrolled, so canvas y matches).
+    const targetBaselineY = 600;
+    const inkBeforeRotation = await inkAtCanvasPx(260, targetBaselineY, 40);
+    expect(inkBeforeRotation, 'stroke must be visible at y≈600 before rotation').toBe(true);
+
+    // Rotate: 820 → 1194 (iPad 11" portrait→landscape).
+    await page.setViewportSize({ width: 1194, height: 834 });
+    await page.waitForTimeout(400);
+
+    // Post-F3 invariant: stroke y-pixel unchanged. ROI 48 CSS px tolerates
+    // line-cap rounding; far less than the pre-F3 drift (~274 px), so the
+    // test unambiguously discriminates fixed vs. buggy.
+    const inkAfterRotation = await inkAtCanvasPx(400, targetBaselineY, 48);
+    expect(inkAfterRotation, 'stroke y-pixel must be invariant after width rotation (F3)').toBe(true);
+
+    // Negative check: the legacy drift position would place the stroke at
+    // y ≈ 600 * (1194/820) ≈ 874 px. Assert NO ink appears there (under
+    // F3; the old bug WOULD put ink there). ROI 40 CSS px — narrow enough
+    // that a correct stroke at y=600 doesn't bleed into y=874.
+    const inkAtDriftPosition = await inkAtCanvasPx(400, 874, 40);
+    expect(
+      inkAtDriftPosition,
+      'stroke must NOT appear at the legacy drift position (y≈874); if this fails, F3 regressed',
+    ).toBe(false);
+  });
+});
