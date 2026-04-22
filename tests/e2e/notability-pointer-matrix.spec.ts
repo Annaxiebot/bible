@@ -334,64 +334,205 @@ test.describe('NotabilityEditor palm rejection (iPad-simulated)', () => {
     });
   });
 
-  test('palm drag in pen mode does NOT flip page in single-page mode', async ({ page }) => {
-    const canvas = await openNotability(page);
-
-    // Switch the editor into single-page mode via the overflow menu. Default
-    // is seamless; this test specifically guards the goToPage-on-swipe path.
-    // The outer wrapper's inline transform is the reliable signal that
-    // single-page mode is active — seamless leaves its transform empty.
-    // Note: button-title selectors are brittler than data-testid, but the dev
-    // server's HMR occasionally misses component-prop changes, so we use the
-    // stable attributes that Vite definitely serves on first load.
+  // Helper: switch the Notability editor into single-page mode and wait for
+  // the outer wrapper's inline translateY to confirm the switch took effect.
+  async function enterSinglePageMode(page: Page) {
     const pageStack = page.locator('[data-testid="page-stack-outer"]');
     await page.locator('button[title="Menu"]').click();
-    // "Single Page" is a label with an emoji prefix — match by partial text via
-    // exact button role to avoid matching the paper-type "Plain" / heading row.
     await page.getByRole('button', { name: /Single Page/ }).click();
     await expect
       .poll(() => pageStack.evaluate(el => (el as HTMLElement).style.transform), { timeout: 3_000 })
       .toMatch(/translateY/);
+    return pageStack;
+  }
 
+  test('palm-SHAPE drag (radiusX>25) in pen mode does NOT flip page', async ({ page }) => {
+    // Palm rejection via the radiusX heuristic: iPad reports ~15–22 px for
+    // fingers and 25+ for palms. A palm-shape touch that drags >50 px used
+    // to commit a swipe and call goToPage(); the guard in handleTouchStart
+    // now short-circuits before swipeStart is ever set.
+    const canvas = await openNotability(page);
+    const pageStack = await enterSinglePageMode(page);
     await selectTool(page, 'Pen');
-
-    // Wiggle a palm-shaped finger (radiusX=22) across the canvas. Before the
-    // fix a finger drag of >50px in single-page mode would call goToPage()
-    // and the translateY would shift from 0 to -PAGE_HEIGHT.
     const initialTransform = await pageStack.evaluate(
       el => getComputedStyle(el as HTMLElement).transform,
     );
     await drag(page, canvas, { x: 80, y: 80 }, { x: 240, y: 120 }, {
-      pointerType: 'touch', radiusX: 22, steps: 10,
+      pointerType: 'touch', radiusX: 30, steps: 10,
     });
-    // Poll until the transform has had time to settle — guards against race
-    // with the 0.3s transform transition. The invariant must hold for the
-    // full poll window; we assert at the end.
     await expect
       .poll(() => pageStack.evaluate(el => getComputedStyle(el as HTMLElement).transform), { timeout: 1_500 })
       .toBe(initialTransform);
-    expect(await canvasHasInk(page), 'palm must not leave ink either').toBe(false);
+    expect(await canvasHasInk(page), 'palm must not leave ink').toBe(false);
   });
 
-  test('finger pan in pen mode does NOT scroll in seamless mode', async ({ page }) => {
+  test('finger-SHAPE swipe (radiusX≤22) in pen mode DOES flip page (Notability parity)', async ({ page }) => {
+    // Restores the Notability behavior the first palm-rejection attempt broke:
+    // in drawing modes a deliberate finger swipe still flips pages. The palm
+    // is rejected on shape; normal fingers flow through shouldNavigate.
     const canvas = await openNotability(page);
-    // Seamless is the default pageMode; no toggle needed.
+    const pageStack = await enterSinglePageMode(page);
     await selectTool(page, 'Pen');
+    // Add a second page so there's somewhere to flip TO; otherwise goToPage
+    // clamps to 0 and the inline-style transform doesn't change.
+    await page.getByRole('button', { name: /Add Page/ }).click();
+    // Read the inline-style transform BEFORE the drag — e.g. "translateY(-0px)".
+    // Both initial and final reads use the same property (`.style.transform`)
+    // so a real flip produces a diffable change; mixing with getComputedStyle
+    // would return a matrix string that never equals the inline literal.
+    const initialInline = await pageStack.evaluate(el => (el as HTMLElement).style.transform);
+    // Drag >SWIPE_THRESHOLD (50 px) horizontally LEFT (dx < 0) to flip to the
+    // next page (currentPage + 1 → translateY(-1200px)).
+    await drag(page, canvas, { x: 240, y: 140 }, { x: 60, y: 140 }, {
+      pointerType: 'touch', radiusX: 20, steps: 10,
+    });
+    await expect
+      .poll(
+        () => pageStack.evaluate(el => (el as HTMLElement).style.transform),
+        { timeout: 2_000 },
+      )
+      .not.toBe(initialInline);
+  });
 
-    // The scroll container's class selector is brittle but stable in this
-    // codebase — isolated into a local helper so a future rename needs one
-    // change, not two.
+  test('pen pointerdown during a finger swipe cancels the swipe (stylus-cancels-finger)', async ({ page }) => {
+    // The harder case: user rests a finger and starts to slide it; the Pencil
+    // makes contact mid-gesture. The finger was palm all along — the pen
+    // handler must clear swipeStartRef so touchend does not commit a flip.
+    const canvas = await openNotability(page);
+    const pageStack = await enterSinglePageMode(page);
+    await selectTool(page, 'Pen');
+    await page.getByRole('button', { name: /Add Page/ }).click();
+
+    const initialTransform = await pageStack.evaluate(
+      el => getComputedStyle(el as HTMLElement).transform,
+    );
+
+    // Build the interleaved event sequence manually via a single page.evaluate
+    // so the Pencil pointerdown lands between finger touchmove and touchend.
+    await page.evaluate(() => {
+      const canvases = document.querySelectorAll('canvas');
+      const target = canvases[1] as HTMLCanvasElement;
+      const rect = target.getBoundingClientRect();
+      const fingerId = 10;
+      const pencilId = 11;
+      const fire = (kind: string, x: number, y: number, pointerType: 'touch' | 'pen', id: number, radiusX: number) => {
+        const clientX = rect.left + x;
+        const clientY = rect.top + y;
+        const ev = new PointerEvent(kind, {
+          bubbles: true, cancelable: true, composed: true,
+          pointerId: id, pointerType, pressure: pointerType === 'pen' ? 0.5 : 0.3,
+          clientX, clientY, buttons: kind.endsWith('up') ? 0 : 1,
+        });
+        target.dispatchEvent(ev);
+        // Also fire matching TouchEvent for the finger path.
+        if (pointerType === 'touch') {
+          const touchInit: any = { identifier: id, target, clientX, clientY, radiusX, radiusY: radiusX, force: 0.3 };
+          try {
+            const t = new Touch(touchInit);
+            const touchKind = kind === 'pointerdown' ? 'touchstart' : kind === 'pointermove' ? 'touchmove' : 'touchend';
+            const list = touchKind === 'touchend' ? [] : [t];
+            const tev = new TouchEvent(touchKind, {
+              bubbles: true, cancelable: true, composed: true,
+              touches: list as any, changedTouches: [t] as any, targetTouches: list as any,
+            });
+            target.dispatchEvent(tev);
+          } catch { /* Touch ctor missing on some Chromium configs — acceptable */ }
+        }
+      };
+      // 1. Finger lands, 2. Finger moves a bit, 3. Pencil lands, 4. Finger moves more, 5. Finger lifts.
+      fire('pointerdown', 80, 140, 'touch', fingerId, 20);
+      fire('pointermove', 160, 140, 'touch', fingerId, 20);
+      fire('pointerdown', 200, 160, 'pen', pencilId, 1);
+      fire('pointermove', 240, 140, 'touch', fingerId, 20);
+      fire('pointerup', 240, 140, 'touch', fingerId, 20);
+      fire('pointerup', 220, 170, 'pen', pencilId, 1);
+    });
+
+    // Transform must NOT have flipped to a new page — the pen cancelled the swipe.
+    await expect
+      .poll(
+        () => pageStack.evaluate(el => getComputedStyle(el as HTMLElement).transform),
+        { timeout: 1_500 },
+      )
+      .toBe(initialTransform);
+  });
+
+  test('vertical finger swipe in single-page mode does NOT flip page (horizontal-only contract)', async ({ page }) => {
+    // Per the user's mental model: single-page = horizontal flip (like a book);
+    // seamless = vertical scroll between pages. Vertical swipes in single-page
+    // were previously ALSO flipping pages, which clashed with that model.
+    const canvas = await openNotability(page);
+    const pageStack = await enterSinglePageMode(page);
+    await selectTool(page, 'Pen');
+    await page.getByRole('button', { name: /Add Page/ }).click();
+    const initialTransform = await pageStack.evaluate(
+      el => getComputedStyle(el as HTMLElement).transform,
+    );
+    // Vertical drag well past SWIPE_THRESHOLD (50 px).
+    await drag(page, canvas, { x: 140, y: 80 }, { x: 140, y: 260 }, {
+      pointerType: 'touch', radiusX: 20, steps: 10,
+    });
+    await expect
+      .poll(
+        () => pageStack.evaluate(el => getComputedStyle(el as HTMLElement).transform),
+        { timeout: 1_500 },
+      )
+      .toBe(initialTransform);
+  });
+
+  test('seamless+drawing mode exposes touch-action: pan-y on iPad (finger scroll permitted)', async ({ page }) => {
+    // Direct assertion on the editorTouchAction formula. A revert of the
+    // `isApplePencilDevice || !isDrawingTool(activeTool)` branch would drop
+    // this to `none` and break native finger scroll on iPad. We also verify
+    // a finger-radius touchstart does NOT get preventDefault'd by any guard
+    // (otherwise pan-y would be cancelled even though CSS allows it).
+    await openNotability(page);
+    // Default is seamless.
+    await selectTool(page, 'Pen');
+    const drawingCanvas = page.locator('canvas').nth(1);
+    const touchAction = await drawingCanvas.evaluate(
+      el => getComputedStyle(el as HTMLElement).touchAction,
+    );
+    expect(touchAction, 'drawing canvas must allow pan-y in seamless+iPad+drawing').toBe('pan-y');
+
+    // Also verify no guard preventDefaults a finger-radius touchstart here.
+    const notPrevented = await page.evaluate(() => {
+      const c = document.querySelectorAll('canvas')[1] as HTMLCanvasElement;
+      const rect = c.getBoundingClientRect();
+      let prevented = false;
+      const probe = (e: TouchEvent) => { if (e.defaultPrevented) prevented = true; };
+      c.addEventListener('touchstart', probe, { capture: true });
+      try {
+        const touchInit: any = { identifier: 99, target: c, clientX: rect.left + 80, clientY: rect.top + 80, radiusX: 18, radiusY: 18, force: 0.3 };
+        const t = new Touch(touchInit);
+        const ev = new TouchEvent('touchstart', { bubbles: true, cancelable: true, composed: true, touches: [t] as any, changedTouches: [t] as any, targetTouches: [t] as any });
+        c.dispatchEvent(ev);
+      } catch { return 'touch-ctor-unavailable'; }
+      c.removeEventListener('touchstart', probe, { capture: true } as any);
+      return prevented ? 'prevented' : 'passed-through';
+    });
+    expect(notPrevented, 'finger-radius touchstart must not be preventDefault\'d').toBe('passed-through');
+  });
+
+  test('palm-SHAPE pan in seamless+drawing mode does NOT scroll (preventDefault fires before pan-y)', async ({ page }) => {
+    // The palm-shape guard in handleTouchStart / handleTouchMove calls
+    // preventDefault, which overrides touch-action: pan-y before the browser
+    // starts its native scroll. Assert the scrollTop is unchanged after a
+    // palm-shape vertical drag.
+    const canvas = await openNotability(page);
+    await selectTool(page, 'Pen');
+    await page.getByRole('button', { name: /Add Page/ }).click();
+    await page.waitForTimeout(200);
     const getScrollTop = () => page.evaluate(() => {
       const containers = document.querySelectorAll('.overflow-x-hidden');
       return (containers[containers.length - 1] as HTMLElement | undefined)?.scrollTop ?? 0;
     });
-
     const scrollBefore = await getScrollTop();
-    await drag(page, canvas, { x: 80, y: 300 }, { x: 80, y: 80 }, {
-      pointerType: 'touch', radiusX: 22, steps: 10,
+    await drag(page, canvas, { x: 80, y: 260 }, { x: 80, y: 80 }, {
+      pointerType: 'touch', radiusX: 30, steps: 10,
     });
     const scrollAfter = await getScrollTop();
-    expect(scrollAfter, `seamless scroll drifted from ${scrollBefore} to ${scrollAfter}`).toBe(scrollBefore);
+    expect(scrollAfter, `palm-shape must not scroll — drifted ${scrollBefore} → ${scrollAfter}`).toBe(scrollBefore);
   });
 
   test('pencil drag in pen mode still draws on iPad (happy path not regressed)', async ({ page }) => {
