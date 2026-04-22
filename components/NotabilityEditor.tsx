@@ -433,6 +433,17 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   // here caused movement compounding because React batches the setState, so multiple
   // pointermoves within one frame all read the stale initial position.
   const lassoDragStartRef = useRef<{ x: number; y: number } | null>(null);
+  // F5 — lasso-drag accumulator + rAF. Per-pointer-event dx/dy accumulates
+  // into lassoDragPendingRef; at most one flush per animation frame runs
+  // moveLassoSelection. Rationale: Apple Pencil fires ~120 Hz, so
+  // per-event redrawAll on a page with many strokes spends ~5 ms *
+  // 120 = 600 ms/s on paint alone, blocking the main thread. rAF caps
+  // redrawAll at ~60 fps (or 120 fps on capable devices), which keeps
+  // the UI responsive without changing semantics. Previous rAF attempt
+  // (see the in-code comment that was here) regressed PEN drawing, not
+  // lasso — pen uses a separate path. Lasso is safe to throttle.
+  const lassoDragPendingRef = useRef<{ dx: number; dy: number } | null>(null);
+  const lassoDragRafRef = useRef<number | null>(null);
 
   // Text box resize (any edge or corner)
   const [isResizingText, setIsResizingText] = useState(false);
@@ -1206,8 +1217,32 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     // F3 — x delta by width, y delta by PAGE_HEIGHT (matches stroke
     // normalization, so dragging a selection keeps strokes at the same
     // pixel location regardless of rotation).
-    const ndx = dx / w;
-    const ndy = dy / PAGE_HEIGHT;
+    let ndx = dx / w;
+    let ndy = dy / PAGE_HEIGHT;
+
+    // F5 — clamp the move so the selection can't leave the visible
+    // canvas. User report: "lasso ... can be moved out of view."
+    // x is width-normalized in [0,1]; y is PAGE_HEIGHT-normalized and
+    // can exceed 1 on multi-page canvases (upper bound =
+    // canvasHeight / PAGE_HEIGHT). Without these clamps a long drag
+    // pushes the selection past the canvas edge and the user cannot
+    // recover it visually.
+    const b = lassoSelection.bounds;
+    const maxY = canvasHeight / PAGE_HEIGHT;
+    const minNdx = -b.x;
+    const maxNdx = 1 - (b.x + b.w);
+    const minNdy = -b.y;
+    const maxNdy = maxY - (b.y + b.h);
+    if (ndx < minNdx) ndx = minNdx;
+    if (ndx > maxNdx) ndx = maxNdx;
+    if (ndy < minNdy) ndy = minNdy;
+    if (ndy > maxNdy) ndy = maxNdy;
+
+    // F5 — no per-event triggerAutoSave. Saving at pointer-move rate
+    // (~120 Hz on Apple Pencil) queues the JSON serializer on every
+    // frame, blocking the main thread and adding visible lag. Save
+    // once in handlePointerUp after the drag commits (see endLassoDrag
+    // in handlePointerUp which now calls triggerAutoSave once).
     const strokes = strokeDataRef.current.strokes;
     for (const idx of lassoSelection.strokeIndices) {
       if (strokes[idx]) {
@@ -1219,8 +1254,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       bounds: { ...prev.bounds, x: prev.bounds.x + ndx, y: prev.bounds.y + ndy },
     } : null);
     redrawAll();
-    triggerAutoSave();
-  }, [lassoSelection, redrawAll, triggerAutoSave]);
+  }, [lassoSelection, canvasHeight, redrawAll]);
 
   const deleteLassoSelection = useCallback(() => {
     if (!lassoSelection) return;
@@ -1374,15 +1408,36 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     const { x, y } = getCanvasPoint(clientX, clientY);
     const tool = toolRef.current;
 
-    // Lasso dragging selection — mutate strokes per event and redraw. Not the fastest path
-    // for huge pages, but a rAF-throttled snapshot attempt regressed pen-drawing latency.
-    // Prioritize handwriting responsiveness; revisit drag perf separately.
+    // F5 — lasso-drag: accumulate dx/dy into a pending ref and flush via
+    // requestAnimationFrame. Per-event redrawAll was O(totalStrokes) and
+    // saturated the main thread on large pages; rAF bounds the redraw
+    // rate to the display refresh (~60 fps) without changing semantics.
+    // The previous rAF attempt referenced in the old comment was on the
+    // PEN-drawing path (commitCurrentStroke sub-segments) — a separate
+    // concern; lasso drag is safe to throttle because no new strokes
+    // are being committed during the drag.
     if (lassoDragStartRef.current && lassoSelection) {
       const start = lassoDragStartRef.current;
       const dx = x - start.x;
       const dy = y - start.y;
       lassoDragStartRef.current = { x, y };
-      moveLassoSelection(dx, dy);
+      const pending = lassoDragPendingRef.current;
+      if (pending) {
+        pending.dx += dx;
+        pending.dy += dy;
+      } else {
+        lassoDragPendingRef.current = { dx, dy };
+      }
+      if (lassoDragRafRef.current === null) {
+        lassoDragRafRef.current = requestAnimationFrame(() => {
+          lassoDragRafRef.current = null;
+          const p = lassoDragPendingRef.current;
+          if (p) {
+            lassoDragPendingRef.current = null;
+            moveLassoSelection(p.dx, p.dy);
+          }
+        });
+      }
       return;
     }
 
@@ -1461,6 +1516,20 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     const tool = toolRef.current;
     if (lassoDragStartRef.current) {
       lassoDragStartRef.current = null;
+      // F5 — flush any pending rAF-throttled lasso move so the final
+      // position reflects all input events (don't drop the last batch
+      // of deltas between the last rAF and pointerup). Then save once
+      // at drop instead of on every pointer-move.
+      if (lassoDragRafRef.current !== null) {
+        cancelAnimationFrame(lassoDragRafRef.current);
+        lassoDragRafRef.current = null;
+      }
+      const pending = lassoDragPendingRef.current;
+      if (pending) {
+        lassoDragPendingRef.current = null;
+        moveLassoSelection(pending.dx, pending.dy);
+      }
+      triggerAutoSave();
       return;
     }
     if (tool === 'lasso') {
@@ -1478,7 +1547,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     if (isDrawingRef.current) commitCurrentStroke();
     isDrawingRef.current = false;
     // F2 — No deferred auto-expand; manual "Add Page" is the only growth path.
-  }, [commitCurrentStroke, finishLasso]);
+  }, [commitCurrentStroke, finishLasso, finishRectSelection, selectionMode, moveLassoSelection, triggerAutoSave]);
 
   // ── Single-page navigation helpers ─────────────────────────────────────
 
