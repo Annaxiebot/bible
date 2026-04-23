@@ -287,7 +287,7 @@ test.describe('NotabilityEditor pointer-event matrix', () => {
         try {
           const data = ctx.getImageData(x0, y0, w, h).data;
           for (let i = 3; i < data.length; i += 4) if (data[i] > 10) return true;
-        } catch { /* next canvas */ }
+        } catch { /* getImageData throws SecurityError on tainted / cross-origin canvases; skip and fall through to the next layer */ }
       }
       return false;
     }, target);
@@ -905,7 +905,7 @@ test.describe('NotabilityEditor F3: stroke drift on rotation', () => {
           try {
             const data = ctx.getImageData(x0, y0, ww, hh).data;
             for (let i = 3; i < data.length; i += 4) if (data[i] > 10) return true;
-          } catch { /* next canvas */ }
+          } catch { /* getImageData throws SecurityError on tainted / cross-origin canvases; skip and fall through to the next layer */ }
         }
         return false;
       }, { cx, cy, radius: radiusCssPx });
@@ -1166,7 +1166,7 @@ test.describe('NotabilityEditor F5: lasso drag bounds + rAF', () => {
         try {
           const data = ctx.getImageData(0, 0, c.width, c.height).data;
           for (let i = 3; i < data.length; i += 4) if (data[i] > 10) return true;
-        } catch { /* next */ }
+        } catch { /* getImageData throws SecurityError on tainted / cross-origin canvases; skip and fall through to the next layer */ }
       }
       return false;
     });
