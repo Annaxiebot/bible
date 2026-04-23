@@ -23,6 +23,7 @@ import {
 } from '../services/strokeNormalizer';
 import { compressImage } from '../services/imageCompressionService';
 import { migrateStrokes, Y_NORM_PAGE_HEIGHT } from '../services/notabilityStrokeMigration';
+import { NOTABILITY_PAGE_HEIGHT_PX } from '../services/notabilityCanvasMigration';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -160,7 +161,10 @@ const MAX_SIZE = 12;
 // explicit "Add Page" button for deliberate growth — no heuristic needed.
 const AUTOSAVE_DELAY = 2000;
 const MAX_HISTORY = 100;
-const PAGE_HEIGHT = 1200; // px per page in seamless mode
+// Page height in logical CSS px. Single source of truth lives at
+// services/notabilityCanvasMigration.ts → NOTABILITY_PAGE_HEIGHT_PX.
+// Aliased locally as PAGE_HEIGHT for call-site readability.
+const PAGE_HEIGHT = NOTABILITY_PAGE_HEIGHT_PX;
 const SWIPE_THRESHOLD = 50; // px minimum swipe distance to trigger page change
 // Apple Pencil / iPad palm classification: iPad Safari reports ~15–22 px
 // radiusX for a finger, 25+ for a palm. Touches above this threshold in
