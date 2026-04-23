@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { Y_NORM_PAGE_HEIGHT } from '../notabilityStrokeMigration';
 
 /**
  * Integration test for the multi-page notability cross-device sync bug
@@ -129,20 +130,28 @@ vi.stubGlobal('navigator', { onLine: true });
 // points use HEIGHT-normalized y, textboxes use WIDTH-normalized y (see
 // NotabilityEditor.getNormalizedPoint). Page 2 content is anything with
 // y > 0.5 in stroke coords or y > PAGE_HEIGHT/width in textbox coords.
+// Builds a canonical 2-page notability doc in the F3 (page-height-
+// normalized) encoding. In this encoding `y=1.5` is halfway down page 2
+// — the old fixture used y=0.7 and labeled it "page 2" based on a
+// misread of the legacy width-normalized heuristic, which this test was
+// inadvertently pinning. After fixing the root-cause heuristic in
+// `pagesFromStrokeMaxY`, the fixture must express "page 2" correctly.
 function makeTwoPageNotabilityJSON(): string {
   return JSON.stringify({
     version: 2,
+    yNormBase: Y_NORM_PAGE_HEIGHT,
     paperType: 'ruled',
     pageMode: 'seamless',
     strokes: [
-      // Page 1 stroke
+      // Page 1 stroke (y in [0, 1))
       { points: [{ x: 0.1, y: 0.05 }, { x: 0.3, y: 0.06 }], color: '#000', lineWidth: 0.002, tool: 'pen', opacity: 1 },
-      // Page 2 stroke (height-norm y > 0.5 = on page 2 of a 2-page canvas)
-      { points: [{ x: 0.1, y: 0.7 }, { x: 0.3, y: 0.72 }], color: '#C00', lineWidth: 0.002, tool: 'pen', opacity: 1 },
+      // Page 2 stroke (y in [1, 2))
+      { points: [{ x: 0.1, y: 1.4 }, { x: 0.3, y: 1.42 }], color: '#C00', lineWidth: 0.002, tool: 'pen', opacity: 1 },
     ],
     textBoxes: [
+      // textBoxes are still width-normalized y; bottom > PAGE_HEIGHT/REFERENCE_WIDTH (1.5) for page 2.
       { id: 'tb1', x: 0.1, y: 0.1, width: 0.3, height: 0.05, content: '<p>Page 1 note</p>' },
-      { id: 'tb2', x: 0.1, y: 0.8, width: 0.3, height: 0.05, content: '<p>Page 2 note</p>' },
+      { id: 'tb2', x: 0.1, y: 1.7, width: 0.3, height: 0.05, content: '<p>Page 2 note</p>' },
     ],
     images: [],
   });
