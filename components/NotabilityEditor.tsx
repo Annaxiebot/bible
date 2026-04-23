@@ -592,28 +592,47 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const triggerAutoSave = useCallback(() => {
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
     autoSaveTimerRef.current = setTimeout(() => {
-      // Sync any in-progress editing before saving
-      let boxes = textBoxesRef.current;
-      const eid = editingTextIdRef.current;
-      if (eid) {
-        const el = contentEditableRefs.current.get(eid);
-        if (el) {
-          boxes = boxes.map(tb => tb.id === eid ? { ...tb, content: el.innerHTML } : tb);
+      // Per ADR-0002: `JSON.stringify` on a ~600 KB notability document
+      // blocks the main thread 30–80 ms. Running that during a mid-stroke
+      // pen rest (user picked up the Pencil momentarily, not finished
+      // writing) causes a visible lag when they put it back down — the
+      // symptom was "few words and then lags."
+      //
+      // Two defenses:
+      //   1. If a stroke is IN PROGRESS, don't save. The pen-up handler
+      //      re-triggers autosave when it's safe.
+      //   2. Defer the save to `requestIdleCallback` so it never races
+      //      with pen input. Safari 17+ supports rIC; older Safari gets
+      //      `setTimeout(fn, 0)` which still yields to the render thread.
+      if (isDrawingRef.current) return;
+      const perform = () => {
+        let boxes = textBoxesRef.current;
+        const eid = editingTextIdRef.current;
+        if (eid) {
+          const el = contentEditableRefs.current.get(eid);
+          if (el) {
+            boxes = boxes.map(tb => tb.id === eid ? { ...tb, content: el.innerHTML } : tb);
+          }
         }
-      }
-      const data: ExtendedCanvasData = {
-        ...strokeDataRef.current,
-        textBoxes: boxes,
-        images: imagesRef.current,
-        pageMode,
-        // F3 — persist the new y-normalization encoding on every save so
-        // future loads know not to run the legacy→page-height migration.
-        yNormBase: Y_NORM_PAGE_HEIGHT,
+        const data: ExtendedCanvasData = {
+          ...strokeDataRef.current,
+          textBoxes: boxes,
+          images: imagesRef.current,
+          pageMode,
+          // F3 — persist the new y-normalization encoding on every save
+          // so future loads know not to run the legacy→page-height migration.
+          yNormBase: Y_NORM_PAGE_HEIGHT,
+        };
+        const serialized = serializeExtended(data);
+        if (serialized !== lastSavedDataRef.current) {
+          lastSavedDataRef.current = serialized;
+          onSave(serialized);
+        }
       };
-      const serialized = serializeExtended(data);
-      if (serialized !== lastSavedDataRef.current) {
-        lastSavedDataRef.current = serialized;
-        onSave(serialized);
+      if (typeof (window as { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback === 'function') {
+        (window as { requestIdleCallback: (cb: () => void, opts?: { timeout: number }) => number }).requestIdleCallback(perform, { timeout: 1000 });
+      } else {
+        setTimeout(perform, 0);
       }
     }, AUTOSAVE_DELAY);
   }, [onSave, pageMode]);
