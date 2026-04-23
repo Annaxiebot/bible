@@ -22,6 +22,7 @@ import {
   drawPaperBackground,
 } from '../services/strokeNormalizer';
 import { compressImage } from '../services/imageCompressionService';
+import { migrateStrokes, Y_NORM_PAGE_HEIGHT } from '../services/notabilityStrokeMigration';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -114,10 +115,15 @@ interface ExtendedCanvasData extends NormalizedCanvasData {
    * Migration (on load): legacy docs are converted to new encoding
    * assuming capture_width == current_load_width (true when the user
    * has not rotated since save). Post-migration, the document gets
-   * yNormBase='page-height' and all future saves use the new encoding.
+   * yNormBase=Y_NORM_PAGE_HEIGHT and all future saves use the new
+   * encoding.
    */
-  yNormBase?: 'page-height';
+  yNormBase?: typeof Y_NORM_PAGE_HEIGHT;
 }
+
+// Y_NORM_PAGE_HEIGHT and the migration function live in
+// services/notabilityStrokeMigration.ts so the pure encoding round-trip
+// can be unit-tested without rendering the full editor.
 
 export interface NotabilityEditorProps {
   initialData?: string;
@@ -598,7 +604,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
         pageMode,
         // F3 — persist the new y-normalization encoding on every save so
         // future loads know not to run the legacy→page-height migration.
-        yNormBase: 'page-height',
+        yNormBase: Y_NORM_PAGE_HEIGHT,
       };
       const serialized = serializeExtended(data);
       if (serialized !== lastSavedDataRef.current) {
@@ -891,16 +897,11 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       // Text boxes and images stay on the legacy width-normalized y
       // (see hitTestTextBox / image renderer). Migrating them cleanly
       // requires reworking the resize math (tb.height is width-based).
-      if (parsed.yNormBase !== 'page-height') {
-        const refW = window.innerWidth || 800;
-        const scale = refW / PAGE_HEIGHT;
-        if (parsed.strokes) {
-          for (const s of parsed.strokes) {
-            s.points = s.points.map(p => ({ x: p.x, y: p.y * scale }));
-          }
-        }
-        parsed.yNormBase = 'page-height';
-      }
+      //
+      // The pure migration function lives in services/notabilityStrokeMigration.ts
+      // so the encoding round-trip can be unit-tested without rendering
+      // the full editor in jsdom.
+      migrateStrokes(parsed, window.innerWidth || 800, PAGE_HEIGHT);
       strokeDataRef.current = parsed;
       if (parsed.paperType) setPaperType(parsed.paperType);
       // Migrate old text boxes that don't have height; auto-convert any saved raw
@@ -2733,7 +2734,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       textBoxes: textBoxesRef.current,
       images: imagesRef.current,
       pageMode,
-      yNormBase: 'page-height', // F3 — persist the new y encoding
+      yNormBase: Y_NORM_PAGE_HEIGHT, // F3 — persist the new y encoding
     };
     onSave(serializeExtended(data));
     onClose();
@@ -2755,7 +2756,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       textBoxes: textBoxesRef.current,
       images: imagesRef.current,
       pageMode,
-      yNormBase: 'page-height', // F3 — persist the new y encoding
+      yNormBase: Y_NORM_PAGE_HEIGHT, // F3 — persist the new y encoding
     };
     onSave(serializeExtended(data));
     onClose();
