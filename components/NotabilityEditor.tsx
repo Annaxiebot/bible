@@ -23,7 +23,7 @@ import {
 } from '../services/strokeNormalizer';
 import { compressImage } from '../services/imageCompressionService';
 import { migrateStrokes, Y_NORM_PAGE_HEIGHT } from '../services/notabilityStrokeMigration';
-import { NOTABILITY_PAGE_HEIGHT_PX } from '../services/notabilityCanvasMigration';
+import { NOTABILITY_PAGE_HEIGHT_PX, resolveCanvasHeightPages } from '../services/notabilityCanvasMigration';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -921,21 +921,13 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       // Restore canvas height from content: find the lowest content point.
       // Post-F3: stroke y-values are y_pixel / PAGE_HEIGHT (direct pixel
       // via * PAGE_HEIGHT). Text boxes and images stay width-based.
-      const refW = window.innerWidth || 800;
-      const strokeMaxYPx = Math.max(
-        0,
-        ...(parsed.strokes || []).flatMap(s => s.points.map(p => p.y * PAGE_HEIGHT)),
-      );
-      const textBoxMaxYPx = Math.max(
-        0,
-        ...(parsed.textBoxes || []).map(tb => ((tb.y || 0) + (tb.height || 0.15)) * refW),
-      );
-      const imageMaxYPx = Math.max(
-        0,
-        ...(parsed.images || []).map(img => ((img.y || 0) + (img.height || 0)) * refW),
-      );
-      const estimatedContentHeight = Math.max(strokeMaxYPx, textBoxMaxYPx, imageMaxYPx);
-      const neededPages = Math.ceil(estimatedContentHeight / PAGE_HEIGHT);
+      // Resolve page count: prefer the explicit `canvasHeightPages` hint
+      // embedded in synced payloads (PR #19's `augmentNotabilityJSON`) over
+      // re-estimating from content bounds. Without this, cross-device pulls
+      // silently collapsed pages 2+ because the receiver's content-based
+      // estimate drifted when text-boxes / images still used legacy
+      // width-normalized y but viewport width differed from capture width.
+      const neededPages = resolveCanvasHeightPages(parsed);
       if (neededPages > 1) {
         setCanvasHeight(neededPages * PAGE_HEIGHT);
       }

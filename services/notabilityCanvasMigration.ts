@@ -139,6 +139,29 @@ export function computeNotabilityPagesHint(payload: NotabilityPayloadLike): numb
 }
 
 /**
+ * Resolve the page count a client should render for a parsed notability
+ * payload. This is the editor-side counterpart to `augmentNotabilityJSON`:
+ * prefer the explicit `canvasHeightPages` hint when it's present (set by
+ * the sync layer on push, travels with the payload on pull), and fall
+ * back to `computeNotabilityPagesHint` for documents that predate the
+ * hint.
+ *
+ * Introduced to close the cross-device multi-page sync bug: receiving
+ * devices were using only the content-derived estimate, which silently
+ * collapsed pages 2+ when text-boxes / images (still legacy width-
+ * normalized y) drove the heuristic to a wrong answer. With an explicit
+ * hint we no longer re-derive the number each client has to guess at.
+ */
+export function resolveCanvasHeightPages(payload: NotabilityPayloadLike): number {
+  if (typeof payload.canvasHeightPages === 'number'
+      && Number.isFinite(payload.canvasHeightPages)
+      && payload.canvasHeightPages >= 1) {
+    return Math.max(1, Math.min(MAX_PAGES, Math.floor(payload.canvasHeightPages)));
+  }
+  return computeNotabilityPagesHint(payload);
+}
+
+/**
  * Augment a serialized notability JSON string with a `canvasHeightPages`
  * hint computed from the content. Returns the (possibly rewritten) JSON
  * string. Safe for:
