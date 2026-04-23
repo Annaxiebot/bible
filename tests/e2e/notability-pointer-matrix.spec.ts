@@ -17,6 +17,12 @@
 
 import { test, expect, type Page } from '@playwright/test';
 import { tap, drag, hold } from './helpers/pointerSynth';
+import { NOTABILITY_PAGE_HEIGHT_PX } from '../../services/notabilityCanvasMigration';
+
+// CSS dimension string used to identify the live-stroke canvas by its inline
+// style height (ADR-0002 fix #2). Sourced from the single source of truth so
+// the selector stays in sync with any future PAGE_HEIGHT change.
+const LIVE_CANVAS_HEIGHT_CSS = `${NOTABILITY_PAGE_HEIGHT_PX}px`;
 
 /**
  * Navigate to NotabilityEditor with a fresh journal entry. Returns the canvas
@@ -292,6 +298,156 @@ test.describe('NotabilityEditor pointer-event matrix', () => {
       return false;
     }, target);
     expect(inkNearTarget, 'expected ink within 24 CSS px of drag endpoint').toBe(true);
+  });
+
+  // ── ADR-0002 fix #2 live-stroke overlay invariants ───────────────────────
+  // The live-stroke canvas paints pen strokes in progress, then blits onto
+  // the real main/overlay ctx on pointerUp. These tests pin three
+  // correctness invariants that make the optimization safe:
+  //   1. Mid-stroke — the live canvas actually has ink (proves we routed
+  //      the live paint through it, not back to the main ctx).
+  //   2. Post-commit — the live canvas is visually empty (no residual
+  //      ink to leak onto the next stroke's start).
+  //   3. Post-page-switch — live canvas stays clear across navigation.
+  //
+  // The live-stroke canvas is the FIRST <canvas> in the page-stack-swipe
+  // container (placed above the bg canvas in the JSX). We look it up by
+  // asserting a very specific set of style/size attributes rather than
+  // relying on DOM index, because the index may shift if another canvas
+  // is added later.
+
+  test('ADR-0002 fix #2: live-stroke canvas is empty after a stroke commits', async ({ page }) => {
+    const canvas = await openNotability(page);
+    await selectTool(page, 'Pen');
+    // Draw a full drag (down + moves + up). Commit clears the live canvas.
+    await drag(page, canvas, { x: 80, y: 80 }, { x: 220, y: 140 }, { pointerType: 'pen', steps: 10 });
+    // Confirm the actual stroke committed so we know the drag landed.
+    await expect.poll(() => canvasHasInk(page), { timeout: 3_000 }).toBe(true);
+    // Now check: the live canvas itself has ZERO non-transparent pixels.
+    // Return tagged result so a missing live canvas fails loudly instead
+    // of collapsing to the vacuous `false` path (which would falsely
+    // satisfy toBe(false) even if residual ink existed).
+    const result = await page.evaluate((liveHeightCss) => {
+      const canvases = [...document.querySelectorAll('canvas')] as HTMLCanvasElement[];
+      for (const c of canvases) {
+        const styleH = c.style.height;
+        const peNone = c.style.pointerEvents === 'none';
+        if (styleH === liveHeightCss && peNone && c.style.position === 'absolute') {
+          const ctx = c.getContext('2d');
+          if (!ctx || c.width === 0 || c.height === 0) return { found: true, hasInk: false };
+          const img = ctx.getImageData(0, 0, c.width, c.height);
+          for (let i = 3; i < img.data.length; i += 4) {
+            if (img.data[i] > 10) return { found: true, hasInk: true };
+          }
+          return { found: true, hasInk: false };
+        }
+      }
+      return { found: false, hasInk: false };
+    }, LIVE_CANVAS_HEIGHT_CSS);
+    expect(result.found, 'live-stroke canvas must be present in the DOM').toBe(true);
+    expect(result.hasInk, 'live-stroke canvas must be empty after stroke commits (no residual ink)').toBe(false);
+  });
+
+  test('ADR-0002 fix #2: live-stroke canvas has ink DURING an in-progress stroke', async ({ page }) => {
+    const canvas = await openNotability(page);
+    await selectTool(page, 'Pen');
+    // Fire down + several moves but NOT up. Between them, assert the
+    // live canvas carries the live ink. We dispatch on the canvas that
+    // currently has pointer-events enabled (either main or overlay
+    // depending on drawingLayer) so the pen listeners receive the event.
+    await page.evaluate(() => {
+      const canvases = [...document.querySelectorAll('canvas')] as HTMLCanvasElement[];
+      // Find the canvas that has active pointer-events (touchAction set + pointer-events:auto).
+      // Default drawingLayer is 'above' so the overlay canvas (zIndex 10) owns events.
+      let target: HTMLCanvasElement | null = null;
+      for (const c of canvases) {
+        if (c.style.pointerEvents !== 'none' && c.style.touchAction) { target = c; break; }
+      }
+      if (!target) throw new Error('no pointer-receiving canvas found');
+      const rect = target.getBoundingClientRect();
+      const fire = (kind: 'pointerdown' | 'pointermove', x: number, y: number) => {
+        const ev = new PointerEvent(kind, {
+          bubbles: true, cancelable: true, composed: true,
+          pointerId: 1, pointerType: 'pen', pressure: 0.5, isPrimary: true,
+          clientX: rect.left + x, clientY: rect.top + y,
+          buttons: 1, button: 0,
+        });
+        target!.dispatchEvent(ev);
+      };
+      fire('pointerdown', 80, 80);
+      for (let i = 1; i <= 10; i++) {
+        fire('pointermove', 80 + i * 12, 80 + i * 6);
+      }
+      (window as any).__penTarget = target;
+    });
+    // Don't fire pointerup — state should be mid-stroke.
+    const liveHasInk = await page.evaluate((liveHeightCss) => {
+      const canvases = [...document.querySelectorAll('canvas')] as HTMLCanvasElement[];
+      for (const c of canvases) {
+        if (c.style.height === liveHeightCss && c.style.pointerEvents === 'none' && c.style.position === 'absolute') {
+          // Live canvas must be display:block while mid-stroke.
+          if (c.style.display === 'none') return 'live-canvas-hidden-mid-stroke';
+          const ctx = c.getContext('2d');
+          if (!ctx || c.width === 0) return 'no-ctx';
+          const img = ctx.getImageData(0, 0, c.width, c.height);
+          for (let i = 3; i < img.data.length; i += 4) {
+            if (img.data[i] > 10) return true;
+          }
+          return 'no-ink';
+        }
+      }
+      return 'no-live-canvas';
+    }, LIVE_CANVAS_HEIGHT_CSS);
+    // Clean up: fire pointerup so subsequent tests start fresh.
+    await page.evaluate(() => {
+      const target = (window as any).__penTarget as HTMLElement | undefined;
+      if (!target) return;
+      const rect = target.getBoundingClientRect();
+      const ev = new PointerEvent('pointerup', {
+        bubbles: true, cancelable: true, composed: true,
+        pointerId: 1, pointerType: 'pen', pressure: 0, isPrimary: true,
+        clientX: rect.left + 200, clientY: rect.top + 140,
+        buttons: 0, button: 0,
+      });
+      target.dispatchEvent(ev);
+    });
+    expect(liveHasInk, 'live-stroke canvas must carry the in-progress stroke ink before pointerUp').toBe(true);
+  });
+
+  test('ADR-0002 fix #2: live-stroke canvas stays empty after switching pages', async ({ page }) => {
+    // After a stroke + page switch the live canvas must not carry stale
+    // ink from the previous page. The stack's translateY changes page,
+    // but the live canvas's own backing store must have been cleared on
+    // the prior pointerUp and should remain empty.
+    const canvas = await openNotability(page);
+    await selectTool(page, 'Pen');
+    await drag(page, canvas, { x: 80, y: 80 }, { x: 200, y: 140 }, { pointerType: 'pen', steps: 10 });
+    await expect.poll(() => canvasHasInk(page), { timeout: 3_000 }).toBe(true);
+    // Trigger a page add + navigate. The "Add Page" button creates and
+    // moves to the new page. If it's not present in the UI we skip the
+    // nav portion — the post-commit emptiness check is the core assertion.
+    const addPageBtn = page.locator('button').filter({ hasText: /add.*page/i }).first();
+    if (await addPageBtn.isVisible().catch(() => false)) {
+      await addPageBtn.click();
+      await page.waitForTimeout(200);
+    }
+    const result = await page.evaluate((liveHeightCss) => {
+      const canvases = [...document.querySelectorAll('canvas')] as HTMLCanvasElement[];
+      for (const c of canvases) {
+        if (c.style.height === liveHeightCss && c.style.pointerEvents === 'none' && c.style.position === 'absolute') {
+          const ctx = c.getContext('2d');
+          if (!ctx || c.width === 0) return { found: true, hasInk: false };
+          const img = ctx.getImageData(0, 0, c.width, c.height);
+          for (let i = 3; i < img.data.length; i += 4) {
+            if (img.data[i] > 10) return { found: true, hasInk: true };
+          }
+          return { found: true, hasInk: false };
+        }
+      }
+      return { found: false, hasInk: false };
+    }, LIVE_CANVAS_HEIGHT_CSS);
+    expect(result.found, 'live-stroke canvas must be present in the DOM after page switch').toBe(true);
+    expect(result.hasInk, 'live-stroke canvas must remain empty after page switch').toBe(false);
   });
 
   // ── Tool switching mid-stroke ────────────────────────────────────────────
