@@ -166,9 +166,11 @@ Goal: Drive + IndexedDB replace Supabase entirely. User brings their own AI API 
 
 Architectural decisions go in `docs/adr/`. Short form (Context → Decision → Consequences).
 
-- **ADR-0001 (TODO):** Why Google Drive replaces Supabase for storage
-- **ADR-0002 (TODO):** Why AI racing moves to the browser
-- **ADR-0003 (TODO):** Per-entry files vs. manifest.json for Drive sync
+- **ADR-0001 (shipped 2026-04-22):** Whole-app architecture review (`docs/adr/0001-architecture-review.md`).
+- **ADR-0002 (shipped 2026-04-22):** Apple Pencil writing latency — root-cause pair + fix ordering (`docs/adr/0002-apple-pencil-latency.md`).
+- **ADR-0003 (TODO):** Why Google Drive replaces Supabase for storage.
+- **ADR-0004 (TODO):** Why AI racing moves to the browser.
+- **ADR-0005 (TODO):** Per-entry files vs. manifest.json for Drive sync.
 
 ---
 
