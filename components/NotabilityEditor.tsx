@@ -479,6 +479,26 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);       // Below-text strokes
   const overlayCanvasRef = useRef<HTMLCanvasElement>(null); // Above-text strokes
   const bgCanvasRef = useRef<HTMLCanvasElement>(null);
+  // ADR-0002 fix #2 — live-stroke overlay canvas, one page tall. Live pen
+  // painting targets this small canvas while a stroke is in progress so iOS
+  // composites a ~3 M-pixel texture per pointermove instead of the full
+  // multi-page stack (~12 M pixels at 4 pages × 1.5 DPR). On pointerUp the
+  // completed stroke is blitted to the real main/overlay ctx at document
+  // coords and this canvas is cleared + hidden. Allocated ONCE in
+  // setupCanvases — the previous attempt (commit 7ca7626, reverted in
+  // dcca4e4) allocated inside handlePointerDown, which made first-stroke
+  // latency regress because the browser had to synchronously create a
+  // large bitmap in the pen-down handler.
+  const liveStrokeCanvasRef = useRef<HTMLCanvasElement>(null);
+  const liveStrokeCtxRef = useRef<CanvasRenderingContext2D | null>(null);
+  // Page index (0-based) the current stroke started on. Used to translate
+  // doc-space y coordinates into live-canvas local y, and to position the
+  // live canvas via CSS top. Null when no stroke is active.
+  const liveStrokePageRef = useRef<number | null>(null);
+  // True while we're painting into the live canvas rather than the main/
+  // overlay ctx. Read by commitCurrentStroke to know whether to blit the
+  // live bitmap onto the real layer.
+  const liveStrokeActiveRef = useRef(false);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   // F1 — The single-page card has overflowY:auto when the viewport is
   // smaller than PAGE_HEIGHT (iPad landscape). We need a ref so page flips
@@ -774,10 +794,13 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     }
   }, [pageMode]);
 
-  const applyToolSettings = useCallback(() => {
-    // Apply tool settings to the correct canvas context
-    const ctx = drawingLayerRef.current === 'above' ? overlayCtxRef.current : ctxRef.current;
-    if (!ctx) return;
+  // Single source of truth for pen/marker/highlighter ctx settings.
+  // Accepts an explicit ctx so callers can target either the main/overlay
+  // canvas (current drawing layer) or the live-stroke canvas (ADR-0002
+  // fix #2). Keeping tool constants in ONE place prevents the live preview
+  // and the committed stroke from drifting apart visually if the
+  // multipliers change (R3 — no duplication of critical constants).
+  const applyToolSettingsTo = useCallback((ctx: CanvasRenderingContext2D) => {
     const tool = toolRef.current;
     if (tool === 'highlighter') {
       ctx.globalCompositeOperation = 'multiply';
@@ -798,6 +821,13 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
   }, []);
+
+  const applyToolSettings = useCallback(() => {
+    // Apply tool settings to the correct canvas context
+    const ctx = drawingLayerRef.current === 'above' ? overlayCtxRef.current : ctxRef.current;
+    if (!ctx) return;
+    applyToolSettingsTo(ctx);
+  }, [applyToolSettingsTo]);
 
   // ── Canvas setup ───────────────────────────────────────────────────────
 
@@ -850,6 +880,39 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
         overlayCtx.lineJoin = 'round';
         overlayCtxRef.current = overlayCtx;
       }
+    }
+
+    // ADR-0002 fix #2 — live-stroke overlay: allocate ONCE here, not per
+    // pointerdown (lesson from reverted 7ca7626 / dcca4e4). Size is
+    // viewport_width × PAGE_HEIGHT — a single page, NOT the full stacked
+    // canvas height, so the per-pointermove composite texture stays small
+    // even on a 20-page note.
+    //
+    // Do NOT pass { willReadFrequently: true }. That flag forces the
+    // browser to keep the backing store in CPU-accessible memory, which
+    // defeats the whole point of this optimization (a CPU-resident
+    // texture has to be re-uploaded to the GPU on every composite pass,
+    // negating the pixel-count win). The live canvas is write-only on
+    // the hot path — only occasionally read by e2e tests via
+    // getImageData, which the browser handles fine without the hint.
+    const liveStrokeCanvas = liveStrokeCanvasRef.current;
+    if (liveStrokeCanvas) {
+      liveStrokeCanvas.width = width * dpr;
+      liveStrokeCanvas.height = PAGE_HEIGHT * dpr;
+      const liveCtx = liveStrokeCanvas.getContext('2d');
+      if (liveCtx) {
+        liveCtx.setTransform(1, 0, 0, 1, 0, 0);
+        liveCtx.scale(dpr, dpr);
+        liveCtx.lineCap = 'round';
+        liveCtx.lineJoin = 'round';
+        liveStrokeCtxRef.current = liveCtx;
+        // Fresh backing store starts transparent; explicit clear is a no-op
+        // but documents the invariant "live canvas is empty when idle".
+        liveCtx.clearRect(0, 0, width, PAGE_HEIGHT);
+      }
+      liveStrokeCanvas.style.display = 'none';
+      liveStrokeActiveRef.current = false;
+      liveStrokePageRef.current = null;
     }
 
     redrawBackground();
@@ -1057,6 +1120,37 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 
   const commitCurrentStroke = useCallback(() => {
     const points = currentStrokePointsRef.current;
+    // ADR-0002 fix #2 — if we painted into the live canvas, finalize it
+    // regardless of whether we commit stroke data: redraw the full stroke
+    // onto the real main/overlay ctx at doc coords, then clear + hide the
+    // live canvas. Done BEFORE the early-return on <2 points so stray
+    // aborted strokes still leave the live canvas empty for the next one.
+    const liveActive = liveStrokeActiveRef.current;
+    const liveEl = liveStrokeCanvasRef.current;
+    const liveCtx = liveStrokeCtxRef.current;
+    if (liveActive && points.length >= 2) {
+      const realCtx = drawingLayerRef.current === 'above' ? overlayCtxRef.current : ctxRef.current;
+      if (realCtx) {
+        // applyToolSettings was already called on pointerDown, so the real
+        // ctx already has the right strokeStyle/lineWidth/compositing. Just
+        // replay the polyline at document coords — iOS composites the
+        // resulting damage ONCE rather than per-move.
+        realCtx.beginPath();
+        realCtx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) realCtx.lineTo(points[i].x, points[i].y);
+        realCtx.stroke();
+      }
+    }
+    if (liveEl && liveCtx) {
+      // Clear the live bitmap and hide the element. The next stroke's
+      // pointerDown will re-show + reposition. The invariant "live canvas
+      // is visually empty between strokes" is enforced here.
+      liveCtx.clearRect(0, 0, displayWidthRef.current, PAGE_HEIGHT);
+      liveEl.style.display = 'none';
+    }
+    liveStrokeActiveRef.current = false;
+    liveStrokePageRef.current = null;
+
     if (points.length < 2) { currentStrokePointsRef.current = []; return; }
     const w = displayWidthRef.current;
     const h = displayHeightRef.current;
@@ -1400,15 +1494,60 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       return;
     }
 
-    // Drawing tools — use overlay canvas when drawing above text
-    const drawCtx = drawingLayerRef.current === 'above' ? overlayCtxRef.current : ctxRef.current;
-    if (!drawCtx) return;
+    // Drawing tools — ADR-0002 fix #2: route live paint through the
+    // page-sized liveStrokeCanvas so the per-pointermove composite only
+    // damages a single page's worth of pixels, not the full multi-page
+    // main/overlay bitmap. The completed stroke is blitted back to the
+    // real ctx on pointerUp (see commitCurrentStroke).
+    //
+    // The live canvas itself was already allocated ONCE in setupCanvases
+    // (NOT here). This is the specific difference from reverted 7ca7626,
+    // which recreated the canvas's backing store on every pointerdown and
+    // regressed first-stroke latency on empty notes. We only position +
+    // show it here; no document.createElement, no canvas.width write.
+    const liveEl = liveStrokeCanvasRef.current;
+    const liveCtx = liveStrokeCtxRef.current;
+    if (!liveEl || !liveCtx) {
+      // Defensive: if the live canvas didn't mount (shouldn't happen, but
+      // setupCanvases's useEffect could race first pointerdown in theory),
+      // fall back to the old main/overlay direct-draw path so we don't
+      // swallow the stroke.
+      const drawCtx = drawingLayerRef.current === 'above' ? overlayCtxRef.current : ctxRef.current;
+      if (!drawCtx) return;
+      isDrawingRef.current = true;
+      currentStrokePointsRef.current = [{ x, y }];
+      applyToolSettings();
+      return;
+    }
     isDrawingRef.current = true;
     currentStrokePointsRef.current = [{ x, y }];
+    // Position live canvas over the page where the stroke started. Strokes
+    // that cross page boundaries clip at the bottom live; the full stroke
+    // is committed at correct doc coords on pointerUp.
+    const pageIdx = Math.max(0, Math.floor(y / PAGE_HEIGHT));
+    liveStrokePageRef.current = pageIdx;
+    liveEl.style.top = `${pageIdx * PAGE_HEIGHT}px`;
+    liveEl.style.display = 'block';
+    // z-index above the corresponding layer: 'above' drawing sits above
+    // the overlay canvas (zIndex 10) and text boxes; 'below' drawing sits
+    // above the main canvas (zIndex default) and under text boxes (which
+    // carry their own stacking). 11 for 'above', 4 for 'below' matches
+    // the stacking the reverted 7ca7626 established.
+    liveEl.style.zIndex = drawingLayerRef.current === 'above' ? '11' : '4';
+    // Apply tool settings to BOTH contexts through the shared helper so
+    // live-preview and committed stroke stay visually identical (R3: the
+    // opacity/lineWidth multipliers live in exactly one place,
+    // applyToolSettingsTo). Clear any stale pixels from the previous
+    // stroke — clearRect on a page-sized bitmap is cheap and guarantees
+    // no residual ink between strokes.
+    applyToolSettingsTo(liveCtx);
+    liveCtx.clearRect(0, 0, displayWidthRef.current, PAGE_HEIGHT);
+    liveStrokeActiveRef.current = true;
+    // Apply to the real ctx too so commitCurrentStroke's eventual blit
+    // inherits the right compositing mode. (Also serves the fallback
+    // branch above which paints directly on the real ctx.)
     applyToolSettings();
-    // Live drawing happens in an rAF batch (see handlePointerMove) — start of stroke only
-    // records the anchor point; the first segment is drawn on the first rAF after a move.
-  }, [getCanvasPoint, getNormalizedPoint, closeAllPopups, applyToolSettings, eraseStrokeAt, lassoSelection, pushUndo, redrawAll, triggerAutoSave, refreshCanvasRect]);
+  }, [getCanvasPoint, getNormalizedPoint, closeAllPopups, applyToolSettings, applyToolSettingsTo, eraseStrokeAt, lassoSelection, pushUndo, redrawAll, triggerAutoSave, refreshCanvasRect]);
 
   // A pointer gesture is "in progress" when either a stroke is being drawn
   // (isDrawingRef) or a lasso selection is being dragged (lassoDragStartRef).
@@ -1512,12 +1651,26 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     // Stroke the new segment immediately. rAF batching added perceptible input lag on
     // Apple Pencil (which fires at ~240Hz) without giving meaningful throughput wins —
     // user reports said batched mode felt the same or worse than per-event drawing.
-    const drawCtx = drawingLayerRef.current === 'above' ? overlayCtxRef.current : ctxRef.current;
-    if (!drawCtx) return;
+    //
+    // ADR-0002 fix #2: live painting targets the page-sized liveStroke
+    // canvas (set up in handlePointerDown). Doc y is translated to live-
+    // canvas local y by subtracting the stroke's start-page offset.
+    // Fallback: if the live canvas isn't active (the defensive branch in
+    // handlePointerDown), paint directly to main/overlay as before.
     const pts = currentStrokePointsRef.current;
     const prev = pts[pts.length - 1];
     pts.push({ x, y });
-    if (prev) {
+    if (!prev) return;
+    if (liveStrokeActiveRef.current && liveStrokeCtxRef.current && liveStrokePageRef.current !== null) {
+      const liveCtx = liveStrokeCtxRef.current;
+      const offsetY = liveStrokePageRef.current * PAGE_HEIGHT;
+      liveCtx.beginPath();
+      liveCtx.moveTo(prev.x, prev.y - offsetY);
+      liveCtx.lineTo(x, y - offsetY);
+      liveCtx.stroke();
+    } else {
+      const drawCtx = drawingLayerRef.current === 'above' ? overlayCtxRef.current : ctxRef.current;
+      if (!drawCtx) return;
       drawCtx.beginPath();
       drawCtx.moveTo(prev.x, prev.y);
       drawCtx.lineTo(x, y);
@@ -3864,6 +4017,25 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
               cursor: getCursor(),
               // Only receive pointer events when drawing on the above layer
               pointerEvents: drawingLayer === 'above' && !editingTextId && activeTool !== 'text' && activeTool !== 'pointer' ? 'auto' : 'none',
+            }} />
+
+          {/* ── ADR-0002 fix #2: live-stroke overlay canvas ──────────
+              Only visible while a pen stroke is actively being drawn.
+              Page-sized (not multi-page) so iOS composites a ~3 M-pixel
+              texture per pointermove instead of the full stacked main/
+              overlay bitmaps. Positioned via CSS `top` to the page where
+              the stroke started; cleared + hidden on pointerUp.
+              Pointer-events stay 'none' so the underlying main/overlay
+              canvas continues to receive input. Placed AFTER the overlay
+              in the DOM so existing tests' `canvas:nth(1)`/`nth(2)` index
+              assumptions (paper-bg=0, drawing=1, overlay=2) remain valid;
+              z-index handles the visual stacking at runtime (11 for
+              'above' layer, 4 for 'below'). */}
+          <canvas ref={liveStrokeCanvasRef}
+            style={{
+              position: 'absolute', left: 0, top: 0, width: '100%',
+              height: `${PAGE_HEIGHT}px`,
+              display: 'none', pointerEvents: 'none', zIndex: 11,
             }} />
 
           {/* ── Page break lines (seamless mode, like Notability) ─────── */}
