@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   computeNotabilityPagesHint,
   augmentNotabilityJSON,
+  resolveCanvasHeightPages,
   NOTABILITY_PAGE_HEIGHT_PX,
 } from '../notabilityCanvasMigration';
 
@@ -124,5 +125,71 @@ describe('augmentNotabilityJSON', () => {
     expect(augmentNotabilityJSON('[1, 2, 3]')).toBe('[1, 2, 3]');
     expect(augmentNotabilityJSON('42')).toBe('42');
     expect(augmentNotabilityJSON('null')).toBe('null');
+  });
+});
+
+/**
+ * resolveCanvasHeightPages is the editor-side counterpart to
+ * augmentNotabilityJSON. It encodes the "prefer explicit hint, fall back
+ * to content estimate" contract that CLOSES the cross-device multi-page
+ * sync bug (pages 2+ collapsing on the receiver). Before this function
+ * existed, the editor re-implemented the estimate inline and ignored the
+ * hint entirely — which is the bug.
+ */
+describe('resolveCanvasHeightPages', () => {
+  it('prefers an explicit canvasHeightPages hint over the content-derived estimate', () => {
+    // Construct a payload whose CONTENT suggests 1 page (no strokes / text
+    // boxes / images) but whose HINT says 3 pages. The bug-shape this test
+    // guards against is any implementation that silently recomputes from
+    // content and ignores the hint.
+    expect(resolveCanvasHeightPages({ canvasHeightPages: 3 })).toBe(3);
+    // And vice versa: content that looks like 2+ pages is still overridden
+    // by a smaller explicit hint (which is also valid — a user trimmed a
+    // page deliberately).
+    expect(resolveCanvasHeightPages({
+      canvasHeightPages: 1,
+      strokes: [{ points: [{ x: 0, y: 0.9 }] }],
+    })).toBe(1);
+  });
+
+  it('falls back to computeNotabilityPagesHint when the hint is absent', () => {
+    // No hint → delegates to the existing estimator. Strokes near y≈1.5 in
+    // height-normalized space mean page 2.
+    expect(resolveCanvasHeightPages({
+      strokes: [{ points: [{ x: 0, y: 0.7 }] }],
+    })).toBe(3); // pagesFromStrokeMaxY: y > 2/3 → 3
+    expect(resolveCanvasHeightPages({})).toBe(1); // empty → single-page floor
+  });
+
+  it('ignores a non-numeric or invalid hint and falls back to the estimate', () => {
+    const invalidButNotNumber = resolveCanvasHeightPages({
+      canvasHeightPages: Number.NaN,
+      strokes: [{ points: [{ x: 0, y: 0.55 }] }],
+    });
+    expect(invalidButNotNumber).toBe(2); // stroke drives estimate → 2 pages
+
+    const zero = resolveCanvasHeightPages({
+      canvasHeightPages: 0,
+      strokes: [{ points: [{ x: 0, y: 0.55 }] }],
+    });
+    expect(zero).toBe(2);
+
+    const negative = resolveCanvasHeightPages({
+      canvasHeightPages: -5,
+      strokes: [{ points: [{ x: 0, y: 0.55 }] }],
+    });
+    expect(negative).toBe(2);
+  });
+
+  it('clamps absurdly large hints to MAX_PAGES (no infinite-pages exploit)', () => {
+    // A corrupted sync payload could claim canvasHeightPages = 999_999.
+    // The resolver must not let that become a runtime canvas-height of
+    // 1.2 billion pixels.
+    expect(resolveCanvasHeightPages({ canvasHeightPages: 999_999 })).toBeLessThanOrEqual(20);
+  });
+
+  it('floors fractional hints (defensive against rogue producers)', () => {
+    expect(resolveCanvasHeightPages({ canvasHeightPages: 2.7 })).toBe(2);
+    expect(resolveCanvasHeightPages({ canvasHeightPages: 1.999 })).toBe(1);
   });
 });
