@@ -2215,10 +2215,20 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       // Always stash the start in swipeStartRef (both modes) so touchEnd can decide
       // between "tap to enter edit" and "swipe / scroll".
       swipeStartRef.current = { x: t.clientX, y: t.clientY, time: Date.now() };
-      if (pageMode === 'single') {
-        e.preventDefault();
-      }
-      // In seamless mode: do NOT preventDefault → native vertical scroll works
+      // B2-C — DO NOT preventDefault at touchstart in single-page mode.
+      // We don't yet know whether this gesture is a horizontal swipe
+      // (page flip) or a vertical scroll within the page-card-clip.
+      // Calling preventDefault here would block the iOS native pan-y
+      // before the browser even routes the move events; the user
+      // reported "can't scroll to bottom of page" in landscape because
+      // of this. handleTouchMove now decides per-axis at the FIRST
+      // move event: horizontal → preventDefault + drive swipe;
+      // vertical → fall through to native scroll. This matches
+      // Notability's behavior — vertical drag scrolls within the page,
+      // horizontal drag flips pages.
+      // Seamless mode already relied on no preventDefault for native
+      // vertical scroll; the new behavior generalizes that to single-
+      // page mode at touchstart.
       return;
     }
 
@@ -2248,12 +2258,22 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     if (isFingerTouchRef.current) {
       // Navigation move — handle swipe in single-page mode
       if (pageMode === 'single' && swipeStartRef.current) {
-        e.preventDefault();
         const t = e.touches[0];
         const dx = t.clientX - swipeStartRef.current.x;
         const dy = t.clientY - swipeStartRef.current.y;
-        // Use dominant axis for visual feedback
+        // B2-C — only preventDefault on HORIZONTAL drags so vertical
+        // finger drags fall through to the page-card-clip's native
+        // overflow-y:auto scroll. The user's complaint was "rotation
+        // landscape: can't scroll to bottom of page" — F1 made the
+        // card scrollable, but the unconditional preventDefault here
+        // was blocking the native scroll gesture before the browser
+        // could pan the card. Notability's mental model: vertical
+        // drag scrolls within the page; horizontal drag flips pages.
+        // We classify by the dominant axis of the cumulative drag,
+        // not just this event — so a slightly-off-axis swipe doesn't
+        // get re-classified mid-gesture.
         if (Math.abs(dx) > Math.abs(dy)) {
+          e.preventDefault();
           if (!isSwipeDragging) setIsSwipeDragging(true);
           setSwipeOffset(dx);
           // B2-A — once we know which way the user is swiping (|dx| past
@@ -3408,8 +3428,23 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   //       an active finger touch, the swipe state is cleared.
   // Drawing-tool classification is shared via isDrawingTool() so adding a
   // new tool needs a one-line edit, not three.
+  // B2-C — single-page mode also gets pan-y so the card's overflow-y:
+  // auto can scroll vertically when the viewport is shorter than
+  // PAGE_HEIGHT (iPad landscape). Previously single-page mode forced
+  // touchAction: none, which blocked the browser's native vertical pan
+  // before our touch handlers even had a chance to run — the user
+  // reported "can't scroll to bottom of page in landscape" because of
+  // that. Horizontal swipes still work because handleTouchMove
+  // preventDefaults on horizontal-dominant drags (axis classification
+  // happens after the first move event).
+  //
+  // touchAction: 'none' is reserved for the case where pan-y would
+  // ALSO block our own gesture handling — namely when a drawing tool
+  // is active and we don't want native scroll competing with ink
+  // capture. iPhone (no Apple Pencil) keeps 'none' in drawing modes
+  // so finger-as-pen isn't sidetracked by scroll.
   const editorTouchAction: 'pan-y' | 'none' =
-    pageMode === 'seamless' && (isApplePencilDevice || !isDrawingTool(activeTool))
+    isApplePencilDevice || !isDrawingTool(activeTool)
       ? 'pan-y'
       : 'none';
 
