@@ -171,6 +171,15 @@ const MAX_HISTORY = 100;
 // Aliased locally as PAGE_HEIGHT for call-site readability.
 const PAGE_HEIGHT = NOTABILITY_PAGE_HEIGHT_PX;
 const SWIPE_THRESHOLD = 50; // px minimum swipe distance to trigger page change
+// B2-A — direction-detection threshold in px. Once the user has moved this far
+// horizontally, we know which page is incoming and capture its snapshot. Below
+// this we don't yet know direction (and capturing every frame is wasteful).
+const SWIPE_DIRECTION_THRESHOLD = 8;
+// B2-A — duration the commit-slide animation runs after touchend. Match the
+// existing release transition (0.3s) so committed and aborted swipes feel
+// identical. The post-commit settle uses this to know when to retire the
+// incoming-page snapshot.
+const SWIPE_COMMIT_DURATION_MS = 300;
 // Apple Pencil / iPad palm classification: iPad Safari reports ~15–22 px
 // radiusX for a finger, 25+ for a palm. Touches above this threshold in
 // drawing modes are ignored so a resting palm doesn't drive nav or scroll.
@@ -472,6 +481,35 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const swipeStartRef = useRef<{ x: number; y: number; time: number } | null>(null);
   const [swipeOffset, setSwipeOffset] = useState(0); // px offset during swipe animation
   const isFingerTouchRef = useRef(false); // true when current touch is a finger (not stylus)
+  // B2-A — Continuous page-flip animation. While the user is mid-swipe (or the
+  // post-release commit slide is still running), pendingFlipDirection is +1
+  // (next page slides in from the right) or -1 (prev page slides in from the
+  // left); null means no swipe is active. The incoming page is rendered in a
+  // snapshot canvas (incomingPageSnapshotRef) positioned at translateX(
+  // swipeOffset + direction * viewportW) so it sits just off-screen at rest
+  // and follows the finger as swipeOffset changes.
+  //
+  // Refs:
+  //   - incomingPageSnapshotRef: ref to the JSX-rendered <canvas
+  //     data-testid="page-stack-swipe-incoming"> that holds the pre-rendered
+  //     bitmap of the incoming page. The canvas is rendered conditionally
+  //     (only when pendingFlipDirection !== null) so it has zero cost in the
+  //     idle state. captureIncomingPage rasterizes bg + main + overlay
+  //     clipped to the incoming page's y-region into this canvas.
+  //   - incomingPageNumRef: which page index is currently snapshotted (so a
+  //     mid-swipe direction reversal — user starts swipe-left, then swipes
+  //     back the other way past 0 — re-snapshots only when needed).
+  //   - swipeCommitTimerRef: timeout id of the post-touchend settle, used to
+  //     cancel if a new swipe starts before the commit animation completes.
+  const [pendingFlipDirection, setPendingFlipDirection] = useState<1 | -1 | null>(null);
+  // True between the first horizontal touchmove of a swipe and touchend; the
+  // swipe layer reads this to disable its CSS transition during a 1:1 finger
+  // track and re-enable it for the post-touchend animation (release-back-to-0
+  // OR commit-slide-off-screen).
+  const [isSwipeDragging, setIsSwipeDragging] = useState(false);
+  const incomingPageSnapshotRef = useRef<HTMLCanvasElement | null>(null);
+  const incomingPageNumRef = useRef<number | null>(null);
+  const swipeCommitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Drawing layer: 'below' draws under text boxes, 'above' draws over them
   const [drawingLayer, setDrawingLayer] = useState<'below' | 'above'>('above');
@@ -496,6 +534,30 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   // large bitmap in the pen-down handler.
   const liveStrokeCanvasRef = useRef<HTMLCanvasElement>(null);
   const liveStrokeCtxRef = useRef<CanvasRenderingContext2D | null>(null);
+  // B2-B — lasso-drag live overlay. Same pattern as ADR-0002 fix #2's
+  // live-stroke canvas, applied to lasso *moves*: when the user picks up
+  // a selected lasso, we redraw main (without the selected strokes) ONCE,
+  // rasterize the selected strokes alone onto this overlay canvas, and
+  // then per-pointermove we ONLY mutate the overlay's CSS transform —
+  // O(1)/event vs the previous O(totalStrokes)/event redrawAll path that
+  // PR #21's F5 fix throttled but didn't eliminate.
+  //
+  // R15 evidence: per-event work drops from O(totalStrokes_in_doc) to
+  // O(1). On a 4-page page-density-typical note (~600 strokes) at the
+  // user-reported 120 Hz pen rate, that's ~600×120 = 72k stroke() calls
+  // per second on the previous path; the new path is zero (the GPU does
+  // the translate in the compositor). Wall-clock measurement on the
+  // user's iPad is the proper R15 verification but is not available
+  // here — flagged in the commit.
+  const lassoLiveCanvasRef = useRef<HTMLCanvasElement>(null);
+  const lassoLiveCtxRef = useRef<CanvasRenderingContext2D | null>(null);
+  // True while a lasso drag is in progress (overlay visible, main canvas
+  // is rendered without the selected strokes). Cleared on pointerup,
+  // which then commits the position delta to strokeDataRef and redraws.
+  // Ref (not state) — read by handlePointerMove which mutates the overlay
+  // element's `style.transform` directly, avoiding a React re-render on
+  // every Apple Pencil sub-event.
+  const lassoLiveActiveRef = useRef(false);
   // Page index (0-based) the current stroke started on. Used to translate
   // doc-space y coordinates into live-canvas local y, and to position the
   // live canvas via CSS top. Null when no stroke is active.
@@ -673,7 +735,13 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   }, [onSave, pageMode]);
 
   useEffect(() => {
-    return () => { if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current); };
+    return () => {
+      if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
+      // B2-A — cancel any pending swipe-commit timer so the post-unmount
+      // setState calls don't fire on a stale component (React would warn
+      // and the user would see a console-level leak).
+      if (swipeCommitTimerRef.current) clearTimeout(swipeCommitTimerRef.current);
+    };
   }, []);
 
   // ── Canvas rendering ───────────────────────────────────────────────────
@@ -928,6 +996,29 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       liveStrokeCanvas.style.display = 'none';
       liveStrokeActiveRef.current = false;
       liveStrokePageRef.current = null;
+    }
+
+    // B2-B — lasso live overlay: same allocation pattern as the live-
+    // stroke canvas above, but sized to the FULL canvas height so a
+    // selection that spans multiple pages can rasterize without clipping.
+    // Only allocated/sized once here; the per-drag fast path
+    // (handlePointerDown's lasso-drag branch) only sets a CSS transform.
+    const lassoLiveCanvas = lassoLiveCanvasRef.current;
+    if (lassoLiveCanvas) {
+      lassoLiveCanvas.width = width * dpr;
+      lassoLiveCanvas.height = height * dpr;
+      const lassoCtx = lassoLiveCanvas.getContext('2d');
+      if (lassoCtx) {
+        lassoCtx.setTransform(1, 0, 0, 1, 0, 0);
+        lassoCtx.scale(dpr, dpr);
+        lassoCtx.lineCap = 'round';
+        lassoCtx.lineJoin = 'round';
+        lassoLiveCtxRef.current = lassoCtx;
+        lassoCtx.clearRect(0, 0, width, height);
+      }
+      lassoLiveCanvas.style.display = 'none';
+      lassoLiveCanvas.style.transform = 'translate(0,0)';
+      lassoLiveActiveRef.current = false;
     }
 
     redrawBackground();
@@ -1431,6 +1522,114 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       if (nx >= b.x && nx <= b.x + b.w && ny >= b.y && ny <= b.y + b.h) {
         lassoDragStartRef.current = { x, y };
         pushUndo();
+        // B2-B — start live-overlay mode for the drag. Two snapshots:
+        //   1. Main canvas WITHOUT selected strokes — committed once
+        //      here; subsequent pointermoves leave it untouched.
+        //   2. Selected strokes alone, rasterized onto lassoLiveCanvas.
+        // Per-pointermove then ONLY mutates lassoLiveCanvas's CSS
+        // `transform: translate(dx, dy)`. The browser composites
+        // pre-rasterized layers on the GPU — no JS-side stroke loop,
+        // no main-canvas redraw. Drops per-event work from
+        // O(totalStrokes) to O(1) (R15: algorithmic class win).
+        const liveEl = lassoLiveCanvasRef.current;
+        const liveCtx = lassoLiveCtxRef.current;
+        const main = canvasRef.current;
+        const overlay = overlayCanvasRef.current;
+        const mainCtx = ctxRef.current;
+        const overlayCtx = overlayCtxRef.current;
+        if (liveEl && liveCtx && main && mainCtx) {
+          // Step 1: rasterize selected strokes onto the lasso live
+          // canvas. We can't share the existing redrawAll path because it
+          // doesn't filter by stroke index — write a focused replay loop
+          // that draws ONLY the selected strokes at their current doc
+          // positions.
+          liveCtx.clearRect(0, 0, displayWidthRef.current, displayHeightRef.current);
+          for (const idx of lassoSelection.strokeIndices) {
+            const s = strokeDataRef.current.strokes[idx];
+            if (!s || s.points.length < 2) continue;
+            // Re-derive stroke compositing from the saved per-stroke
+            // metadata (NOT toolRef — the selection could have been
+            // made long ago with a different active tool). Highlighter
+            // normally uses 'multiply' against the page; on a separate
+            // overlay canvas 'multiply' against transparent produces
+            // incorrect colors, so we use 'source-over' for the drag
+            // preview. The committed redraw on pointerup uses the same
+            // per-tool path as the original render (redrawAll →
+            // applyToolSettingsTo), so any visual delta during the
+            // drag snaps back to exact on drop.
+            liveCtx.globalCompositeOperation = 'source-over';
+            liveCtx.globalAlpha = s.opacity;
+            liveCtx.strokeStyle = s.color;
+            liveCtx.lineWidth = s.lineWidth * w;
+            liveCtx.beginPath();
+            liveCtx.moveTo(s.points[0].x * w, s.points[0].y * PAGE_HEIGHT);
+            for (let i = 1; i < s.points.length; i++) {
+              liveCtx.lineTo(s.points[i].x * w, s.points[i].y * PAGE_HEIGHT);
+            }
+            liveCtx.stroke();
+          }
+          // Also paint the dashed selection bounding-box on the live
+          // overlay so the visible "selection" rectangle moves WITH the
+          // ink during the drag. Without this, the rect stays at the
+          // selection's original position (it's drawn by redrawAll, which
+          // we deliberately skip during the drag) and the user sees the
+          // ink slide out from under a stationary box.
+          {
+            const b = lassoSelection.bounds;
+            liveCtx.save();
+            liveCtx.globalCompositeOperation = 'source-over';
+            liveCtx.globalAlpha = 1;
+            liveCtx.strokeStyle = '#4f46e5';
+            liveCtx.lineWidth = 2;
+            liveCtx.setLineDash([4, 3]);
+            liveCtx.strokeRect(
+              b.x * w, b.y * PAGE_HEIGHT,
+              b.w * w, b.h * PAGE_HEIGHT,
+            );
+            liveCtx.restore();
+          }
+          // Step 2: redraw main + overlay WITHOUT the selected strokes.
+          // We re-use redrawAll's machinery by temporarily filtering the
+          // strokes via a marker — but redrawAll iterates strokeDataRef
+          // directly with no filter argument, so the cleanest fix is to
+          // splice the selected strokes out, redrawAll, and splice them
+          // back. Splicing in two passes (sorted descending so indexes
+          // stay stable) is O(strokes_in_selection); redrawAll is
+          // O(unselected_strokes) which is exactly what we want for
+          // step 2.
+          const selSet = new Set(lassoSelection.strokeIndices);
+          const all = strokeDataRef.current.strokes;
+          const removed: { idx: number; stroke: typeof all[number] }[] = [];
+          for (let i = all.length - 1; i >= 0; i--) {
+            if (selSet.has(i)) {
+              removed.push({ idx: i, stroke: all[i] });
+              all.splice(i, 1);
+            }
+          }
+          redrawAll();
+          // Restore in original order so subsequent moveLassoSelection /
+          // pointerup logic can reference the original strokeIndices.
+          for (let i = removed.length - 1; i >= 0; i--) {
+            const r = removed[i];
+            all.splice(r.idx, 0, r.stroke);
+          }
+          // Step 3: show overlay at translate(0,0).
+          liveEl.style.transform = 'translate(0px, 0px)';
+          liveEl.style.display = 'block';
+          // z-index above main + above text boxes (text boxes use
+          // 5+zOrder; overlay canvas uses default). Use 11 to stay above
+          // both the canvas and the text boxes for the drag's duration.
+          liveEl.style.zIndex = '11';
+          lassoLiveActiveRef.current = true;
+          // Avoid: in case overlayCtx exists, we don't need to do
+          // anything special — redrawAll already cleared and re-painted
+          // it without the selected strokes (assuming selected strokes
+          // could have been on either layer). overlay variable is read
+          // here only to silence "unused" warnings if the layered
+          // strokes path ever needs to gate on it.
+          void overlay;
+          void overlayCtx;
+        }
         return;
       } else {
         setLassoSelection(null);
@@ -1578,36 +1777,52 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     const { x, y } = getCanvasPoint(clientX, clientY);
     const tool = toolRef.current;
 
-    // F5 — lasso-drag: accumulate dx/dy into a pending ref and flush via
-    // requestAnimationFrame. Per-event redrawAll was O(totalStrokes) and
-    // saturated the main thread on large pages; rAF bounds the redraw
-    // rate to the display refresh (~60 fps) without changing semantics.
-    // The previous rAF attempt referenced in the old comment was on the
-    // PEN-drawing path (commitCurrentStroke sub-segments) — a separate
-    // concern; lasso drag is safe to throttle because no new strokes
-    // are being committed during the drag.
-    if (lassoDragStartRef.current && lassoSelection) {
+    // B2-B — lasso-drag fast path. PR #21 F5 used rAF to throttle a
+    // per-event redrawAll (O(strokes)/event); the user reported "still
+    // very laggy" on iPad even with the throttle.
+    //
+    // New approach: at lasso-drag pointerdown we (a) painted the
+    // selected strokes onto a separate live overlay canvas and
+    // (b) redrew main WITHOUT them — see handlePointerDown's
+    // `lassoLiveActiveRef.current = true` branch. Per-pointermove now
+    // ONLY mutates the overlay's CSS transform — pure GPU compositor
+    // work, NO main-canvas redraw, NO stroke loop.
+    //
+    // R15 evidence: per-event work O(strokes) → O(1). On a ~600-stroke
+    // doc at 120 Hz Pencil rate, that drops the main-thread paint cost
+    // from ~600×120=72k stroke() calls/sec to zero per-event work.
+    // Wall-clock measurement on real iPad is the proper R15 verifier
+    // and is flagged in the commit message as not-yet-verified.
+    if (lassoDragStartRef.current && lassoSelection && lassoLiveActiveRef.current) {
       const start = lassoDragStartRef.current;
-      const dx = x - start.x;
-      const dy = y - start.y;
-      lassoDragStartRef.current = { x, y };
-      const pending = lassoDragPendingRef.current;
-      if (pending) {
-        pending.dx += dx;
-        pending.dy += dy;
-      } else {
-        lassoDragPendingRef.current = { dx, dy };
+      // dx/dy here are the TOTAL drag delta from the original
+      // pointerdown, NOT the per-event step. Why total: the live
+      // overlay's CSS translate is set ABSOLUTELY each frame, so
+      // accumulation lives in the (fixed) start position rather than
+      // in a state variable. start.x/y were set at pointerdown and
+      // are NOT updated per-move (the previous F5 path updated them
+      // every move because moveLassoSelection consumed deltas — we
+      // don't need that anymore).
+      const totalDx = x - start.x;
+      const totalDy = y - start.y;
+      const liveEl = lassoLiveCanvasRef.current;
+      if (liveEl) {
+        // Direct DOM mutation: NO React re-render. The browser
+        // composites the pre-rasterized overlay at the new translate
+        // on the GPU.
+        liveEl.style.transform = `translate(${totalDx}px, ${totalDy}px)`;
       }
-      if (lassoDragRafRef.current === null) {
-        lassoDragRafRef.current = requestAnimationFrame(() => {
-          lassoDragRafRef.current = null;
-          const p = lassoDragPendingRef.current;
-          if (p) {
-            lassoDragPendingRef.current = null;
-            moveLassoSelection(p.dx, p.dy);
-          }
-        });
-      }
+      return;
+    }
+    // Defensive fallback: if the live overlay didn't engage (shouldn't
+    // happen — handlePointerDown sets lassoLiveActiveRef synchronously
+    // before this is ever reachable), drop the move silently rather
+    // than re-introducing the F5 redrawAll path. Re-introducing it
+    // would mask a regression where the overlay setup failed and quietly
+    // give the user back the laggy behavior. Better to fail visibly:
+    // the selection just doesn't move, the user notices, and we get
+    // a bug report instead of perf complaints.
+    if (lassoDragStartRef.current && lassoSelection) {
       return;
     }
 
@@ -1699,20 +1914,46 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const handlePointerUp = useCallback(() => {
     const tool = toolRef.current;
     if (lassoDragStartRef.current) {
+      const start = lassoDragStartRef.current;
       lassoDragStartRef.current = null;
-      // F5 — flush any pending rAF-throttled lasso move so the final
-      // position reflects all input events (don't drop the last batch
-      // of deltas between the last rAF and pointerup). Then save once
-      // at drop instead of on every pointer-move.
+      // B2-B — commit drag delta in ONE pass: read the final translate
+      // off the live overlay element (already set by handlePointerMove)
+      // and call moveLassoSelection once with the total dx/dy. That
+      // updates strokeDataRef + lassoSelection.bounds, then redrawAll
+      // re-renders main/overlay with the strokes in their new positions.
+      // The live overlay is hidden + cleared so the user sees a clean
+      // hand-off from "translated overlay" to "redrawn main canvas".
+      const liveEl = lassoLiveCanvasRef.current;
+      const liveCtx = lassoLiveCtxRef.current;
+      let totalDx = 0;
+      let totalDy = 0;
+      if (liveEl && liveCtx && lassoLiveActiveRef.current) {
+        // Parse `translate(Xpx, Ypx)` from the inline style we set in
+        // handlePointerMove. style.transform always has this exact
+        // format because we wrote it. If it's empty (drag canceled
+        // before any move fired), totalDx/Dy stay 0 and the next
+        // moveLassoSelection call is a no-op.
+        const m = liveEl.style.transform.match(/translate\((-?\d+(?:\.\d+)?)px,\s*(-?\d+(?:\.\d+)?)px\)/);
+        if (m) {
+          totalDx = parseFloat(m[1]);
+          totalDy = parseFloat(m[2]);
+        }
+        liveEl.style.transform = 'translate(0px, 0px)';
+        liveEl.style.display = 'none';
+        liveCtx.clearRect(0, 0, displayWidthRef.current, displayHeightRef.current);
+        lassoLiveActiveRef.current = false;
+      }
+      // moveLassoSelection's own clamp (PR #21 F5) keeps the final
+      // position on-canvas; we do NOT need to re-clamp here.
+      void start;
+      // Cancel any in-flight stale rAF throttling state (carry-over
+      // from PR #21 F5; harmless if it never fired but defensive).
       if (lassoDragRafRef.current !== null) {
         cancelAnimationFrame(lassoDragRafRef.current);
         lassoDragRafRef.current = null;
       }
-      const pending = lassoDragPendingRef.current;
-      if (pending) {
-        lassoDragPendingRef.current = null;
-        moveLassoSelection(pending.dx, pending.dy);
-      }
+      lassoDragPendingRef.current = null;
+      moveLassoSelection(totalDx, totalDy);
       triggerAutoSave();
       return;
     }
@@ -1736,6 +1977,56 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   // ── Single-page navigation helpers ─────────────────────────────────────
 
   const totalPages = Math.max(1, Math.ceil(canvasHeight / PAGE_HEIGHT));
+
+  // B2-A — capture the incoming page (`pageNum`, 0-based) into a single
+  // offscreen canvas so it can be rendered as a sliding sibling during a
+  // swipe. Read-back order matches the on-screen z-order: bg → main draw →
+  // overlay → text-boxes-as-image (skipped — text boxes are HTML, capturing
+  // them would require html2canvas; the swipe still slides the strokes
+  // correctly which is the user's primary complaint, and text boxes appear
+  // in their committed position once the flip completes).
+  //
+  // R3 callout: the same composite logic exists in commitCurrentStroke
+  // (bg+canvas+overlay layered). We do NOT extract a shared helper here
+  // because each call site has different coordinate transforms (live-stroke
+  // positioning vs page-extraction), and a poorly-fit helper would force
+  // both into a least-common-denominator API. If the layer count grows
+  // beyond 3, revisit.
+  const captureIncomingPage = useCallback((pageNum: number) => {
+    if (pageNum < 0 || pageNum >= totalPages) return false;
+    const bg = bgCanvasRef.current;
+    const main = canvasRef.current;
+    const overlay = overlayCanvasRef.current;
+    const snap = incomingPageSnapshotRef.current;
+    if (!bg || !main || !snap) return false;
+    const w = displayWidthRef.current;
+    if (w <= 0) return false;
+    const dpr = main.width / w;
+    if (!isFinite(dpr) || dpr <= 0) return false;
+    // Snapshot is page-sized in CSS px (× dpr in bitmap px). Re-allocate only
+    // when the page geometry changes (rotation, dpr change after first
+    // mount).
+    const snapW = w * dpr;
+    const snapH = PAGE_HEIGHT * dpr;
+    if (snap.width !== snapW || snap.height !== snapH) {
+      snap.width = snapW;
+      snap.height = snapH;
+    }
+    const sctx = snap.getContext('2d');
+    if (!sctx) return false;
+    sctx.setTransform(1, 0, 0, 1, 0, 0);
+    sctx.clearRect(0, 0, snapW, snapH);
+    // Source y in bitmap px = pageNum * PAGE_HEIGHT * dpr.
+    const srcY = pageNum * PAGE_HEIGHT * dpr;
+    // Composite each layer at its existing z-order. drawImage source-rect is
+    // bitmap coords (the canvas's internal width/height), destination is the
+    // snapshot's bitmap coords — same dpr, so 1:1.
+    sctx.drawImage(bg, 0, srcY, snapW, snapH, 0, 0, snapW, snapH);
+    sctx.drawImage(main, 0, srcY, snapW, snapH, 0, 0, snapW, snapH);
+    if (overlay) sctx.drawImage(overlay, 0, srcY, snapW, snapH, 0, 0, snapW, snapH);
+    incomingPageNumRef.current = pageNum;
+    return true;
+  }, [totalPages]);
 
   const goToPage = useCallback((page: number) => {
     const clamped = Math.max(0, Math.min(page, totalPages - 1));
@@ -1939,10 +2230,20 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       // Always stash the start in swipeStartRef (both modes) so touchEnd can decide
       // between "tap to enter edit" and "swipe / scroll".
       swipeStartRef.current = { x: t.clientX, y: t.clientY, time: Date.now() };
-      if (pageMode === 'single') {
-        e.preventDefault();
-      }
-      // In seamless mode: do NOT preventDefault → native vertical scroll works
+      // B2-C — DO NOT preventDefault at touchstart in single-page mode.
+      // We don't yet know whether this gesture is a horizontal swipe
+      // (page flip) or a vertical scroll within the page-card-clip.
+      // Calling preventDefault here would block the iOS native pan-y
+      // before the browser even routes the move events; the user
+      // reported "can't scroll to bottom of page" in landscape because
+      // of this. handleTouchMove now decides per-axis at the FIRST
+      // move event: horizontal → preventDefault + drive swipe;
+      // vertical → fall through to native scroll. This matches
+      // Notability's behavior — vertical drag scrolls within the page,
+      // horizontal drag flips pages.
+      // Seamless mode already relied on no preventDefault for native
+      // vertical scroll; the new behavior generalizes that to single-
+      // page mode at touchstart.
       return;
     }
 
@@ -1972,15 +2273,53 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     if (isFingerTouchRef.current) {
       // Navigation move — handle swipe in single-page mode
       if (pageMode === 'single' && swipeStartRef.current) {
-        e.preventDefault();
         const t = e.touches[0];
         const dx = t.clientX - swipeStartRef.current.x;
         const dy = t.clientY - swipeStartRef.current.y;
-        // Use dominant axis for visual feedback
+        // B2-C — only preventDefault on HORIZONTAL drags so vertical
+        // finger drags fall through to the page-card-clip's native
+        // overflow-y:auto scroll. The user's complaint was "rotation
+        // landscape: can't scroll to bottom of page" — F1 made the
+        // card scrollable, but the unconditional preventDefault here
+        // was blocking the native scroll gesture before the browser
+        // could pan the card. Notability's mental model: vertical
+        // drag scrolls within the page; horizontal drag flips pages.
+        // We classify by the dominant axis of the cumulative drag,
+        // not just this event — so a slightly-off-axis swipe doesn't
+        // get re-classified mid-gesture.
         if (Math.abs(dx) > Math.abs(dy)) {
+          e.preventDefault();
+          if (!isSwipeDragging) setIsSwipeDragging(true);
           setSwipeOffset(dx);
+          // B2-A — once we know which way the user is swiping (|dx| past
+          // SWIPE_DIRECTION_THRESHOLD), capture the incoming page into the
+          // snapshot canvas and remember the direction. Subsequent moves
+          // re-use the snapshot. If the user reverses past 0 — e.g. starts
+          // swipe-left (next page) then drags back rightward past start
+          // crossing 0 — we re-detect the new direction and re-snapshot
+          // the OTHER neighbor. The early-return on (currentPage out of
+          // range) handles edges (page 0 swiping right, last page swiping
+          // left): no neighbor exists, so no snapshot, and the swipe
+          // ultimately doesn't commit (handleTouchEnd's flipped check
+          // gates on goToPage clamping anyway).
+          const desiredDir: 1 | -1 | null =
+            dx <= -SWIPE_DIRECTION_THRESHOLD ? 1 :
+            dx >= SWIPE_DIRECTION_THRESHOLD ? -1 :
+            null;
+          if (desiredDir !== null && desiredDir !== pendingFlipDirection) {
+            const targetPage = desiredDir === 1 ? currentPage + 1 : currentPage - 1;
+            if (captureIncomingPage(targetPage)) {
+              setPendingFlipDirection(desiredDir);
+            }
+          } else if (desiredDir === null && pendingFlipDirection !== null) {
+            // User dragged back near the start; hide the incoming page so
+            // the released-back-to-zero motion doesn't show a phantom
+            // sibling sliding away.
+            setPendingFlipDirection(null);
+          }
         } else {
           setSwipeOffset(0);
+          if (pendingFlipDirection !== null) setPendingFlipDirection(null);
         }
       }
       // In seamless mode: no preventDefault, native scroll works
@@ -1990,7 +2329,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     // Drawing move (stylus)
     e.preventDefault();
     handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
-  }, [handlePointerMove, pageMode, isDrawingToolActive]);
+  }, [handlePointerMove, pageMode, isDrawingToolActive, currentPage, pendingFlipDirection, captureIncomingPage, isSwipeDragging]);
 
   const handleTouchEnd = useCallback((e: TouchEvent) => {
     // Pencil in drawing modes → pointer path. Pencil in pointer mode → this handler
@@ -2015,44 +2354,100 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       // the separate seamless mode is where vertical scroll navigates.
       if (pageMode === 'single' && start) {
         e.preventDefault();
+        // Mark drag-over so the JSX swipe layer re-enables its CSS
+        // transition for the release / commit slide. Cleared inside both
+        // branches via setIsSwipeDragging below + the timer commit.
+        setIsSwipeDragging(false);
         const flipped = elapsed < 500
           && Math.abs(dx) > Math.abs(dy)
           && Math.abs(dx) > SWIPE_THRESHOLD;
         if (flipped) {
-          // F4 — continuous book-flip animation.
+          // B2-A — continuous book-flip animation (supersedes the F4 fix that
+          // only animated swipeOffset; the user reported the page still
+          // snapped because the OUTGOING page slid out but the INCOMING page
+          // wasn't visible until the snap).
           //
-          // Old behavior: goToPage instantly set currentPage (outer.translateY
-          // jumps to the new page), then swipeOffset animated 0→0 (no motion).
-          // The user saw the page snap at the last moment of the swipe.
+          // Outgoing page lives on page-stack-swipe (translateX = swipeOffset).
+          // Incoming page lives on page-stack-swipe-incoming (rendered only
+          // while pendingFlipDirection !== null, translateX = swipeOffset +
+          // direction*viewportW). Already-set during touchmove.
           //
-          // New behavior:
-          //   1. Set currentPage to the target so the canvas NOW shows the
-          //      new page's content (via outer.translateY).
-          //   2. Push the swipe layer OFF-SCREEN in the swipe direction
-          //      (swipeOffset = ±viewportWidth) WITHOUT a transition —
-          //      the new page's content is momentarily invisible because it
-          //      sits past the card edge.
-          //   3. On the next animation frame, set swipeOffset back to 0 —
-          //      the CSS transition kicks in and slides the new page in
-          //      from the edge. Net: the incoming page's CONTENT is visible
-          //      during the slide (not a mid-swipe snap).
-          const direction = dx < 0 ? 1 : -1; // swipe-left (dx<0) → next page slides in from RIGHT (swipeOffset start = +W)
+          // Commit sequence:
+          //   1. Animate swipeOffset from current value → ±viewportW. Both
+          //      siblings move together: outgoing slides off-screen, incoming
+          //      slides on-screen.
+          //   2. After SWIPE_COMMIT_DURATION_MS (matches CSS transition
+          //      duration), commit currentPage to target and clear
+          //      pendingFlipDirection. The outgoing canvas (now showing the
+          //      target page via outer.translateY) is back at translateX(0)
+          //      and the snapshot canvas is unmounted.
+          //
+          // Net visual: the incoming page's CONTENT slides in continuously
+          // alongside the outgoing slide-out — no snap.
+          const direction = dx < 0 ? 1 : -1; // swipe-left (dx<0) → next page slides in from RIGHT (snapshot at +W relative to swipe layer)
           const target = dx < 0 ? currentPage + 1 : currentPage - 1;
-          const card = pageCardRef.current;
-          const viewportW = card?.clientWidth ?? window.innerWidth ?? 0;
-          goToPage(target);
-          // goToPage already sets swipeOffset(0); override with off-screen
-          // start position so the transition animates back to 0.
-          setSwipeOffset(direction * viewportW);
-          // Next frame: transition swipeOffset → 0. requestAnimationFrame
-          // gives React a paint cycle at the ±viewportW state before we
-          // animate back; without it, both state updates batch into the
-          // same paint and the transition never fires.
-          requestAnimationFrame(() => {
+          const clampedTarget = Math.max(0, Math.min(target, totalPages - 1));
+          // If goToPage would clamp (already at first/last page), there's no
+          // page to flip to — abort the animation and snap back. Skip the
+          // expensive snapshot path.
+          if (clampedTarget === currentPage) {
             setSwipeOffset(0);
-          });
+            setPendingFlipDirection(null);
+          } else {
+            const card = pageCardRef.current;
+            const viewportW = card?.clientWidth ?? window.innerWidth ?? 0;
+            // Make sure we have a snapshot for the target page. Normally
+            // captureIncomingPage already ran in handleTouchMove once
+            // |dx| crossed SWIPE_DIRECTION_THRESHOLD, but a fast flick
+            // can reach SWIPE_THRESHOLD without a touchmove having
+            // triggered direction-detect (e.g. pointer events arrived
+            // batched). Defensive recapture here keeps the animation
+            // visible in that edge case.
+            if (incomingPageNumRef.current !== clampedTarget) {
+              captureIncomingPage(clampedTarget);
+            }
+            setPendingFlipDirection(direction);
+            // Animate via a CSS transition. The page-stack-swipe style
+            // currently uses no transition while a swipe is in progress
+            // (so finger drag tracks 1:1) and 0.3s ease-out only when
+            // swipeOffset settles to 0. We need a transition during the
+            // commit slide too — that's handled in the JSX style block by
+            // gating on pendingFlipDirection !== null OR swipeOffset === 0.
+            setSwipeOffset(-direction * viewportW);
+            // Cancel any in-flight previous commit (a quick double-flip
+            // before the previous transition retired its snapshot).
+            if (swipeCommitTimerRef.current) {
+              clearTimeout(swipeCommitTimerRef.current);
+            }
+            swipeCommitTimerRef.current = setTimeout(() => {
+              swipeCommitTimerRef.current = null;
+              // Commit the page change. The swipe layer is currently at
+              // translateX(-direction*viewportW) showing the OUTGOING page
+              // (via outer.translateY = -currentPage*PAGE_HEIGHT). To swap
+              // it to the incoming page WITHOUT a visible reverse-slide we:
+              //   1. Disable the transition for this transition tick by
+              //      setting isSwipeDragging back to true. The swipe layer
+              //      style block keys transition off this flag.
+              //   2. Update currentPage (outer.translateY now shows target
+              //      page) and snap swipeOffset to 0 in the same React
+              //      batch. With no transition, there's no animation —
+              //      the swap is instant.
+              //   3. Drop pendingFlipDirection so the snapshot canvas
+              //      unmounts; the user-visible state is exactly the
+              //      target page at translateX(0).
+              //   4. On the next animation frame, re-enable transitions
+              //      (setIsSwipeDragging(false)) so subsequent swipes
+              //      animate normally.
+              setIsSwipeDragging(true);
+              goToPage(clampedTarget);
+              setPendingFlipDirection(null);
+              incomingPageNumRef.current = null;
+              requestAnimationFrame(() => setIsSwipeDragging(false));
+            }, SWIPE_COMMIT_DURATION_MS);
+          }
         } else {
           setSwipeOffset(0);
+          setPendingFlipDirection(null);
         }
       }
 
@@ -2086,7 +2481,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     // Drawing end (stylus)
     e.preventDefault();
     handlePointerUp();
-  }, [handlePointerUp, pageMode, currentPage, goToPage, getCanvasPoint, hitTestTextBox]);
+  }, [handlePointerUp, pageMode, currentPage, goToPage, getCanvasPoint, hitTestTextBox, totalPages, captureIncomingPage]);
 
   // Mouse events
   const handleMouseDown = useCallback((e: MouseEvent) => handlePointerDown(e.clientX, e.clientY), [handlePointerDown]);
@@ -2120,6 +2515,15 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     if (swipeStartRef.current) {
       swipeStartRef.current = null;
       setSwipeOffset(0);
+      // B2-A — also clear the in-flight page-flip animation state so a
+      // pending snapshot canvas doesn't linger on screen after the pen
+      // takes over.
+      setPendingFlipDirection(null);
+      setIsSwipeDragging(false);
+      if (swipeCommitTimerRef.current) {
+        clearTimeout(swipeCommitTimerRef.current);
+        swipeCommitTimerRef.current = null;
+      }
     }
     handlePointerDown(e.clientX, e.clientY);
   }, [handlePointerDown]);
@@ -3039,8 +3443,23 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   //       an active finger touch, the swipe state is cleared.
   // Drawing-tool classification is shared via isDrawingTool() so adding a
   // new tool needs a one-line edit, not three.
+  // B2-C — single-page mode also gets pan-y so the card's overflow-y:
+  // auto can scroll vertically when the viewport is shorter than
+  // PAGE_HEIGHT (iPad landscape). Previously single-page mode forced
+  // touchAction: none, which blocked the browser's native vertical pan
+  // before our touch handlers even had a chance to run — the user
+  // reported "can't scroll to bottom of page in landscape" because of
+  // that. Horizontal swipes still work because handleTouchMove
+  // preventDefaults on horizontal-dominant drags (axis classification
+  // happens after the first move event).
+  //
+  // touchAction: 'none' is reserved for the case where pan-y would
+  // ALSO block our own gesture handling — namely when a drawing tool
+  // is active and we don't want native scroll competing with ink
+  // capture. iPhone (no Apple Pencil) keeps 'none' in drawing modes
+  // so finger-as-pen isn't sidetracked by scroll.
   const editorTouchAction: 'pan-y' | 'none' =
-    pageMode === 'seamless' && (isApplePencilDevice || !isDrawingTool(activeTool))
+    isApplePencilDevice || !isDrawingTool(activeTool)
       ? 'pan-y'
       : 'none';
 
@@ -3406,7 +3825,13 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
              style={pageMode === 'single' ? {
           height: `${canvasHeight}px`,
           transform: `translateX(${swipeOffset}px)`,
-          transition: swipeOffset === 0 ? 'transform 0.3s ease-out' : 'none',
+          // Transition is ON whenever the user is NOT actively dragging:
+          //   - drag in progress (isSwipeDragging=true) → no transition,
+          //     swipeOffset must track finger 1:1.
+          //   - released (touchend fired, isSwipeDragging=false) →
+          //     transition for the release-back-to-zero (abort) OR the
+          //     commit-slide-off-screen (B2-A continuous flip).
+          transition: isSwipeDragging ? 'none' : `transform ${SWIPE_COMMIT_DURATION_MS}ms ease-out`,
         } : { height: `${canvasHeight}px` }}>
           {/* Background canvas */}
           <canvas ref={bgCanvasRef} className="absolute inset-0"
@@ -4053,6 +4478,25 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
               display: 'none', pointerEvents: 'none', zIndex: 11,
             }} />
 
+          {/* ── B2-B: lasso-drag live overlay ───────────────────────────
+              Holds a rasterized snapshot of the selected strokes (plus
+              the dashed selection-bounding-box) during a drag. Per-
+              pointermove only mutates `style.transform` — pure GPU
+              work, no main-canvas redraw. On drop, the delta is
+              committed to strokeDataRef and this overlay is cleared
+              + hidden.
+
+              Sized full canvasHeight (not page-sized like
+              liveStrokeCanvas) so a multi-page selection rasterizes
+              without clipping. Allocated ONCE in setupCanvases. */}
+          <canvas ref={lassoLiveCanvasRef}
+            data-testid="lasso-live-overlay"
+            style={{
+              position: 'absolute', left: 0, top: 0, width: '100%',
+              height: `${canvasHeight}px`,
+              display: 'none', pointerEvents: 'none', zIndex: 11,
+            }} />
+
           {/* ── Page break lines (seamless mode, like Notability) ─────── */}
           {pageMode === 'seamless' && Array.from({ length: totalPagesDisplay - 1 }, (_, i) => (
             <div key={`page-${i}`} style={{
@@ -4065,6 +4509,48 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
           ))}
         </div>
         </div>
+        {/* B2-A — incoming-page snapshot, rendered ONLY in single-page mode.
+            Sibling of page-stack-outer (so its translateX is independent of
+            outer's translateY) and inside page-card-clip (so the same
+            overflow:hidden / overflow-y:auto rules clip it the same way as
+            the outgoing page).
+
+            Positioned at `translateX(calc(swipeOffset + direction*100%))`
+            during a swipe — the 100% is page-card-clip's width, which is
+            also this canvas's CSS width, so direction*100% places it
+            exactly one card-width away in the swipe direction at rest.
+            captureIncomingPage rasterizes bg + main + overlay clipped to
+            the incoming page's y-range into this canvas's bitmap.
+
+            DOM position note: appended AFTER page-stack-outer so this is
+            the LAST canvas in the document. Existing tests that target
+            `document.querySelectorAll('canvas')[1]` (the drawing canvas)
+            stay correct. */}
+        {pageMode === 'single' && (
+          <canvas
+            data-testid="page-stack-swipe-incoming"
+            ref={incomingPageSnapshotRef}
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: `${PAGE_HEIGHT}px`,
+              transform: pendingFlipDirection === null
+                ? 'translateX(0)'
+                : `translateX(calc(${swipeOffset}px + ${pendingFlipDirection * 100}%))`,
+              transition: isSwipeDragging ? 'none' : `transform ${SWIPE_COMMIT_DURATION_MS}ms ease-out`,
+              pointerEvents: 'none',
+              // Hidden when idle so the canvas's bitmap doesn't have to be
+              // composited / uploaded to the GPU until a swipe starts.
+              // The element stays in the DOM (not unmounted) so the ref is
+              // stable and captureIncomingPage can write into the bitmap
+              // before pendingFlipDirection flips.
+              display: pendingFlipDirection === null ? 'none' : 'block',
+              zIndex: 12,
+            }}
+          />
+        )}
         </div>
 
         {/* ── Floating page indicator (Notability-style: appears on scroll, fades out) */}
