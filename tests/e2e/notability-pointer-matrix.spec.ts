@@ -1308,32 +1308,35 @@ test.describe('NotabilityEditor F4/B2-A: continuous page-flip animation', () => 
   });
 });
 
-// ── F5: lasso drag performance + bounds clamping ─────────────────────────
-// User bug: "lasso is still very laggy when being moved, especially
-// using Apple Pencil to move the selected text using lasso is very
-// unpredictable and can be moved out of view."
+// ── F5/B2-B: lasso drag performance + bounds clamping ───────────────────
+// User bug evolution:
+//   F5 (PR #21) "Lasso drag works better now, usable, but still very laggy"
+//   B2-B reports the lag persists on Apple Pencil at iPad 120 Hz.
 //
-// Two symptoms:
-//   (a) Perceptible lag during drag — addressed by rAF-throttling the
-//       redraw path + dropping the per-event triggerAutoSave (JSON.stringify
-//       of the whole doc was happening 120×/s on Pencil).
-//   (b) Selection can be dragged off-canvas — addressed by clamping
-//       the move so the selection's bounds stay in [0, 1] for x and
-//       [0, canvasHeight/PAGE_HEIGHT] for y.
+// F5 throttled the per-pointermove redrawAll via requestAnimationFrame and
+// dropped the per-event triggerAutoSave. That bounded the redraw rate to
+// the display refresh but each redraw was still O(totalStrokes_in_doc) —
+// on a dense multi-page note that's still ~5–10 ms per frame, which is
+// where the residual lag came from.
 //
-// The structural invariant for (a) — rAF throttling wired in — is
-// verified by grepping the source; runtime perf on synthetic events
-// is not a reliable signal in headless Chromium (see tripwire test for
-// lasso-drag fix for precedent on source-grep invariants). The bounds
-// clamp IS runtime-testable: build a lasso selection, attempt to drag
-// it past the canvas edge, read the stroke coordinates, assert they
-// stay in [0, 1].
-test.describe('NotabilityEditor F5: lasso drag bounds + rAF', () => {
-  // Structural invariant: moveLassoSelection call in handlePointerMove
-  // is routed through requestAnimationFrame (lassoDragPendingRef +
-  // lassoDragRafRef). If a future edit reverts to per-event
-  // moveLassoSelection, this tripwire fires.
-  test('lasso drag uses rAF throttling (perf tripwire)', async () => {
+// B2-B replaces the throttle with an O(1)/event approach: at lasso-drag
+// pointerdown, rasterize the selected strokes ALONE onto a separate
+// `lasso-live-overlay` canvas and redraw main WITHOUT them ONCE. Per-
+// pointermove only mutates the overlay's CSS transform (translate) —
+// pure GPU compositor work, no JS-side stroke loop.
+//
+// Two structural invariants verify B2-B is wired:
+//   1. moveLassoSelection is NOT called from inside the per-event lasso-
+//      drag branch of handlePointerMove. (The call moves to handlePointerUp
+//      where it commits the total drag delta in one shot.)
+//   2. lassoLiveCanvasRef + lassoLiveActiveRef exist and the JSX renders
+//      a canvas with `data-testid="lasso-live-overlay"`.
+// The bounds clamp inside moveLassoSelection (PR #21 F5) is preserved —
+// the runtime test below verifies it still works after B2-B.
+test.describe('NotabilityEditor F5/B2-B: lasso drag perf + bounds clamping', () => {
+  // Structural invariant: B2-B's live-overlay architecture is wired and
+  // moveLassoSelection is no longer called per-pointermove.
+  test('lasso drag uses live-overlay (B2-B perf tripwire)', async () => {
     const fs = await import('node:fs');
     const url = await import('node:url');
     const path = await import('node:path');
@@ -1342,21 +1345,52 @@ test.describe('NotabilityEditor F5: lasso drag bounds + rAF', () => {
       path.resolve(here, '..', '..', 'components/NotabilityEditor.tsx'),
       'utf8',
     );
-    // The rAF pending ref must exist.
-    expect(src).toMatch(/lassoDragPendingRef\s*=\s*useRef/);
-    // And the lasso-drag branch of handlePointerMove must pipe through rAF.
-    expect(src).toMatch(/lassoDragRafRef\.current\s*=\s*requestAnimationFrame/);
-    // The per-event triggerAutoSave inside moveLassoSelection must be GONE.
-    // It used to queue JSON.stringify of the whole doc 120×/sec. We
-    // check by scanning the moveLassoSelection body for triggerAutoSave.
+    // The live overlay canvas ref must exist.
+    expect(src).toMatch(/lassoLiveCanvasRef\s*=\s*useRef/);
+    // The per-drag activity flag must exist.
+    expect(src).toMatch(/lassoLiveActiveRef\s*=\s*useRef/);
+    // The JSX renders a canvas with the testid.
+    expect(src).toMatch(/data-testid="lasso-live-overlay"/);
+    // The per-event triggerAutoSave inside moveLassoSelection is still
+    // gone (PR #21 F5 invariant — would re-introduce JSON.stringify
+    // of the doc on every Apple Pencil sub-event).
     const moveSelectionFn = src.match(
       /const moveLassoSelection\s*=\s*useCallback\s*\([\s\S]*?\}\s*,\s*\[[^\]]+\]\s*\);/,
     );
     expect(moveSelectionFn).not.toBeNull();
     expect(
       moveSelectionFn![0],
-      'moveLassoSelection must NOT call triggerAutoSave per-event (F5 perf fix)',
+      'moveLassoSelection must NOT call triggerAutoSave per-event (F5 perf fix preserved)',
     ).not.toMatch(/triggerAutoSave\(\)/);
+    // moveLassoSelection must NOT be called inside the per-event lasso-
+    // drag branch of handlePointerMove. The B2-B tripwire is positive:
+    // assert the new fast path (lassoLiveActiveRef gate + style.transform
+    // mutation) exists.
+    expect(src).toMatch(/lassoLiveActiveRef\.current[^\n]*[\s\S]{0,800}?style\.transform\s*=/);
+  });
+
+  // Structural invariant: the lasso live-overlay canvas exists in the
+  // DOM, is hidden when idle, and is sized correctly for full-canvas
+  // selections. Runtime engagement is hard to drive deterministically
+  // through synthetic events (the bounds-inside check is a
+  // floating-point compare; small differences between Playwright's
+  // mouse and the matrix's synthetic dispatcher mean a click can
+  // either re-grab the selection or start a new one). We rely on the
+  // source-grep tripwire above for the wiring assertion.
+  test('lasso live-overlay canvas mounts in DOM and is hidden when idle', async ({ page }) => {
+    await openNotability(page);
+    const overlay = page.locator('[data-testid="lasso-live-overlay"]');
+    await expect(overlay).toHaveCount(1);
+    const idleState = await overlay.evaluate(el => ({
+      display: (el as HTMLElement).style.display,
+      pointerEvents: (el as HTMLElement).style.pointerEvents,
+      position: (el as HTMLElement).style.position,
+      width: (el as HTMLElement).style.width,
+    }));
+    expect(idleState.display, 'lasso overlay must start hidden so its bitmap is not GPU-uploaded').toBe('none');
+    expect(idleState.pointerEvents, 'lasso overlay must not intercept pointer events').toBe('none');
+    expect(idleState.position).toBe('absolute');
+    expect(idleState.width).toBe('100%');
   });
 
   // Runtime test: bounds clamping. Draw a stroke, lasso-select it,
