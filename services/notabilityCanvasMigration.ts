@@ -1,3 +1,5 @@
+import { Y_NORM_PAGE_HEIGHT } from './notabilityStrokeMigration';
+
 /**
  * notabilityCanvasMigration.ts
  *
@@ -75,6 +77,16 @@ interface NotabilityPayloadLike {
   textBoxes?: Array<{ y?: number; height?: number }>;
   images?: Array<{ y?: number; height?: number }>;
   canvasHeightPages?: number;
+  /**
+   * Stroke-y normalization basis (see NotabilityEditor's F3 migration).
+   *   Y_NORM_PAGE_HEIGHT ('page-height') — modern: y_pixel = y * PAGE_HEIGHT
+   *     (rotation-invariant).
+   *   undefined — legacy: y_pixel = y * capture_width.
+   * The page-count heuristic takes wildly different shapes for the two
+   * encodings so this module must branch on it. Constant lives in
+   * notabilityStrokeMigration so the literal exists in exactly one place.
+   */
+  yNormBase?: typeof Y_NORM_PAGE_HEIGHT;
   [key: string]: unknown;
 }
 
@@ -103,14 +115,31 @@ function maxRectBottom(rects: Array<{ y?: number; height?: number }> | undefined
   return max;
 }
 
-/** Lower-bound page count from height-normalized stroke y. Ambiguous above
- *  0.75 — cap at 4. Textbox/image widthNorm signal is the authoritative
- *  channel when present. */
-function pagesFromStrokeMaxY(maxY: number): number {
-  if (maxY > 3 / 4) return 4;
-  if (maxY > 2 / 3) return 3;
-  if (maxY > 0.5) return 2;
-  return 1;
+/**
+ * Pages required from a stroke's max-y, branching on encoding.
+ *
+ *   - NEW encoding (yNormBase='page-height'): y is directly in page units
+ *     (y=1.5 means 1.5 × PAGE_HEIGHT pixels from top, i.e. halfway down
+ *     page 2). pages = ceil(maxY).
+ *   - LEGACY encoding (yNormBase missing): y was normalized by capture
+ *     width, so y_pixel = y × capture_width. Without the capture width
+ *     at hand, use REFERENCE_WIDTH_PX and convert to pages the same way
+ *     text-boxes/images do: pages = ceil(maxY × REFERENCE_WIDTH_PX / PAGE_HEIGHT).
+ *
+ * Previously this was a 4-tier threshold heuristic (> 3/4 → 4 pages) that
+ * was designed around legacy width-normalized y in a pre-multi-page
+ * world. For the new encoding it always returned 4 for any stroke on
+ * page 2+ — the root cause of the 2026-04-22 iPad bug where a 2-page
+ * note displayed as 4 pages, the inflated count persisted to disk, and
+ * rotation appeared to "add pages."
+ */
+function pagesFromStrokeMaxY(maxY: number, isPageHeightNormalized: boolean): number {
+  if (maxY <= 0) return 1;
+  if (isPageHeightNormalized) {
+    return Math.max(1, Math.ceil(maxY));
+  }
+  // Legacy: width-normalized y.
+  return Math.max(1, Math.ceil((maxY * REFERENCE_WIDTH_PX) / NOTABILITY_PAGE_HEIGHT_PX));
 }
 
 /**
@@ -120,21 +149,22 @@ function pagesFromStrokeMaxY(maxY: number): number {
  * Algorithm:
  *   1. Text boxes and images (width-normalized y) → pages =
  *      ceil(maxBottom * REFERENCE_WIDTH_PX / PAGE_HEIGHT).
- *   2. Strokes (height-normalized y) → lower bound per pagesFromStrokeMaxY.
+ *   2. Strokes → branch on yNormBase per pagesFromStrokeMaxY.
  *   3. Report the MAX of (1), (2), and a 1-page floor.
  *
  * Returns an integer in [1, MAX_PAGES].
  */
 export function computeNotabilityPagesHint(payload: NotabilityPayloadLike): number {
   const widthNormMaxY = Math.max(maxRectBottom(payload.textBoxes), maxRectBottom(payload.images));
-  const heightNormMaxY = maxStrokeY(payload.strokes);
+  const strokeMaxY = maxStrokeY(payload.strokes);
+  const isPageHeightNormalized = payload.yNormBase === Y_NORM_PAGE_HEIGHT;
 
   const pagesFromWidthNorm = widthNormMaxY > 0
     ? Math.ceil((widthNormMaxY * REFERENCE_WIDTH_PX) / NOTABILITY_PAGE_HEIGHT_PX)
     : 0;
-  const pagesFromHeightNorm = pagesFromStrokeMaxY(heightNormMaxY);
+  const pagesFromStrokes = pagesFromStrokeMaxY(strokeMaxY, isPageHeightNormalized);
 
-  const pages = Math.max(1, pagesFromWidthNorm, pagesFromHeightNorm);
+  const pages = Math.max(1, pagesFromWidthNorm, pagesFromStrokes);
   return Math.max(1, Math.min(MAX_PAGES, pages));
 }
 
