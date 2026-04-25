@@ -5,6 +5,7 @@ import {
   resolveCanvasHeightPages,
   NOTABILITY_PAGE_HEIGHT_PX,
 } from '../notabilityCanvasMigration';
+import { Y_NORM_PAGE_HEIGHT } from '../notabilityStrokeMigration';
 
 /**
  * Pure-unit tests for the notability canvas migration helper. The
@@ -38,14 +39,52 @@ describe('computeNotabilityPagesHint', () => {
     expect(computeNotabilityPagesHint(onePage)).toBe(1);
   });
 
-  it('returns >=2 when a stroke is past the height-norm 0.5 boundary', () => {
+  it('NEW encoding: stroke at y=1.5 (page 2) → 2 pages', () => {
+    // yNormBase='page-height' means y is directly in page units.
+    // 1.5 means the stroke is halfway down page 2. ceil(1.5) = 2.
     const twoPages = {
       version: 2,
+      yNormBase: Y_NORM_PAGE_HEIGHT,
+      strokes: [{ points: [{ x: 0.1, y: 1.5 }] }],
+      textBoxes: [],
+      images: [],
+    };
+    expect(computeNotabilityPagesHint(twoPages)).toBe(2);
+  });
+
+  it('NEW encoding: stroke at y=0.7 (still page 1) → 1 page', () => {
+    // Pre-fix this triggered pagesFromStrokeMaxY(0.7 > 2/3) → 3 pages,
+    // completely wrong for a stroke still on page 1. After the fix a
+    // y=0.7 in page-units is ceil(0.7) = 1 page.
+    const onePage = {
+      version: 2,
+      yNormBase: Y_NORM_PAGE_HEIGHT,
       strokes: [{ points: [{ x: 0.1, y: 0.7 }] }],
       textBoxes: [],
       images: [],
     };
-    expect(computeNotabilityPagesHint(twoPages)).toBeGreaterThanOrEqual(2);
+    expect(computeNotabilityPagesHint(onePage)).toBe(1);
+  });
+
+  it('LEGACY encoding (no yNormBase): stroke at width-norm y=1.5 → 1 page', () => {
+    // Legacy: y*800/1200 = 1.0 ceil → 1.
+    const legacy = {
+      version: 2,
+      strokes: [{ points: [{ x: 0.1, y: 1.5 }] }],
+      textBoxes: [],
+      images: [],
+    };
+    expect(computeNotabilityPagesHint(legacy)).toBe(1);
+  });
+
+  it('LEGACY encoding: stroke at width-norm y=2.4 → 2 pages (2.4*800/1200 = 1.6 ceil)', () => {
+    const legacyBig = {
+      version: 2,
+      strokes: [{ points: [{ x: 0.1, y: 2.4 }] }],
+      textBoxes: [],
+      images: [],
+    };
+    expect(computeNotabilityPagesHint(legacyBig)).toBe(2);
   });
 
   it('returns >=2 when a textbox is at width-norm y > PAGE_HEIGHT/width', () => {
@@ -88,22 +127,24 @@ describe('computeNotabilityPagesHint', () => {
 });
 
 describe('augmentNotabilityJSON', () => {
-  it('adds canvasHeightPages for a version-2 payload with page-2 content', () => {
+  it('adds canvasHeightPages for a page-height-normalized payload with page-2 content', () => {
     const raw = JSON.stringify({
       version: 2,
-      strokes: [{ points: [{ x: 0.1, y: 0.8 }] }],
+      yNormBase: Y_NORM_PAGE_HEIGHT,
+      strokes: [{ points: [{ x: 0.1, y: 1.5 }] }],
       textBoxes: [],
       images: [],
     });
     const out = augmentNotabilityJSON(raw) as string;
     const parsed = JSON.parse(out);
-    expect(parsed.canvasHeightPages).toBeGreaterThanOrEqual(2);
+    expect(parsed.canvasHeightPages).toBe(2);
   });
 
   it('is idempotent: augmenting twice produces the same JSON', () => {
     const raw = JSON.stringify({
       version: 2,
-      strokes: [{ points: [{ x: 0.1, y: 0.7 }] }],
+      yNormBase: Y_NORM_PAGE_HEIGHT,
+      strokes: [{ points: [{ x: 0.1, y: 1.2 }] }],
       textBoxes: [],
       images: [],
     });
@@ -153,30 +194,34 @@ describe('resolveCanvasHeightPages', () => {
   });
 
   it('falls back to computeNotabilityPagesHint when the hint is absent', () => {
-    // No hint → delegates to the existing estimator. Strokes near y≈1.5 in
-    // height-normalized space mean page 2.
+    // No hint → delegates to the estimator.
+    // NEW encoding: y=1.5 is halfway down page 2 → 2 pages (ceil(1.5)).
     expect(resolveCanvasHeightPages({
-      strokes: [{ points: [{ x: 0, y: 0.7 }] }],
-    })).toBe(3); // pagesFromStrokeMaxY: y > 2/3 → 3
+      yNormBase: Y_NORM_PAGE_HEIGHT,
+      strokes: [{ points: [{ x: 0, y: 1.5 }] }],
+    })).toBe(2);
     expect(resolveCanvasHeightPages({})).toBe(1); // empty → single-page floor
   });
 
   it('ignores a non-numeric or invalid hint and falls back to the estimate', () => {
     const invalidButNotNumber = resolveCanvasHeightPages({
       canvasHeightPages: Number.NaN,
-      strokes: [{ points: [{ x: 0, y: 0.55 }] }],
+      yNormBase: Y_NORM_PAGE_HEIGHT,
+      strokes: [{ points: [{ x: 0, y: 1.5 }] }],
     });
-    expect(invalidButNotNumber).toBe(2); // stroke drives estimate → 2 pages
+    expect(invalidButNotNumber).toBe(2);
 
     const zero = resolveCanvasHeightPages({
       canvasHeightPages: 0,
-      strokes: [{ points: [{ x: 0, y: 0.55 }] }],
+      yNormBase: Y_NORM_PAGE_HEIGHT,
+      strokes: [{ points: [{ x: 0, y: 1.5 }] }],
     });
     expect(zero).toBe(2);
 
     const negative = resolveCanvasHeightPages({
       canvasHeightPages: -5,
-      strokes: [{ points: [{ x: 0, y: 0.55 }] }],
+      yNormBase: Y_NORM_PAGE_HEIGHT,
+      strokes: [{ points: [{ x: 0, y: 1.5 }] }],
     });
     expect(negative).toBe(2);
   });
