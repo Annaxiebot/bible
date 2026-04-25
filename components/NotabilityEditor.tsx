@@ -529,6 +529,30 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   // large bitmap in the pen-down handler.
   const liveStrokeCanvasRef = useRef<HTMLCanvasElement>(null);
   const liveStrokeCtxRef = useRef<CanvasRenderingContext2D | null>(null);
+  // B2-B — lasso-drag live overlay. Same pattern as ADR-0002 fix #2's
+  // live-stroke canvas, applied to lasso *moves*: when the user picks up
+  // a selected lasso, we redraw main (without the selected strokes) ONCE,
+  // rasterize the selected strokes alone onto this overlay canvas, and
+  // then per-pointermove we ONLY mutate the overlay's CSS transform —
+  // O(1)/event vs the previous O(totalStrokes)/event redrawAll path that
+  // PR #21's F5 fix throttled but didn't eliminate.
+  //
+  // R15 evidence: per-event work drops from O(totalStrokes_in_doc) to
+  // O(1). On a 4-page page-density-typical note (~600 strokes) at the
+  // user-reported 120 Hz pen rate, that's ~600×120 = 72k stroke() calls
+  // per second on the previous path; the new path is zero (the GPU does
+  // the translate in the compositor). Wall-clock measurement on the
+  // user's iPad is the proper R15 verification but is not available
+  // here — flagged in the commit.
+  const lassoLiveCanvasRef = useRef<HTMLCanvasElement>(null);
+  const lassoLiveCtxRef = useRef<CanvasRenderingContext2D | null>(null);
+  // True while a lasso drag is in progress (overlay visible, main canvas
+  // is rendered without the selected strokes). Cleared on pointerup,
+  // which then commits the position delta to strokeDataRef and redraws.
+  // Ref (not state) — read by handlePointerMove which mutates the overlay
+  // element's `style.transform` directly, avoiding a React re-render on
+  // every Apple Pencil sub-event.
+  const lassoLiveActiveRef = useRef(false);
   // Page index (0-based) the current stroke started on. Used to translate
   // doc-space y coordinates into live-canvas local y, and to position the
   // live canvas via CSS top. Null when no stroke is active.
@@ -957,6 +981,29 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       liveStrokeCanvas.style.display = 'none';
       liveStrokeActiveRef.current = false;
       liveStrokePageRef.current = null;
+    }
+
+    // B2-B — lasso live overlay: same allocation pattern as the live-
+    // stroke canvas above, but sized to the FULL canvas height so a
+    // selection that spans multiple pages can rasterize without clipping.
+    // Only allocated/sized once here; the per-drag fast path
+    // (handlePointerDown's lasso-drag branch) only sets a CSS transform.
+    const lassoLiveCanvas = lassoLiveCanvasRef.current;
+    if (lassoLiveCanvas) {
+      lassoLiveCanvas.width = width * dpr;
+      lassoLiveCanvas.height = height * dpr;
+      const lassoCtx = lassoLiveCanvas.getContext('2d');
+      if (lassoCtx) {
+        lassoCtx.setTransform(1, 0, 0, 1, 0, 0);
+        lassoCtx.scale(dpr, dpr);
+        lassoCtx.lineCap = 'round';
+        lassoCtx.lineJoin = 'round';
+        lassoLiveCtxRef.current = lassoCtx;
+        lassoCtx.clearRect(0, 0, width, height);
+      }
+      lassoLiveCanvas.style.display = 'none';
+      lassoLiveCanvas.style.transform = 'translate(0,0)';
+      lassoLiveActiveRef.current = false;
     }
 
     redrawBackground();
@@ -1460,6 +1507,114 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       if (nx >= b.x && nx <= b.x + b.w && ny >= b.y && ny <= b.y + b.h) {
         lassoDragStartRef.current = { x, y };
         pushUndo();
+        // B2-B — start live-overlay mode for the drag. Two snapshots:
+        //   1. Main canvas WITHOUT selected strokes — committed once
+        //      here; subsequent pointermoves leave it untouched.
+        //   2. Selected strokes alone, rasterized onto lassoLiveCanvas.
+        // Per-pointermove then ONLY mutates lassoLiveCanvas's CSS
+        // `transform: translate(dx, dy)`. The browser composites
+        // pre-rasterized layers on the GPU — no JS-side stroke loop,
+        // no main-canvas redraw. Drops per-event work from
+        // O(totalStrokes) to O(1) (R15: algorithmic class win).
+        const liveEl = lassoLiveCanvasRef.current;
+        const liveCtx = lassoLiveCtxRef.current;
+        const main = canvasRef.current;
+        const overlay = overlayCanvasRef.current;
+        const mainCtx = ctxRef.current;
+        const overlayCtx = overlayCtxRef.current;
+        if (liveEl && liveCtx && main && mainCtx) {
+          // Step 1: rasterize selected strokes onto the lasso live
+          // canvas. We can't share the existing redrawAll path because it
+          // doesn't filter by stroke index — write a focused replay loop
+          // that draws ONLY the selected strokes at their current doc
+          // positions.
+          liveCtx.clearRect(0, 0, displayWidthRef.current, displayHeightRef.current);
+          for (const idx of lassoSelection.strokeIndices) {
+            const s = strokeDataRef.current.strokes[idx];
+            if (!s || s.points.length < 2) continue;
+            // Re-derive stroke compositing from the saved per-stroke
+            // metadata (NOT toolRef — the selection could have been
+            // made long ago with a different active tool). Highlighter
+            // normally uses 'multiply' against the page; on a separate
+            // overlay canvas 'multiply' against transparent produces
+            // incorrect colors, so we use 'source-over' for the drag
+            // preview. The committed redraw on pointerup uses the same
+            // per-tool path as the original render (redrawAll →
+            // applyToolSettingsTo), so any visual delta during the
+            // drag snaps back to exact on drop.
+            liveCtx.globalCompositeOperation = 'source-over';
+            liveCtx.globalAlpha = s.opacity;
+            liveCtx.strokeStyle = s.color;
+            liveCtx.lineWidth = s.lineWidth * w;
+            liveCtx.beginPath();
+            liveCtx.moveTo(s.points[0].x * w, s.points[0].y * PAGE_HEIGHT);
+            for (let i = 1; i < s.points.length; i++) {
+              liveCtx.lineTo(s.points[i].x * w, s.points[i].y * PAGE_HEIGHT);
+            }
+            liveCtx.stroke();
+          }
+          // Also paint the dashed selection bounding-box on the live
+          // overlay so the visible "selection" rectangle moves WITH the
+          // ink during the drag. Without this, the rect stays at the
+          // selection's original position (it's drawn by redrawAll, which
+          // we deliberately skip during the drag) and the user sees the
+          // ink slide out from under a stationary box.
+          {
+            const b = lassoSelection.bounds;
+            liveCtx.save();
+            liveCtx.globalCompositeOperation = 'source-over';
+            liveCtx.globalAlpha = 1;
+            liveCtx.strokeStyle = '#4f46e5';
+            liveCtx.lineWidth = 2;
+            liveCtx.setLineDash([4, 3]);
+            liveCtx.strokeRect(
+              b.x * w, b.y * PAGE_HEIGHT,
+              b.w * w, b.h * PAGE_HEIGHT,
+            );
+            liveCtx.restore();
+          }
+          // Step 2: redraw main + overlay WITHOUT the selected strokes.
+          // We re-use redrawAll's machinery by temporarily filtering the
+          // strokes via a marker — but redrawAll iterates strokeDataRef
+          // directly with no filter argument, so the cleanest fix is to
+          // splice the selected strokes out, redrawAll, and splice them
+          // back. Splicing in two passes (sorted descending so indexes
+          // stay stable) is O(strokes_in_selection); redrawAll is
+          // O(unselected_strokes) which is exactly what we want for
+          // step 2.
+          const selSet = new Set(lassoSelection.strokeIndices);
+          const all = strokeDataRef.current.strokes;
+          const removed: { idx: number; stroke: typeof all[number] }[] = [];
+          for (let i = all.length - 1; i >= 0; i--) {
+            if (selSet.has(i)) {
+              removed.push({ idx: i, stroke: all[i] });
+              all.splice(i, 1);
+            }
+          }
+          redrawAll();
+          // Restore in original order so subsequent moveLassoSelection /
+          // pointerup logic can reference the original strokeIndices.
+          for (let i = removed.length - 1; i >= 0; i--) {
+            const r = removed[i];
+            all.splice(r.idx, 0, r.stroke);
+          }
+          // Step 3: show overlay at translate(0,0).
+          liveEl.style.transform = 'translate(0px, 0px)';
+          liveEl.style.display = 'block';
+          // z-index above main + above text boxes (text boxes use
+          // 5+zOrder; overlay canvas uses default). Use 11 to stay above
+          // both the canvas and the text boxes for the drag's duration.
+          liveEl.style.zIndex = '11';
+          lassoLiveActiveRef.current = true;
+          // Avoid: in case overlayCtx exists, we don't need to do
+          // anything special — redrawAll already cleared and re-painted
+          // it without the selected strokes (assuming selected strokes
+          // could have been on either layer). overlay variable is read
+          // here only to silence "unused" warnings if the layered
+          // strokes path ever needs to gate on it.
+          void overlay;
+          void overlayCtx;
+        }
         return;
       } else {
         setLassoSelection(null);
@@ -1607,36 +1762,52 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     const { x, y } = getCanvasPoint(clientX, clientY);
     const tool = toolRef.current;
 
-    // F5 — lasso-drag: accumulate dx/dy into a pending ref and flush via
-    // requestAnimationFrame. Per-event redrawAll was O(totalStrokes) and
-    // saturated the main thread on large pages; rAF bounds the redraw
-    // rate to the display refresh (~60 fps) without changing semantics.
-    // The previous rAF attempt referenced in the old comment was on the
-    // PEN-drawing path (commitCurrentStroke sub-segments) — a separate
-    // concern; lasso drag is safe to throttle because no new strokes
-    // are being committed during the drag.
-    if (lassoDragStartRef.current && lassoSelection) {
+    // B2-B — lasso-drag fast path. PR #21 F5 used rAF to throttle a
+    // per-event redrawAll (O(strokes)/event); the user reported "still
+    // very laggy" on iPad even with the throttle.
+    //
+    // New approach: at lasso-drag pointerdown we (a) painted the
+    // selected strokes onto a separate live overlay canvas and
+    // (b) redrew main WITHOUT them — see handlePointerDown's
+    // `lassoLiveActiveRef.current = true` branch. Per-pointermove now
+    // ONLY mutates the overlay's CSS transform — pure GPU compositor
+    // work, NO main-canvas redraw, NO stroke loop.
+    //
+    // R15 evidence: per-event work O(strokes) → O(1). On a ~600-stroke
+    // doc at 120 Hz Pencil rate, that drops the main-thread paint cost
+    // from ~600×120=72k stroke() calls/sec to zero per-event work.
+    // Wall-clock measurement on real iPad is the proper R15 verifier
+    // and is flagged in the commit message as not-yet-verified.
+    if (lassoDragStartRef.current && lassoSelection && lassoLiveActiveRef.current) {
       const start = lassoDragStartRef.current;
-      const dx = x - start.x;
-      const dy = y - start.y;
-      lassoDragStartRef.current = { x, y };
-      const pending = lassoDragPendingRef.current;
-      if (pending) {
-        pending.dx += dx;
-        pending.dy += dy;
-      } else {
-        lassoDragPendingRef.current = { dx, dy };
+      // dx/dy here are the TOTAL drag delta from the original
+      // pointerdown, NOT the per-event step. Why total: the live
+      // overlay's CSS translate is set ABSOLUTELY each frame, so
+      // accumulation lives in the (fixed) start position rather than
+      // in a state variable. start.x/y were set at pointerdown and
+      // are NOT updated per-move (the previous F5 path updated them
+      // every move because moveLassoSelection consumed deltas — we
+      // don't need that anymore).
+      const totalDx = x - start.x;
+      const totalDy = y - start.y;
+      const liveEl = lassoLiveCanvasRef.current;
+      if (liveEl) {
+        // Direct DOM mutation: NO React re-render. The browser
+        // composites the pre-rasterized overlay at the new translate
+        // on the GPU.
+        liveEl.style.transform = `translate(${totalDx}px, ${totalDy}px)`;
       }
-      if (lassoDragRafRef.current === null) {
-        lassoDragRafRef.current = requestAnimationFrame(() => {
-          lassoDragRafRef.current = null;
-          const p = lassoDragPendingRef.current;
-          if (p) {
-            lassoDragPendingRef.current = null;
-            moveLassoSelection(p.dx, p.dy);
-          }
-        });
-      }
+      return;
+    }
+    // Defensive fallback: if the live overlay didn't engage (shouldn't
+    // happen — handlePointerDown sets lassoLiveActiveRef synchronously
+    // before this is ever reachable), drop the move silently rather
+    // than re-introducing the F5 redrawAll path. Re-introducing it
+    // would mask a regression where the overlay setup failed and quietly
+    // give the user back the laggy behavior. Better to fail visibly:
+    // the selection just doesn't move, the user notices, and we get
+    // a bug report instead of perf complaints.
+    if (lassoDragStartRef.current && lassoSelection) {
       return;
     }
 
@@ -1728,20 +1899,46 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   const handlePointerUp = useCallback(() => {
     const tool = toolRef.current;
     if (lassoDragStartRef.current) {
+      const start = lassoDragStartRef.current;
       lassoDragStartRef.current = null;
-      // F5 — flush any pending rAF-throttled lasso move so the final
-      // position reflects all input events (don't drop the last batch
-      // of deltas between the last rAF and pointerup). Then save once
-      // at drop instead of on every pointer-move.
+      // B2-B — commit drag delta in ONE pass: read the final translate
+      // off the live overlay element (already set by handlePointerMove)
+      // and call moveLassoSelection once with the total dx/dy. That
+      // updates strokeDataRef + lassoSelection.bounds, then redrawAll
+      // re-renders main/overlay with the strokes in their new positions.
+      // The live overlay is hidden + cleared so the user sees a clean
+      // hand-off from "translated overlay" to "redrawn main canvas".
+      const liveEl = lassoLiveCanvasRef.current;
+      const liveCtx = lassoLiveCtxRef.current;
+      let totalDx = 0;
+      let totalDy = 0;
+      if (liveEl && liveCtx && lassoLiveActiveRef.current) {
+        // Parse `translate(Xpx, Ypx)` from the inline style we set in
+        // handlePointerMove. style.transform always has this exact
+        // format because we wrote it. If it's empty (drag canceled
+        // before any move fired), totalDx/Dy stay 0 and the next
+        // moveLassoSelection call is a no-op.
+        const m = liveEl.style.transform.match(/translate\((-?\d+(?:\.\d+)?)px,\s*(-?\d+(?:\.\d+)?)px\)/);
+        if (m) {
+          totalDx = parseFloat(m[1]);
+          totalDy = parseFloat(m[2]);
+        }
+        liveEl.style.transform = 'translate(0px, 0px)';
+        liveEl.style.display = 'none';
+        liveCtx.clearRect(0, 0, displayWidthRef.current, displayHeightRef.current);
+        lassoLiveActiveRef.current = false;
+      }
+      // moveLassoSelection's own clamp (PR #21 F5) keeps the final
+      // position on-canvas; we do NOT need to re-clamp here.
+      void start;
+      // Cancel any in-flight stale rAF throttling state (carry-over
+      // from PR #21 F5; harmless if it never fired but defensive).
       if (lassoDragRafRef.current !== null) {
         cancelAnimationFrame(lassoDragRafRef.current);
         lassoDragRafRef.current = null;
       }
-      const pending = lassoDragPendingRef.current;
-      if (pending) {
-        lassoDragPendingRef.current = null;
-        moveLassoSelection(pending.dx, pending.dy);
-      }
+      lassoDragPendingRef.current = null;
+      moveLassoSelection(totalDx, totalDy);
       triggerAutoSave();
       return;
     }
@@ -4228,6 +4425,25 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
             style={{
               position: 'absolute', left: 0, top: 0, width: '100%',
               height: `${PAGE_HEIGHT}px`,
+              display: 'none', pointerEvents: 'none', zIndex: 11,
+            }} />
+
+          {/* ── B2-B: lasso-drag live overlay ───────────────────────────
+              Holds a rasterized snapshot of the selected strokes (plus
+              the dashed selection-bounding-box) during a drag. Per-
+              pointermove only mutates `style.transform` — pure GPU
+              work, no main-canvas redraw. On drop, the delta is
+              committed to strokeDataRef and this overlay is cleared
+              + hidden.
+
+              Sized full canvasHeight (not page-sized like
+              liveStrokeCanvas) so a multi-page selection rasterizes
+              without clipping. Allocated ONCE in setupCanvases. */}
+          <canvas ref={lassoLiveCanvasRef}
+            data-testid="lasso-live-overlay"
+            style={{
+              position: 'absolute', left: 0, top: 0, width: '100%',
+              height: `${canvasHeight}px`,
               display: 'none', pointerEvents: 'none', zIndex: 11,
             }} />
 
