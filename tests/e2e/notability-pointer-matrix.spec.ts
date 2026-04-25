@@ -1099,24 +1099,23 @@ test.describe('NotabilityEditor F3: stroke drift on rotation', () => {
 // the page at the last moment of the swipe, not continuous showing the
 // next page's content animation."
 //
-// Root cause: on swipe completion, goToPage instantly set currentPage
-// (outer's translateY jumped) AND reset swipeOffset to 0 (swipe div
-// stayed put). With both transforms at their target values in one frame,
-// the user saw the page snap — no interpolation of next-page content.
+// Iteration history:
+//   F4 (PR #21) animated swipeOffset 0 → ±viewportW → 0 around a goToPage
+//   call. That gave the OUTGOING page a slide-out but the user reported the
+//   incoming page still looked like a snap because the new page only
+//   appeared once outer.translateY jumped — no interpolation of the
+//   incoming content was visible.
 //
-// Fix: after setting currentPage, bump swipeOffset to ±viewportWidth
-// (the new page is now off-screen in the swipe direction), then on the
-// next animation frame set it back to 0 — the CSS transition slides the
-// incoming page INTO position. Net visual: page content slides
-// continuously, not a snap.
-//
-// Test: trigger a swipe via synthetic touch. After the swipe, the swipe
-// layer's inline-style.transform must NOT be exactly 'translateX(0px)'
-// in the same animation frame where outer.translateY jumped — there has
-// to be a non-zero intermediate offset. Since the intermediate happens
-// INSIDE a rAF after goToPage, we probe immediately after the touchend
-// before the rAF + transition completes.
-test.describe('NotabilityEditor F4: continuous page-flip animation', () => {
+//   B2-A (this branch) renders BOTH pages during a swipe:
+//     - Outgoing on page-stack-swipe (translateX = swipeOffset).
+//     - Incoming on page-stack-swipe-incoming (a sibling canvas with the
+//       neighbor page rasterized into it, translateX = swipeOffset +
+//       direction * cardWidth, so it sits just off-screen at rest and
+//       slides in lock-step with the outgoing page).
+//   On commit (touchend with |dx| > SWIPE_THRESHOLD): both layers animate
+//   together — outgoing slides off, incoming slides on, then a transition-
+//   end commit swaps currentPage and unmounts the snapshot. No snap.
+test.describe('NotabilityEditor F4/B2-A: continuous page-flip animation', () => {
   test.use({
     userAgent: 'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
     hasTouch: true,
@@ -1128,67 +1127,164 @@ test.describe('NotabilityEditor F4: continuous page-flip animation', () => {
     });
   });
 
-  test('swipe completion transitions swipe-layer translateX (no snap)', async ({ page }) => {
+  test('mid-swipe renders incoming page canvas at off-screen offset', async ({ page }) => {
+    // Core B2-A assertion: while the user is mid-swipe (touchmove past the
+    // direction-detect threshold), the editor MUST be rendering BOTH the
+    // outgoing page (page-stack-swipe at translateX = swipeOffset) AND a
+    // sibling page-stack-swipe-incoming positioned one card-width away in
+    // the swipe direction. The incoming layer is the visual difference
+    // from F4: F4 only animated the outgoing slide, leaving the user with
+    // a snap when the new page suddenly appeared at the end.
     const canvas = await openNotability(page);
-    // Enter single-page + add page so there's somewhere to flip.
-    await page.locator('button[title="Menu"]').click();
-    await page.locator('[data-testid="page-mode-single"]').click();
-    await page.waitForTimeout(120);
+    await switchPageMode(page, 'single');
+    // Confirm we're actually in single mode before adding a page (the
+    // Add Page button only shows in single mode; without this gate the
+    // test silently runs the swipe in seamless mode where the
+    // incoming-page snapshot is never rendered).
+    await expect(page.locator('[data-testid="page-card-clip"]')).toBeVisible();
+    await expect.poll(async () => {
+      const cardStyle = await page.locator('[data-testid="page-card-clip"]').evaluate(
+        el => (el as HTMLElement).style.boxShadow,
+      );
+      return cardStyle ? 'styled' : 'unstyled';
+    }, { timeout: 2_000 }).toBe('styled');
     await page.getByRole('button', { name: /Add Page/ }).click();
     await page.waitForTimeout(120);
     await selectTool(page, 'Pen');
+    // Make sure we're on page 0 — Add Page navigates to the new (last)
+    // page, so go back so a swipe-left has somewhere to flip TO.
+    await page.keyboard.press('PageUp');
+    await page.waitForTimeout(80);
 
-    const swipeLayer = page.locator('[data-testid="page-stack-swipe"]');
-    // Dispatch a horizontal swipe past SWIPE_THRESHOLD (50 px). End of
-    // swipe returns no touches; we need the INTERMEDIATE state between
-    // touchend (goToPage sets currentPage + swipeOffset to off-screen
-    // value) and the rAF that starts the animation back to 0.
-    // Capture the transform at a moment where the transition is IN FLIGHT.
-    await page.evaluate(() => {
+    // Dispatch touchstart + several touchmoves WITHOUT the touchend, so
+    // we sample the DOM mid-gesture. If Touch/TouchEvent constructors are
+    // unavailable (some Chromium builds), `result` will surface a string
+    // explaining what failed; the assertion below will then point at the
+    // real cause rather than at "canvas display:none".
+    const dispatchResult = await page.evaluate(() => {
       const c = document.querySelectorAll('canvas')[1] as HTMLCanvasElement;
+      if (!c) return 'no-canvas';
       const rect = c.getBoundingClientRect();
-      const id = 30;
+      if (typeof Touch === 'undefined' || typeof TouchEvent === 'undefined') {
+        return 'no-touch-ctor';
+      }
+      const id = 31;
+      let lastErr = '';
       const fire = (kind: string, x: number, y: number, radiusX: number) => {
         const clientX = rect.left + x;
         const clientY = rect.top + y;
         const touchInit: any = { identifier: id, target: c, clientX, clientY, radiusX, radiusY: radiusX, force: 0.3 };
         try {
           const t = new Touch(touchInit);
-          const touchKind = kind;
-          const tev = new TouchEvent(touchKind, {
+          const tev = new TouchEvent(kind, {
             bubbles: true, cancelable: true, composed: true,
-            touches: (touchKind === 'touchend' ? [] : [t]) as any,
+            touches: (kind === 'touchend' ? [] : [t]) as any,
             changedTouches: [t] as any,
-            targetTouches: (touchKind === 'touchend' ? [] : [t]) as any,
+            targetTouches: (kind === 'touchend' ? [] : [t]) as any,
           });
           c.dispatchEvent(tev);
-        } catch { /* Touch ctor missing — test env limitation */ }
+        } catch (err) { lastErr = String(err); }
       };
-      // Swipe LEFT (next page) well past SWIPE_THRESHOLD.
+      fire('touchstart', 500, 200, 20);
+      fire('touchmove', 400, 200, 20);
+      fire('touchmove', 300, 200, 20); // dx = -200, well past direction threshold
+      return lastErr || 'ok';
+    });
+    expect(dispatchResult, 'synthetic touch dispatch must succeed for B2-A test').toBe('ok');
+    // Let React render the snapshot canvas mount.
+    await page.waitForTimeout(80);
+
+    // The incoming page canvas must (a) be in the DOM, (b) have a
+    // non-default translateX (slid in from the right edge), (c) render at
+    // the correct height (PAGE_HEIGHT in CSS px).
+    // First, sanity check that single-page mode is active (the canvas only
+    // renders when pageMode === 'single').
+    const cardClipShadow = await page.locator('[data-testid="page-card-clip"]').evaluate(
+      el => (el as HTMLElement).style.boxShadow,
+    );
+    expect(cardClipShadow, 'page-card-clip must have inline boxShadow set (single-page mode)').toBeTruthy();
+    const incoming = page.locator('[data-testid="page-stack-swipe-incoming"]');
+    await expect(incoming).toHaveCount(1);
+    // display:none → boundingBox returns null. Mid-swipe it must be visible.
+    const incomingBox = await incoming.boundingBox();
+    expect(incomingBox, 'incoming page canvas must be laid out (not display:none) mid-swipe').not.toBeNull();
+    // The transform must reference the swipe-direction translation.
+    const transform = await incoming.evaluate(el => (el as HTMLElement).style.transform);
+    expect(transform, 'incoming canvas transform must include translateX with swipe + direction*100% offset').toMatch(/translateX\(/);
+    // Direction = +1 (next page, swipe-left), so the % component is +100%.
+    // Encoded as either a literal `100%` or a calc() with swipeOffset.
+    expect(transform).toMatch(/100%/);
+
+    // Sibling swipe layer should also be translated (outgoing slide). It
+    // tracks dx = -200, so style.transform reads `translateX(-200px)`.
+    const outgoing = page.locator('[data-testid="page-stack-swipe"]');
+    const outgoingTransform = await outgoing.evaluate(el => (el as HTMLElement).style.transform);
+    expect(outgoingTransform, 'outgoing swipe layer must follow finger 1:1 mid-swipe').toMatch(/translateX\(-?\d+px\)/);
+    expect(outgoingTransform).not.toMatch(/translateX\(0px?\)/);
+  });
+
+  test('after swipe commit, swipe-layer settles at translateX(0px)', async ({ page }) => {
+    // End-state assertion: once the post-touchend SWIPE_COMMIT_DURATION_MS
+    // settle runs, the swipe layer is back at translateX(0) (currentPage
+    // updated; outer.translateY now selects the new page) and the
+    // incoming snapshot canvas has unmounted-or-display-none.
+    const canvas = await openNotability(page);
+    await page.locator('button[title="Menu"]').click();
+    await page.locator('[data-testid="page-mode-single"]').click();
+    await page.waitForTimeout(120);
+    await page.getByRole('button', { name: /Add Page/ }).click();
+    await page.waitForTimeout(120);
+    await selectTool(page, 'Pen');
+    await page.keyboard.press('PageUp');
+    await page.waitForTimeout(80);
+
+    await page.evaluate(() => {
+      const c = document.querySelectorAll('canvas')[1] as HTMLCanvasElement;
+      const rect = c.getBoundingClientRect();
+      const id = 32;
+      const fire = (kind: string, x: number, y: number, radiusX: number) => {
+        const clientX = rect.left + x;
+        const clientY = rect.top + y;
+        const touchInit: any = { identifier: id, target: c, clientX, clientY, radiusX, radiusY: radiusX, force: 0.3 };
+        try {
+          const t = new Touch(touchInit);
+          const tev = new TouchEvent(kind, {
+            bubbles: true, cancelable: true, composed: true,
+            touches: (kind === 'touchend' ? [] : [t]) as any,
+            changedTouches: [t] as any,
+            targetTouches: (kind === 'touchend' ? [] : [t]) as any,
+          });
+          c.dispatchEvent(tev);
+        } catch { /* Touch ctor missing in older browsers */ }
+      };
       fire('touchstart', 500, 200, 20);
       fire('touchmove', 300, 200, 20);
       fire('touchmove', 100, 200, 20);
       fire('touchend', 100, 200, 20);
     });
 
-    // Post-F4: after the swipe settles, the swipe-layer inline transform
-    // ends at translateX(0px) (the transition brought it back from
-    // ±viewportW). The final state is the clear observable — the
-    // intermediate non-zero state happens inside a single rAF tick and
-    // is timing-fragile to sample in headless Chromium. What we CAN
-    // reliably assert is the final state PLUS the structural invariant
-    // (the code path that produced the non-zero jump exists) — see the
-    // separate "page-flip uses requestAnimationFrame" source-grep
-    // tripwire below.
+    const swipeLayer = page.locator('[data-testid="page-stack-swipe"]');
+    // Settles to translateX(0) within SWIPE_COMMIT_DURATION_MS (300ms) +
+    // a generous margin for the commit timer + transition end.
     await expect
       .poll(() => swipeLayer.evaluate(el => (el as HTMLElement).style.transform), { timeout: 2_000 })
-      .toMatch(/translateX\(0px?\)/);
+      .toMatch(/translateX\(0p?x?\)/);
+    // After commit, incoming snapshot must be display:none (or absent).
+    await expect.poll(async () => {
+      const incoming = page.locator('[data-testid="page-stack-swipe-incoming"]');
+      const cnt = await incoming.count();
+      if (cnt === 0) return 'gone';
+      return await incoming.evaluate(el => (el as HTMLElement).style.display);
+    }, { timeout: 2_000 }).toMatch(/^(none|gone)$/);
   });
 
-  // Structural invariant: the F4 fix inserts a requestAnimationFrame +
-  // off-screen-then-back pattern in the touchend swipe-completion
-  // branch. If a future edit reverts the rAF, this tripwire fires.
-  test('swipe completion wires rAF (F4 tripwire)', async () => {
+  // Structural invariant: B2-A wires (a) an incoming-page snapshot canvas
+  // with data-testid='page-stack-swipe-incoming', (b) a captureIncomingPage
+  // helper that composites bg+main+overlay onto it, and (c) a
+  // pendingFlipDirection state used to gate snapshot visibility. If a
+  // future edit reverts to the F4 single-layer animation, all three
+  // grep targets fire.
+  test('B2-A wires incoming-page snapshot architecture (tripwire)', async () => {
     const fs = await import('node:fs');
     const url = await import('node:url');
     const path = await import('node:path');
@@ -1197,12 +1293,18 @@ test.describe('NotabilityEditor F4: continuous page-flip animation', () => {
       path.resolve(here, '..', '..', 'components/NotabilityEditor.tsx'),
       'utf8',
     );
-    // The F4 marker + rAF-wrapped setSwipeOffset(0) must exist in the
-    // swipe-completion branch.
-    expect(src).toMatch(/F4 — continuous book-flip animation/);
-    // And the off-screen bump + requestAnimationFrame → 0 pattern.
-    expect(src).toMatch(/setSwipeOffset\(direction \* viewportW\)/);
-    expect(src).toMatch(/requestAnimationFrame\(\(\)\s*=>\s*\{\s*setSwipeOffset\(0\);/);
+    // Snapshot canvas in JSX with the testid.
+    expect(src).toMatch(/data-testid="page-stack-swipe-incoming"/);
+    // Helper that fills the snapshot from bg + main + overlay.
+    expect(src).toMatch(/captureIncomingPage\s*=\s*useCallback/);
+    // Pending flip direction state, used to gate snapshot visibility.
+    expect(src).toMatch(/pendingFlipDirection/);
+    // The drawImage composite path that takes a vertical slice from each
+    // source layer (srcY = pageNum * PAGE_HEIGHT * dpr). The "srcY" name
+    // is the load-bearing identifier — if a refactor renames it, update
+    // this regex deliberately.
+    expect(src).toMatch(/drawImage\(bg, 0, srcY/);
+    expect(src).toMatch(/drawImage\(main, 0, srcY/);
   });
 });
 
