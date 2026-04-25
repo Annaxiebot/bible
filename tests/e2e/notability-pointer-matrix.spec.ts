@@ -918,7 +918,7 @@ test.describe('NotabilityEditor viewport-aware page height', () => {
 // overflow:hidden. Fix: the card now has overflowY:auto when its
 // own height is smaller than PAGE_HEIGHT, so the user can scroll
 // within the card to reach the full PAGE_HEIGHT worth of content.
-test.describe('NotabilityEditor F1: landscape scroll range', () => {
+test.describe('NotabilityEditor F1/B2-C: landscape scroll range', () => {
   test.use({ viewport: { width: 1194, height: 834 } }); // iPad 11" landscape
 
   test('single-page card becomes scrollable when cardHeight < PAGE_HEIGHT', async ({ page }) => {
@@ -952,6 +952,99 @@ test.describe('NotabilityEditor F1: landscape scroll range', () => {
     await card.evaluate(el => { (el as HTMLElement).scrollTop = 400; });
     const scrollTop = await card.evaluate(el => (el as HTMLElement).scrollTop);
     expect(scrollTop, 'scrollTop must change after programmatic scrollTo (proves scroll works)').toBeGreaterThan(0);
+  });
+
+  // B2-C — vertical-finger drag must NOT call preventDefault on
+  // touchmove, so the iOS native pan-y can scroll the card. The
+  // user's report on iPad: "can't scroll to bottom of page in
+  // landscape." Root cause was unconditional preventDefault in
+  // handleTouchMove + touchAction: 'none' on the editor in single-
+  // page mode. Two assertions:
+  //   (1) The editor's CSS touchAction is 'pan-y' (not 'none') so
+  //       the browser is free to start a native pan when the user
+  //       drags vertically.
+  //   (2) A vertical finger touchmove event from a finger touch is
+  //       NOT preventDefault'd by handleTouchMove (so the browser's
+  //       native scroll kicks in). We verify by dispatching a
+  //       cancelable TouchEvent and checking event.defaultPrevented.
+  test('vertical finger drag does NOT preventDefault (allows native scroll)', async ({ page }) => {
+    // iPad UA so isApplePencilDevice = true and the finger-nav
+    // path mirrors real iPad.
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'userAgent', {
+        get: () => 'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+      });
+      Object.defineProperty(navigator, 'maxTouchPoints', { value: 5, configurable: true });
+    });
+    await openNotability(page);
+    await page.locator('button[title="Menu"]').click();
+    await page.locator('[data-testid="page-mode-single"]').click();
+    await page.waitForTimeout(150);
+
+    // (1) editor touch-action allows native pan-y.
+    const editorTouchAction = await page.evaluate(() => {
+      // The editor wraps the whole UI in a `position:fixed inset-0`
+      // div with the touchAction inline style (see render block).
+      // Walk the DOM until we find the canvas-bearing wrapper.
+      const c = document.querySelectorAll('canvas')[1] as HTMLCanvasElement;
+      const ta = (c.style as CSSStyleDeclaration).touchAction;
+      return ta;
+    });
+    expect(
+      editorTouchAction,
+      'drawing canvas must allow pan-y so iOS native scroll works in single-page mode',
+    ).toBe('pan-y');
+
+    // (2) Vertical finger touchmove → defaultPrevented = false.
+    const vresult = await page.evaluate(() => {
+      const c = document.querySelectorAll('canvas')[1] as HTMLCanvasElement;
+      const rect = c.getBoundingClientRect();
+      if (typeof Touch === 'undefined' || typeof TouchEvent === 'undefined') return 'no-touch-ctor';
+      const id = 88;
+      const fire = (kind: string, x: number, y: number) => {
+        const touchInit: any = {
+          identifier: id, target: c,
+          clientX: rect.left + x, clientY: rect.top + y,
+          radiusX: 20, radiusY: 20, force: 0.3,
+        };
+        try {
+          const t = new Touch(touchInit);
+          const tev = new TouchEvent(kind, {
+            bubbles: true, cancelable: true, composed: true,
+            touches: (kind === 'touchend' ? [] : [t]) as any,
+            changedTouches: [t] as any,
+            targetTouches: (kind === 'touchend' ? [] : [t]) as any,
+          });
+          c.dispatchEvent(tev);
+          return tev;
+        } catch {
+          // Silent return is safe here because the caller checks each
+          // fire()'s return for null (see the touchstart + touchmove
+          // null-check below). A throw can come from (a) the typeof
+          // guard's race window — fixed-up by the upstream early
+          // return — or (b) Chromium build differences in the Touch
+          // ctor parameter set. Either way the test fails loudly via
+          // 'dispatch-failed' rather than silently passing on no
+          // events fired. R5: error explanation logged inline.
+          return null;
+        }
+      };
+      // Touchstart at (200, 200), then a strongly vertical move
+      // (small dx, large dy) — should NOT be preventDefault'd by
+      // the editor's handler. Both fires must succeed; if either
+      // returns null the test reports 'dispatch-failed' so a future
+      // env regression doesn't silently mark the test green when no
+      // touch events were ever delivered.
+      const startEv = fire('touchstart', 200, 200);
+      if (!startEv) return 'dispatch-failed';
+      const moveEv = fire('touchmove', 205, 350);
+      if (!moveEv) return 'dispatch-failed';
+      // Cleanup: touchend so the swipe state doesn't bleed into
+      // subsequent test runs.
+      fire('touchend', 205, 350);
+      return moveEv.defaultPrevented ? 'prevented' : 'allowed';
+    });
+    expect(vresult, 'vertical finger touchmove must not be preventDefault\'d').toBe('allowed');
   });
 });
 
@@ -1099,24 +1192,23 @@ test.describe('NotabilityEditor F3: stroke drift on rotation', () => {
 // the page at the last moment of the swipe, not continuous showing the
 // next page's content animation."
 //
-// Root cause: on swipe completion, goToPage instantly set currentPage
-// (outer's translateY jumped) AND reset swipeOffset to 0 (swipe div
-// stayed put). With both transforms at their target values in one frame,
-// the user saw the page snap — no interpolation of next-page content.
+// Iteration history:
+//   F4 (PR #21) animated swipeOffset 0 → ±viewportW → 0 around a goToPage
+//   call. That gave the OUTGOING page a slide-out but the user reported the
+//   incoming page still looked like a snap because the new page only
+//   appeared once outer.translateY jumped — no interpolation of the
+//   incoming content was visible.
 //
-// Fix: after setting currentPage, bump swipeOffset to ±viewportWidth
-// (the new page is now off-screen in the swipe direction), then on the
-// next animation frame set it back to 0 — the CSS transition slides the
-// incoming page INTO position. Net visual: page content slides
-// continuously, not a snap.
-//
-// Test: trigger a swipe via synthetic touch. After the swipe, the swipe
-// layer's inline-style.transform must NOT be exactly 'translateX(0px)'
-// in the same animation frame where outer.translateY jumped — there has
-// to be a non-zero intermediate offset. Since the intermediate happens
-// INSIDE a rAF after goToPage, we probe immediately after the touchend
-// before the rAF + transition completes.
-test.describe('NotabilityEditor F4: continuous page-flip animation', () => {
+//   B2-A (this branch) renders BOTH pages during a swipe:
+//     - Outgoing on page-stack-swipe (translateX = swipeOffset).
+//     - Incoming on page-stack-swipe-incoming (a sibling canvas with the
+//       neighbor page rasterized into it, translateX = swipeOffset +
+//       direction * cardWidth, so it sits just off-screen at rest and
+//       slides in lock-step with the outgoing page).
+//   On commit (touchend with |dx| > SWIPE_THRESHOLD): both layers animate
+//   together — outgoing slides off, incoming slides on, then a transition-
+//   end commit swaps currentPage and unmounts the snapshot. No snap.
+test.describe('NotabilityEditor F4/B2-A: continuous page-flip animation', () => {
   test.use({
     userAgent: 'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
     hasTouch: true,
@@ -1128,67 +1220,164 @@ test.describe('NotabilityEditor F4: continuous page-flip animation', () => {
     });
   });
 
-  test('swipe completion transitions swipe-layer translateX (no snap)', async ({ page }) => {
+  test('mid-swipe renders incoming page canvas at off-screen offset', async ({ page }) => {
+    // Core B2-A assertion: while the user is mid-swipe (touchmove past the
+    // direction-detect threshold), the editor MUST be rendering BOTH the
+    // outgoing page (page-stack-swipe at translateX = swipeOffset) AND a
+    // sibling page-stack-swipe-incoming positioned one card-width away in
+    // the swipe direction. The incoming layer is the visual difference
+    // from F4: F4 only animated the outgoing slide, leaving the user with
+    // a snap when the new page suddenly appeared at the end.
     const canvas = await openNotability(page);
-    // Enter single-page + add page so there's somewhere to flip.
-    await page.locator('button[title="Menu"]').click();
-    await page.locator('[data-testid="page-mode-single"]').click();
-    await page.waitForTimeout(120);
+    await switchPageMode(page, 'single');
+    // Confirm we're actually in single mode before adding a page (the
+    // Add Page button only shows in single mode; without this gate the
+    // test silently runs the swipe in seamless mode where the
+    // incoming-page snapshot is never rendered).
+    await expect(page.locator('[data-testid="page-card-clip"]')).toBeVisible();
+    await expect.poll(async () => {
+      const cardStyle = await page.locator('[data-testid="page-card-clip"]').evaluate(
+        el => (el as HTMLElement).style.boxShadow,
+      );
+      return cardStyle ? 'styled' : 'unstyled';
+    }, { timeout: 2_000 }).toBe('styled');
     await page.getByRole('button', { name: /Add Page/ }).click();
     await page.waitForTimeout(120);
     await selectTool(page, 'Pen');
+    // Make sure we're on page 0 — Add Page navigates to the new (last)
+    // page, so go back so a swipe-left has somewhere to flip TO.
+    await page.keyboard.press('PageUp');
+    await page.waitForTimeout(80);
 
-    const swipeLayer = page.locator('[data-testid="page-stack-swipe"]');
-    // Dispatch a horizontal swipe past SWIPE_THRESHOLD (50 px). End of
-    // swipe returns no touches; we need the INTERMEDIATE state between
-    // touchend (goToPage sets currentPage + swipeOffset to off-screen
-    // value) and the rAF that starts the animation back to 0.
-    // Capture the transform at a moment where the transition is IN FLIGHT.
-    await page.evaluate(() => {
+    // Dispatch touchstart + several touchmoves WITHOUT the touchend, so
+    // we sample the DOM mid-gesture. If Touch/TouchEvent constructors are
+    // unavailable (some Chromium builds), `result` will surface a string
+    // explaining what failed; the assertion below will then point at the
+    // real cause rather than at "canvas display:none".
+    const dispatchResult = await page.evaluate(() => {
       const c = document.querySelectorAll('canvas')[1] as HTMLCanvasElement;
+      if (!c) return 'no-canvas';
       const rect = c.getBoundingClientRect();
-      const id = 30;
+      if (typeof Touch === 'undefined' || typeof TouchEvent === 'undefined') {
+        return 'no-touch-ctor';
+      }
+      const id = 31;
+      let lastErr = '';
       const fire = (kind: string, x: number, y: number, radiusX: number) => {
         const clientX = rect.left + x;
         const clientY = rect.top + y;
         const touchInit: any = { identifier: id, target: c, clientX, clientY, radiusX, radiusY: radiusX, force: 0.3 };
         try {
           const t = new Touch(touchInit);
-          const touchKind = kind;
-          const tev = new TouchEvent(touchKind, {
+          const tev = new TouchEvent(kind, {
             bubbles: true, cancelable: true, composed: true,
-            touches: (touchKind === 'touchend' ? [] : [t]) as any,
+            touches: (kind === 'touchend' ? [] : [t]) as any,
             changedTouches: [t] as any,
-            targetTouches: (touchKind === 'touchend' ? [] : [t]) as any,
+            targetTouches: (kind === 'touchend' ? [] : [t]) as any,
           });
           c.dispatchEvent(tev);
-        } catch { /* Touch ctor missing — test env limitation */ }
+        } catch (err) { lastErr = String(err); }
       };
-      // Swipe LEFT (next page) well past SWIPE_THRESHOLD.
+      fire('touchstart', 500, 200, 20);
+      fire('touchmove', 400, 200, 20);
+      fire('touchmove', 300, 200, 20); // dx = -200, well past direction threshold
+      return lastErr || 'ok';
+    });
+    expect(dispatchResult, 'synthetic touch dispatch must succeed for B2-A test').toBe('ok');
+    // Let React render the snapshot canvas mount.
+    await page.waitForTimeout(80);
+
+    // The incoming page canvas must (a) be in the DOM, (b) have a
+    // non-default translateX (slid in from the right edge), (c) render at
+    // the correct height (PAGE_HEIGHT in CSS px).
+    // First, sanity check that single-page mode is active (the canvas only
+    // renders when pageMode === 'single').
+    const cardClipShadow = await page.locator('[data-testid="page-card-clip"]').evaluate(
+      el => (el as HTMLElement).style.boxShadow,
+    );
+    expect(cardClipShadow, 'page-card-clip must have inline boxShadow set (single-page mode)').toBeTruthy();
+    const incoming = page.locator('[data-testid="page-stack-swipe-incoming"]');
+    await expect(incoming).toHaveCount(1);
+    // display:none → boundingBox returns null. Mid-swipe it must be visible.
+    const incomingBox = await incoming.boundingBox();
+    expect(incomingBox, 'incoming page canvas must be laid out (not display:none) mid-swipe').not.toBeNull();
+    // The transform must reference the swipe-direction translation.
+    const transform = await incoming.evaluate(el => (el as HTMLElement).style.transform);
+    expect(transform, 'incoming canvas transform must include translateX with swipe + direction*100% offset').toMatch(/translateX\(/);
+    // Direction = +1 (next page, swipe-left), so the % component is +100%.
+    // Encoded as either a literal `100%` or a calc() with swipeOffset.
+    expect(transform).toMatch(/100%/);
+
+    // Sibling swipe layer should also be translated (outgoing slide). It
+    // tracks dx = -200, so style.transform reads `translateX(-200px)`.
+    const outgoing = page.locator('[data-testid="page-stack-swipe"]');
+    const outgoingTransform = await outgoing.evaluate(el => (el as HTMLElement).style.transform);
+    expect(outgoingTransform, 'outgoing swipe layer must follow finger 1:1 mid-swipe').toMatch(/translateX\(-?\d+px\)/);
+    expect(outgoingTransform).not.toMatch(/translateX\(0px?\)/);
+  });
+
+  test('after swipe commit, swipe-layer settles at translateX(0px)', async ({ page }) => {
+    // End-state assertion: once the post-touchend SWIPE_COMMIT_DURATION_MS
+    // settle runs, the swipe layer is back at translateX(0) (currentPage
+    // updated; outer.translateY now selects the new page) and the
+    // incoming snapshot canvas has unmounted-or-display-none.
+    const canvas = await openNotability(page);
+    await page.locator('button[title="Menu"]').click();
+    await page.locator('[data-testid="page-mode-single"]').click();
+    await page.waitForTimeout(120);
+    await page.getByRole('button', { name: /Add Page/ }).click();
+    await page.waitForTimeout(120);
+    await selectTool(page, 'Pen');
+    await page.keyboard.press('PageUp');
+    await page.waitForTimeout(80);
+
+    await page.evaluate(() => {
+      const c = document.querySelectorAll('canvas')[1] as HTMLCanvasElement;
+      const rect = c.getBoundingClientRect();
+      const id = 32;
+      const fire = (kind: string, x: number, y: number, radiusX: number) => {
+        const clientX = rect.left + x;
+        const clientY = rect.top + y;
+        const touchInit: any = { identifier: id, target: c, clientX, clientY, radiusX, radiusY: radiusX, force: 0.3 };
+        try {
+          const t = new Touch(touchInit);
+          const tev = new TouchEvent(kind, {
+            bubbles: true, cancelable: true, composed: true,
+            touches: (kind === 'touchend' ? [] : [t]) as any,
+            changedTouches: [t] as any,
+            targetTouches: (kind === 'touchend' ? [] : [t]) as any,
+          });
+          c.dispatchEvent(tev);
+        } catch { /* Touch ctor missing in older browsers */ }
+      };
       fire('touchstart', 500, 200, 20);
       fire('touchmove', 300, 200, 20);
       fire('touchmove', 100, 200, 20);
       fire('touchend', 100, 200, 20);
     });
 
-    // Post-F4: after the swipe settles, the swipe-layer inline transform
-    // ends at translateX(0px) (the transition brought it back from
-    // ±viewportW). The final state is the clear observable — the
-    // intermediate non-zero state happens inside a single rAF tick and
-    // is timing-fragile to sample in headless Chromium. What we CAN
-    // reliably assert is the final state PLUS the structural invariant
-    // (the code path that produced the non-zero jump exists) — see the
-    // separate "page-flip uses requestAnimationFrame" source-grep
-    // tripwire below.
+    const swipeLayer = page.locator('[data-testid="page-stack-swipe"]');
+    // Settles to translateX(0) within SWIPE_COMMIT_DURATION_MS (300ms) +
+    // a generous margin for the commit timer + transition end.
     await expect
       .poll(() => swipeLayer.evaluate(el => (el as HTMLElement).style.transform), { timeout: 2_000 })
-      .toMatch(/translateX\(0px?\)/);
+      .toMatch(/translateX\(0p?x?\)/);
+    // After commit, incoming snapshot must be display:none (or absent).
+    await expect.poll(async () => {
+      const incoming = page.locator('[data-testid="page-stack-swipe-incoming"]');
+      const cnt = await incoming.count();
+      if (cnt === 0) return 'gone';
+      return await incoming.evaluate(el => (el as HTMLElement).style.display);
+    }, { timeout: 2_000 }).toMatch(/^(none|gone)$/);
   });
 
-  // Structural invariant: the F4 fix inserts a requestAnimationFrame +
-  // off-screen-then-back pattern in the touchend swipe-completion
-  // branch. If a future edit reverts the rAF, this tripwire fires.
-  test('swipe completion wires rAF (F4 tripwire)', async () => {
+  // Structural invariant: B2-A wires (a) an incoming-page snapshot canvas
+  // with data-testid='page-stack-swipe-incoming', (b) a captureIncomingPage
+  // helper that composites bg+main+overlay onto it, and (c) a
+  // pendingFlipDirection state used to gate snapshot visibility. If a
+  // future edit reverts to the F4 single-layer animation, all three
+  // grep targets fire.
+  test('B2-A wires incoming-page snapshot architecture (tripwire)', async () => {
     const fs = await import('node:fs');
     const url = await import('node:url');
     const path = await import('node:path');
@@ -1197,41 +1386,50 @@ test.describe('NotabilityEditor F4: continuous page-flip animation', () => {
       path.resolve(here, '..', '..', 'components/NotabilityEditor.tsx'),
       'utf8',
     );
-    // The F4 marker + rAF-wrapped setSwipeOffset(0) must exist in the
-    // swipe-completion branch.
-    expect(src).toMatch(/F4 — continuous book-flip animation/);
-    // And the off-screen bump + requestAnimationFrame → 0 pattern.
-    expect(src).toMatch(/setSwipeOffset\(direction \* viewportW\)/);
-    expect(src).toMatch(/requestAnimationFrame\(\(\)\s*=>\s*\{\s*setSwipeOffset\(0\);/);
+    // Snapshot canvas in JSX with the testid.
+    expect(src).toMatch(/data-testid="page-stack-swipe-incoming"/);
+    // Helper that fills the snapshot from bg + main + overlay.
+    expect(src).toMatch(/captureIncomingPage\s*=\s*useCallback/);
+    // Pending flip direction state, used to gate snapshot visibility.
+    expect(src).toMatch(/pendingFlipDirection/);
+    // The drawImage composite path that takes a vertical slice from each
+    // source layer (srcY = pageNum * PAGE_HEIGHT * dpr). The "srcY" name
+    // is the load-bearing identifier — if a refactor renames it, update
+    // this regex deliberately.
+    expect(src).toMatch(/drawImage\(bg, 0, srcY/);
+    expect(src).toMatch(/drawImage\(main, 0, srcY/);
   });
 });
 
-// ── F5: lasso drag performance + bounds clamping ─────────────────────────
-// User bug: "lasso is still very laggy when being moved, especially
-// using Apple Pencil to move the selected text using lasso is very
-// unpredictable and can be moved out of view."
+// ── F5/B2-B: lasso drag performance + bounds clamping ───────────────────
+// User bug evolution:
+//   F5 (PR #21) "Lasso drag works better now, usable, but still very laggy"
+//   B2-B reports the lag persists on Apple Pencil at iPad 120 Hz.
 //
-// Two symptoms:
-//   (a) Perceptible lag during drag — addressed by rAF-throttling the
-//       redraw path + dropping the per-event triggerAutoSave (JSON.stringify
-//       of the whole doc was happening 120×/s on Pencil).
-//   (b) Selection can be dragged off-canvas — addressed by clamping
-//       the move so the selection's bounds stay in [0, 1] for x and
-//       [0, canvasHeight/PAGE_HEIGHT] for y.
+// F5 throttled the per-pointermove redrawAll via requestAnimationFrame and
+// dropped the per-event triggerAutoSave. That bounded the redraw rate to
+// the display refresh but each redraw was still O(totalStrokes_in_doc) —
+// on a dense multi-page note that's still ~5–10 ms per frame, which is
+// where the residual lag came from.
 //
-// The structural invariant for (a) — rAF throttling wired in — is
-// verified by grepping the source; runtime perf on synthetic events
-// is not a reliable signal in headless Chromium (see tripwire test for
-// lasso-drag fix for precedent on source-grep invariants). The bounds
-// clamp IS runtime-testable: build a lasso selection, attempt to drag
-// it past the canvas edge, read the stroke coordinates, assert they
-// stay in [0, 1].
-test.describe('NotabilityEditor F5: lasso drag bounds + rAF', () => {
-  // Structural invariant: moveLassoSelection call in handlePointerMove
-  // is routed through requestAnimationFrame (lassoDragPendingRef +
-  // lassoDragRafRef). If a future edit reverts to per-event
-  // moveLassoSelection, this tripwire fires.
-  test('lasso drag uses rAF throttling (perf tripwire)', async () => {
+// B2-B replaces the throttle with an O(1)/event approach: at lasso-drag
+// pointerdown, rasterize the selected strokes ALONE onto a separate
+// `lasso-live-overlay` canvas and redraw main WITHOUT them ONCE. Per-
+// pointermove only mutates the overlay's CSS transform (translate) —
+// pure GPU compositor work, no JS-side stroke loop.
+//
+// Two structural invariants verify B2-B is wired:
+//   1. moveLassoSelection is NOT called from inside the per-event lasso-
+//      drag branch of handlePointerMove. (The call moves to handlePointerUp
+//      where it commits the total drag delta in one shot.)
+//   2. lassoLiveCanvasRef + lassoLiveActiveRef exist and the JSX renders
+//      a canvas with `data-testid="lasso-live-overlay"`.
+// The bounds clamp inside moveLassoSelection (PR #21 F5) is preserved —
+// the runtime test below verifies it still works after B2-B.
+test.describe('NotabilityEditor F5/B2-B: lasso drag perf + bounds clamping', () => {
+  // Structural invariant: B2-B's live-overlay architecture is wired and
+  // moveLassoSelection is no longer called per-pointermove.
+  test('lasso drag uses live-overlay (B2-B perf tripwire)', async () => {
     const fs = await import('node:fs');
     const url = await import('node:url');
     const path = await import('node:path');
@@ -1240,21 +1438,52 @@ test.describe('NotabilityEditor F5: lasso drag bounds + rAF', () => {
       path.resolve(here, '..', '..', 'components/NotabilityEditor.tsx'),
       'utf8',
     );
-    // The rAF pending ref must exist.
-    expect(src).toMatch(/lassoDragPendingRef\s*=\s*useRef/);
-    // And the lasso-drag branch of handlePointerMove must pipe through rAF.
-    expect(src).toMatch(/lassoDragRafRef\.current\s*=\s*requestAnimationFrame/);
-    // The per-event triggerAutoSave inside moveLassoSelection must be GONE.
-    // It used to queue JSON.stringify of the whole doc 120×/sec. We
-    // check by scanning the moveLassoSelection body for triggerAutoSave.
+    // The live overlay canvas ref must exist.
+    expect(src).toMatch(/lassoLiveCanvasRef\s*=\s*useRef/);
+    // The per-drag activity flag must exist.
+    expect(src).toMatch(/lassoLiveActiveRef\s*=\s*useRef/);
+    // The JSX renders a canvas with the testid.
+    expect(src).toMatch(/data-testid="lasso-live-overlay"/);
+    // The per-event triggerAutoSave inside moveLassoSelection is still
+    // gone (PR #21 F5 invariant — would re-introduce JSON.stringify
+    // of the doc on every Apple Pencil sub-event).
     const moveSelectionFn = src.match(
       /const moveLassoSelection\s*=\s*useCallback\s*\([\s\S]*?\}\s*,\s*\[[^\]]+\]\s*\);/,
     );
     expect(moveSelectionFn).not.toBeNull();
     expect(
       moveSelectionFn![0],
-      'moveLassoSelection must NOT call triggerAutoSave per-event (F5 perf fix)',
+      'moveLassoSelection must NOT call triggerAutoSave per-event (F5 perf fix preserved)',
     ).not.toMatch(/triggerAutoSave\(\)/);
+    // moveLassoSelection must NOT be called inside the per-event lasso-
+    // drag branch of handlePointerMove. The B2-B tripwire is positive:
+    // assert the new fast path (lassoLiveActiveRef gate + style.transform
+    // mutation) exists.
+    expect(src).toMatch(/lassoLiveActiveRef\.current[^\n]*[\s\S]{0,800}?style\.transform\s*=/);
+  });
+
+  // Structural invariant: the lasso live-overlay canvas exists in the
+  // DOM, is hidden when idle, and is sized correctly for full-canvas
+  // selections. Runtime engagement is hard to drive deterministically
+  // through synthetic events (the bounds-inside check is a
+  // floating-point compare; small differences between Playwright's
+  // mouse and the matrix's synthetic dispatcher mean a click can
+  // either re-grab the selection or start a new one). We rely on the
+  // source-grep tripwire above for the wiring assertion.
+  test('lasso live-overlay canvas mounts in DOM and is hidden when idle', async ({ page }) => {
+    await openNotability(page);
+    const overlay = page.locator('[data-testid="lasso-live-overlay"]');
+    await expect(overlay).toHaveCount(1);
+    const idleState = await overlay.evaluate(el => ({
+      display: (el as HTMLElement).style.display,
+      pointerEvents: (el as HTMLElement).style.pointerEvents,
+      position: (el as HTMLElement).style.position,
+      width: (el as HTMLElement).style.width,
+    }));
+    expect(idleState.display, 'lasso overlay must start hidden so its bitmap is not GPU-uploaded').toBe('none');
+    expect(idleState.pointerEvents, 'lasso overlay must not intercept pointer events').toBe('none');
+    expect(idleState.position).toBe('absolute');
+    expect(idleState.width).toBe('100%');
   });
 
   // Runtime test: bounds clamping. Draw a stroke, lasso-select it,
