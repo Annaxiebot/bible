@@ -14,9 +14,15 @@ import { dirname, resolve } from 'node:path';
  * lags noticeably on resume.
  *
  * The fix is two defenses at the same site:
- *   1. Guard: skip the save entirely if `isDrawingRef.current` is true
- *      (mid-stroke). handlePointerUp's commitCurrentStroke re-triggers
- *      autosave when safe.
+ *   1. Reschedule on mid-stroke: when `isDrawingRef.current` is true at
+ *      timer fire, the timer reschedules itself for
+ *      `AUTOSAVE_DRAWING_POLL_MS` rather than `return`-skipping. The
+ *      original PR #23 used `return;` which silently consumed the
+ *      schedule — for continuous handwriting the next pen-up's timer
+ *      also fired mid-stroke, was also dropped, and so on. A 2026-04-25
+ *      production iPad sample produced ZERO saves over a 2-page write
+ *      (`{strokes: []}` arrived at Supabase). Reschedule keeps the
+ *      "wait until idle" intent while never silently dropping.
  *   2. Defer: perform the actual JSON.stringify + onSave inside a
  *      `requestIdleCallback` (or setTimeout 0 fallback for older
  *      Safari). Saves never race with user input.
@@ -36,13 +42,18 @@ describe('ADR-0002 Pencil fix #1: autosave off the pen path', () => {
   const editorPath = resolve(here, '..', 'NotabilityEditor.tsx');
   const src = readFileSync(editorPath, 'utf8');
 
-  it('guards the autosave timer body with isDrawingRef.current check (defense #1)', () => {
-    // The guard must appear inside the setTimeout callback, before the
-    // save helper is invoked. A regression that drops this lets mid-
-    // stroke saves resume.
-    expect(src, 'isDrawingRef.current guard is missing from the autosave path').toMatch(
-      /autoSaveTimerRef\.current\s*=\s*setTimeout\(\s*\(\s*\)\s*=>\s*\{[\s\S]{0,2000}?if\s*\(\s*isDrawingRef\.current\s*\)\s*return\s*;/,
+  it('reschedules the autosave timer when a stroke is in progress (defense #1)', () => {
+    // The guard appears inside the timer callback. If the user is mid-
+    // stroke, the timer must NOT silently `return` — that consumes the
+    // schedule and produces zero saves during continuous handwriting
+    // (the 2026-04-25 production regression: 2-page note arrived empty).
+    // The guard now reschedules itself with AUTOSAVE_DRAWING_POLL_MS so
+    // the save eventually fires during a brief pen-up lull.
+    expect(src, 'autosave timer must reschedule on isDrawingRef, not return-skip').toMatch(
+      /if\s*\(\s*isDrawingRef\.current\s*\)\s*\{[\s\S]{0,200}?setTimeout\(\s*tick\s*,\s*AUTOSAVE_DRAWING_POLL_MS\s*\)/,
     );
+    // And the constant must exist so the value lives in one place.
+    expect(src).toMatch(/const\s+AUTOSAVE_DRAWING_POLL_MS\s*=\s*\d+\s*;/);
   });
 
   it('dispatches the serialize+save work via requestIdleCallback with a setTimeout fallback (defense #2)', () => {
