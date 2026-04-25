@@ -918,7 +918,7 @@ test.describe('NotabilityEditor viewport-aware page height', () => {
 // overflow:hidden. Fix: the card now has overflowY:auto when its
 // own height is smaller than PAGE_HEIGHT, so the user can scroll
 // within the card to reach the full PAGE_HEIGHT worth of content.
-test.describe('NotabilityEditor F1: landscape scroll range', () => {
+test.describe('NotabilityEditor F1/B2-C: landscape scroll range', () => {
   test.use({ viewport: { width: 1194, height: 834 } }); // iPad 11" landscape
 
   test('single-page card becomes scrollable when cardHeight < PAGE_HEIGHT', async ({ page }) => {
@@ -952,6 +952,85 @@ test.describe('NotabilityEditor F1: landscape scroll range', () => {
     await card.evaluate(el => { (el as HTMLElement).scrollTop = 400; });
     const scrollTop = await card.evaluate(el => (el as HTMLElement).scrollTop);
     expect(scrollTop, 'scrollTop must change after programmatic scrollTo (proves scroll works)').toBeGreaterThan(0);
+  });
+
+  // B2-C — vertical-finger drag must NOT call preventDefault on
+  // touchmove, so the iOS native pan-y can scroll the card. The
+  // user's report on iPad: "can't scroll to bottom of page in
+  // landscape." Root cause was unconditional preventDefault in
+  // handleTouchMove + touchAction: 'none' on the editor in single-
+  // page mode. Two assertions:
+  //   (1) The editor's CSS touchAction is 'pan-y' (not 'none') so
+  //       the browser is free to start a native pan when the user
+  //       drags vertically.
+  //   (2) A vertical finger touchmove event from a finger touch is
+  //       NOT preventDefault'd by handleTouchMove (so the browser's
+  //       native scroll kicks in). We verify by dispatching a
+  //       cancelable TouchEvent and checking event.defaultPrevented.
+  test('vertical finger drag does NOT preventDefault (allows native scroll)', async ({ page }) => {
+    // iPad UA so isApplePencilDevice = true and the finger-nav
+    // path mirrors real iPad.
+    await page.addInitScript(() => {
+      Object.defineProperty(navigator, 'userAgent', {
+        get: () => 'Mozilla/5.0 (iPad; CPU OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+      });
+      Object.defineProperty(navigator, 'maxTouchPoints', { value: 5, configurable: true });
+    });
+    await openNotability(page);
+    await page.locator('button[title="Menu"]').click();
+    await page.locator('[data-testid="page-mode-single"]').click();
+    await page.waitForTimeout(150);
+
+    // (1) editor touch-action allows native pan-y.
+    const editorTouchAction = await page.evaluate(() => {
+      // The editor wraps the whole UI in a `position:fixed inset-0`
+      // div with the touchAction inline style (see render block).
+      // Walk the DOM until we find the canvas-bearing wrapper.
+      const c = document.querySelectorAll('canvas')[1] as HTMLCanvasElement;
+      const ta = (c.style as CSSStyleDeclaration).touchAction;
+      return ta;
+    });
+    expect(
+      editorTouchAction,
+      'drawing canvas must allow pan-y so iOS native scroll works in single-page mode',
+    ).toBe('pan-y');
+
+    // (2) Vertical finger touchmove → defaultPrevented = false.
+    const vresult = await page.evaluate(() => {
+      const c = document.querySelectorAll('canvas')[1] as HTMLCanvasElement;
+      const rect = c.getBoundingClientRect();
+      if (typeof Touch === 'undefined' || typeof TouchEvent === 'undefined') return 'no-touch-ctor';
+      const id = 88;
+      const fire = (kind: string, x: number, y: number) => {
+        const touchInit: any = {
+          identifier: id, target: c,
+          clientX: rect.left + x, clientY: rect.top + y,
+          radiusX: 20, radiusY: 20, force: 0.3,
+        };
+        try {
+          const t = new Touch(touchInit);
+          const tev = new TouchEvent(kind, {
+            bubbles: true, cancelable: true, composed: true,
+            touches: (kind === 'touchend' ? [] : [t]) as any,
+            changedTouches: [t] as any,
+            targetTouches: (kind === 'touchend' ? [] : [t]) as any,
+          });
+          c.dispatchEvent(tev);
+          return tev;
+        } catch { return null; }
+      };
+      // Touchstart at (200, 200), then a strongly vertical move
+      // (small dx, large dy) — should NOT be preventDefault'd by
+      // the editor's handler.
+      fire('touchstart', 200, 200);
+      const moveEv = fire('touchmove', 205, 350);
+      if (!moveEv) return 'dispatch-failed';
+      // Cleanup: touchend so the swipe state doesn't bleed into
+      // subsequent test runs.
+      fire('touchend', 205, 350);
+      return moveEv.defaultPrevented ? 'prevented' : 'allowed';
+    });
+    expect(vresult, 'vertical finger touchmove must not be preventDefault\'d').toBe('allowed');
   });
 });
 
