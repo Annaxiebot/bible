@@ -160,6 +160,11 @@ const MAX_SIZE = 12;
 // 300 px of usable area exists, not a full PAGE_HEIGHT). The user has an
 // explicit "Add Page" button for deliberate growth — no heuristic needed.
 const AUTOSAVE_DELAY = 2000;
+// When the autosave timer fires while a stroke is in progress, reschedule
+// for this many ms instead of dropping the save. ~250 ms is short enough
+// that we always catch a pen-up within the next handful of strokes during
+// continuous writing, long enough that we don't burn CPU polling.
+const AUTOSAVE_DRAWING_POLL_MS = 250;
 const MAX_HISTORY = 100;
 // Page height in logical CSS px. Single source of truth lives at
 // services/notabilityCanvasMigration.ts → NOTABILITY_PAGE_HEIGHT_PX.
@@ -673,7 +678,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 
   const triggerAutoSave = useCallback(() => {
     if (autoSaveTimerRef.current) clearTimeout(autoSaveTimerRef.current);
-    autoSaveTimerRef.current = setTimeout(() => {
+    autoSaveTimerRef.current = setTimeout(function tick() {
       // Per ADR-0002: `JSON.stringify` on a ~600 KB notability document
       // blocks the main thread 30–80 ms. Running that during a mid-stroke
       // pen rest (user picked up the Pencil momentarily, not finished
@@ -681,12 +686,22 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       // symptom was "few words and then lags."
       //
       // Two defenses:
-      //   1. If a stroke is IN PROGRESS, don't save. The pen-up handler
-      //      re-triggers autosave when it's safe.
-      //   2. Defer the save to `requestIdleCallback` so it never races
-      //      with pen input. Safari 17+ supports rIC; older Safari gets
-      //      `setTimeout(fn, 0)` which still yields to the render thread.
-      if (isDrawingRef.current) return;
+      //   1. If a stroke is IN PROGRESS, RESCHEDULE the timer for a short
+      //      poll. Earlier versions just `return`-skipped, which was wrong
+      //      for continuous handwriting: every 2-second timer fired during
+      //      the next stroke and was silently consumed, so a user who
+      //      wrote nonstop for minutes produced ZERO saves until they
+      //      paused. Confirmed in production 2026-04-25 — a 2-page note
+      //      arrived at Supabase with `strokes: []`. Reschedule keeps the
+      //      "wait until idle" behavior while never silently dropping.
+      //   2. Defer the actual JSON.stringify + onSave to
+      //      `requestIdleCallback` so the work never races with pen input.
+      //      Safari 17+ supports rIC; older Safari gets `setTimeout(fn,0)`
+      //      which still yields to the render thread.
+      if (isDrawingRef.current) {
+        autoSaveTimerRef.current = setTimeout(tick, AUTOSAVE_DRAWING_POLL_MS);
+        return;
+      }
       const perform = () => {
         let boxes = textBoxesRef.current;
         const eid = editingTextIdRef.current;
