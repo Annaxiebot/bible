@@ -1017,12 +1017,26 @@ test.describe('NotabilityEditor F1/B2-C: landscape scroll range', () => {
           });
           c.dispatchEvent(tev);
           return tev;
-        } catch { return null; }
+        } catch {
+          // Silent return is safe here because the caller checks each
+          // fire()'s return for null (see the touchstart + touchmove
+          // null-check below). A throw can come from (a) the typeof
+          // guard's race window — fixed-up by the upstream early
+          // return — or (b) Chromium build differences in the Touch
+          // ctor parameter set. Either way the test fails loudly via
+          // 'dispatch-failed' rather than silently passing on no
+          // events fired. R5: error explanation logged inline.
+          return null;
+        }
       };
       // Touchstart at (200, 200), then a strongly vertical move
       // (small dx, large dy) — should NOT be preventDefault'd by
-      // the editor's handler.
-      fire('touchstart', 200, 200);
+      // the editor's handler. Both fires must succeed; if either
+      // returns null the test reports 'dispatch-failed' so a future
+      // env regression doesn't silently mark the test green when no
+      // touch events were ever delivered.
+      const startEv = fire('touchstart', 200, 200);
+      if (!startEv) return 'dispatch-failed';
       const moveEv = fire('touchmove', 205, 350);
       if (!moveEv) return 'dispatch-failed';
       // Cleanup: touchend so the swipe state doesn't bleed into
