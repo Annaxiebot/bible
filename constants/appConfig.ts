@@ -128,6 +128,20 @@ export const SWIPE = {
   DIRECTION_LOCK_PX: 10,
 } as const;
 
+// ── Palm / stylus classification ────────────────────────────────────────────
+
+export const PALM = {
+  /**
+   * Contact radius (px) above which a touch is a palm or resting pinky, not a fingertip.
+   * iPad Safari reports ~15-22 for a finger and 25+ for a palm. utils/touchClassification.ts
+   * is the only place that should read this - it was previously a bare 25 written out in both
+   * SimpleDrawingCanvas and NotabilityEditor, which let the two drift.
+   */
+  RADIUS_PX: 25,
+  /** Below this radius a contact is an Apple Pencil rather than a finger. */
+  STYLUS_RADIUS_PX: 10,
+} as const;
+
 // ── Drawing canvas ──────────────────────────────────────────────────────────
 
 export const DRAWING = {
@@ -157,8 +171,6 @@ export const DRAWING = {
   TILT_DIVISOR: 180,
   /** Canvas render height (px) used when producing annotation print images */
   PRINT_RENDER_HEIGHT: 4000,
-  /** Palm rejection: Maximum touch radius threshold (Apple Pencil ~<5, finger ~10-20, palm ~30+) */
-  PALM_REJECTION_RADIUS: 25,
 } as const;
 
 // ── Auto-save research ──────────────────────────────────────────────────────

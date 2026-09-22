@@ -7,6 +7,7 @@
  */
 
 import React, { useRef, useEffect, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { pickDrawingTouch, realTouches, findTouchById } from '../utils/touchClassification';
 import {
   type AbsoluteStroke,
   type StrokeTool,
@@ -61,6 +62,10 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
     // Stroke-based state
     const strokeDataRef = useRef<NormalizedCanvasData>(createEmptyCanvasData(paperTypeProp));
     const currentStrokePointsRef = useRef<{ x: number; y: number }[]>([]);
+    // The identifier of the contact that started the current stroke. Without it the handlers
+    // read touches[0], which is whichever contact landed FIRST - and when a hand is resting that
+    // is the palm, not the Pencil.
+    const activeTouchIdRef = useRef<number | null>(null);
     const undoHistoryRef = useRef<NormalizedCanvasData[]>([]);
     const redoHistoryRef = useRef<NormalizedCanvasData[]>([]);
     const MAX_HISTORY = 20;
@@ -232,17 +237,34 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
     }, [onChange, getToolOpacity]);
 
     // Touch event handlers
+    // Swallow a contact that must neither ink nor navigate. A palm has to be stopped HERE: the
+    // old code returned without stopPropagation, so the event bubbled to BibleViewer's swipe
+    // container and a resting pinky drove the page-flip animation while this canvas was quietly
+    // declining to draw with it.
+    const swallow = (e: TouchEvent) => { e.preventDefault(); e.stopPropagation(); };
+
     const handleTouchStart = useCallback((e: TouchEvent) => {
       if (!isWritingMode) return;
-      e.preventDefault();
-      if (e.touches.length > 1) return;
 
-      const touch = e.touches[0];
-      if (touch.radiusX && touch.radiusX > 25) return;
+      // pickDrawingTouch prefers the STYLUS wherever it sits in the list. The old guard was
+      // `if (e.touches.length > 1) return;`, which counted the resting palm - so the Pencil's
+      // touchstart was rejected as multi-touch and wrote no ink at all until a finger was
+      // lifted. That is the same palm, causing the second bug.
+      const touch = pickDrawingTouch(e.touches);
+      if (!touch) {
+        // Palms only: absorb it. Two or more real fingers: a pinch or two-finger scroll, which
+        // the parent still needs to see, so it is left to bubble.
+        if (realTouches(e.touches).length === 0) swallow(e);
+        return;
+      }
 
       const canvas = canvasRef.current;
       const ctx = ctxRef.current;
       if (!canvas || !ctx) return;
+
+      // Inking must not also navigate.
+      swallow(e);
+      activeTouchIdRef.current = touch.identifier;
 
       const rect = canvas.getBoundingClientRect();
       const x = touch.clientX - rect.left;
@@ -257,15 +279,28 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
     }, [isWritingMode, applyToolSettings]);
 
     const handleTouchMove = useCallback((e: TouchEvent) => {
-      if (!isDrawingRef.current || !isWritingMode) return;
-      e.preventDefault();
-      if (e.touches.length > 1) {
+      if (!isWritingMode) return;
+
+      // Follow the contact that STARTED the stroke, by identifier. Reading touches[0] meant a
+      // palm landing mid-stroke hijacked the line and dragged it across the page.
+      const touch = findTouchById(e.touches, activeTouchIdRef.current);
+      if (!isDrawingRef.current || !touch) {
+        // A palm sliding across the canvas still must not reach the swipe handler.
+        if (realTouches(e.touches).length === 0) swallow(e);
+        return;
+      }
+      swallow(e);
+
+      // A second REAL finger mid-stroke is an intentional gesture, so the stroke ends - but it is
+      // COMMITTED, not discarded. The old code cleared currentStrokePointsRef outright, so a palm
+      // settling while you wrote silently threw away the line you had just drawn.
+      if (realTouches(e.touches).length > 1) {
+        commitCurrentStroke();
         isDrawingRef.current = false;
-        currentStrokePointsRef.current = [];
+        activeTouchIdRef.current = null;
         return;
       }
 
-      const touch = e.touches[0];
       const canvas = canvasRef.current;
       const ctx = ctxRef.current;
       if (!canvas || !ctx) return;
@@ -281,12 +316,28 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
 
     const handleTouchEnd = useCallback((e: TouchEvent) => {
       if (!isWritingMode) return;
+      // Only the stroke's own contact ends it. A palm lifting off used to end the stroke early.
+      if (activeTouchIdRef.current !== null && findTouchById(e.changedTouches, activeTouchIdRef.current) === null) {
+        if (realTouches(e.changedTouches).length === 0) swallow(e);
+        return;
+      }
       e.preventDefault();
       if (isDrawingRef.current) {
         commitCurrentStroke();
       }
       isDrawingRef.current = false;
+      activeTouchIdRef.current = null;
     }, [isWritingMode, commitCurrentStroke]);
+
+    // iOS fires touchcancel when the system takes a touch over - its own palm rejection, a
+    // notification, an edge gesture. Without this the stroke in progress was never committed and
+    // isDrawingRef stayed true, so the NEXT touch continued the abandoned line from wherever it
+    // left off. This is the reset you were getting by hand when you lifted and re-held the pencil.
+    const handleTouchCancel = useCallback(() => {
+      if (isDrawingRef.current) commitCurrentStroke();
+      isDrawingRef.current = false;
+      activeTouchIdRef.current = null;
+    }, [commitCurrentStroke]);
 
     // Mouse event handlers
     const startDrawing = useCallback((e: MouseEvent) => {
@@ -362,6 +413,7 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
       canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
       canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
       canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+      canvas.addEventListener('touchcancel', handleTouchCancel, { passive: false });
       canvas.addEventListener('mousedown', startDrawing);
       canvas.addEventListener('mousemove', draw);
       canvas.addEventListener('mouseup', stopDrawing);
@@ -373,6 +425,7 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
         canvas.removeEventListener('touchstart', handleTouchStart);
         canvas.removeEventListener('touchmove', handleTouchMove);
         canvas.removeEventListener('touchend', handleTouchEnd);
+        canvas.removeEventListener('touchcancel', handleTouchCancel);
         canvas.removeEventListener('mousedown', startDrawing);
         canvas.removeEventListener('mousemove', draw);
         canvas.removeEventListener('mouseup', stopDrawing);
@@ -380,7 +433,7 @@ const SimpleDrawingCanvas = forwardRef<SimpleDrawingCanvasHandle, SimpleDrawingC
         canvas.removeEventListener('contextmenu', (e) => e.preventDefault());
         document.removeEventListener('keydown', handleKeyDown);
       };
-    }, [handleTouchStart, handleTouchMove, handleTouchEnd, startDrawing, draw, stopDrawing, handleKeyDown]);
+    }, [handleTouchStart, handleTouchMove, handleTouchEnd, handleTouchCancel, startDrawing, draw, stopDrawing, handleKeyDown]);
 
     // Initialize canvases
     useEffect(() => {
