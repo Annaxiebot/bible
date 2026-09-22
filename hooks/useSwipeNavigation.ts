@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react';
 import { Verse } from '../types';
 import { SWIPE } from '../constants/appConfig';
-import { isPalmTouch, isStylusTouch, realTouches, findTouchById } from '../utils/touchClassification';
+import { navigationTouch, realTouches, findTouchById } from '../utils/touchClassification';
 
 const SWIPE_THRESHOLD = SWIPE.THRESHOLD_PX;
 const DIRECTION_LOCK_THRESHOLD = SWIPE.DIRECTION_LOCK_PX;
@@ -49,24 +49,17 @@ export function useSwipeNavigation(
     // Exactly one REAL contact starts a swipe. Counting raw touches meant a resting pinky plus a
     // deliberate finger read as two-finger and, worse, a pinky ALONE read as a valid one-finger
     // swipe — which is how a hand resting on the iPad flipped the page while the user was writing.
-    const real = realTouches(e.touches);
-    if (real.length !== 1 || isPalmTouch(real[0])) {
+    // navigationTouch encodes the app-wide rule: exactly one real finger, never a palm, never
+    // the Pencil — the Pencil writes, the finger navigates. Shared with the Journal entry-list
+    // swipe so the two cannot drift (R3). Reading with the pencil in hand needs a finger to flip.
+    const touch = navigationTouch(e.touches);
+    if (!touch) {
       reset();
       return;
     }
-    // DELIBERATE: the Apple Pencil writes, the finger navigates — the split GoodNotes and
-    // Notability use, and the one this app's annotation model already assumes. The canvas stops
-    // pencil strokes from reaching here when it is mounted, but it does not cover the margins or
-    // the gap between panels, and a stroke that starts there must not turn the page either.
-    // Reading with the pencil in hand therefore needs a finger to flip. Drop this branch to let
-    // the pencil navigate again; the test named after it documents the choice.
-    if (isStylusTouch(real[0])) {
-      reset();
-      return;
-    }
-    activeTouchIdRef.current = real[0].identifier;
-    setTouchStartX(real[0].clientX);
-    setTouchStartY(real[0].clientY);
+    activeTouchIdRef.current = touch.identifier;
+    setTouchStartX(touch.clientX);
+    setTouchStartY(touch.clientY);
     setSwipeDirection(null);
   }, [reset]);
 
