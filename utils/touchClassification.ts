@@ -88,6 +88,23 @@ export function pickDrawingTouch<T extends ClassifiableTouch>(touches: ArrayLike
   return real.length === 1 ? real[0] : null;
 }
 
+/**
+ * The one contact allowed to START a navigation gesture (page flip, panel swipe), or null.
+ *
+ * Encodes the rule the whole app follows: the PENCIL WRITES, THE FINGER NAVIGATES. Exactly one
+ * real finger, never a palm, never the stylus. A palm alongside the finger does not make it
+ * multi-touch — that was the case that broke, since a resting hand is present for most of a
+ * writing session.
+ *
+ * Shared so the Bible chapter flip and the Journal entry-list swipe cannot drift apart (R3);
+ * before this each rolled its own and neither rejected a palm.
+ */
+export function navigationTouch<T extends ClassifiableTouch>(touches: ArrayLike<T> | null | undefined): T | null {
+  const real = realTouches(touches);
+  if (real.length !== 1) return null;
+  return isStylusTouch(real[0]) ? null : real[0];
+}
+
 /** Find a touch again by identifier, so a gesture follows the contact that started it. */
 export function findTouchById<T extends ClassifiableTouch>(
   touches: ArrayLike<T> | null | undefined,

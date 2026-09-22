@@ -10,7 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import { PALM } from '../../constants/appConfig';
 import {
-  isStylusTouch, isPalmTouch, realTouches, pickDrawingTouch, findTouchById,
+  isStylusTouch, isPalmTouch, realTouches, pickDrawingTouch, findTouchById, navigationTouch,
   type ClassifiableTouch,
 } from '../touchClassification';
 
@@ -114,5 +114,39 @@ describe('findTouchById', () => {
     expect(findTouchById([palm(3)], 1)).toBeNull();
     expect(findTouchById([], 1)).toBeNull();
     expect(findTouchById([pencil(1)], null)).toBeNull();
+  });
+});
+
+describe('navigationTouch — pencil writes, finger navigates', () => {
+  // The app-wide rule, shared by the Bible chapter flip and the Journal entry-list swipe. Before
+  // this each rolled its own and neither rejected a palm, so the two symptoms were different
+  // (page flipped / entry list collapsed) while the cause was identical.
+  it('one real finger navigates', () => {
+    const touches = [finger()];
+    expect(navigationTouch(touches)).toBe(touches[0]);
+  });
+
+  it('a resting palm alongside that finger does not make it multi-touch', () => {
+    // The case that actually breaks: a hand rests for most of a writing session.
+    expect(navigationTouch([palm(), finger(7)])?.identifier).toBe(7);
+  });
+
+  it('a palm alone never navigates', () => {
+    expect(navigationTouch([palm()])).toBeNull();
+    expect(navigationTouch([palm(1), palm(2)])).toBeNull();
+  });
+
+  it('the Pencil never navigates — it writes', () => {
+    expect(navigationTouch([pencil()])).toBeNull();
+    expect(navigationTouch([palm(), pencil()])).toBeNull();
+  });
+
+  it('two real fingers are a pinch or scroll, not a navigation gesture', () => {
+    expect(navigationTouch([finger(1), finger(2)])).toBeNull();
+  });
+
+  it('nothing at all navigates nothing', () => {
+    expect(navigationTouch([])).toBeNull();
+    expect(navigationTouch(null)).toBeNull();
   });
 });
