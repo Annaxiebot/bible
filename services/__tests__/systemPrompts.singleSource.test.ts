@@ -15,7 +15,10 @@ const SOURCE_OF_TRUTH = join(REPO_ROOT, 'services/systemPrompts.ts');
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
-    if (name === 'node_modules' || name === 'dist' || name === '.git' || name === 'coverage' || name === '.next' || name === 'test-results' || name === 'playwright-report') continue;
+    // '.claude' holds throwaway agent worktrees — whole copies of this repo. Walking into them
+    // reported the source of truth as duplicated three times and failed this tripwire for a
+    // reason that has nothing to do with the source. Scratch directories are not source.
+    if (name === 'node_modules' || name === 'dist' || name === '.git' || name === '.claude' || name === 'coverage' || name === '.next' || name === 'test-results' || name === 'playwright-report') continue;
     const full = join(dir, name);
     const s = statSync(full);
     if (s.isDirectory()) walk(full, out);
