@@ -3,6 +3,7 @@ import { JournalEntry } from '../services/idbService';
 import { journalStorage } from '../services/journalStorage';
 import JournalEditor from './JournalEditor';
 import SimpleDrawingCanvas, { SimpleDrawingCanvasHandle } from './SimpleDrawingCanvas';
+import { navigationTouch, realTouches, findTouchById } from '../utils/touchClassification';
 import { compressImage, compressImageFromUrl } from '../services/imageCompressionService';
 import { BIBLE_BOOKS } from '../constants';
 import { usePaperType } from '../hooks/usePaperType';
@@ -637,6 +638,11 @@ const JournalView: React.FC<JournalViewProps> = ({
   // ---------------------------------------------------------------
   const [mobileShowEditor, setMobileShowEditor] = useState(false);
   const [listCollapsed, setListCollapsed] = useState(false);
+  // The contact that started the list-collapse swipe. Stashing the start on the DOM element and
+  // re-reading touches[0]/changedTouches[0] meant a resting palm — which lands FIRST and so IS
+  // touches[0] — drove the gesture: writing with a hand down collapsed the entry list out from
+  // under you. Same defect as the Bible page-flip, different symptom.
+  const listSwipeRef = useRef<{ id: number; x: number } | null>(null);
 
   // Editor mode and block state (declared early for use in flushPendingSave)
   type NoteMode = 'text' | 'draw' | 'overlay';
@@ -2395,18 +2401,28 @@ const JournalView: React.FC<JournalViewProps> = ({
       <div
         style={{ flex: 1, overflow: 'hidden' }}
         onTouchStart={e => {
-          const touch = e.touches[0];
-          (e.currentTarget as any).__swipeStartX = touch.clientX;
+          // One real (non-palm) finger, and never the Pencil: the Pencil writes, the finger
+          // navigates — the same rule the Bible page-flip follows.
+          const touch = navigationTouch(e.touches);
+          if (!touch) { listSwipeRef.current = null; return; }
+          listSwipeRef.current = { id: touch.identifier, x: touch.clientX };
+        }}
+        onTouchMove={e => {
+          // A second real finger is a pinch or a two-finger scroll, not a panel swipe.
+          if (listSwipeRef.current && realTouches(e.touches).length > 1) listSwipeRef.current = null;
         }}
         onTouchEnd={e => {
-          const startX = (e.currentTarget as any).__swipeStartX;
-          if (startX == null) return;
-          const endX = e.changedTouches[0].clientX;
-          const diff = endX - startX;
+          const start = listSwipeRef.current;
+          if (!start) return;
+          // Only the finger that STARTED it can finish it.
+          const end = findTouchById(e.changedTouches, start.id);
+          if (!end) return;
+          listSwipeRef.current = null;
+          const diff = end.clientX - start.x;
           if (diff > 60 && listCollapsed) setListCollapsed(false);
           else if (diff < -60 && !listCollapsed) setListCollapsed(true);
-          delete (e.currentTarget as any).__swipeStartX;
         }}
+        onTouchCancel={() => { listSwipeRef.current = null; }}
       >
         {editorContent}
       </div>

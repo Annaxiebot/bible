@@ -202,7 +202,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     flipDirection, setFlipDirection,
     nextChapterVerses, setNextChapterVerses,
     prevChapterVerses, setPrevChapterVerses,
-    handleTouchStart, handleTouchMove, handleTouchEnd,
+    handleTouchStart, handleTouchMove, handleTouchEnd, handleTouchCancel,
   } = useSwipeNavigation((dir) => navigateChapterRef.current(dir));
 
   // Memoize computed values to prevent unnecessary recalculations
@@ -1032,6 +1032,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchCancel}
       >
         {/* Show next/previous page during swipe */}
         {isIOS && isSwiping && flipDirection && (
