@@ -5,7 +5,6 @@
  */
 
 import React, { useRef, useEffect, useCallback, useState, useMemo } from 'react';
-import { PALM } from '../constants/appConfig';
 import type { LayoutMode } from './LayoutToolbar';
 import {
   type AbsoluteStroke,
@@ -184,10 +183,12 @@ const SWIPE_COMMIT_DURATION_MS = 300;
 // Apple Pencil / iPad palm classification: iPad Safari reports ~15–22 px
 // radiusX for a finger, 25+ for a palm. Touches above this threshold in
 // drawing modes are ignored so a resting palm doesn't drive nav or scroll.
-// The value is shared with SimpleDrawingCanvas (the surface Bible and Journal
-// both use) via constants/appConfig — it was written out as a bare 25 in both
-// files, and the two were free to drift apart (R3).
-const PALM_RADIUS_THRESHOLD = PALM.RADIUS_PX;
+// TODO(R3/R8): this duplicates PALM.RADIUS_PX in constants/appConfig, which
+// SimpleDrawingCanvas now reads. Point this at the shared constant — and move
+// isStylusTouch below onto utils/touchClassification while you are here — in a
+// DEDICATED refactor session. It is deliberately left duplicated here rather
+// than bundled into a bug fix (R8).
+const PALM_RADIUS_THRESHOLD = 25;
 
 // ── Single-page visual affordance ──────────────────────────────────────────
 // In single-page mode the page card "floats" against a soft gray backdrop.
