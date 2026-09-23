@@ -194,3 +194,88 @@ export async function hold(
     await dispatchGesture(page, target, [{ type: 'up', x: p.x, y: p.y }], opts);
   });
 }
+
+// ─── Multi-contact touch frames (palm / stylus classification) ──────────────
+//
+// The gestures above carry ONE contact and fix its radius from `pointerType`.
+// Palm rejection is about several contacts on the glass at once, each with its
+// own radius, so it needs frames rather than gestures: the palm is present for
+// every event of the sequence while the Pencil comes and goes.
+//
+// Chromium's `Touch` constructor honours `radiusX`, so these are REAL Touch
+// objects on a REAL TouchEvent — not the jsdom stand-in. What Chromium does NOT
+// have is Safari's `touchType`, so a stylus here is only recognisable by its
+// small radius (utils/touchClassification.ts falls back to
+// `radiusX < PALM.STYLUS_RADIUS_PX`). Anything that depends on `touchType`
+// itself cannot be driven from here — mark it `test.fixme`, do not fake it.
+
+/** One contact in a frame. Coordinates are CSS px relative to the target's rect. */
+export interface SynthContact {
+  /** Touch.identifier — stable across frames for the same finger/pencil. */
+  id: number;
+  x: number;
+  y: number;
+  /** Real Touch.radiusX. iPad Safari: Pencil ~3, fingertip ~15-22, palm/pinky 25+. */
+  radiusX: number;
+}
+
+export interface TouchFrame {
+  type: 'touchstart' | 'touchmove' | 'touchend' | 'touchcancel';
+  /** Contacts on the glass after this event — becomes `touches`/`targetTouches`. */
+  touches: SynthContact[];
+  /** Contacts this event is about — becomes `changedTouches`. Defaults to `touches`. */
+  changed?: SynthContact[];
+}
+
+/**
+ * Dispatch real multi-contact TouchEvents at `target`, one frame at a time.
+ *
+ * Throws rather than degrading when the browser cannot carry a radius: a Touch
+ * whose `radiusX` came back undefined would be classified as an ordinary finger
+ * and every palm assertion would pass for the wrong reason.
+ */
+export async function dispatchTouchFrames(page: Page, target: Locator, frames: TouchFrame[]) {
+  await withTarget(page, target, () =>
+    page.evaluate((frames: TouchFrame[]) => {
+      const el = (window as any).__synthTarget as HTMLElement;
+      if (!el) throw new Error('no __synthTarget set');
+      if (typeof Touch !== 'function' || typeof TouchEvent !== 'function') {
+        throw new Error('browser has no Touch/TouchEvent constructor — cannot synthesize radiusX');
+      }
+      const rect = el.getBoundingClientRect();
+
+      const build = (c: SynthContact) => {
+        const touch = new Touch({
+          identifier: c.id,
+          target: el,
+          clientX: rect.left + c.x,
+          clientY: rect.top + c.y,
+          screenX: rect.left + c.x,
+          screenY: rect.top + c.y,
+          pageX: rect.left + c.x,
+          pageY: rect.top + c.y,
+          radiusX: c.radiusX,
+          radiusY: c.radiusX,
+          force: 0.5,
+        });
+        if (touch.radiusX !== c.radiusX) {
+          throw new Error(`Touch.radiusX not honoured: asked ${c.radiusX}, got ${touch.radiusX}`);
+        }
+        return touch;
+      };
+
+      for (const frame of frames) {
+        const touches = frame.touches.map(build);
+        const changed = (frame.changed ?? frame.touches).map(build);
+        el.dispatchEvent(new TouchEvent(frame.type, {
+          bubbles: true,
+          cancelable: true,
+          composed: true,
+          touches,
+          changedTouches: changed,
+          targetTouches: touches,
+        }));
+      }
+    }, frames),
+  );
+}
