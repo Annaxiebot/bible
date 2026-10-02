@@ -1,6 +1,7 @@
 import { test, expect, Page } from '@playwright/test';
 import { STORAGE_KEYS } from '../../constants/storageKeys';
 import { SAMPLE_PACK_HASH } from '../../components/landing/landingRoute';
+import { FIRST_SLIDE_HINT } from '../../components/studypack/tvHints';
 
 async function openTV(page: Page) {
   await page.goto(SAMPLE_PACK_HASH);
@@ -12,9 +13,7 @@ test.describe('TV Presentation Mode', () => {
   test('loads the pack from the URL and shows the title slide', async ({ page }) => {
     await openTV(page);
     await expect(page.getByText('1/16')).toBeVisible();
-    await expect(page.getByText(
-      '← → 或滑动翻页 · Arrow keys or swipe · 选中文字或按 A 问AI · Select text or press A to ask AI · Esc 退出'
-    )).toBeVisible();
+    await expect(page.getByText(FIRST_SLIDE_HINT)).toBeVisible();
   });
 
   test('advances through all 16 slides with the keyboard and clamps at the end', async ({ page }) => {
