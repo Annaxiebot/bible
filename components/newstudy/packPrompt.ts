@@ -36,6 +36,7 @@ export const PACK_LENGTH_LIMITS = [
   'originalLanguage notes ≤ 1 sentence each; crossRefs reasons ≤ 12 words;',
   'lifeMenu practices ≤ 25 words each; each reflection check-in 1 line;',
   'closing 1 line; title and keyPhrase a few words. Be concrete, not wordy.',
+  '总量 Total: 整个 JSON 不超过约 2,500 个中文字（含英文），宁短勿长 · Keep the whole reply under ~2,500 Chinese characters including the English; shorter is better.',
 ].join('\n');
 
 /** The user turn that asks the model to finish a reply cut off by max_tokens (one attempt). */
