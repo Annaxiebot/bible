@@ -44,6 +44,10 @@ export const NS_ERR_VERSES_OUT_OF_RANGE = bilingualLine('这一章没有这些�
 export const NS_ERR_NO_JSON = bilingualLine(
   'AI 没有返回完整的 JSON（可能被截断）', 'The AI did not return complete JSON (it may have been cut off)'
 );
+/** finish_reason "length" twice (first reply + one continuation); "{n}" is the character count received. */
+export const NS_ERR_OUTPUT_LIMIT = bilingualLine(
+  '输出超出长度上限（{n} 字已收到）', 'The reply exceeded the output limit ({n} characters received)'
+);
 export const NS_ERR_INVALID = bilingualLine(
   'AI 返回的内容不完整或格式不对', 'The AI content is incomplete or malformed'
 );
