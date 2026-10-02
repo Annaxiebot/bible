@@ -7,22 +7,31 @@
  * no VITE_SUPABASE_* (local dev, e2e) a window.__SUPABASE_E2E__ override
  * supplies url + anon key so Playwright can route the PostgREST call —
  * same dev-only hook pattern as window.__ASK_AI_TIMEOUT_MS.
+ * A sign-up is a commitment (ADR-0004 §7): one life-menu practice is
+ * required before any contact detail.
  */
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '../../services/supabase';
-import type { StudyPack } from '../studypack/packTypes';
-import { SU_ERR_NAME, SU_ERR_CONTACT, SU_ERR_EMAIL, SU_ERR_PHONE, SU_ERR_SUBMIT, SU_DEMO_LINE } from './signupStrings';
-import { SIGNUPS_TABLE, SIGNUP_LOCALE, SignupInsert } from './signupSchema';
+import type { StudyPack, LifeMenuRow } from '../studypack/packTypes';
+import {
+  SU_ERR_NAME, SU_ERR_CONTACT, SU_ERR_EMAIL, SU_ERR_PHONE, SU_ERR_SUBMIT, SU_ERR_PRACTICE, SU_DEMO_LINE,
+} from './signupStrings';
+import { SIGNUPS_TABLE, SIGNUP_LOCALE, SIGNUP_RETURNING, SignupInsert } from './signupSchema';
 
 export { SIGNUPS_TABLE, SIGNUP_LOCALE };
 export type { SignupInsert };
 
 export interface SignupForm {
+  practice: LifeMenuRow | null;   // required: the week's commitment
+  second: LifeMenuRow | null;     // optional second practice
+  note: string;                   // "我的版本 My own version"
   name: string;
   phone: string;
   email: string;
   consent: boolean;
 }
+
+export const EMPTY_SIGNUP: SignupForm = { practice: null, second: null, note: '', name: '', phone: '', email: '', consent: true };
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** Digits with an optional leading +, 7–15 digits (E.164 range) after normalisation. */
@@ -33,8 +42,15 @@ export function normalizePhone(raw: string): string {
   return raw.replace(/[\s\-().]/g, '');
 }
 
-/** First bilingual problem with the form, or null when it is valid. */
+/** First bilingual problem with the commitment step, or null. */
+export function validatePractice(form: Pick<SignupForm, 'practice'>): string | null {
+  return form.practice ? null : SU_ERR_PRACTICE;
+}
+
+/** First bilingual problem with the whole form, or null when it is valid. */
 export function validateSignup(form: SignupForm): string | null {
+  const practiceProblem = validatePractice(form);
+  if (practiceProblem) return practiceProblem;
   const name = form.name.trim();
   const email = form.email.trim();
   const phone = normalizePhone(form.phone);
@@ -45,11 +61,19 @@ export function validateSignup(form: SignupForm): string | null {
   return null;
 }
 
-/** The row sent to PostgREST; empty optionals become null, never ''. Throws for a demo pack (no leaderId). */
+/** The practice as one line for messages and the thank-you: the own version when written, else the menu text. */
+export function practiceLine(form: Pick<SignupForm, 'practice' | 'note'>): string {
+  const note = form.note.trim();
+  return note || form.practice?.practice || '';
+}
+
+/** The row sent to PostgREST; empty optionals become null, never ''. Throws for a demo pack or a missing practice. */
 export function toInsertPayload(pack: Pick<StudyPack, 'id' | 'title' | 'leaderId'>, form: SignupForm): SignupInsert {
   if (!pack.leaderId) throw new Error(SU_DEMO_LINE);
+  if (!form.practice) throw new Error(SU_ERR_PRACTICE);
   const email = form.email.trim();
   const phone = normalizePhone(form.phone);
+  const note = form.note.trim();
   return {
     pack_id: pack.id,
     leader_id: pack.leaderId,
@@ -59,6 +83,11 @@ export function toInsertPayload(pack: Pick<StudyPack, 'id' | 'title' | 'leaderId
     email: email || null,
     consent_checkins: form.consent,
     locale: SIGNUP_LOCALE,
+    practice_area: form.practice.area,
+    practice_text: form.practice.practice,
+    practice2_area: form.second?.area ?? null,
+    practice2_text: form.second?.practice ?? null,
+    practice_note: note || null,
   };
 }
 
@@ -82,8 +111,11 @@ export function getSignupClient(): SupabaseClient | null {
   return overrideClient;
 }
 
-/** Insert one sign-up. Throws a bilingual error carrying the PostgREST message. */
-export async function insertSignup(client: SupabaseClient, payload: SignupInsert): Promise<void> {
-  const { error } = await client.from(SIGNUPS_TABLE).insert(payload);
+/** Insert one sign-up and return its id (the member's check-in token). Throws a bilingual error carrying the PostgREST message. */
+export async function insertSignup(client: SupabaseClient, payload: SignupInsert): Promise<string> {
+  const { data, error } = await client.from(SIGNUPS_TABLE).insert(payload).select(SIGNUP_RETURNING).single();
   if (error) throw new Error(`${SU_ERR_SUBMIT}: ${error.message}`);
+  const id = (data as { id?: unknown } | null)?.id;
+  if (typeof id !== 'string' || id.length === 0) throw new Error(`${SU_ERR_SUBMIT}: no id returned`);
+  return id;
 }

@@ -1,0 +1,73 @@
+/**
+ * checkinClient.ts — the member's check-in data paths · 跟进数据层
+ *
+ * Context (practice, prompts) comes from the checkin_context() RPC with the
+ * signup uuid as the only credential. "Keep private" writes localStorage
+ * on this device and never touches the network; "Share with leader" calls
+ * share_checkin_answer() (SECURITY DEFINER copies pack/leader from the
+ * signup row, database/signups-schema.sql). Errors carry bilingual labels.
+ */
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { CHECKIN_CONTEXT_FN, SHARE_ANSWER_FN } from '../signup/signupSchema';
+import { CK_ERR_LOAD, CK_ERR_SHARE, CK_DEFAULT_QUESTION } from './checkinStrings';
+import { CheckinKind, CHECKIN_KINDS } from './checkinRoute';
+
+export interface CheckinContext {
+  pack_id: string;
+  pack_title: string;
+  name: string;
+  practice_area: string | null;
+  practice_text: string | null;
+  practice_note: string | null;
+  reflection_lines: string[];
+  feedback_form_url: string | null;
+}
+
+/** Which reflection line carries each kind's prompt (same as the edge function's REFLECTION_LINE_INDEX). */
+const PROMPT_LINE: Record<CheckinKind, number> = { tue: 0, thu: 1, weekend: 2 };
+
+export function promptFor(context: Pick<CheckinContext, 'reflection_lines'>, kind: CheckinKind): string {
+  return context.reflection_lines[PROMPT_LINE[kind]] ?? CK_DEFAULT_QUESTION;
+}
+
+/** The member's own version wins over the menu text; empty when the row predates the commitment step. */
+export function practiceOf(context: Pick<CheckinContext, 'practice_text' | 'practice_note'>): string {
+  return context.practice_note?.trim() || context.practice_text || '';
+}
+
+export async function fetchCheckinContext(client: SupabaseClient, signupId: string): Promise<CheckinContext> {
+  const { data, error } = await client.rpc(CHECKIN_CONTEXT_FN, { p_signup_id: signupId });
+  if (error) throw new Error(`${CK_ERR_LOAD}: ${error.message}`);
+  const rows = (Array.isArray(data) ? data : data ? [data] : []) as CheckinContext[];
+  if (rows.length === 0) throw new Error(CK_ERR_LOAD);
+  return { ...rows[0], reflection_lines: rows[0].reflection_lines ?? [] };
+}
+
+export async function shareAnswer(client: SupabaseClient, signupId: string, kind: CheckinKind, answer: string): Promise<void> {
+  const { error } = await client.rpc(SHARE_ANSWER_FN, { p_signup_id: signupId, p_kind: kind, p_answer: answer });
+  if (error) throw new Error(`${CK_ERR_SHARE}: ${error.message}`);
+}
+
+// ---- private answers: this device only ----
+
+export function privateAnswerKey(signupId: string, kind: CheckinKind): string {
+  return `checkin:${signupId}:${kind}`;
+}
+
+export function readPrivateAnswer(signupId: string, kind: CheckinKind, store: Pick<Storage, 'getItem'> = window.localStorage): string {
+  return store.getItem(privateAnswerKey(signupId, kind)) ?? '';
+}
+
+export function keepPrivateAnswer(
+  signupId: string, kind: CheckinKind, answer: string, store: Pick<Storage, 'setItem'> = window.localStorage,
+): void {
+  store.setItem(privateAnswerKey(signupId, kind), answer);
+}
+
+/** The check-in kind for today in Los Angeles time; Mon/Wed/Fri fall to the weekend question. */
+export function kindForToday(now: Date = new Date()): CheckinKind {
+  const weekday = new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', weekday: 'short' }).format(now);
+  if (weekday === 'Tue') return 'tue';
+  if (weekday === 'Thu') return 'thu';
+  return CHECKIN_KINDS[2];
+}

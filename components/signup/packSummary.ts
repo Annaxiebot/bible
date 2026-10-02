@@ -4,13 +4,14 @@
  * Packs live only in the leader's browser (IndexedDB), so the send-checkins
  * edge function cannot read them. The owning leader's client upserts a
  * small summary row — title, passage, the three reflection lines, the
- * closing question — into pack_summaries (RLS: leader_id = auth.uid()).
- * That is the privacy boundary: the full pack (verses, context, questions,
- * life menu) never leaves the browser. One helper, called from the leader
- * page, the QR (TV slide + landing) and the editor save.
+ * closing question, the optional feedback form — into pack_summaries (RLS:
+ * leader_id = auth.uid()). That is the privacy boundary: the full pack
+ * (verses, context, questions, life menu) never leaves the browser. One
+ * helper, called from the leader page, the QR (TV slide + landing), the
+ * editor save and the sign-in claim.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { StudyPack } from '../studypack/packTypes';
+import type { StudyPack, FeedbackFormEntries } from '../studypack/packTypes';
 import { supabase, authManager } from '../../services/supabase';
 import { SU_SUMMARY_FAILED } from './signupStrings';
 
@@ -23,6 +24,8 @@ export interface PackSummaryRow {
   passage_ref: string;
   reflection_lines: string[];
   closing_question: string | null;
+  feedback_form_url: string | null;
+  feedback_form_entries: FeedbackFormEntries | null;
 }
 
 /** The summary row for an owned pack; null for a demo pack (nothing to send for). */
@@ -37,6 +40,8 @@ export function packSummaryFrom(pack: StudyPack): PackSummaryRow | null {
     passage_ref: pack.passageRef,
     reflection_lines: reflection?.body ?? [],
     closing_question: closing?.body?.[closing.body.length - 1] ?? null,
+    feedback_form_url: pack.feedbackFormUrl ?? null,
+    feedback_form_entries: pack.feedbackFormUrl ? (pack.feedbackFormEntries ?? null) : null,
   };
 }
 
