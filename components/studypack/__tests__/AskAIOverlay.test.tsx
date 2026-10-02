@@ -69,7 +69,7 @@ describe('AskAIOverlay (streaming)', () => {
     });
     renderOverlay();
     fireEvent.change(screen.getByLabelText(/Ask AI question/), { target: { value: 'Why birds?' } });
-    fireEvent.click(screen.getByRole('button', { name: /Ask 提问/ }));
+    fireEvent.click(screen.getByRole('button', { name: /提问 Ask/ }));
     expect(screen.getByText('Q: Why birds?')).toBeInTheDocument();
 
     act(() => emit('Anxiety '));
@@ -111,11 +111,11 @@ describe('AskAIOverlay (streaming)', () => {
     renderOverlay();
     const input = screen.getByLabelText(/Ask AI question/);
     fireEvent.change(input, { target: { value: 'first q' } });
-    fireEvent.click(screen.getByRole('button', { name: /Ask 提问/ }));
+    fireEvent.click(screen.getByRole('button', { name: /提问 Ask/ }));
     await waitFor(() =>
       expect(screen.getByTestId('ask-answer')).toHaveTextContent('Answer (v.25).'));
     fireEvent.change(input, { target: { value: 'go deeper' } });
-    fireEvent.click(screen.getByRole('button', { name: /Ask 提问/ }));
+    fireEvent.click(screen.getByRole('button', { name: /提问 Ask/ }));
     await waitFor(() => expect(streamStudyAIMock).toHaveBeenCalledTimes(2));
     expect(streamStudyAIMock.mock.calls[1][2]).toEqual([
       { role: 'user', content: 'first q' },
@@ -148,7 +148,7 @@ describe('AskAIOverlay (streaming)', () => {
     streamStudyAIMock.mockRejectedValue(new Error('OpenRouter API error: 429'));
     renderOverlay();
     fireEvent.change(screen.getByLabelText(/Ask AI question/), { target: { value: 'q' } });
-    fireEvent.click(screen.getByRole('button', { name: /Ask 提问/ }));
+    fireEvent.click(screen.getByRole('button', { name: /提问 Ask/ }));
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent('OpenRouter API error: 429');
     });

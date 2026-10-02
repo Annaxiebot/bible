@@ -1,16 +1,17 @@
 import { useState, useEffect } from 'react';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 import { preloadConverter } from '../services/chineseConverter';
+import { DEFAULT_ENGLISH_VERSION } from '../services/bibleStorage';
 
 export function useBibleSettings() {
   const [isSimplified, setIsSimplified] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.CHINESE_MODE);
     // Default to simplified if no preference saved
     const simplified = saved ? saved === 'simplified' : true;
-    if (simplified) {
-      const defer = window.requestIdleCallback || ((cb: () => void) => setTimeout(cb, 200));
-      defer(() => preloadConverter());
-    }
+    // Bundled CUV text is Simplified while API-cached text is Traditional,
+    // so both display modes convert — always preload the converter.
+    const defer = window.requestIdleCallback || ((cb: () => void) => setTimeout(cb, 200));
+    defer(() => preloadConverter());
     return simplified;
   });
 
@@ -19,7 +20,7 @@ export function useBibleSettings() {
   });
 
   const [englishVersion, setEnglishVersion] = useState(() => {
-    return localStorage.getItem(STORAGE_KEYS.ENGLISH_VERSION) || 'web';
+    return localStorage.getItem(STORAGE_KEYS.ENGLISH_VERSION) || DEFAULT_ENGLISH_VERSION;
   });
 
   const [fontSize, setFontSize] = useState(() => {
@@ -29,7 +30,7 @@ export function useBibleSettings() {
 
   useEffect(() => {
     const handleEnglishVersionChange = () => {
-      const version = localStorage.getItem(STORAGE_KEYS.ENGLISH_VERSION) || 'web';
+      const version = localStorage.getItem(STORAGE_KEYS.ENGLISH_VERSION) || DEFAULT_ENGLISH_VERSION;
       setEnglishVersion(version);
     };
 
@@ -40,7 +41,7 @@ export function useBibleSettings() {
 
     const handleStorageChange = (e: StorageEvent) => {
       if (e.key === STORAGE_KEYS.ENGLISH_VERSION) {
-        setEnglishVersion(e.newValue || 'web');
+        setEnglishVersion(e.newValue || DEFAULT_ENGLISH_VERSION);
       }
       if (e.key === STORAGE_KEYS.CHINESE_VERSION) {
         setChineseVersion(e.newValue || 'cuv');

@@ -7,7 +7,7 @@
  * for text selection). "a", the Ask AI button, or selecting slide text opens
  * the Ask-AI overlay; Escape closes the overlay first, exits the app second.
  */
-import { FIRST_SLIDE_HINT } from './tvHints';
+import { FIRST_SLIDE_HINT, FIRST_SLIDE_HINT_SHORT, ASK_AI_LABEL, TV_LOADING } from './tvHints';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { parseStudyPack, buildSlides, StudyPack, Slide } from './packTypes';
 import { questionForSelection } from './askAI';
@@ -41,6 +41,21 @@ function initialAskQuestion(slide: Slide | undefined): string | null {
   return null;
 }
 
+/** Phone-sized viewport (the deck is also demoed from phones at events). */
+function isCompactViewport(): boolean {
+  return window.innerWidth < 768 || window.innerHeight < 500;
+}
+
+function useCompactViewport(): boolean {
+  const [compact, setCompact] = useState(isCompactViewport);
+  useEffect(() => {
+    const onResize = () => setCompact(isCompactViewport());
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  return compact;
+}
+
 /** "a" opens the Ask-AI overlay; suspended while it is open so typing a question never re-triggers it. */
 function useAskAIHotkey(askOpen: boolean, open: () => void): void {
   useEffect(() => {
@@ -63,26 +78,29 @@ interface TVChromeProps {
 }
 
 /** Counter, first-slide hints, and Ask AI button (exit stays in the view so it also shows on load/error). */
-const TVChrome: React.FC<TVChromeProps> = ({ slideCount, index, onAskAI }) => (
+const TVChrome: React.FC<TVChromeProps> = ({ slideCount, index, onAskAI }) => {
+  const compact = useCompactViewport();
+  return (
   <>
     <div className="absolute bottom-[2vh] right-[3vw] text-slate-500" style={{ fontSize: '2.5vh' }}>
       {index + 1}/{slideCount}
     </div>
     {index === 0 && (
       <div className="absolute bottom-[2vh] left-[3vw] text-slate-500" style={{ fontSize: '2vh' }}>
-        {FIRST_SLIDE_HINT}
+        {compact ? FIRST_SLIDE_HINT_SHORT : FIRST_SLIDE_HINT}
       </div>
     )}
     <button
       onClick={(e) => { e.stopPropagation(); onAskAI(); }}
       className="absolute bottom-[2vh] left-1/2 -translate-x-1/2 text-slate-500 hover:text-amber-300 border border-slate-700 rounded-full px-4 py-1"
       style={{ fontSize: '2.2vh' }}
-      aria-label="Ask AI 问AI"
+      aria-label={ASK_AI_LABEL}
     >
-      Ask AI 问AI
+      {ASK_AI_LABEL}
     </button>
   </>
-);
+  );
+};
 
 export interface TVPresentationViewProps {
   packId: string;
@@ -136,14 +154,14 @@ const TVPresentationView: React.FC<TVPresentationViewProps> = ({ packId, onExit 
       {/* select-text re-enables selection inside the slide so a selected
           phrase can be sent to Ask AI (the root is select-none for swipes).
           Clicks never navigate — arrow keys / swipe only. */}
-      <div ref={contentRef} className="h-full w-full px-[6vw] py-[6vh] select-text">
+      <div ref={contentRef} className="h-full w-full px-[6vw] py-[6vh] select-text overflow-y-auto">
         {error && (
           <p className="text-red-400" style={{ fontSize: '4vh' }} role="alert">{error}</p>
         )}
         {!error && !slide && (
-          <p className="text-slate-400" style={{ fontSize: '4vh' }}>Loading… 加载中…</p>
+          <p className="text-slate-400" style={{ fontSize: '4vh' }}>{TV_LOADING}</p>
         )}
-        {slide && <TVSlide slide={slide} />}
+        {slide && pack && <TVSlide slide={slide} pack={pack} />}
       </div>
 
       {slides && (
@@ -153,7 +171,7 @@ const TVPresentationView: React.FC<TVPresentationViewProps> = ({ packId, onExit 
         onClick={(e) => { e.stopPropagation(); onExit(); }}
         className="absolute top-[2vh] right-[2vw] text-slate-600 hover:text-slate-300 px-3 py-1"
         style={{ fontSize: '2.5vh' }}
-        aria-label="Exit presentation 退出演示"
+        aria-label="退出演示 Exit presentation"
       >
         ✕
       </button>

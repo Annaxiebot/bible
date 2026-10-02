@@ -5,9 +5,10 @@
  * with a 3-second delay between requests to stay well under the API rate limit.
  * Resumes across sessions using IndexedDB metadata.
  */
-import { bibleStorage, BibleTranslation } from './bibleStorage';
+import { bibleStorage, BibleTranslation, DEFAULT_ENGLISH_VERSION } from './bibleStorage';
 import { BIBLE_BOOKS } from './bibleBookData';
 import { buildChapterUrl } from './apiConfig';
+import { fetchBundledChapter } from './bibleDataSource';
 import { TIMING } from '../constants/appConfig';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 
@@ -39,7 +40,7 @@ function buildChapterList(): Array<{ bookId: string; bookName: string; chapter: 
 }
 
 function getEnglishVersion(): BibleTranslation {
-  return (localStorage.getItem(STORAGE_KEYS.ENGLISH_VERSION) as BibleTranslation) || 'web';
+  return (localStorage.getItem(STORAGE_KEYS.ENGLISH_VERSION) as BibleTranslation) || DEFAULT_ENGLISH_VERSION;
 }
 
 class BackgroundBibleDownloadService {
@@ -259,6 +260,12 @@ class BackgroundBibleDownloadService {
   }
 
   private async fetchAndSave(bookId: string, chapter: number, translation: BibleTranslation): Promise<boolean> {
+    // Bundled static data first — no rate limit, no network dependency.
+    const bundled = await fetchBundledChapter(bookId, chapter, translation);
+    if (bundled) {
+      await bibleStorage.saveChapter(bookId, chapter, translation, bundled);
+      return true;
+    }
     try {
       const book = BIBLE_BOOKS.find(b => b.id === bookId);
       const url = buildChapterUrl(bookId, chapter, translation, book?.totalVerses);

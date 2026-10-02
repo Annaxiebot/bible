@@ -5,16 +5,17 @@ import path from 'path';
 import React from 'react';
 import { parseStudyPack, StudyPack } from '../packTypes';
 import AskAnswer, { answerFontSize } from '../AskAnswer';
+import { TYPE_SCALE } from '../principles';
 
 const PACK_PATH = path.resolve(__dirname, '../../../public/packs/2026-10-02-matt6.json');
 const pack: StudyPack = parseStudyPack(JSON.parse(readFileSync(PACK_PATH, 'utf-8')));
 
 describe('answerFontSize', () => {
-  it('scales by content length: short 5vh, medium 4vh, long 3vh', () => {
-    expect(answerFontSize('x'.repeat(120))).toBe('5vh');  // boundary of short
-    expect(answerFontSize('x'.repeat(121))).toBe('4vh');
-    expect(answerFontSize('x'.repeat(240))).toBe('4vh');  // boundary of medium
-    expect(answerFontSize('x'.repeat(241))).toBe('3vh');
+  it('scales by content length through the TYPE_SCALE tiers', () => {
+    expect(answerFontSize('x'.repeat(120))).toBe(TYPE_SCALE.answerShort);   // boundary of short
+    expect(answerFontSize('x'.repeat(121))).toBe(TYPE_SCALE.answerMedium);
+    expect(answerFontSize('x'.repeat(240))).toBe(TYPE_SCALE.answerMedium);  // boundary of medium
+    expect(answerFontSize('x'.repeat(241))).toBe(TYPE_SCALE.answerLong);
   });
 });
 
@@ -33,7 +34,7 @@ describe('AskAnswer rendering', () => {
     expect(document.querySelector('script')).toBeNull();
   });
 
-  it('turns in-pack refs into tooltips and leaves out-of-pack refs plain', async () => {
+  it('makes every recognizable ref interactive — in-pack and bundled-data ones', async () => {
     render(
       <AskAnswer
         text={'Grounded in v.26 and 太6:33, cf. v.24 and Matthew 5:3.'}
@@ -41,11 +42,10 @@ describe('AskAnswer rendering', () => {
       />
     );
     await screen.findByText(/Grounded in/);
+    // ADR-0003 §8: in-pack refs (v.26, 太6:33) AND out-of-pack refs
+    // (v.24 → bundled MAT 6, Matthew 5:3 → bundled MAT 5) are all tooltips.
     const interactive = screen.getAllByTestId('verse-ref');
-    expect(interactive.map(el => el.textContent)).toEqual(['v.26', '太6:33']);
-    // Out-of-pack refs are styled text, not interactive
-    expect(screen.getByText('v.24')).toBeInTheDocument();
-    expect(screen.getByText('Matthew 5:3')).toBeInTheDocument();
+    expect(interactive.map(el => el.textContent)).toEqual(['v.26', '太6:33', 'v.24', 'Matthew 5:3']);
   });
 
   it('shows the bilingual verse text on hover and hides it on leave', async () => {
@@ -54,9 +54,10 @@ describe('AskAnswer rendering', () => {
     fireEvent.mouseEnter(ref);
     const tooltip = screen.getByRole('tooltip');
     expect(tooltip).toHaveTextContent('飞鸟');                 // CUV v.26
-    expect(tooltip).toHaveTextContent('birds of the sky');     // WEB v.26
+    expect(tooltip).toHaveTextContent('birds of the air');     // BSB v.26
     fireEvent.mouseLeave(ref);
-    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+    // Closing is delayed ~150ms so the pointer can travel into the popup.
+    await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument());
   });
 
   it('toggles the tooltip on click for touch screens', async () => {

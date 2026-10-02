@@ -1,10 +1,10 @@
-import { buildChapterUrl } from '../services/apiConfig';
+import { fetchChapter as loadChapterFromSource } from '../services/bibleDataSource';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 import { Verse, Book, SelectionInfo } from '../types';
 import { BIBLE_BOOKS } from '../constants';
 import { parseBibleReference } from '../services/bibleBookData';
-import { toSimplified, toSimplifiedAsync, preloadConverter } from '../services/chineseConverter';
+import { toSimplified, toTraditional, toSimplifiedAsync, preloadConverter } from '../services/chineseConverter';
 import { bibleStorage, BibleTranslation } from '../services/bibleStorage';
 import { readingHistory } from '../services/readingHistory';
 import { verseDataStorage } from '../services/verseDataStorage';
@@ -660,21 +660,19 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         setLoading(false);
         setError(null);
 
-        // Try to update from network in background (don't show loading)
-        // Only save to cache, don't update state (avoids unnecessary re-renders)
-        fetch(buildChapterUrl(selectedBook.id, selectedChapter, chineseVersion, selectedBook.totalVerses))
-          .then(res => res.json())
+        // Try to update from bundled data / network in background (don't show
+        // loading). Only save to cache, don't update state (avoids re-renders).
+        loadChapterFromSource(selectedBook.id, selectedChapter, chineseVersion as BibleTranslation, selectedBook.totalVerses)
           .then(data => {
-            if (!ctrl.cancelled && data.verses) {
+            if (!ctrl.cancelled) {
               bibleStorage.saveChapter(selectedBook.id, selectedChapter, chineseVersion as BibleTranslation, data).catch(() => {});
             }
           })
           .catch(() => {});
 
-        fetch(buildChapterUrl(selectedBook.id, selectedChapter, englishVersion, selectedBook.totalVerses))
-          .then(res => res.json())
+        loadChapterFromSource(selectedBook.id, selectedChapter, englishVersion as BibleTranslation, selectedBook.totalVerses)
           .then(data => {
-            if (!ctrl.cancelled && data.verses) {
+            if (!ctrl.cancelled) {
               bibleStorage.saveChapter(selectedBook.id, selectedChapter, englishVersion as BibleTranslation, data).catch(() => {});
             }
           })
@@ -684,18 +682,12 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
       // silently handle
     }
 
-    // If not loaded from cache, try to fetch from API
+    // If not loaded from cache, try bundled static data, then the API
     if (!loadedFromCache) {
       try {
-        const [cuvRes, engRes] = await Promise.all([
-          fetch(buildChapterUrl(selectedBook.id, selectedChapter, chineseVersion, selectedBook.totalVerses)),
-          fetch(buildChapterUrl(selectedBook.id, selectedChapter, englishVersion, selectedBook.totalVerses))
-        ]);
-
-        if (ctrl.cancelled) return;
         const [cuvData, engData] = await Promise.all([
-          cuvRes.json(),
-          engRes.json()
+          loadChapterFromSource(selectedBook.id, selectedChapter, chineseVersion as BibleTranslation, selectedBook.totalVerses),
+          loadChapterFromSource(selectedBook.id, selectedChapter, englishVersion as BibleTranslation, selectedBook.totalVerses)
         ]);
 
         if (ctrl.cancelled) return;
@@ -752,7 +744,8 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     const newMode = !isSimplified;
     setIsSimplified(newMode);
     localStorage.setItem(STORAGE_KEYS.CHINESE_MODE, newMode ? 'simplified' : 'traditional');
-    if (newMode) preloadConverter();
+    // Both modes convert now (bundled text is Simplified), so always preload.
+    preloadConverter();
   };
 
   const adjustFontSize = (delta: number) => {
@@ -761,8 +754,10 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     localStorage.setItem(STORAGE_KEYS.FONT_SIZE, newSize.toString());
   };
 
+  // Bundled CUV data is Simplified while API-cached data is Traditional, so
+  // both display modes must actively convert rather than pass text through.
   const processChineseText = (text: string): string => {
-    return isSimplified ? toSimplified(text) : text;
+    return isSimplified ? toSimplified(text) : toTraditional(text);
   };
   
   // Filter books based on debounced search term (prevents filtering on every keystroke)

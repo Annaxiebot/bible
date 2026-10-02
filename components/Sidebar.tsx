@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { DEFAULT_ENGLISH_VERSION } from '../services/bibleStorage';
 import { useDataStats } from '../hooks/useDataStats';
 import { useGeneralResearch } from '../hooks/useGeneralResearch';
 import { bookmarkStorage, Bookmark } from '../services/bookmarkStorage';
@@ -115,7 +116,7 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   // English version state
   const [englishVersion, setEnglishVersionState] = useState(() => {
-    return localStorage.getItem(STORAGE_KEYS.ENGLISH_VERSION) || 'web';
+    return localStorage.getItem(STORAGE_KEYS.ENGLISH_VERSION) || DEFAULT_ENGLISH_VERSION;
   });
 
   const handleEnglishVersionChange = (version: string) => {
@@ -899,7 +900,8 @@ const Sidebar: React.FC<SidebarProps> = ({
 
               <div className="h-px bg-slate-100"></div>
 
-              {/* English Bible Version Selector */}
+              {/* English Bible Version Selector — TODO(R4): Sidebar.tsx is over the
+                  300-line budget; split the settings section into SidebarSettings.tsx */}
               <div>
                 <div className="text-xs font-medium text-slate-600 mb-2">📖 英文译本 English Version</div>
                 <select
@@ -907,6 +909,7 @@ const Sidebar: React.FC<SidebarProps> = ({
                   onChange={(e) => handleEnglishVersionChange(e.target.value)}
                   className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white text-slate-700 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
                 >
+                  <option value="bsb">BSB (Berean Standard Bible)</option>
                   <option value="web">WEB (World English Bible)</option>
                   <option value="kjv">KJV (King James Version)</option>
                   <option value="asv">ASV (American Standard)</option>

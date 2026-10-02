@@ -62,15 +62,22 @@ describe('hasChapter', () => {
     expect(await bibleStorage.hasChapter('GEN', 1)).toBe(false);
   });
 
-  it('returns false when only web is stored', async () => {
-    await bibleStorage.saveChapter('GEN', 1, 'web', emptyChapterData);
+  it('returns false when only the English default (bsb) is stored', async () => {
+    await bibleStorage.saveChapter('GEN', 1, 'bsb', emptyChapterData);
     expect(await bibleStorage.hasChapter('GEN', 1)).toBe(false);
   });
 
-  it('returns true when both cuv and web are stored', async () => {
+  it('returns true when cuv plus the default English (bsb) are stored', async () => {
+    await bibleStorage.saveChapter('GEN', 1, 'cuv', emptyChapterData);
+    await bibleStorage.saveChapter('GEN', 1, 'bsb', emptyChapterData);
+    expect(await bibleStorage.hasChapter('GEN', 1)).toBe(true);
+  });
+
+  it('checks the requested English translation, not the default', async () => {
     await bibleStorage.saveChapter('GEN', 1, 'cuv', emptyChapterData);
     await bibleStorage.saveChapter('GEN', 1, 'web', emptyChapterData);
-    expect(await bibleStorage.hasChapter('GEN', 1)).toBe(true);
+    expect(await bibleStorage.hasChapter('GEN', 1, 'web')).toBe(true);
+    expect(await bibleStorage.hasChapter('GEN', 1)).toBe(false); // bsb missing
   });
 });
 

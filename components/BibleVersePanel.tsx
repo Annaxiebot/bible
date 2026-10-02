@@ -1,4 +1,5 @@
 import React from 'react';
+import { DEFAULT_ENGLISH_VERSION } from '../services/bibleStorage';
 import { Verse } from '../types';
 import { toSimplified } from '../services/chineseConverter';
 import { useSeasonTheme } from '../hooks/useSeasonTheme';
@@ -145,7 +146,7 @@ const BibleVersePanel: React.FC<BibleVersePanelProps> = ({
   const chineseLabels: Record<string, string> = { cuv: '和合本 CUV', cunp: '新標點 CUNP' };
   const label = isChinese
     ? (chineseLabels[chineseVersion || 'cuv'] || (chineseVersion || 'cuv').toUpperCase())
-    : `English (${(englishVersion || 'web').toUpperCase()})`;
+    : `English (${(englishVersion || DEFAULT_ENGLISH_VERSION).toUpperCase()})`;
 
   const fontClass = isChinese ? 'overflow-y-auto p-4 md:p-6 space-y-0.5 font-serif-sc border-r border-slate-100' : 'overflow-y-auto p-4 md:p-6 space-y-0.5 font-sans';
 

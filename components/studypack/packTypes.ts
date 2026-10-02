@@ -28,11 +28,15 @@ export interface LifeMenuRow {
   practice: string;  // the concrete practice for the week
 }
 
-/** One verse of the passage, embedded bilingually (CUV 和合本 + WEB). */
+/**
+ * One verse of the passage, embedded bilingually (和合本 CUV + English).
+ * `en` holds the pack's English translation; which one it is lives at pack
+ * level in `enVersion` (schema is stable if the translation ever changes).
+ */
 export interface PackVerse {
   num: number;  // verse number within the chapter
-  cuv: string;  // Chinese Union Version text (public domain)
-  web: string;  // World English Bible text (public domain)
+  cuv: string;  // 和合本 Chinese Union Version text, Simplified (public domain)
+  en: string;   // English translation text (public domain; see StudyPack.enVersion)
 }
 
 export interface PackSection {
@@ -52,7 +56,8 @@ export interface StudyPack {
   id: string;
   title: string;
   date: string;        // ISO date, e.g. "2026-10-02"
-  passageRef: string;  // e.g. "Matthew 6:25–34 马太福音"
+  passageRef: string;  // e.g. "马太福音 6:25–34 · Matthew 6:25–34"
+  enVersion: string;   // display label of the English translation, e.g. "BSB"
   sections: PackSection[];
 }
 
@@ -86,7 +91,7 @@ function isPackVerses(value: unknown): value is PackVerse[] {
     typeof v === 'object' && v !== null &&
     typeof (v as PackVerse).num === 'number' &&
     typeof (v as PackVerse).cuv === 'string' && (v as PackVerse).cuv.length > 0 &&
-    typeof (v as PackVerse).web === 'string' && (v as PackVerse).web.length > 0
+    typeof (v as PackVerse).en === 'string' && (v as PackVerse).en.length > 0
   );
 }
 
@@ -116,7 +121,7 @@ function parseSection(raw: unknown, index: number): PackSection {
     throw new Error(`StudyPack lifeMenu section ${index} needs non-empty rows[]`);
   }
   if (s.kind === 'scripture' && (!isPackVerses(s.verses) || s.verses.length === 0)) {
-    throw new Error(`StudyPack scripture section ${index} needs non-empty verses[] ({num, cuv, web})`);
+    throw new Error(`StudyPack scripture section ${index} needs non-empty verses[] ({num, cuv, en})`);
   }
   if (s.kind === 'qr' && (typeof s.image !== 'string' || s.image.length === 0 ||
       typeof s.url !== 'string' || s.url.length === 0)) {
@@ -134,7 +139,7 @@ export function parseStudyPack(raw: unknown): StudyPack {
   if (typeof p !== 'object' || p === null) {
     throw new Error('StudyPack JSON is not an object');
   }
-  for (const field of ['id', 'title', 'date', 'passageRef'] as const) {
+  for (const field of ['id', 'title', 'date', 'passageRef', 'enVersion'] as const) {
     if (typeof p[field] !== 'string' || p[field].length === 0) {
       throw new Error(`StudyPack is missing required string field: ${field}`);
     }
@@ -146,8 +151,12 @@ export function parseStudyPack(raw: unknown): StudyPack {
   return { ...(p as StudyPack), sections };
 }
 
-/** Most verses shown on one scripture slide (TV-readable bilingual rows). */
-export const MAX_VERSES_PER_SLIDE = 4;
+/**
+ * Most verses shown on one scripture slide. With the senior-readable type
+ * scale (TYPE_SCALE.verse) four bilingual rows overflow a 16:9 1080p slide
+ * — the e2e fit check proved it — so the cap is 3.
+ */
+export const MAX_VERSES_PER_SLIDE = 3;
 
 /**
  * Split a passage into near-even chunks of at most MAX_VERSES_PER_SLIDE.
