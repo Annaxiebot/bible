@@ -17,6 +17,10 @@ import {
   NEW_STUDY_LINE,
 } from '../landingStrings';
 import { SETUP_TITLE, SETUP_CLOSE } from '../../setup/setupStrings';
+import { signupHash } from '../../signup/signupRoute';
+import { leaderHash } from '../../leader/leaderRoute';
+import { SU_TITLE } from '../../signup/signupStrings';
+import { LD_TITLE } from '../../leader/leaderStrings';
 import LandingGate from '../LandingGate';
 
 describe('resolveRootView', () => {
@@ -42,7 +46,15 @@ describe('resolveRootView', () => {
     expect(resolveRootView(NEW_STUDY_HASH)).toBe('new');
   });
 
+  it('routes #/signup/<id> and #/leader/<id> to the sign-up and leader pages', () => {
+    expect(resolveRootView(signupHash('2026-10-02-matt6'))).toBe('signup');
+    expect(resolveRootView(signupHash('local-2026-10-02-jhn3'))).toBe('signup');
+    expect(resolveRootView(leaderHash('2026-10-02-matt6'))).toBe('leader');
+  });
+
   it('falls through to the app on any unrecognized hash (bookmarked deep state)', () => {
+    expect(resolveRootView('#/signup/')).toBe('app');
+    expect(resolveRootView('#/leader/bad id')).toBe('app');
     expect(resolveRootView('#/setup/extra')).toBe('app');
     expect(resolveRootView('#/new/extra')).toBe('app');
     expect(resolveRootView('#journal')).toBe('app');
@@ -178,6 +190,20 @@ describe('LandingGate', () => {
     expect(await screen.findByTestId('new-study-page')).toBeInTheDocument();
     expect(screen.queryByTestId('landing-page')).toBeNull();
     expect(screen.queryByTestId('the-app')).toBeNull();
+  });
+
+  it('#/signup/<id> renders the sign-up page and #/leader/<id> the leader page, never the landing', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 404 })));
+    window.location.hash = signupHash('2026-10-02-matt6');
+    render(<LandingGate app={app} />);
+    expect(await screen.findByTestId('signup-page')).toHaveTextContent(SU_TITLE);
+    expect(screen.queryByTestId('landing-page')).toBeNull();
+    cleanup();
+    window.location.hash = leaderHash('2026-10-02-matt6');
+    render(<LandingGate app={app} />);
+    expect(await screen.findByTestId('leader-page')).toHaveTextContent(LD_TITLE);
+    expect(screen.queryByTestId('the-app')).toBeNull();
+    vi.unstubAllGlobals();
   });
 
   it('renders the app at #app', () => {

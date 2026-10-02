@@ -6,7 +6,8 @@
  * senior-friendly thresholds at phone and desktop widths; reduced motion
  * renders the same layout with all animation off. The sticky nav scrolls to
  * its sections; the next-study block shows the real sample pack and opens
- * it in TV mode; sign-up reveals the group QR.
+ * it in TV mode; sign-up shows the demo line for the sample pack and the
+ * per-pack QR + #/signup link for an owned pack.
  */
 import { test, expect, Page } from '@playwright/test';
 import {
@@ -14,6 +15,9 @@ import {
   SETUP_LINE, SETUP_DONE_LINE, NAV_LINKS, NEXT_OPEN_CTA, NEXT_SIGNUP_CTA, HONEST_NUMBERS,
 } from '../../components/landing/landingStrings';
 import { SETUP_HASH, SAMPLE_PACK_ID } from '../../components/landing/landingRoute';
+import { signupHash } from '../../components/signup/signupRoute';
+import { SU_DEMO_LINE } from '../../components/signup/signupStrings';
+import { routeOwnedSamplePack, expectedSignupUrl } from './helpers/signup';
 import {
   SETUP_TITLE, SETUP_KEY_LABEL, SETUP_SAVE, SETUP_GET_KEY, SETUP_TEST, SETUP_TEST_OK, SETUP_TEST_NO_CREDITS,
   SETUP_REPLACE, savedKeyLine, maskApiKey,
@@ -268,18 +272,20 @@ test.describe('Landing page', () => {
     await expect(page.getByTestId('tv-presentation')).toBeVisible();
   });
 
-  test('sign-up reveals the group QR image and the forms link', async ({ page }) => {
-    // The expected URL comes from the sample pack's qr section: packAssembly.test.ts pins
-    // SIGNUP_QR to it, and packAssembly cannot be imported here (its module graph opens IndexedDB).
-    const pack = await (await page.request.get(`./packs/${SAMPLE_PACK_ID}.json`)).json();
-    const signupUrl: string = pack.sections.find((s: { kind: string }) => s.kind === 'qr').url;
+  test('sign-up: the demo sample pack shows the no-sign-up line; an owned pack shows its QR and #/signup link', async ({ page }) => {
     await openLanding(page);
-    await expect(page.getByTestId('next-study-signup')).toHaveCount(0);
     await page.getByRole('button', { name: NEXT_SIGNUP_CTA }).click();
-    const qr = page.getByTestId('next-study-signup').getByAltText(`QR code for ${signupUrl}`);
-    await expect(qr).toBeVisible();
-    await expect(qr).toHaveJSProperty('naturalWidth', 640);
-    await expect(page.getByTestId('next-study-signup').getByRole('link')).toHaveAttribute('href', signupUrl);
+    const panel = page.getByTestId('next-study-signup');
+    await expect(panel.getByTestId('next-study-demo')).toHaveText(SU_DEMO_LINE);
+    await expect(panel.getByTestId('signup-qr')).toHaveCount(0);
+    await routeOwnedSamplePack(page);
+    await openLanding(page);
+    await page.getByRole('button', { name: NEXT_SIGNUP_CTA }).click();
+    await expect(panel.getByTestId('signup-qr')).toHaveAttribute('data-signup-url', expectedSignupUrl(page));
+    await expect(panel.getByTestId('signup-qr').locator('svg')).toBeVisible();
+    await expect(panel.getByRole('link')).toHaveAttribute('href', signupHash(SAMPLE_PACK_ID));
+    await panel.getByRole('link').click();
+    await expect(page.getByTestId('signup-form')).toBeVisible();
   });
 
   test('honest numbers render Chinese first with four figures', async ({ page }) => {

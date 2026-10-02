@@ -4,15 +4,18 @@
  * Takes a pack id (today the sample pack; later a "current pack" setting)
  * and loads it through the same seam TV mode uses (packSource.loadPack →
  * public/packs/<id>.json?schema=N). Title, passage and date render in large
- * type with two CTAs: open the pack in TV mode, and reveal the group's
- * sign-up QR (SIGNUP_QR from packAssembly — one definition for every pack).
+ * type with two CTAs: open the pack in TV mode, and reveal this pack's
+ * sign-up QR + link (drawn from the pack id by SignupQr / signupRoute) — or
+ * the demo line when the pack has no owning leader.
  * A failed load is a handled state, not an error: the block still renders
  * with the static pack link and a bilingual "暂无 · none yet" line.
  */
 import React, { useEffect, useState } from 'react';
 import { loadPack } from '../studypack/packSource';
 import type { StudyPack } from '../studypack/packTypes';
-import { SIGNUP_QR } from '../newstudy/packAssembly';
+import SignupQr from '../signup/SignupQr';
+import { signupHash, currentSignupUrl } from '../signup/signupRoute';
+import { SU_QR_BODY, SU_DEMO_LINE } from '../signup/signupStrings';
 import { packHash } from './landingRoute';
 import {
   NEXT_EYEBROW, NEXT_HEADING_ZH, NEXT_HEADING_EN, NEXT_DESC, NEXT_OPEN_CTA,
@@ -59,19 +62,25 @@ const PackSummary: React.FC<{ state: PackState }> = ({ state }) => {
   return <p className="ld-next-ref text-slate-400" data-testid="next-study-empty">{line}</p>;
 };
 
-const SignupPanel: React.FC = () => (
-  <div data-testid="next-study-signup" className="mx-auto mt-6 max-w-sm rounded-3xl border border-slate-800 bg-slate-900/60 p-5">
-    <img
-      src={`${import.meta.env.BASE_URL}${SIGNUP_QR.image}`}
-      alt={`QR code for ${SIGNUP_QR.url}`}
-      className="mx-auto w-full max-w-[16rem] rounded-xl bg-white p-2"
-    />
-    <p className="ld-body mt-4 font-serif-sc text-slate-100">{SIGNUP_QR.body}</p>
-    <a href={SIGNUP_QR.url} target="_blank" rel="noreferrer" className="ld-body ld-setup-line inline-block text-amber-300 underline underline-offset-4 hover:text-amber-200">
-      {NEXT_SIGNUP_LINK}
-    </a>
-  </div>
-);
+/** QR + link for an owned pack; the demo line when the pack has no leader (or is not loaded). */
+const SignupPanel: React.FC<{ state: PackState }> = ({ state }) => {
+  const pack = state.status === 'ready' ? state.pack : null;
+  return (
+    <div data-testid="next-study-signup" className="mx-auto mt-6 max-w-sm rounded-3xl border border-slate-800 bg-slate-900/60 p-5">
+      {pack?.leaderId ? (
+        <>
+          <SignupQr url={currentSignupUrl(pack.id)} size="16rem" className="mx-auto" pack={pack} />
+          <p className="ld-body mt-4 font-serif-sc text-slate-100">{SU_QR_BODY}</p>
+          <a href={signupHash(pack.id)} className="ld-body ld-setup-line inline-block text-amber-300 underline underline-offset-4 hover:text-amber-200">
+            {NEXT_SIGNUP_LINK}
+          </a>
+        </>
+      ) : (
+        <p data-testid="next-study-demo" className="ld-body font-serif-sc text-slate-300">{SU_DEMO_LINE}</p>
+      )}
+    </div>
+  );
+};
 
 const LandingNextStudy: React.FC<{ packId: string }> = ({ packId }) => {
   const state = usePackSummary(packId);
@@ -104,7 +113,7 @@ const LandingNextStudy: React.FC<{ packId: string }> = ({ packId }) => {
           {signupOpen ? NEXT_SIGNUP_CLOSE : NEXT_SIGNUP_CTA}
         </button>
       </div>
-      {signupOpen && <SignupPanel />}
+      {signupOpen && <SignupPanel state={state} />}
     </LandingSection>
   );
 };

@@ -13,6 +13,10 @@ import { LIFE_AREAS } from '../../components/studypack/principles';
 import { DEFAULT_AI_SETUP, wireModelId } from '../../services/aiDefaults';
 import { SETUP_TITLE, SETUP_KEY_LABEL, SETUP_SAVE } from '../../components/setup/setupStrings';
 import { openTV, injectApiKey, mockOpenRouterStream } from './helpers/tv';
+import QRCode from 'qrcode';
+import { QR_SVG_OPTIONS, qrModulesPath } from '../../components/signup/signupRoute';
+import { SU_QR_BODY, SU_DEMO_LINE } from '../../components/signup/signupStrings';
+import { routeOwnedSamplePack, expectedSignupUrl } from './helpers/signup';
 
 test.describe('TV Presentation Mode', () => {
   test('loads the pack from the URL and shows the title slide', async ({ page }) => {
@@ -86,16 +90,28 @@ test.describe('TV Presentation Mode', () => {
     await expect(page.getByTestId('tv-presentation')).toHaveCount(0);
   });
 
-  test('the QR sign-up slide shows the code image, URL, and instruction', async ({ page }) => {
+  test('the QR slide of the demo sample pack shows the bilingual no-sign-up line, no QR', async ({ page }) => {
     await openTV(page);
     for (let i = 0; i < 15; i++) await page.keyboard.press('ArrowRight');
     await expect(page.getByText('签到 Sign up')).toBeVisible();
-    const qr = page.getByAltText(/QR code for https:\/\/forms\.gle\/kXamVsHcRTXHbZ4d6/);
-    await expect(qr).toBeVisible();
-    // The PNG must actually load (not a broken image)
-    await expect(qr).toHaveJSProperty('naturalWidth', 640);
-    await expect(page.getByText('https://forms.gle/kXamVsHcRTXHbZ4d6')).toBeVisible();
-    await expect(page.getByText(/Scan to get the Tue\/Thu check-in texts/)).toBeVisible();
+    await expect(page.getByTestId('qr-demo')).toHaveText(SU_DEMO_LINE);
+    await expect(page.getByTestId('signup-qr')).toHaveCount(0);
+  });
+
+  test('an owned pack\'s QR slide draws its sign-up QR, prints its URL, and the instruction', async ({ page }) => {
+    await routeOwnedSamplePack(page);
+    await openTV(page);
+    for (let i = 0; i < 15; i++) await page.keyboard.press('ArrowRight');
+    await expect(page.getByText('签到 Sign up')).toBeVisible();
+    const expectedUrl = expectedSignupUrl(page);
+    const qr = page.getByTestId('signup-qr');
+    await expect(qr).toHaveAttribute('data-signup-url', expectedUrl);
+    await expect(qr.locator('svg')).toBeVisible();
+    // Decoded check: the drawn modules equal the library's own encoding of that URL.
+    expect(qrModulesPath(await qr.innerHTML())).toBe(qrModulesPath(await QRCode.toString(expectedUrl, QR_SVG_OPTIONS)));
+    await expect(page.getByText(expectedUrl)).toBeVisible();
+    await expect(page.getByText(SU_QR_BODY)).toBeVisible();
+    await expect(page.getByTestId('qr-demo')).toHaveCount(0);
   });
 
   test('the life menu slide shows all 7 areas', async ({ page }) => {
