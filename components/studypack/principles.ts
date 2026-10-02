@@ -16,6 +16,14 @@ export function bilingual(zh: string, en: string): string {
   return `${zh} ${en}`;
 }
 
+/** Separator between the two halves of a bilingual body line ("中文 · English"). */
+export const BILINGUAL_SEPARATOR = ' · ';
+
+/** Bilingual body line as the packs write it: "中文 · English" (ADR-0003 §1). */
+export function bilingualLine(zh: string, en: string): string {
+  return `${zh}${BILINGUAL_SEPARATOR}${en}`;
+}
+
 /** Translations the app displays and bundles (ADR-0003 §2–4). */
 export const TRANSLATIONS = {
   zh: { id: 'cuv', label: '和合本' },  // Simplified 简体 for display
@@ -56,6 +64,24 @@ export const TYPE_SCALE = {
  * question → Chinese answer with key English terms). Injected verbatim into
  * every Ask-AI prompt by buildAskAIPrompt.
  */
+/**
+ * Pack-generation content contract (ADR-0003 §1, §7, §12, §13, §17): what
+ * the app's own AI engine must respect when it drafts a study pack. Injected
+ * verbatim into every generation prompt by buildPackPrompt. Scripture text is
+ * never requested from the model — it comes from the bundled Bible data (§4).
+ */
+export const PACK_CONTENT_CONTRACT = [
+  'CONTENT RULES: every bilingual item has a Chinese half (简体 Simplified) and',
+  'an English half; Chinese is shown first, English second. Ground every point',
+  'in the passage given below and cite verses as v.N or vv.N–M. Keep three',
+  'kinds of claims separate: what Scripture says, what behavior it may lead',
+  'to, and any scientific/health claim (never present the last two as biblical',
+  'claims). Life-menu practices are concrete, doable within one week, and tied',
+  'to this passage; use exactly the seven life areas given, in that order.',
+  'Reflection prompts are private by default. Do not invent scripture text',
+  'and do not quote verses at length — the app embeds the passage itself.',
+].join('\n');
+
 export const ASK_AI_ANSWER_CONTRACT = [
   'ANSWER RULES (override any other format rules): answer in at most 2 short',
   'sentences (max ~60 words total — this is shown on a TV and must fit the',

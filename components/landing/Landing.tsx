@@ -15,9 +15,10 @@ import LandingSky from './LandingSky';
 import LandingHero from './LandingHero';
 import LandingCards from './LandingCards';
 import { resolveSessionThemeFromWindow } from './heroThemeSession';
-import { SETUP_HASH } from './landingRoute';
+import { SETUP_HASH, NEW_STUDY_HASH } from './landingRoute';
 import {
   LEADER_ZH, LEADER_EN, SITE_LINE, LOOP_LINE_ZH, LOOP_LINE_EN, SETUP_LINE, SETUP_DONE_LINE,
+  NEW_STUDY_LINE, NEW_STUDY_SUB,
 } from './landingStrings';
 import { getApiKey } from '../../services/openrouter';
 import QuickAISetupDialog from '../setup/QuickAISetup';
@@ -39,6 +40,20 @@ const SetupLine: React.FC<{ configured: boolean; onOpen: () => void }> = ({ conf
     >
       {configured ? SETUP_DONE_LINE : SETUP_LINE}
     </button>
+  </p>
+);
+
+/** Third door: "新建查经 New study" → #/new (≥48px tap target via .ld-setup-line). */
+const NewStudyLine: React.FC = () => (
+  <p className="mt-6 text-center">
+    <a
+      href={NEW_STUDY_HASH}
+      data-testid="landing-new-study-line"
+      className="ld-body ld-setup-line inline-block text-amber-300 underline underline-offset-4 hover:text-amber-200"
+    >
+      {NEW_STUDY_LINE}
+    </a>
+    <span className="ld-body block text-slate-400">{NEW_STUDY_SUB}</span>
   </p>
 );
 
@@ -72,6 +87,7 @@ const Landing: React.FC<{ setupOpen?: boolean }> = ({ setupOpen = false }) => {
         <LandingHero theme={theme} />
         <LandingCards />
         <SetupLine configured={configured} onOpen={() => setOpen(true)} />
+        <NewStudyLine />
         <LeaderLine />
         <Footer />
       </div>
