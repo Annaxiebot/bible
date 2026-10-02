@@ -10,7 +10,7 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, within, cleanup, fireEvent } from '@testing-library/react';
 import { STAR_COUNT } from '../themes/StarsTheme';
 import { HERO_THEMES } from '../heroThemes';
-import { resolveRootView, APP_HASH, SAMPLE_PACK_HASH, SETUP_HASH, NEW_STUDY_HASH } from '../landingRoute';
+import { resolveRootView, APP_HASH, SAMPLE_PACK_HASH, SETUP_HASH, NEW_STUDY_HASH, newStudyHash, getNewStudyPackIdFromHash } from '../landingRoute';
 import {
   BRAND_EN, BRAND_ZH, GROUP_CTA, PERSONAL_CTA,
   GROUP_TITLE_ZH, GROUP_TITLE_EN, PERSONAL_TITLE_ZH, PERSONAL_TITLE_EN, LOOP_STEPS, SETUP_LINE,
@@ -42,8 +42,14 @@ describe('resolveRootView', () => {
     expect(resolveRootView(SETUP_HASH)).toBe('setup');
   });
 
-  it('routes #/new to the New study page', () => {
+  it('routes #/new and #/new/<packId> (the saved-pack editor) to the New study page', () => {
     expect(resolveRootView(NEW_STUDY_HASH)).toBe('new');
+    expect(resolveRootView(newStudyHash('local-2026-10-02-jhn3'))).toBe('new');
+    expect(newStudyHash('local-2026-10-02-jhn3')).toBe('#/new/local-2026-10-02-jhn3');
+    expect(getNewStudyPackIdFromHash('#/new/local-2026-10-02-jhn3')).toBe('local-2026-10-02-jhn3');
+    expect(getNewStudyPackIdFromHash(NEW_STUDY_HASH)).toBeNull();
+    expect(getNewStudyPackIdFromHash('#/new/')).toBeNull();
+    expect(getNewStudyPackIdFromHash('#/new/bad id')).toBeNull();
   });
 
   it('routes #/signup/<id> and #/leader/<id> to the sign-up and leader pages', () => {
@@ -56,7 +62,8 @@ describe('resolveRootView', () => {
     expect(resolveRootView('#/signup/')).toBe('app');
     expect(resolveRootView('#/leader/bad id')).toBe('app');
     expect(resolveRootView('#/setup/extra')).toBe('app');
-    expect(resolveRootView('#/new/extra')).toBe('app');
+    expect(resolveRootView('#/new/bad id')).toBe('app');
+    expect(resolveRootView('#/new/')).toBe('app');
     expect(resolveRootView('#journal')).toBe('app');
     expect(resolveRootView('#/pack/')).toBe('app');
     expect(resolveRootView('#/pack/bad id!')).toBe('app');
