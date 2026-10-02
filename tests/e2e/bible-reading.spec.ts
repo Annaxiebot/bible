@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test';
+import { APP_HASH } from '../../components/landing/landingRoute';
 
 test.describe('Bible Reading Flow', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/#app');
+    await page.goto(`/${APP_HASH}`);
     // Wait for app to load
     await page.waitForLoadState('networkidle');
   });
@@ -52,7 +53,7 @@ test.describe('Bible Reading Flow', () => {
       }
     });
     
-    await page.goto('/#app');
+    await page.goto(`/${APP_HASH}`);
     await page.waitForLoadState('networkidle');
     
     // Filter out known acceptable errors (like network errors for external APIs in dev)
@@ -68,7 +69,7 @@ test.describe('Bible Reading Flow', () => {
 
 test.describe('Navigation', () => {
   test('should allow keyboard navigation', async ({ page }) => {
-    await page.goto('/#app');
+    await page.goto(`/${APP_HASH}`);
     await page.waitForLoadState('networkidle');
     
     // Press Tab to navigate
@@ -84,7 +85,7 @@ test.describe('Performance', () => {
   test('should load within acceptable time', async ({ page }) => {
     const startTime = Date.now();
     
-    await page.goto('/#app');
+    await page.goto(`/${APP_HASH}`);
     await page.waitForLoadState('domcontentloaded');
     
     const loadTime = Date.now() - startTime;

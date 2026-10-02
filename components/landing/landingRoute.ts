@@ -12,7 +12,8 @@ import { getPackIdFromHash } from '../studypack/packTypes';
 export const APP_HASH = '#app';
 
 /** Hash the landing's "See a sample pack" CTA sets. */
-export const SAMPLE_PACK_HASH = '#/pack/2026-10-02-matt6';
+export const SAMPLE_PACK_ID = '2026-10-02-matt6';
+export const SAMPLE_PACK_HASH = `#/pack/${SAMPLE_PACK_ID}`;
 
 export type RootView = 'landing' | 'app' | 'pack';
 

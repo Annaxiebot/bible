@@ -1,12 +1,11 @@
 /**
- * askAI.ts — Ask-AI adapter for TV presentation mode · 问AI适配层
+ * askAI.ts — Ask-AI prompt building + config for TV presentation mode · 问AI适配层
  *
- * Single seam between the overlay and the AI provider. The provider is
- * OpenRouter (services/openrouter.ts — OpenAI-compatible chat/completions);
- * swapping providers later means changing only this file.
+ * The provider is OpenRouter (same endpoint/key as services/openrouter.ts);
+ * the streaming transport lives in askAIStream.ts. Swapping providers later
+ * means changing only these two files.
  */
-import { chatWithAI } from '../../services/openrouter';
-import { STORAGE_KEYS } from '../../constants/storageKeys';
+import { getApiKey } from '../../services/openrouter';
 import { StudyPack, Slide } from './packTypes';
 
 /** Default model, routed via OpenRouter. Change here to switch models. */
@@ -27,12 +26,17 @@ export interface AskAIMessage {
   content: string;
 }
 
-/** Mirrors services/openrouter.ts getApiKey (localStorage key, then env). */
 export function isAskAIConfigured(): boolean {
-  return !!(
-    localStorage.getItem(STORAGE_KEYS.OPENROUTER_API_KEY) ||
-    import.meta.env.VITE_OPENROUTER_API_KEY
-  );
+  return !!getApiKey();
+}
+
+/**
+ * The shared scholar system prompt mandates a [SPLIT] bilingual format; our
+ * rules ask the model not to, but strip it defensively for TV display. Also
+ * applied to the accumulating text while streaming.
+ */
+export function stripSplitMarker(text: string): string {
+  return text.replace(/\s*\[SPLIT\]\s*/g, '\n').trim();
 }
 
 function formatSlide(slide: Slide): string {
@@ -84,25 +88,3 @@ export function buildAskAIPrompt(pack: StudyPack, slide: Slide, question: string
   ].join('\n\n');
 }
 
-/**
- * Ask one question. `history` is the overlay conversation so far (plain Q/A
- * turns). Errors from the provider propagate to the caller, which surfaces
- * them in the overlay.
- */
-export async function askStudyAI(
-  pack: StudyPack,
-  slide: Slide,
-  history: AskAIMessage[],
-  question: string
-): Promise<string> {
-  const prompt = buildAskAIPrompt(pack, slide, question);
-  const result = await chatWithAI(prompt, history, {
-    model: ASK_AI_MODEL,
-    useFreeRouter: false,
-    fast: true,
-    maxTokens: ASK_AI_MAX_TOKENS,
-  });
-  // The shared scholar system prompt mandates a [SPLIT] bilingual format;
-  // our rules ask the model not to, but strip it defensively for TV display.
-  return result.text.replace(/\s*\[SPLIT\]\s*/g, '\n').trim();
-}

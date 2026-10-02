@@ -9,7 +9,7 @@ import { STORAGE_KEYS } from '../constants/storageKeys';
 import { withRetry } from '../utils/retryUtils';
 import { BIBLE_SCHOLAR_SYSTEM_PROMPT } from './systemPrompts';
 
-const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
+export const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const OPENROUTER_MODELS_URL = 'https://openrouter.ai/api/v1/models';
 const MODEL_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
@@ -161,7 +161,7 @@ export const autoDetectBestFreeModel = async (
 /**
  * Get OpenRouter API key
  */
-const getApiKey = (): string | null => {
+export const getApiKey = (): string | null => {
   return localStorage.getItem(STORAGE_KEYS.OPENROUTER_API_KEY) || 
          import.meta.env.VITE_OPENROUTER_API_KEY || 
          null;

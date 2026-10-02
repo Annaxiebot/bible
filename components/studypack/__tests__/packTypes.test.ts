@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
-import path from 'path';
 import {
   parseStudyPack,
   buildSlides,
@@ -9,11 +8,11 @@ import {
   StudyPack,
   PackVerse,
 } from '../packTypes';
+import { TEST_PACK_PATH } from './fixtures';
 
-const PACK_PATH = path.resolve(__dirname, '../../../public/packs/2026-10-02-matt6.json');
 
 function loadRealPack(): StudyPack {
-  return parseStudyPack(JSON.parse(readFileSync(PACK_PATH, 'utf-8')));
+  return parseStudyPack(JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8')));
 }
 
 describe('parseStudyPack', () => {
@@ -38,53 +37,53 @@ describe('parseStudyPack', () => {
   });
 
   it('rejects a pack missing required string fields', () => {
-    const pack = JSON.parse(readFileSync(PACK_PATH, 'utf-8'));
+    const pack = JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8'));
     delete pack.passageRef;
     expect(() => parseStudyPack(pack)).toThrow('passageRef');
   });
 
   it('rejects empty or missing sections', () => {
-    const pack = JSON.parse(readFileSync(PACK_PATH, 'utf-8'));
+    const pack = JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8'));
     pack.sections = [];
     expect(() => parseStudyPack(pack)).toThrow('non-empty sections');
   });
 
   it('rejects a section with an unknown kind', () => {
-    const pack = JSON.parse(readFileSync(PACK_PATH, 'utf-8'));
+    const pack = JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8'));
     pack.sections[0].kind = 'karaoke';
     expect(() => parseStudyPack(pack)).toThrow('unknown kind: karaoke');
   });
 
   it('rejects a discussion section without questions', () => {
-    const pack = JSON.parse(readFileSync(PACK_PATH, 'utf-8'));
+    const pack = JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8'));
     const discussion = pack.sections.find((s: { kind: string }) => s.kind === 'discussion');
     discussion.questions = [];
     expect(() => parseStudyPack(pack)).toThrow('questions[]');
   });
 
   it('rejects a lifeMenu section with malformed rows', () => {
-    const pack = JSON.parse(readFileSync(PACK_PATH, 'utf-8'));
+    const pack = JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8'));
     const lifeMenu = pack.sections.find((s: { kind: string }) => s.kind === 'lifeMenu');
     lifeMenu.rows = [{ area: 'Health' }];
     expect(() => parseStudyPack(pack)).toThrow('rows[]');
   });
 
   it('rejects a scripture section without embedded verses', () => {
-    const pack = JSON.parse(readFileSync(PACK_PATH, 'utf-8'));
+    const pack = JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8'));
     const scripture = pack.sections.find((s: { kind: string }) => s.kind === 'scripture');
     delete scripture.verses;
     expect(() => parseStudyPack(pack)).toThrow('verses[]');
   });
 
   it('rejects a qr section missing image or url', () => {
-    const pack = JSON.parse(readFileSync(PACK_PATH, 'utf-8'));
+    const pack = JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8'));
     const qr = pack.sections.find((s: { kind: string }) => s.kind === 'qr');
     delete qr.url;
     expect(() => parseStudyPack(pack)).toThrow('image and url');
   });
 
   it('rejects scripture verses missing a translation', () => {
-    const pack = JSON.parse(readFileSync(PACK_PATH, 'utf-8'));
+    const pack = JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8'));
     const scripture = pack.sections.find((s: { kind: string }) => s.kind === 'scripture');
     scripture.verses = [{ num: 25, cuv: '文' }];
     expect(() => parseStudyPack(pack)).toThrow('verses[]');

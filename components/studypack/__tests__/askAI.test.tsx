@@ -1,32 +1,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { readFileSync } from 'fs';
-import path from 'path';
-import React from 'react';
 import { STORAGE_KEYS } from '../../../constants/storageKeys';
 import { parseStudyPack, buildSlides, StudyPack, Slide } from '../packTypes';
-import AskAIOverlay from '../AskAIOverlay';
-
-const PACK_PATH = path.resolve(__dirname, '../../../public/packs/2026-10-02-matt6.json');
-
-// Mirror of services/openrouter.ts chatWithAI:
-// (prompt: string, history: {role, content}[], options: {model?, useFreeRouter?, fast?}) → Promise<{text, model}>
-const chatWithAIMock = vi.fn();
-vi.mock('../../../services/openrouter', () => ({
-  chatWithAI: (...args: unknown[]) => chatWithAIMock(...args),
-}));
-
-// Imported AFTER the mock so the adapter binds to the mocked provider.
 import {
+  AI_NOT_CONFIGURED_MESSAGE,
   buildAskAIPrompt,
-  askStudyAI,
   questionForSelection,
+  stripSplitMarker,
   ASK_AI_MODEL,
   ASK_AI_MAX_TOKENS,
 } from '../askAI';
+import { createSSEParser, streamStudyAI } from '../askAIStream';
+import { TEST_PACK_PATH } from './fixtures';
 
 function loadPack(): { pack: StudyPack; slide: Slide } {
-  const pack = parseStudyPack(JSON.parse(readFileSync(PACK_PATH, 'utf-8')));
+  const pack = parseStudyPack(JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8')));
   return { pack, slide: buildSlides(pack)[0] };
 }
 
@@ -34,8 +22,14 @@ function loadPack(): { pack: StudyPack; slide: Slide } {
 // is "configured" by stubbing getItem rather than via setItem.
 const getItemMock = window.localStorage.getItem as ReturnType<typeof vi.fn>;
 
+function configureKey() {
+  getItemMock.mockImplementation((key: string) =>
+    key === STORAGE_KEYS.OPENROUTER_API_KEY ? 'test-key' : null
+  );
+}
+
 beforeEach(() => {
-  chatWithAIMock.mockReset().mockResolvedValue({ text: 'Answer (v.25).', model: ASK_AI_MODEL });
+  vi.unstubAllGlobals();
   getItemMock.mockReset().mockReturnValue(null);
 });
 
@@ -54,9 +48,34 @@ describe('buildAskAIPrompt', () => {
     expect(prompt).toContain('QUESTION: Why birds?');
   });
 
-  it('includes every scripture section of the current pack (john3 has two)', () => {
-    const JOHN_PATH = path.resolve(__dirname, '../../../public/packs/2026-10-02-john3.json');
-    const pack = parseStudyPack(JSON.parse(readFileSync(JOHN_PATH, 'utf-8')));
+  it('includes every scripture section of a pack with TWO scripture sections', () => {
+    // Inline fixture (committed files only — real multi-scripture packs may
+    // hold church-internal content that never lands in the repo).
+    const pack = parseStudyPack({
+      id: 'two-scriptures',
+      title: 'Two Scriptures 雙經文',
+      date: '2026-10-02',
+      passageRef: '約翰福音 3:22–36 · John 3:22–36',
+      sections: [
+        { kind: 'title', heading: 'Two Scriptures 雙經文' },
+        {
+          kind: 'scripture',
+          heading: '一、約翰的衰微 v.29–30',
+          verses: [
+            { num: 29, cuv: '娶新婦的就是新郎。', web: 'He who has the bride is the bridegroom.' },
+            { num: 30, cuv: '他必興旺，我必衰微。', web: 'He must increase, but I must decrease.' },
+          ],
+        },
+        {
+          kind: 'scripture',
+          heading: '二、基督的至高 v.31–32',
+          verses: [
+            { num: 31, cuv: '從天上來的是在萬有之上。', web: 'He who comes from above is above all.' },
+            { num: 32, cuv: '他將所見所聞的見證出來。', web: 'What he has seen and heard, of that he testifies.' },
+          ],
+        },
+      ],
+    });
     const scriptures = pack.sections.filter(s => s.kind === 'scripture');
     expect(scriptures).toHaveLength(2);
     const prompt = buildAskAIPrompt(pack, buildSlides(pack)[0], 'q');
@@ -77,115 +96,111 @@ describe('questionForSelection', () => {
   });
 });
 
-describe('askStudyAI', () => {
-  it('calls OpenRouter with the pinned model and passes the conversation history', async () => {
-    const { pack, slide } = loadPack();
-    const history = [
-      { role: 'user' as const, content: 'first q' },
-      { role: 'assistant' as const, content: 'first a' },
-    ];
-    await askStudyAI(pack, slide, history, 'follow-up');
-    expect(chatWithAIMock).toHaveBeenCalledTimes(1);
-    const [prompt, passedHistory, options] = chatWithAIMock.mock.calls[0];
-    expect(String(prompt)).toContain('QUESTION: follow-up');
-    expect(passedHistory).toEqual(history);
-    expect(options).toMatchObject({
-      model: ASK_AI_MODEL,
-      useFreeRouter: false,
-      maxTokens: ASK_AI_MAX_TOKENS,
-    });
+describe('createSSEParser', () => {
+  it('parses real OpenRouter chunk shapes and ignores [DONE]', () => {
+    const deltas: string[] = [];
+    const feed = createSSEParser(d => deltas.push(d));
+    feed('data: {"id":"gen-1","choices":[{"delta":{"content":"Anxiety "}}]}\n\n');
+    feed('data: {"id":"gen-1","choices":[{"delta":{"content":"follows (v.25)."}}]}\n\ndata: [DONE]\n\n');
+    expect(deltas).toEqual(['Anxiety ', 'follows (v.25).']);
   });
 
-  it('strips the bilingual [SPLIT] marker from provider output', async () => {
-    const { pack, slide } = loadPack();
-    chatWithAIMock.mockResolvedValue({ text: '中文 (v.25)。\n[SPLIT]\nEnglish (v.25).', model: 'm' });
-    const text = await askStudyAI(pack, slide, [], 'q');
-    expect(text).not.toContain('[SPLIT]');
-    expect(text).toContain('中文 (v.25)。');
-    expect(text).toContain('English (v.25).');
+  it('buffers a data line split across chunks, and handles CRLF', () => {
+    const deltas: string[] = [];
+    const feed = createSSEParser(d => deltas.push(d));
+    feed('data: {"choices":[{"del');
+    expect(deltas).toEqual([]); // nothing emitted from a partial line
+    feed('ta":{"content":"whole"}}]}\r\n');
+    expect(deltas).toEqual(['whole']);
+  });
+
+  it('skips SSE comments, keep-alives, and role-only deltas', () => {
+    const deltas: string[] = [];
+    const feed = createSSEParser(d => deltas.push(d));
+    feed(': OPENROUTER PROCESSING\n\ndata: {"choices":[{"delta":{"role":"assistant"}}]}\n\n');
+    feed('data: {"choices":[{"delta":{"content":"x"}}]}\n');
+    expect(deltas).toEqual(['x']);
   });
 });
 
-describe('AskAIOverlay', () => {
-  function renderOverlay(onClose = vi.fn(), initialQuestion: string | null = null) {
+describe('stripSplitMarker', () => {
+  it('replaces [SPLIT] with a line break and trims', () => {
+    expect(stripSplitMarker('中文。\n[SPLIT]\nEnglish. ')).toBe('中文。\nEnglish.');
+  });
+});
+
+function sseResponse(chunks: string[], failAfter = false): Response {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    start(c) {
+      chunks.forEach(ch => c.enqueue(encoder.encode(ch)));
+      if (!failAfter) c.close();
+    },
+    pull() {
+      if (failAfter) throw new DOMException('aborted', 'AbortError');
+    },
+  });
+  return { ok: true, body: stream } as unknown as Response;
+}
+
+describe('streamStudyAI', () => {
+  it('streams accumulated [SPLIT]-stripped text and sends the pinned model/cap/history', async () => {
+    configureKey();
+    const fetchMock = vi.fn().mockResolvedValue(sseResponse([
+      'data: {"choices":[{"delta":{"content":"中文 (v.25)。"}}]}\n',
+      'data: {"choices":[{"delta":{"content":"\\n[SPLIT]\\nEnglish"}}]}\n',
+      'data: {"choices":[{"delta":{"content":" (v.25)."}}]}\n',
+      'data: [DONE]\n',
+    ]));
+    vi.stubGlobal('fetch', fetchMock);
     const { pack, slide } = loadPack();
-    render(
-      <AskAIOverlay pack={pack} slide={slide} initialQuestion={initialQuestion} onClose={onClose} />
+    const seen: string[] = [];
+    const history = [{ role: 'user' as const, content: 'q1' }, { role: 'assistant' as const, content: 'a1' }];
+    const finalText = await streamStudyAI(
+      pack, slide, history, 'follow-up', t => seen.push(t), new AbortController().signal
     );
-    return onClose;
-  }
+    expect(seen[0]).toBe('中文 (v.25)。');
+    expect(finalText).toBe('中文 (v.25)。\nEnglish (v.25).');
+    expect(seen[seen.length - 1]).toBe(finalText);
+    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
+    expect(body).toMatchObject({ model: ASK_AI_MODEL, stream: true, max_tokens: ASK_AI_MAX_TOKENS });
+    expect(body.messages[0].role).toBe('system');
+    expect(body.messages.slice(1, 3)).toEqual(history);
+    expect(body.messages[3].content).toContain('QUESTION: follow-up');
+  });
 
-  function configureKey() {
-    getItemMock.mockImplementation((key: string) =>
-      key === STORAGE_KEYS.OPENROUTER_API_KEY ? 'test-key' : null
+  it('resolves cleanly with the partial text when aborted mid-stream', async () => {
+    configureKey();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
+      sseResponse(['data: {"choices":[{"delta":{"content":"partial"}}]}\n'], true)
+    ));
+    const { pack, slide } = loadPack();
+    const finalText = await streamStudyAI(
+      pack, slide, [], 'q', () => undefined, new AbortController().signal
     );
-  }
-
-  it('shows the OpenRouter setup message and disables input when unconfigured', () => {
-    renderOverlay();
-    expect(screen.getByRole('alert')).toHaveTextContent(/OpenRouter API key/);
-    expect(screen.getByLabelText(/Ask AI question/)).toBeDisabled();
-    expect(chatWithAIMock).not.toHaveBeenCalled();
+    expect(finalText).toBe('partial');
   });
 
-  it('submits a question and renders the grounded answer', async () => {
+  it('throws the API error message on a non-OK response', async () => {
     configureKey();
-    renderOverlay();
-    fireEvent.change(screen.getByLabelText(/Ask AI question/), { target: { value: 'Why birds?' } });
-    fireEvent.click(screen.getByRole('button', { name: /Ask 提问/ }));
-    expect(screen.getByText('Q: Why birds?')).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText('Answer (v.25).')).toBeInTheDocument());
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: 429,
+      json: () => Promise.resolve({ error: { message: 'Rate limited' } }),
+    }));
+    const { pack, slide } = loadPack();
+    await expect(
+      streamStudyAI(pack, slide, [], 'q', () => undefined, new AbortController().signal)
+    ).rejects.toThrow('Rate limited');
   });
 
-  it('sends prior Q&A as history on a follow-up question', async () => {
-    configureKey();
-    renderOverlay();
-    const input = screen.getByLabelText(/Ask AI question/);
-    fireEvent.change(input, { target: { value: 'first q' } });
-    fireEvent.click(screen.getByRole('button', { name: /Ask 提问/ }));
-    await waitFor(() => expect(screen.getByText('Answer (v.25).')).toBeInTheDocument());
-    fireEvent.change(input, { target: { value: 'go deeper' } });
-    fireEvent.click(screen.getByRole('button', { name: /Ask 提问/ }));
-    await waitFor(() => expect(chatWithAIMock).toHaveBeenCalledTimes(2));
-    const [, history] = chatWithAIMock.mock.calls[1];
-    expect(history).toEqual([
-      { role: 'user', content: 'first q' },
-      { role: 'assistant', content: 'Answer (v.25).' },
-    ]);
-  });
-
-  it('surfaces provider errors in the overlay', async () => {
-    configureKey();
-    chatWithAIMock.mockRejectedValue(new Error('OpenRouter API error: 429'));
-    renderOverlay();
-    fireEvent.change(screen.getByLabelText(/Ask AI question/), { target: { value: 'q' } });
-    fireEvent.click(screen.getByRole('button', { name: /Ask 提问/ }));
-    await waitFor(() => {
-      expect(screen.getByRole('alert')).toHaveTextContent('OpenRouter API error: 429');
-    });
-  });
-
-  it('auto-sends an initial question exactly once and keeps the input for follow-ups', async () => {
-    configureKey();
-    renderOverlay(vi.fn(), 'Where does anxiety show up?');
-    expect(screen.getByText('Q: Where does anxiety show up?')).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText('Answer (v.25).')).toBeInTheDocument());
-    expect(chatWithAIMock).toHaveBeenCalledTimes(1);
-    expect(String(chatWithAIMock.mock.calls[0][0])).toContain('QUESTION: Where does anxiety show up?');
-    await waitFor(() => expect(screen.getByLabelText(/Ask AI question/)).toBeEnabled());
-  });
-
-  it('does not auto-send when the provider is unconfigured', () => {
-    renderOverlay(vi.fn(), 'auto question');
-    expect(chatWithAIMock).not.toHaveBeenCalled();
-    expect(screen.getByRole('alert')).toHaveTextContent(/OpenRouter API key/);
-  });
-
-  it('closes on Escape and on the close button', () => {
-    const onClose = renderOverlay();
-    fireEvent.keyDown(window, { key: 'Escape' });
-    expect(onClose).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByLabelText(/Close Ask AI/));
-    expect(onClose).toHaveBeenCalledTimes(2);
+  it('throws when no API key is configured, without fetching', async () => {
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    const { pack, slide } = loadPack();
+    await expect(
+      streamStudyAI(pack, slide, [], 'q', () => undefined, new AbortController().signal)
+    ).rejects.toThrow(AI_NOT_CONFIGURED_MESSAGE);
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

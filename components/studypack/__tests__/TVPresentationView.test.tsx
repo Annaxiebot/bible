@@ -1,19 +1,28 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { readFileSync } from 'fs';
-import path from 'path';
 import React from 'react';
 import { STORAGE_KEYS } from '../../../constants/storageKeys';
+import { SAMPLE_PACK_ID, TEST_PACK_PATH } from './fixtures';
 import TVPresentationView from '../TVPresentationView';
 
-const PACK_PATH = path.resolve(__dirname, '../../../public/packs/2026-10-02-matt6.json');
-const packJson = () => JSON.parse(readFileSync(PACK_PATH, 'utf-8'));
 
-// Mirror of services/openrouter.ts chatWithAI: (prompt, history, options) → {text, model}
-const chatWithAIMock = vi.fn();
-vi.mock('../../../services/openrouter', () => ({
-  chatWithAI: (...args: unknown[]) => chatWithAIMock(...args),
+const packJson = () => JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8'));
+
+// Mirror of askAIStream.ts streamStudyAI:
+// (pack, slide, history, question, onText, signal) → Promise<finalText>
+const streamStudyAIMock = vi.fn();
+vi.mock('../askAIStream', () => ({
+  streamStudyAI: (...args: unknown[]) => streamStudyAIMock(...args),
 }));
+
+function mockAnswer(text: string) {
+  streamStudyAIMock.mockImplementation(
+    async (_p: unknown, _s: unknown, _h: unknown, _q: unknown, onText: (t: string) => void) => {
+      onText(text);
+      return text;
+    });
+}
 
 function mockFetchOk(body: unknown) {
   const fetchMock = vi.fn().mockResolvedValue({
@@ -25,7 +34,7 @@ function mockFetchOk(body: unknown) {
 }
 
 async function renderLoaded(onExit = vi.fn()) {
-  render(<TVPresentationView packId="2026-10-02-matt6" onExit={onExit} />);
+  render(<TVPresentationView packId={SAMPLE_PACK_ID} onExit={onExit} />);
   await waitFor(() => {
     expect(screen.getByText('Do Not Be Anxious 不要忧虑')).toBeInTheDocument();
   });
@@ -36,7 +45,7 @@ describe('TVPresentationView', () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks(); // drops per-test spies (e.g. window.getSelection)
-    chatWithAIMock.mockReset();
+    streamStudyAIMock.mockReset();
     // setup.ts mocks localStorage; no key stubbed → Ask-AI is unconfigured here.
     (window.localStorage.getItem as ReturnType<typeof vi.fn>).mockReset().mockReturnValue(null);
   });
@@ -45,7 +54,7 @@ describe('TVPresentationView', () => {
     const fetchMock = mockFetchOk(packJson());
     await renderLoaded();
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(String(fetchMock.mock.calls[0][0])).toContain('packs/2026-10-02-matt6.json');
+    expect(String(fetchMock.mock.calls[0][0])).toContain(`packs/${SAMPLE_PACK_ID}.json`);
     expect(screen.getByText('1/16')).toBeInTheDocument();
     expect(screen.getByText(/Arrow keys, click, or swipe/)).toBeInTheDocument();
   });
@@ -150,7 +159,7 @@ describe('TVPresentationView', () => {
   }
 
   it('auto-sends the discussion question when Ask AI opens on a discussion slide', async () => {
-    chatWithAIMock.mockResolvedValue({ text: 'It shows up at work (v.25).', model: 'm' });
+    mockAnswer('It shows up at work (v.25).');
     configureKey();
     mockFetchOk(packJson());
     await renderLoaded();
@@ -158,13 +167,13 @@ describe('TVPresentationView', () => {
     fireEvent.keyDown(window, { key: 'a' });
     expect(screen.getByText(/Q: Where does anxiety actually show up/)).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText('It shows up at work (v.25).')).toBeInTheDocument());
-    expect(chatWithAIMock).toHaveBeenCalledTimes(1);
-    expect(String(chatWithAIMock.mock.calls[0][0]))
-      .toContain('QUESTION: Where does anxiety actually show up');
+    expect(streamStudyAIMock).toHaveBeenCalledTimes(1);
+    expect(String(streamStudyAIMock.mock.calls[0][3]))
+      .toContain('Where does anxiety actually show up');
   });
 
   it('selected slide text beats the discussion question and is sent as an explain request', async () => {
-    chatWithAIMock.mockResolvedValue({ text: 'Explained (v.26).', model: 'm' });
+    mockAnswer('Explained (v.26).');
     configureKey();
     const removeAllRanges = vi.fn();
     vi.spyOn(window, 'getSelection').mockReturnValue({
@@ -175,11 +184,11 @@ describe('TVPresentationView', () => {
     await renderLoaded();
     for (let i = 0; i < 7; i++) fireEvent.keyDown(window, { key: 'ArrowRight' });
     fireEvent.keyDown(window, { key: 'a' });
-    await waitFor(() => expect(chatWithAIMock).toHaveBeenCalledTimes(1));
-    const prompt = String(chatWithAIMock.mock.calls[0][0]);
-    expect(prompt).toContain('Explain this phrase in the context of the passage');
-    expect(prompt).toContain('"飛鳥 the birds"');
-    expect(prompt).not.toContain('QUESTION: Where does anxiety');
+    await waitFor(() => expect(streamStudyAIMock).toHaveBeenCalledTimes(1));
+    const question = String(streamStudyAIMock.mock.calls[0][3]);
+    expect(question).toContain('Explain this phrase in the context of the passage');
+    expect(question).toContain('"飛鳥 the birds"');
+    expect(question).not.toContain('Where does anxiety');
     expect(removeAllRanges).toHaveBeenCalled(); // selection cleared after sending
   });
 
@@ -189,7 +198,7 @@ describe('TVPresentationView', () => {
     await renderLoaded();
     fireEvent.keyDown(window, { key: 'a' });
     expect(screen.getByTestId('ask-ai-overlay')).toBeInTheDocument();
-    expect(chatWithAIMock).not.toHaveBeenCalled();
+    expect(streamStudyAIMock).not.toHaveBeenCalled();
     expect(screen.getByLabelText(/Ask AI question/)).toHaveValue('');
   });
 
@@ -198,6 +207,6 @@ describe('TVPresentationView', () => {
     await renderLoaded();
     fireEvent.keyDown(window, { key: 'a' });
     expect(screen.getByText(/OpenRouter API key/)).toBeInTheDocument();
-    expect(chatWithAIMock).not.toHaveBeenCalled();
+    expect(streamStudyAIMock).not.toHaveBeenCalled();
   });
 });

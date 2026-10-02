@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { APP_HASH } from '../../components/landing/landingRoute';
 
 // Emulate iPhone 12 with Chromium (WebKit not installed)
 test.use({
@@ -10,7 +11,7 @@ test.use({
 
 test.describe('AI Chat - Mobile Touch', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/#app');
+    await page.goto(`/${APP_HASH}`);
     await page.waitForLoadState('networkidle');
     await page.click('text=AI Chat');
     await page.waitForTimeout(500);

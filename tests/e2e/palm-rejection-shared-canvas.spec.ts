@@ -40,6 +40,7 @@
  */
 
 import { test, expect, type Locator, type Page } from '@playwright/test';
+import { APP_HASH } from '../../components/landing/landingRoute';
 import { dispatchTouchFrames, type SynthContact } from './helpers/pointerSynth';
 import { PALM } from '../../constants/appConfig';
 
@@ -64,7 +65,7 @@ interface InkRegion { x: number; y: number; width: number; height: number }
  * reason, so the pick is asserted before it is used.
  */
 async function openJournalDrawing(page: Page): Promise<Locator> {
-  await page.goto('/#app');
+  await page.goto(`/${APP_HASH}`);
   await page.waitForLoadState('networkidle');
 
   await page.locator('[data-testid="layout-btn-notes"]').click();
