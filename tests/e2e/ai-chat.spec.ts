@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test.describe('AI Chat View', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/#app');
     await page.waitForLoadState('networkidle');
     // Navigate to AI Chat tab
     await page.click('text=AI Chat');
@@ -106,7 +106,7 @@ test.describe('AI Chat View', () => {
 
 test.describe('AI Chat - Thread Switching', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/#app');
     await page.waitForLoadState('networkidle');
     await page.click('text=AI Chat');
     await page.waitForTimeout(500);
@@ -152,7 +152,7 @@ test.describe('AI Chat - Thread Switching', () => {
 
 test.describe('AI Chat - Scroll to Bottom', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/#app');
     await page.waitForLoadState('networkidle');
     await page.click('text=AI Chat');
     await page.waitForTimeout(500);

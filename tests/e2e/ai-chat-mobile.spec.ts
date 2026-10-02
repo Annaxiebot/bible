@@ -10,7 +10,7 @@ test.use({
 
 test.describe('AI Chat - Mobile Touch', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto('/');
+    await page.goto('/#app');
     await page.waitForLoadState('networkidle');
     await page.click('text=AI Chat');
     await page.waitForTimeout(500);

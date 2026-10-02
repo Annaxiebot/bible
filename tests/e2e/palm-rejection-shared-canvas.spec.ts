@@ -64,7 +64,7 @@ interface InkRegion { x: number; y: number; width: number; height: number }
  * reason, so the pick is asserted before it is used.
  */
 async function openJournalDrawing(page: Page): Promise<Locator> {
-  await page.goto('/');
+  await page.goto('/#app');
   await page.waitForLoadState('networkidle');
 
   await page.locator('[data-testid="layout-btn-notes"]').click();
