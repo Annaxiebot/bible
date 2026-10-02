@@ -12,7 +12,9 @@ test.describe('TV Presentation Mode', () => {
   test('loads the pack from the URL and shows the title slide', async ({ page }) => {
     await openTV(page);
     await expect(page.getByText('1/16')).toBeVisible();
-    await expect(page.getByText(/Arrow keys, click, or swipe/)).toBeVisible();
+    await expect(page.getByText(
+      '← → 或滑动翻页 · Arrow keys or swipe · 选中文字或按 A 问AI · Select text or press A to ask AI · Esc 退出'
+    )).toBeVisible();
   });
 
   test('advances through all 16 slides with the keyboard and clamps at the end', async ({ page }) => {
@@ -37,17 +39,17 @@ test.describe('TV Presentation Mode', () => {
     await page.keyboard.press('ArrowRight');
     // Part 1/3 = vv.25-27, real verse text, CUV + WEB — no IndexedDB cache involved
     await expect(page.getByText(/Scripture 经文.*· 1\/3/)).toBeVisible();
-    await expect(page.getByText(/不要為生命憂慮/)).toBeVisible();
+    await expect(page.getByText(/不要为生命忧虑吃甚么/)).toBeVisible();
     await expect(page.getByText(/don’t be anxious for your life/)).toBeVisible();
 
     await page.keyboard.press('ArrowRight');
     await expect(page.getByText(/Scripture 经文.*· 2\/3/)).toBeVisible();
-    await expect(page.getByText(/所羅門極榮華/)).toBeVisible();
+    await expect(page.getByText(/所罗门极荣华/)).toBeVisible();
     await expect(page.getByText(/Solomon in all his glory/)).toBeVisible();
 
     await page.keyboard.press('ArrowRight');
     await expect(page.getByText(/Scripture 经文.*· 3\/3/)).toBeVisible();
-    await expect(page.getByText(/你們要先求他的國和他的義/)).toBeVisible();
+    await expect(page.getByText(/你们要先求他的国和他的义/)).toBeVisible();
     await expect(page.getByText(/seek first God’s Kingdom/)).toBeVisible();
   });
 
@@ -60,13 +62,14 @@ test.describe('TV Presentation Mode', () => {
     await expect(page.getByText(/Discussion 讨论 · 2\/5/)).toBeVisible();
   });
 
-  test('clicking the right and left halves of the screen navigates', async ({ page }) => {
+  test('clicking does NOT navigate — arrow keys only (clicks are for selection)', async ({ page }) => {
     await openTV(page);
     const box = (await page.getByTestId('tv-presentation').boundingBox())!;
     await page.mouse.click(box.x + box.width * 0.9, box.y + box.height / 2);
-    await expect(page.getByText('2/16')).toBeVisible();
     await page.mouse.click(box.x + box.width * 0.1, box.y + box.height / 2);
-    await expect(page.getByText('1/16')).toBeVisible();
+    await expect(page.getByText('1/16')).toBeVisible(); // unchanged
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByText('2/16')).toBeVisible(); // keyboard still works
   });
 
   test('Escape exits back to the normal app', async ({ page }) => {
@@ -171,6 +174,43 @@ test.describe('Ask AI overlay', () => {
     await expect(page.getByText('Anxiety follows the treasure (v.25).')).toBeVisible();
     await expect(page.getByLabel(/Ask AI question/)).toBeEnabled();
     await expect(page.getByLabel(/Ask AI question/)).toHaveValue('');
+  });
+
+  test('answers render markdown with verse-ref tooltips from the pack', async ({ page }) => {
+    await page.addInitScript(
+      (key) => localStorage.setItem(key, 'e2e-test-key'),
+      STORAGE_KEYS.OPENROUTER_API_KEY,
+    );
+    await page.route('https://openrouter.ai/api/v1/chat/completions', route =>
+      route.fulfill({
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+        body: [
+          // Mocked streamed answer: markdown bold + one in-pack ref (v.26)
+          // and one out-of-pack ref (v.24 — the pack embeds only 25–34).
+          'data: {"choices":[{"delta":{"content":"**Trust** the Father "}}]}',
+          '',
+          'data: {"choices":[{"delta":{"content":"(v.26), unlike v.24."}}]}',
+          '',
+          'data: [DONE]',
+          '',
+        ].join('\n'),
+      }));
+    await openTV(page);
+    for (let i = 0; i < 7; i++) await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('a');
+
+    // Markdown: **Trust** renders as <strong>
+    await expect(page.locator('[data-testid="ask-answer"] strong', { hasText: 'Trust' })).toBeVisible();
+    // In-pack ref is interactive: hover shows the bilingual verse text
+    const ref = page.getByTestId('verse-ref');
+    await expect(ref).toHaveText('v.26');
+    await ref.hover();
+    await expect(page.getByRole('tooltip')).toContainText('飞鸟');
+    await expect(page.getByRole('tooltip')).toContainText('birds of the sky');
+    // Out-of-pack ref stays plain text (no tooltip trigger for v.24)
+    await expect(page.getByTestId('ask-answer')).toContainText('v.24');
+    await expect(page.getByTestId('verse-ref')).toHaveCount(1);
   });
 
   test('without an API key the overlay says OpenRouter is not configured', async ({ page }) => {

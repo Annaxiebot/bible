@@ -1,9 +1,10 @@
 /**
  * useTVNavigation.ts — slide navigation for TV presentation mode · 幻灯片导航
  *
- * Inputs: ArrowRight / Space / ArrowLeft / Escape keys, click on the left or
- * right half of the screen, and horizontal touch swipe. Index is clamped to
- * [0, slideCount - 1]; Escape (or the exit button) calls onExit.
+ * Inputs: ArrowRight / Space / ArrowLeft / Escape keys and horizontal touch
+ * swipe (iPad). Mouse clicks deliberately do NOT navigate — clicking is for
+ * text selection (select-to-ask). Index is clamped to [0, slideCount - 1];
+ * Escape (or the exit button) calls onExit.
  *
  * `enabled: false` suspends every input (used while the Ask-AI overlay is
  * open, so typing a question never flips slides or exits TV mode).
@@ -16,7 +17,6 @@ export interface TVNavigation {
   index: number;
   next: () => void;
   prev: () => void;
-  onScreenClick: (e: React.MouseEvent<HTMLElement>) => void;
   onTouchStart: (e: React.TouchEvent) => void;
   onTouchEnd: (e: React.TouchEvent) => void;
 }
@@ -54,16 +54,6 @@ export function useTVNavigation(
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [next, prev, onExit, enabled]);
 
-  const onScreenClick = useCallback((e: React.MouseEvent<HTMLElement>) => {
-    if (!enabled) return;
-    const rect = e.currentTarget.getBoundingClientRect();
-    if (e.clientX - rect.left < rect.width / 2) {
-      prev();
-    } else {
-      next();
-    }
-  }, [next, prev, enabled]);
-
   const onTouchStart = useCallback((e: React.TouchEvent) => {
     touchStartXRef.current = e.touches.length === 1 ? e.touches[0].clientX : null;
   }, []);
@@ -82,5 +72,5 @@ export function useTVNavigation(
     }
   }, [next, prev, enabled]);
 
-  return { index, next, prev, onScreenClick, onTouchStart, onTouchEnd };
+  return { index, next, prev, onTouchStart, onTouchEnd };
 }

@@ -3,14 +3,15 @@
  *
  * Fetches a StudyPack JSON from public/packs/<id>.json and shows it as
  * slides. Scripture text is embedded in the pack (no IndexedDB dependency).
- * Navigation: arrow keys / Space, click left/right half, swipe. "a" or the
- * Ask AI button opens the Ask-AI overlay; Escape closes the overlay first,
- * exits the app second.
+ * Navigation: arrow keys / Space and touch swipe only (clicks are reserved
+ * for text selection). "a", the Ask AI button, or selecting slide text opens
+ * the Ask-AI overlay; Escape closes the overlay first, exits the app second.
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { parseStudyPack, buildSlides, StudyPack, Slide } from './packTypes';
 import { questionForSelection } from './askAI';
 import { useTVNavigation } from './useTVNavigation';
+import { useSelectToAsk } from './useSelectToAsk';
 import TVSlide from './TVSlide';
 import AskAIOverlay from './AskAIOverlay';
 
@@ -68,7 +69,7 @@ const TVChrome: React.FC<TVChromeProps> = ({ slideCount, index, onAskAI }) => (
     </div>
     {index === 0 && (
       <div className="absolute bottom-[2vh] left-[3vw] text-slate-500" style={{ fontSize: '2vh' }}>
-        ← → 或点击/滑动翻页 · Arrow keys, click, or swipe · A 问AI · Esc 退出
+        ← → 或滑动翻页 · Arrow keys or swipe · 选中文字或按 A 问AI · Select text or press A to ask AI · Esc 退出
       </div>
     )}
     <button
@@ -93,6 +94,7 @@ const TVPresentationView: React.FC<TVPresentationViewProps> = ({ packId, onExit 
   const [error, setError] = useState<string | null>(null);
   const [askOpen, setAskOpen] = useState(false);
   const [askInitial, setAskInitial] = useState<string | null>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
   const nav = useTVNavigation(slides?.length ?? 0, onExit, !askOpen);
 
   const slide = slides?.[nav.index];
@@ -101,6 +103,13 @@ const TVPresentationView: React.FC<TVPresentationViewProps> = ({ packId, onExit 
     setAskOpen(true);
   };
   useAskAIHotkey(askOpen, openAsk);
+
+  // Selecting slide text with the mouse asks about it directly.
+  const onSlideSelection = useCallback((text: string) => {
+    setAskInitial(questionForSelection(text));
+    setAskOpen(true);
+  }, []);
+  useSelectToAsk(contentRef, !askOpen && !!slide, onSlideSelection);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,15 +127,15 @@ const TVPresentationView: React.FC<TVPresentationViewProps> = ({ packId, onExit 
 
   return (
     <div
-      className="fixed inset-0 bg-slate-950 text-slate-100 select-none cursor-pointer overflow-hidden"
+      className="fixed inset-0 bg-slate-950 text-slate-100 select-none overflow-hidden"
       data-testid="tv-presentation"
-      onClick={nav.onScreenClick}
       onTouchStart={nav.onTouchStart}
       onTouchEnd={nav.onTouchEnd}
     >
       {/* select-text re-enables selection inside the slide so a selected
-          phrase can be sent to Ask AI (the root is select-none for swipes). */}
-      <div className="h-full w-full px-[6vw] py-[6vh] select-text">
+          phrase can be sent to Ask AI (the root is select-none for swipes).
+          Clicks never navigate — arrow keys / swipe only. */}
+      <div ref={contentRef} className="h-full w-full px-[6vw] py-[6vh] select-text">
         {error && (
           <p className="text-red-400" style={{ fontSize: '4vh' }} role="alert">{error}</p>
         )}

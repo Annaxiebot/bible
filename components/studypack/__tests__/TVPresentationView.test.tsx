@@ -56,7 +56,10 @@ describe('TVPresentationView', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(String(fetchMock.mock.calls[0][0])).toContain(`packs/${SAMPLE_PACK_ID}.json`);
     expect(screen.getByText('1/16')).toBeInTheDocument();
-    expect(screen.getByText(/Arrow keys, click, or swipe/)).toBeInTheDocument();
+    // Pinned hint: must match the actual inputs (no click nav; select-to-ask)
+    expect(screen.getByText(
+      '← → 或滑动翻页 · Arrow keys or swipe · 选中文字或按 A 问AI · Select text or press A to ask AI · Esc 退出'
+    )).toBeInTheDocument();
   });
 
   it('advances through every slide with ArrowRight', async () => {
@@ -66,7 +69,7 @@ describe('TVPresentationView', () => {
     expect(screen.getByText(/Scripture 经文.*· 1\/3/)).toBeInTheDocument();
     expect(screen.getByText('2/16')).toBeInTheDocument();
     // Keyboard hints only on the first slide
-    expect(screen.queryByText(/Arrow keys, click, or swipe/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Arrow keys or swipe/)).not.toBeInTheDocument();
     for (let i = 0; i < 14; i++) fireEvent.keyDown(window, { key: 'ArrowRight' });
     expect(screen.getByText('16/16')).toBeInTheDocument();
     expect(screen.getByText(/Closing 闭环/)).toBeInTheDocument();
@@ -80,12 +83,12 @@ describe('TVPresentationView', () => {
     await renderLoaded();
     fireEvent.keyDown(window, { key: 'ArrowRight' });
     // Part 1/3: vv.25-27, CUV and WEB side by side, no cache involved
-    expect(screen.getByText(/不要為生命憂慮/)).toBeInTheDocument();
+    expect(screen.getByText(/不要为生命忧虑吃甚么/)).toBeInTheDocument();
     expect(screen.getByText(/don’t be anxious for your life/)).toBeInTheDocument();
-    expect(screen.queryByText(/所羅門/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/所罗门/)).not.toBeInTheDocument();
     fireEvent.keyDown(window, { key: 'ArrowRight' });
     expect(screen.getByText(/Scripture 经文.*· 2\/3/)).toBeInTheDocument();
-    expect(screen.getByText(/所羅門極榮華/)).toBeInTheDocument();
+    expect(screen.getByText(/所罗门极荣华/)).toBeInTheDocument();
     fireEvent.keyDown(window, { key: 'ArrowRight' });
     expect(screen.getByText(/Scripture 经文.*· 3\/3/)).toBeInTheDocument();
     expect(screen.getByText(/seek first God’s Kingdom/)).toBeInTheDocument();
@@ -166,7 +169,8 @@ describe('TVPresentationView', () => {
     for (let i = 0; i < 7; i++) fireEvent.keyDown(window, { key: 'ArrowRight' });
     fireEvent.keyDown(window, { key: 'a' });
     expect(screen.getByText(/Q: Where does anxiety actually show up/)).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText('It shows up at work (v.25).')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByTestId('ask-answer')).toHaveTextContent('It shows up at work (v.25).'));
     expect(streamStudyAIMock).toHaveBeenCalledTimes(1);
     expect(String(streamStudyAIMock.mock.calls[0][3]))
       .toContain('Where does anxiety actually show up');
@@ -177,7 +181,7 @@ describe('TVPresentationView', () => {
     configureKey();
     const removeAllRanges = vi.fn();
     vi.spyOn(window, 'getSelection').mockReturnValue({
-      toString: () => ' 飛鳥 the birds ',
+      toString: () => ' 飞鸟 the birds ',
       removeAllRanges,
     } as unknown as Selection);
     mockFetchOk(packJson());
@@ -187,7 +191,7 @@ describe('TVPresentationView', () => {
     await waitFor(() => expect(streamStudyAIMock).toHaveBeenCalledTimes(1));
     const question = String(streamStudyAIMock.mock.calls[0][3]);
     expect(question).toContain('Explain this phrase in the context of the passage');
-    expect(question).toContain('"飛鳥 the birds"');
+    expect(question).toContain('"飞鸟 the birds"');
     expect(question).not.toContain('Where does anxiety');
     expect(removeAllRanges).toHaveBeenCalled(); // selection cleared after sending
   });
