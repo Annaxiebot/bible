@@ -49,6 +49,7 @@ scripturetolife.org serves Chinese-speaking congregations. During the first week
 ## Consequences
 
 - **Code seam (TODO, next session touching `components/studypack/`):** export these rules as a typed constant module (e.g. `components/studypack/principles.ts`) that `buildAskAIPrompt` and the future pack generator import, so the prompt contract and this ADR cannot drift. Until then, `askAI.ts` carries the Ask AI contract (items 9–11) inline; keep the two in sync by hand.
+- **Models (2026-10-02):** Ask AI (TV overlay) sends `google/gemini-2.5-flash` ($0.30/M in, $2.50/M out — about $0.001 per question); pack generation sends `anthropic/claude-sonnet-4.5` ($3/M in, $15/M out — about $0.06 per pack). Both are single constants in `services/aiDefaults.ts` (`ASK_AI_MODEL`, `PACK_GENERATION_MODEL`). Chosen for Chinese quality, latency (short answers must stream within seconds on a TV) and cost; the free router (`openrouter/free`) stays selectable in the advanced panel and is the last Ask-AI fallback, but is no longer the default because free picks were often reasoning models that spent the whole token budget thinking and returned no content.
 - Tests that assert bilingual strings must import the string constants, not copy literals (R3; the R13 pre-push reviewer blocks verbatim duplicates).
 - Any new translation must be public domain or explicitly licensed before it touches the repo (item 3).
 - Supersedes nothing; extends ADR-0001's architecture review with content rules.

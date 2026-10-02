@@ -11,7 +11,7 @@
  */
 import { PackVerse, StudyPack } from '../studypack/packTypes';
 import { TRANSLATIONS } from '../studypack/principles';
-import { resolveAskAIModel } from '../studypack/askAI';
+import { PACK_GENERATION_MODEL } from '../../services/aiDefaults';
 import { streamChatCompletion } from '../studypack/askAIStream';
 import { fetchBundledChapter } from '../../services/bibleDataSource';
 import { buildPackPrompt, PACK_SYSTEM_PROMPT, PACK_MAX_TOKENS, PACK_TEMPERATURE } from './packPrompt';
@@ -45,7 +45,7 @@ export async function loadPassage(req: StudyRequest): Promise<PackVerse[]> {
 
 export function buildPackRequestBody(req: StudyRequest, verses: PackVerse[]): string {
   return JSON.stringify({
-    model: resolveAskAIModel(),
+    model: PACK_GENERATION_MODEL, // long, quality-critical output (ADR-0003 → Models)
     stream: true,
     max_tokens: PACK_MAX_TOKENS,
     temperature: PACK_TEMPERATURE,

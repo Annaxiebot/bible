@@ -167,10 +167,18 @@ export const getApiKey = (): string | null => {
          null;
 };
 
+/** Outcome of testApiKey. `status` is the HTTP status of a non-OK reply (absent on success / network failure). */
+export interface ApiKeyTestResult {
+  success: boolean;
+  error?: string;
+  model?: string;
+  status?: number;
+}
+
 /**
  * Test OpenRouter API key
  */
-export const testApiKey = async (apiKey: string, model?: string): Promise<{ success: boolean; error?: string; model?: string }> => {
+export const testApiKey = async (apiKey: string, model?: string): Promise<ApiKeyTestResult> => {
   const testModel = model || DEFAULT_FREE_MODEL;
   try {
     const response = await fetch(OPENROUTER_API_URL, {
@@ -195,6 +203,7 @@ export const testApiKey = async (apiKey: string, model?: string): Promise<{ succ
     if (!response.ok) {
       return {
         success: false,
+        status: response.status,
         error: data.error?.message || `HTTP ${response.status}: ${response.statusText}`,
       };
     }

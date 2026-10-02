@@ -9,10 +9,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { STORAGE_KEYS } from '../../constants/storageKeys';
 import {
-  DEFAULT_AI_SETUP, FREE_MODELS_ROUTER_ID, OPENROUTER_KEYS_URL,
-  applyDefaultAISetup, hasChosenProvider, initialModelChoice, saveOpenRouterKey,
+  DEFAULT_AI_SETUP, FREE_MODELS_ROUTER_ID, OPENROUTER_KEYS_URL, ASK_AI_MODEL, PACK_GENERATION_MODEL,
+  ASK_AI_FALLBACK_MODELS, wireModelId,
+  applyDefaultAISetup, applyRecommendedModel, hasChosenProvider, initialModelChoice, saveOpenRouterKey,
 } from '../aiDefaults';
 import { getCurrentProvider, getCurrentModel } from '../aiProvider';
+import { FREE_ROUTER_MODEL } from '../openrouter';
 
 function makeStorage(initial: Record<string, string> = {}) {
   const store = { ...initial };
@@ -32,8 +34,22 @@ beforeEach(() => {
 });
 
 describe('DEFAULT_AI_SETUP', () => {
-  it('is OpenRouter with the free-models router', () => {
-    expect(DEFAULT_AI_SETUP).toEqual({ provider: 'openrouter', model: FREE_MODELS_ROUTER_ID });
+  it('is OpenRouter with the low-cost reliable Ask-AI model (ADR-0003 → Models)', () => {
+    expect(DEFAULT_AI_SETUP).toEqual({ provider: 'openrouter', model: ASK_AI_MODEL });
+    expect(ASK_AI_MODEL).toBe('google/gemini-2.5-flash');
+    expect(wireModelId(ASK_AI_MODEL)).toBe(ASK_AI_MODEL); // a concrete id, not an alias
+  });
+
+  it('pack generation uses its own quality-first model, distinct from Ask AI', () => {
+    expect(PACK_GENERATION_MODEL).toBe('anthropic/claude-sonnet-4.5');
+    expect(PACK_GENERATION_MODEL).not.toBe(ASK_AI_MODEL);
+  });
+
+  it('keeps the free router selectable: the alias maps to the wire id and is the last fallback', () => {
+    expect(wireModelId(FREE_MODELS_ROUTER_ID)).toBe(FREE_ROUTER_MODEL);
+    expect(ASK_AI_FALLBACK_MODELS[ASK_AI_FALLBACK_MODELS.length - 1]).toBe(FREE_ROUTER_MODEL);
+    expect(ASK_AI_FALLBACK_MODELS).not.toContain(ASK_AI_MODEL);
+    expect(new Set(ASK_AI_FALLBACK_MODELS).size).toBe(ASK_AI_FALLBACK_MODELS.length);
   });
 
   it('is the provider aiProvider falls back to when nothing is stored', () => {
@@ -69,9 +85,19 @@ describe('applyDefaultAISetup', () => {
   });
 });
 
+describe('applyRecommendedModel (the one-tap switch in the saved-key dialog)', () => {
+  it('overwrites a stored free-router choice with provider + recommended model', () => {
+    storage = makeStorage({ [STORAGE_KEYS.AI_PROVIDER]: 'openrouter', [STORAGE_KEYS.AI_MODEL]: FREE_MODELS_ROUTER_ID });
+    vi.stubGlobal('localStorage', storage);
+    applyRecommendedModel();
+    expect(getCurrentProvider()).toBe(DEFAULT_AI_SETUP.provider);
+    expect(getCurrentModel()).toBe(ASK_AI_MODEL);
+  });
+});
+
 describe('initialModelChoice (what the settings panel shows selected)', () => {
-  it('is the free router for a user who chose nothing', () => {
-    expect(initialModelChoice()).toBe(FREE_MODELS_ROUTER_ID);
+  it('is the recommended model for a user who chose nothing', () => {
+    expect(initialModelChoice()).toBe(ASK_AI_MODEL);
   });
   it('is "" (provider default) for a user who chose a provider but no model', () => {
     storage.setItem(STORAGE_KEYS.AI_PROVIDER, 'gemini');

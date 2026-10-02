@@ -2,14 +2,16 @@
  * aiDefaults.ts — what a brand-new visitor gets without choosing anything · AI 默认设置
  *
  * Single source (R3) for the out-of-the-box AI setup: provider OpenRouter,
- * model = OpenRouter's free-models router. Imported by services/aiProvider
- * (fallback when nothing is stored), components/AIProviderSettings (the
- * advanced panel) and components/setup (the one-field key dialog), so the
- * three can never disagree. Pure module (no React) so tests and Playwright
- * specs can import it.
+ * model = a low-cost reliable model (ADR-0003 Consequences → Models).
+ * Imported by services/aiProvider (fallback when nothing is stored),
+ * components/AIProviderSettings (the advanced panel), components/setup (the
+ * one-field key dialog) and components/newstudy (pack generation), so they
+ * can never disagree. Pure module (no React) so tests and Playwright specs
+ * can import it.
  *
  * Existing stored choices are never overwritten: applyDefaultAISetup() is a
- * no-op once a provider has been chosen.
+ * no-op once a provider has been chosen; applyRecommendedModel() is the one
+ * explicit, user-tapped exception.
  */
 import { STORAGE_KEYS } from '../constants/storageKeys';
 import { FREE_ROUTER_MODEL } from './openrouter';
@@ -18,8 +20,34 @@ import { FREE_ROUTER_MODEL } from './openrouter';
  * OpenRouter model id that routes to the best available free model. The
  * app maps it to OpenRouter's free router (services/aiProvider →
  * services/openrouter FREE_ROUTER_MODEL); the server proxy knows it too.
+ * Still selectable in the advanced panel; no longer the default.
  */
 export const FREE_MODELS_ROUTER_ID = 'openrouter/auto:free';
+
+/**
+ * Ask AI (TV overlay) default: short answers, latency-critical, good
+ * Chinese. ~$0.30/M in, $2.50/M out → about $0.001 per question.
+ * Verified on GET https://openrouter.ai/api/v1/models, 2026-10-02.
+ */
+export const ASK_AI_MODEL = 'google/gemini-2.5-flash';
+
+/**
+ * Pack generation (New study) model: long, quality-critical output.
+ * $3/M in, $15/M out → about $0.06 per pack. Verified 2026-10-02.
+ */
+export const PACK_GENERATION_MODEL = 'anthropic/claude-sonnet-4.5';
+
+/**
+ * Models the Ask-AI overlay falls back to, in order, when the primary
+ * returns no content (reasoning-only / error). The first that differs from
+ * the model that just failed is tried once; the free router is last resort.
+ * All verified on GET /models 2026-10-02.
+ */
+export const ASK_AI_FALLBACK_MODELS: readonly string[] = [
+  'google/gemini-2.5-flash-lite',
+  'deepseek/deepseek-chat-v3-0324',
+  FREE_ROUTER_MODEL,
+];
 
 /** Where a visitor creates an OpenRouter key. Opened in a new tab; never carries the key. */
 export const OPENROUTER_KEYS_URL = 'https://openrouter.ai/keys';
@@ -31,7 +59,7 @@ export function wireModelId(modelId: string): string {
 
 export const DEFAULT_AI_SETUP = {
   provider: 'openrouter',
-  model: FREE_MODELS_ROUTER_ID,
+  model: ASK_AI_MODEL,
 } as const;
 
 /** True once the user (or applyDefaultAISetup) has stored a provider choice. */
@@ -50,8 +78,18 @@ export function applyDefaultAISetup(): void {
 }
 
 /**
+ * The one deliberate overwrite: the "Use recommended model" tap in the
+ * saved-key dialog state writes provider + recommended model over whatever
+ * was stored (e.g. an older free-router choice).
+ */
+export function applyRecommendedModel(): void {
+  localStorage.setItem(STORAGE_KEYS.AI_PROVIDER, DEFAULT_AI_SETUP.provider);
+  localStorage.setItem(STORAGE_KEYS.AI_MODEL, DEFAULT_AI_SETUP.model);
+}
+
+/**
  * The model the settings panel should show as selected on open: the stored
- * choice if any, the default router for a user who has chosen nothing, and
+ * choice if any, the default for a user who has chosen nothing, and
  * "" (provider default) for a user who chose a provider but no model.
  */
 export function initialModelChoice(): string {
