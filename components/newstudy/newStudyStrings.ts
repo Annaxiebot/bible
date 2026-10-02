@@ -73,6 +73,7 @@ export const NS_OPEN = bilingual('打开', 'Open');
 export const NS_EXPORT = bilingual('导出 JSON', 'Export JSON');
 export const NS_IMPORT = bilingual('导入 JSON', 'Import JSON');
 export const NS_DELETE = bilingual('删除', 'Delete');
+export const NS_SIGNUPS = bilingual('报名', 'Sign-ups');
 export const NS_DELETE_CONFIRM = bilingualLine('确定删除这个查经包？', 'Delete this study pack?');
 export const NS_ERR_IMPORT = bilingualLine('导入失败：文件不是有效的查经包', 'Import failed: the file is not a valid study pack');
 export const NS_ERR_STORAGE = bilingualLine('浏览器存储出错', 'Browser storage error');

@@ -10,6 +10,8 @@ import { SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../setup/QuickAISetup';
 export const textStyle: React.CSSProperties = { fontSize: SETUP_MIN_FONT_PX, lineHeight: 1.5 };
 export const controlStyle: React.CSSProperties = { ...textStyle, minHeight: SETUP_MIN_TAP_PX };
 export const headingStyle: React.CSSProperties = { fontSize: SETUP_MIN_FONT_PX * 1.4, lineHeight: 1.3 };
+/** Page h1 for the full-screen leader/member pages (#/new, #/signup, #/leader). */
+export const pageTitleStyle: React.CSSProperties = { fontSize: 'clamp(1.75rem, 1.4rem + 1.2vw, 2.25rem)' };
 
 export const inputClass =
   'w-full rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-slate-100 focus:border-amber-400 focus:outline-none';

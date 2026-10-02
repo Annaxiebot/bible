@@ -2,8 +2,11 @@
  * useLocalPacks.ts — "我的查经包 My packs" state over IndexedDB · 本地查经包
  *
  * Thin hook over components/studypack/packSource (list/save/delete) plus
- * JSON import/export. Every storage failure lands in `error` as a bilingual
- * line with the underlying message appended (R5: nothing is swallowed).
+ * JSON import/export. Every save (generate, edit, import) stamps the pack
+ * with the signed-in leader's uid (stampLeader) so its sign-ups are his,
+ * then refreshes its pack_summaries row (the check-in sender's text).
+ * Every storage failure lands in `error` as a bilingual line with the
+ * underlying message appended (R5: nothing is swallowed).
  */
 import { useState, useEffect, useCallback } from 'react';
 import { StudyPack, parseStudyPack } from '../studypack/packTypes';
@@ -11,6 +14,9 @@ import {
   listLocalPacks, saveLocalPack, deleteLocalPack, isLocalPackId, LOCAL_PACK_PREFIX,
 } from '../studypack/packSource';
 import { downloadFile } from '../../services/export/fileDownloader';
+import { authManager } from '../../services/supabase';
+import { stampLeader } from './packAssembly';
+import { syncPackSummary } from '../signup/packSummary';
 import { NS_ERR_STORAGE, NS_ERR_IMPORT } from './newStudyStrings';
 
 export interface LocalPacks {
@@ -55,13 +61,16 @@ export function useLocalPacks(): LocalPacks {
   useEffect(() => { void refresh(); }, [refresh]);
 
   const save = useCallback(async (pack: StudyPack) => {
+    const stamped = stampLeader(pack, authManager.getUserId());
     try {
-      await saveLocalPack(pack);
+      await saveLocalPack(stamped);
     } catch (err) {
       setError(describe(NS_ERR_STORAGE, err));
       throw err;
     }
     await refresh();
+    const summary = await syncPackSummary(stamped);
+    if (summary.status === 'failed') setError(summary.message);  // refresh() cleared error; the sync verdict comes last
   }, [refresh]);
 
   const remove = useCallback(async (id: string) => {

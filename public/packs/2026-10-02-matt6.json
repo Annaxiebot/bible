@@ -160,10 +160,8 @@
     {
       "kind": "qr",
       "heading": "签到 Sign up",
-      "image": "packs/signup-qr.png",
-      "url": "https://forms.gle/kXamVsHcRTXHbZ4d6",
       "body": [
-        "扫码登记周中提醒 · Scan to get the Tue/Thu check-in texts"
+        "扫码报名，周二周四收到提醒 · Scan to sign up for the Tue/Thu check-ins"
       ]
     },
     {

@@ -9,6 +9,7 @@ import {
   PackVerse,
 } from '../packTypes';
 import { TEST_PACK_PATH } from './fixtures';
+import { currentSignupUrl } from '../../signup/signupRoute';
 
 
 function loadRealPack(): StudyPack {
@@ -81,11 +82,23 @@ describe('parseStudyPack', () => {
     expect(() => parseStudyPack(pack)).toThrow('verses[]');
   });
 
-  it('rejects a qr section missing image or url', () => {
+  it('leaderId is optional but must be a non-empty string when present', () => {
+    const pack = JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8'));
+    expect(parseStudyPack({ ...pack, leaderId: 'uid-lead' }).leaderId).toBe('uid-lead');
+    expect(() => parseStudyPack({ ...pack, leaderId: '' })).toThrow('leaderId');
+    expect(() => parseStudyPack({ ...pack, leaderId: 7 })).toThrow('leaderId');
+  });
+
+  it('a qr section needs no image or url (the QR is drawn per pack); a legacy image must be a string', () => {
     const pack = JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8'));
     const qr = pack.sections.find((s: { kind: string }) => s.kind === 'qr');
-    delete qr.url;
-    expect(() => parseStudyPack(pack)).toThrow('image and url');
+    expect(qr.image).toBeUndefined();
+    expect(qr.url).toBeUndefined();
+    expect(() => parseStudyPack(pack)).not.toThrow();
+    qr.image = 'packs/legacy.png';
+    expect(() => parseStudyPack(pack)).not.toThrow();
+    qr.image = 42;
+    expect(() => parseStudyPack(pack)).toThrow('legacy image');
   });
 
   it('rejects scripture verses missing a translation', () => {
@@ -143,13 +156,18 @@ describe('buildSlides', () => {
   });
 
   it('carries the qr section through to a slide between reflection and closing', () => {
-    const slides = buildSlides(loadRealPack());
-    const qrIndex = slides.findIndex(s => s.kind === 'qr');
+    const demo = loadRealPack();
+    expect(demo.leaderId).toBeUndefined();  // the committed sample pack is demo-only (ADR-0004)
+    const demoSlides = buildSlides(demo);
+    const qrIndex = demoSlides.findIndex(s => s.kind === 'qr');
     expect(qrIndex).toBe(15); // second to last, before closing
-    expect(slides[qrIndex].image).toBe('packs/signup-qr.png');
-    expect(slides[qrIndex].url).toBe('https://forms.gle/kXamVsHcRTXHbZ4d6');
-    expect(slides[qrIndex].heading).toBe('签到 Sign up');
-    expect(slides[qrIndex + 1].kind).toBe('closing');
+    expect(demoSlides[qrIndex].signupUrl).toBeUndefined();
+    expect(demoSlides[qrIndex].heading).toBe('签到 Sign up');
+    expect(demoSlides[qrIndex + 1].kind).toBe('closing');
+    const owned = parseStudyPack({ ...demo, leaderId: 'uid-lead' });
+    const ownedQr = buildSlides(owned)[qrIndex];
+    expect(ownedQr.signupUrl).toBe(currentSignupUrl(owned.id));
+    expect(ownedQr.signupUrl).toMatch(/#\/signup\/2026-10-02-matt6$/);
   });
 
   it('keeps lifeMenu rows on a single slide', () => {

@@ -1,14 +1,16 @@
 /**
  * PackList.tsx — "我的查经包 My packs" · 本地查经包列表
  *
- * Open (into the editor), export JSON (download), delete (with a bilingual
- * confirm), import JSON (file picker). Storage errors render inline.
+ * Open (into the editor), export JSON (download), sign-ups (the leader list
+ * at #/leader/<id>), delete (with a bilingual confirm), import JSON (file
+ * picker). Storage errors render inline.
  */
 import React, { useRef } from 'react';
 import { StudyPack } from '../studypack/packTypes';
 import { LocalPacks } from './useLocalPacks';
+import { leaderHash } from '../leader/leaderRoute';
 import {
-  NS_MY_PACKS, NS_NO_PACKS, NS_OPEN, NS_EXPORT, NS_IMPORT, NS_DELETE, NS_DELETE_CONFIRM, NS_INVALID_RECORDS,
+  NS_MY_PACKS, NS_NO_PACKS, NS_OPEN, NS_EXPORT, NS_IMPORT, NS_DELETE, NS_DELETE_CONFIRM, NS_INVALID_RECORDS, NS_SIGNUPS,
 } from './newStudyStrings';
 import { textStyle, controlStyle, headingStyle, secondaryButtonClass, quietButtonClass } from './newStudyStyles';
 
@@ -28,6 +30,9 @@ const PackRow: React.FC<{ pack: StudyPack; packs: LocalPacks; onOpen: (pack: Stu
       <button type="button" onClick={() => packs.exportJson(pack)} className={secondaryButtonClass} style={controlStyle}>
         {NS_EXPORT}
       </button>
+      <a href={leaderHash(pack.id)} data-testid="pack-signups" className={`${secondaryButtonClass} inline-flex items-center`} style={controlStyle}>
+        {NS_SIGNUPS}
+      </a>
       <button
         type="button"
         onClick={() => { if (window.confirm(NS_DELETE_CONFIRM)) void packs.remove(pack.id); }}
