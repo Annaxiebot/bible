@@ -16,6 +16,8 @@ import * as firecrawl from './firecrawl';
 import * as exa from './exa';
 import * as brave from './brave';
 import { STORAGE_KEYS } from '../constants/storageKeys';
+import { DEFAULT_AI_SETUP, FREE_MODELS_ROUTER_ID } from './aiDefaults';
+// TODO(R4): over budget — split the web-search providers (chatWithPerplexity…streamWebSearch) into webSearch.ts.
 
 export type AIProvider = 'openrouter' | 'gemini' | 'claude' | 'openai' | 'kimi' | 'nvidia' | 'deepseek' | 'groq' | 'dashscope' | 'minimax' | 'zhipu' | 'zai' | 'r9s' | 'moonshot' | 'perplexity';
 export type AIModel = 'claude-haiku-4-5' | 'claude-sonnet-4-5' | 'claude-opus-4-5' | 'gemini-3-flash-preview' | 'gemini-3-pro-preview' | 'gemini-flash-lite-latest' | 'moonshot-v1-128k' | 'gpt-4o' | 'gpt-4o-mini' | string;
@@ -31,7 +33,7 @@ const ALL_PROVIDERS: AIProvider[] = ['openrouter', 'gemini', 'claude', 'openai',
 
 export const getCurrentProvider = (): AIProvider => {
   const stored = localStorage.getItem(PROVIDER_KEY);
-  return ALL_PROVIDERS.includes(stored as AIProvider) ? (stored as AIProvider) : 'gemini';
+  return ALL_PROVIDERS.includes(stored as AIProvider) ? (stored as AIProvider) : DEFAULT_AI_SETUP.provider;
 };
 
 /**
@@ -264,7 +266,7 @@ const callProvider = async (
 
   if (provider === 'openrouter') {
     const selectedModel = options.model || '';
-    const useFreeRouter = selectedModel === 'openrouter/auto:free' || (!selectedModel);
+    const useFreeRouter = selectedModel === FREE_MODELS_ROUTER_ID || (!selectedModel);
     const model = selectedModel.replace(':free', '') || undefined;
     const result = await openrouter.chatWithAI(prompt, history, { ...options, model, useFreeRouter });
     return { text: result.text, model: result.model, provider: providerNames.openrouter };

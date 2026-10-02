@@ -7,6 +7,7 @@ import {
   isProviderConfigured,
   getAvailableProviders,
 } from '../aiProvider';
+import { DEFAULT_AI_SETUP } from '../aiDefaults';
 
 // ---------------------------------------------------------------------------
 // localStorage stub
@@ -41,8 +42,8 @@ describe('aiProvider', () => {
 
   // getCurrentProvider
   describe('getCurrentProvider', () => {
-    it('returns "gemini" when no provider is stored', () => {
-      expect(getCurrentProvider()).toBe('gemini');
+    it('returns the out-of-the-box default (OpenRouter) when no provider is stored', () => {
+      expect(getCurrentProvider()).toBe(DEFAULT_AI_SETUP.provider);
     });
 
     it('returns stored provider when valid', () => {
@@ -50,9 +51,9 @@ describe('aiProvider', () => {
       expect(getCurrentProvider()).toBe('claude');
     });
 
-    it('returns "gemini" for unknown stored value', () => {
+    it('returns the default for an unknown stored value', () => {
       vi.stubGlobal('localStorage', makeStorage({ ai_provider: 'unknown-provider' }));
-      expect(getCurrentProvider()).toBe('gemini');
+      expect(getCurrentProvider()).toBe(DEFAULT_AI_SETUP.provider);
     });
 
     it('recognises all four valid providers', () => {
