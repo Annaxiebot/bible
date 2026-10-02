@@ -2,29 +2,35 @@
  * generatePack.test.ts — the full pipeline against the real bundled Bible
  * files (served from disk through a fetch stub) and a mocked OpenRouter SSE
  * stream: real John 3:22–36 verses end up in the pack, progress is reported,
- * truncation and cancel surface as errors, never as a half-pack.
+ * truncation and cancel surface as errors, never as a half-pack; a reply cut
+ * by max_tokens (finish_reason "length") gets exactly one continuation turn.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { readFileSync } from 'fs';
 import path from 'path';
 import { generateStudyPack, loadPassage } from '../generatePack';
+import { PACK_CONTINUE_PROMPT } from '../packPrompt';
 import { JOHN3_REQUEST, JOHN3_REPLY_JSON } from './fixtures';
 import { STORAGE_KEYS } from '../../../constants/storageKeys';
 import { OPENROUTER_API_URL } from '../../../services/openrouter';
 import { PACK_GENERATION_MODEL } from '../../../services/aiDefaults';
+import { modelLine } from '../../studypack/tvHints';
 import {
   NS_STEP_VERSES, NS_STEP_AI, NS_STEP_VALIDATE, NS_ERR_NO_JSON, NS_ERR_VERSES_OUT_OF_RANGE,
-  NS_ERR_VERSES_UNAVAILABLE,
+  NS_ERR_VERSES_UNAVAILABLE, NS_ERR_OUTPUT_LIMIT,
 } from '../newStudyStrings';
 
 const BIBLE_DATA = path.resolve(__dirname, '../../../public/bible-data');
+const SERVED_MODEL = 'anthropic/claude-sonnet-4.5';
 
-function sseBody(chunks: string[]): ReadableStream<Uint8Array> {
+/** One scripted OpenRouter reply: content deltas, then the final chunk with finish_reason (OpenRouter's shape). */
+interface Reply { chunks: string[]; finish?: 'stop' | 'length'; model?: string }
+
+function sseBody({ chunks, finish, model }: Reply): ReadableStream<Uint8Array> {
   const encoder = new TextEncoder();
-  const lines = [
-    ...chunks.map(c => `data: ${JSON.stringify({ choices: [{ delta: { content: c } }] })}\n\n`),
-    'data: [DONE]\n\n',
-  ];
+  const lines = chunks.map(c => `data: ${JSON.stringify({ model, choices: [{ delta: { content: c }, finish_reason: null }] })}\n\n`);
+  if (finish) lines.push(`data: ${JSON.stringify({ model, choices: [{ delta: {}, finish_reason: finish }] })}\n\n`);
+  lines.push('data: [DONE]\n\n');
   return new ReadableStream({
     start(controller) {
       for (const line of lines) controller.enqueue(encoder.encode(line));
@@ -33,11 +39,14 @@ function sseBody(chunks: string[]): ReadableStream<Uint8Array> {
   });
 }
 
-/** fetch stub: bundled chapter files from disk; OpenRouter → the given SSE chunks. */
-function stubFetch(chunks: string[], bundledOk = true) {
+/** fetch stub: bundled chapter files from disk; OpenRouter → one scripted reply per request (the last repeats). */
+function stubFetch(replies: string[] | Reply[], bundledOk = true) {
+  const scripted: Reply[] = replies.length && typeof replies[0] === 'string' ? [{ chunks: replies as string[] }] : replies as Reply[];
+  let call = 0;
   const fetchMock = vi.fn(async (input: string, _init?: RequestInit) => {
     if (input === OPENROUTER_API_URL) {
-      return { ok: true, status: 200, body: sseBody(chunks) } as unknown as Response;
+      const reply = scripted[Math.min(call++, scripted.length - 1)] ?? { chunks: [] };
+      return { ok: true, status: 200, body: sseBody(reply) } as unknown as Response;
     }
     const m = /bible-data\/(\w+)\/(\w+)\/(\d+)\.json$/.exec(input);
     if (!m || !bundledOk) return { ok: false, status: 404 } as Response;
@@ -111,6 +120,59 @@ describe('generateStudyPack', () => {
     stubFetch(chunked(JOHN3_REPLY_JSON.slice(0, 500)));
     await expect(generateStudyPack(JOHN3_REQUEST, () => {}, new AbortController().signal))
       .rejects.toThrow(NS_ERR_NO_JSON);
+  });
+
+  it('incomplete JSON that was NOT cut by max_tokens keeps the JSON error and names the served model, no continuation', async () => {
+    const fetchMock = stubFetch([{ chunks: chunked(JOHN3_REPLY_JSON.slice(0, 500)), finish: 'stop', model: SERVED_MODEL }]);
+    await expect(generateStudyPack(JOHN3_REQUEST, () => {}, new AbortController().signal))
+      .rejects.toThrow(`${NS_ERR_NO_JSON} · ${modelLine(SERVED_MODEL)}`);
+    expect(fetchMock.mock.calls.filter(c => c[0] === OPENROUTER_API_URL)).toHaveLength(1);
+  });
+
+  describe('finish_reason "length" (max_tokens hit)', () => {
+    const CUT = 900;
+    const head = JOHN3_REPLY_JSON.slice(0, CUT);
+    const tail = JOHN3_REPLY_JSON.slice(CUT);
+    const modelCalls = (fetchMock: ReturnType<typeof stubFetch>) => fetchMock.mock.calls.filter(c => c[0] === OPENROUTER_API_URL);
+
+    it('sends ONE continuation carrying the partial text as the assistant turn; the concatenated reply parses into the pack', async () => {
+      const fetchMock = stubFetch([
+        { chunks: chunked(head), finish: 'length', model: SERVED_MODEL },
+        { chunks: chunked(tail), finish: 'stop', model: SERVED_MODEL },
+      ]);
+      const details: string[] = [];
+      const pack = await generateStudyPack(JOHN3_REQUEST, (_s, d) => { if (d) details.push(d); }, new AbortController().signal);
+      expect(pack.id).toBe('local-2026-10-02-jhn3');
+
+      const calls = modelCalls(fetchMock);
+      expect(calls).toHaveLength(2);
+      const first = JSON.parse(calls[0][1]!.body as string) as { messages: Array<{ role: string; content: string }> };
+      const second = JSON.parse(calls[1][1]!.body as string) as { messages: Array<{ role: string; content: string }> };
+      expect(second.messages.slice(0, first.messages.length)).toEqual(first.messages);
+      expect(second.messages[first.messages.length]).toEqual({ role: 'assistant', content: head });
+      expect(second.messages[first.messages.length + 1]).toEqual({ role: 'user', content: PACK_CONTINUE_PROMPT });
+      // The progress line keeps counting across both turns.
+      expect(details[details.length - 1]).toContain(String(JOHN3_REPLY_JSON.length));
+    });
+
+    it('a second "length" shows the bilingual output-limit error with the character count — no third attempt', async () => {
+      const fetchMock = stubFetch([
+        { chunks: chunked(head), finish: 'length', model: SERVED_MODEL },
+        { chunks: chunked(tail.slice(0, 300)), finish: 'length', model: SERVED_MODEL },
+      ]);
+      await expect(generateStudyPack(JOHN3_REQUEST, () => {}, new AbortController().signal))
+        .rejects.toThrow(NS_ERR_OUTPUT_LIMIT.replace(/\{n\}/g, String(CUT + 300)));
+      expect(modelCalls(fetchMock)).toHaveLength(2);
+    });
+
+    it('continuation finished but the joined text is still not JSON → the JSON error naming the model', async () => {
+      stubFetch([
+        { chunks: chunked(head), finish: 'length', model: SERVED_MODEL },
+        { chunks: ['"en": "garbage'], finish: 'stop', model: SERVED_MODEL },
+      ]);
+      await expect(generateStudyPack(JOHN3_REQUEST, () => {}, new AbortController().signal))
+        .rejects.toThrow(`${NS_ERR_NO_JSON} · ${modelLine(SERVED_MODEL)}`);
+    });
   });
 
   it('surfaces a cancel as an AbortError, not as a failure', async () => {

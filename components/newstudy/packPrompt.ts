@@ -10,14 +10,38 @@
 import { PackVerse } from '../studypack/packTypes';
 import { PACK_CONTENT_CONTRACT, LIFE_AREAS, TRANSLATIONS } from '../studypack/principles';
 
-/** Enough for a full bilingual pack (CJK tokenizes ~1 token/char); truncation is detected and surfaced. */
-export const PACK_MAX_TOKENS = 4000;
+/**
+ * Output budget for one pack. CJK tokenizes at ~1+ token per character, so a
+ * full bilingual pack is ~8–10k tokens; 4000 cut the owner's first real run
+ * mid-JSON. Sonnet 4.5 allows this cap (worst case ≈ $0.18 per pack). A
+ * finish_reason of "length" still gets one continuation turn (generatePack).
+ */
+export const PACK_MAX_TOKENS = 12000;
 /** Low temperature: structure and fidelity over flair. */
 export const PACK_TEMPERATURE = 0.3;
 
 export const PACK_SYSTEM_PROMPT =
   'You draft small-group Bible study material for a Chinese-speaking congregation. ' +
   'Reply with exactly one JSON object and nothing else: no prose, no markdown fences.';
+
+/** Compact output: every byte of indentation is a token that is not content. */
+export const PACK_COMPACT_JSON_RULE = [
+  'FORMAT: output COMPACT JSON on a single line — no indentation, no newlines',
+  'inside the JSON, no markdown fences, no commentary before or after it.',
+].join('\n');
+
+/** Per-field length limits; together with the counts they keep a pack inside PACK_MAX_TOKENS. */
+export const PACK_LENGTH_LIMITS = [
+  'LENGTH LIMITS (per language half): context paragraphs ≤ 2 sentences each;',
+  'originalLanguage notes ≤ 1 sentence each; crossRefs reasons ≤ 12 words;',
+  'lifeMenu practices ≤ 25 words each; each reflection check-in 1 line;',
+  'closing 1 line; title and keyPhrase a few words. Be concrete, not wordy.',
+].join('\n');
+
+/** The user turn that asks the model to finish a reply cut off by max_tokens (one attempt). */
+export const PACK_CONTINUE_PROMPT =
+  '继续输出未完成的 JSON，从中断处接着写，不要重复 · ' +
+  'Continue the unfinished JSON exactly from where it stopped, no repetition';
 
 export interface PromptInput {
   /** e.g. "约翰福音 3:22–36 · John 3:22–36" */
@@ -68,6 +92,8 @@ export function buildPackPrompt(input: PromptInput): string {
       'practice met real life. keyPhrase = a short phrase quoted from the passage',
       'with its verse number.',
     ].join('\n'),
-    `Return STRICT JSON with exactly this shape (no extra keys, no comments):\n${GENERATED_SHAPE}`,
+    PACK_LENGTH_LIMITS,
+    PACK_COMPACT_JSON_RULE,
+    `Return STRICT JSON with exactly this shape (no extra keys, no comments; the shape is indented here only for reading — your output is not):\n${GENERATED_SHAPE}`,
   ].join('\n\n');
 }

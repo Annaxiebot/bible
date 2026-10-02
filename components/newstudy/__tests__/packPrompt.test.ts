@@ -4,8 +4,12 @@
  * and the strict-JSON shape; the request body carries the agreed model knobs.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { buildPackPrompt, GENERATED_SHAPE, PACK_MAX_TOKENS, PACK_TEMPERATURE, PACK_SYSTEM_PROMPT } from '../packPrompt';
-import { buildPackRequestBody } from '../generatePack';
+import {
+  buildPackPrompt, GENERATED_SHAPE, PACK_MAX_TOKENS, PACK_TEMPERATURE, PACK_SYSTEM_PROMPT,
+  PACK_COMPACT_JSON_RULE, PACK_LENGTH_LIMITS, PACK_CONTINUE_PROMPT,
+} from '../packPrompt';
+import { buildPackRequestBody, buildContinuationBody } from '../generatePack';
+import { BILINGUAL_SEPARATOR } from '../../studypack/principles';
 import { JOHN3_REQUEST } from './fixtures';
 import { PACK_CONTENT_CONTRACT, ASK_AI_ANSWER_CONTRACT, LIFE_AREAS, TRANSLATIONS } from '../../studypack/principles';
 import { PACK_GENERATION_MODEL } from '../../../services/aiDefaults';
@@ -50,6 +54,50 @@ describe('buildPackPrompt', () => {
   it('keeps a leader-supplied lesson title', () => {
     expect(buildPackPrompt({ passageRef: 'x', verses, lessonTitle: '祂必兴旺' })).toContain('"祂必兴旺"');
   });
+
+  it('demands compact single-line JSON: no indentation, no fences, no commentary', () => {
+    expect(prompt).toContain(PACK_COMPACT_JSON_RULE);
+    expect(PACK_COMPACT_JSON_RULE).toMatch(/COMPACT JSON/);
+    expect(PACK_COMPACT_JSON_RULE).toMatch(/no indentation/);
+    expect(PACK_COMPACT_JSON_RULE).toMatch(/no markdown fences/);
+    expect(PACK_COMPACT_JSON_RULE).toMatch(/no commentary/);
+  });
+
+  it('gives explicit length limits per field alongside the counts', () => {
+    expect(prompt).toContain(PACK_LENGTH_LIMITS);
+    expect(PACK_LENGTH_LIMITS).toMatch(/context paragraphs ≤ 2 sentences/);
+    expect(PACK_LENGTH_LIMITS).toMatch(/originalLanguage notes ≤ 1 sentence/);
+    expect(PACK_LENGTH_LIMITS).toMatch(/crossRefs reasons ≤ 12 words/);
+    expect(PACK_LENGTH_LIMITS).toMatch(/lifeMenu practices ≤ 25 words/);
+    expect(PACK_LENGTH_LIMITS).toMatch(/reflection check-in 1 line/);
+    expect(PACK_LENGTH_LIMITS).toMatch(/closing 1 line/);
+    expect(prompt).toMatch(/context = 3 short paragraphs/);
+    expect(prompt).toMatch(/originalLanguage = 2–3 notes/);
+    expect(prompt).toMatch(/crossRefs = 4–5/);
+    expect(prompt).toMatch(/discussion = 5 questions/);
+  });
+});
+
+describe('PACK_CONTINUE_PROMPT / buildContinuationBody', () => {
+  it('is bilingual and asks to resume the JSON without repeating', () => {
+    expect(PACK_CONTINUE_PROMPT).toContain(BILINGUAL_SEPARATOR);
+    expect(PACK_CONTINUE_PROMPT).toContain('继续输出未完成的 JSON');
+    expect(PACK_CONTINUE_PROMPT).toContain('Continue the unfinished JSON');
+  });
+
+  it('appends the partial reply as the assistant turn and the continue instruction as the user turn, same knobs', () => {
+    const first = buildPackRequestBody(JOHN3_REQUEST, verses);
+    const body = JSON.parse(buildContinuationBody(first, '{"title": {"zh": "祂')) as {
+      model: string; max_tokens: number; messages: Array<{ role: string; content: string }>;
+    };
+    const original = JSON.parse(first) as { messages: unknown[] };
+    expect(body.model).toBe(PACK_GENERATION_MODEL);
+    expect(body.max_tokens).toBe(PACK_MAX_TOKENS);
+    expect(body.messages).toHaveLength(original.messages.length + 2);
+    expect(body.messages.slice(0, 2)).toEqual(original.messages);
+    expect(body.messages[2]).toEqual({ role: 'assistant', content: '{"title": {"zh": "祂' });
+    expect(body.messages[3]).toEqual({ role: 'user', content: PACK_CONTINUE_PROMPT });
+  });
 });
 
 describe('buildPackRequestBody', () => {
@@ -65,7 +113,8 @@ describe('buildPackRequestBody', () => {
     expect(body.model).toBe(PACK_GENERATION_MODEL);
     expect(body.stream).toBe(true);
     expect(body.max_tokens).toBe(PACK_MAX_TOKENS);
-    expect(PACK_MAX_TOKENS).toBeGreaterThanOrEqual(3000);
+    // A full bilingual pack (CJK ≈ 1 token/char) does not fit in 4000; the owner's first run was cut mid-JSON.
+    expect(PACK_MAX_TOKENS).toBeGreaterThanOrEqual(8000);
     expect(body.temperature).toBe(PACK_TEMPERATURE);
     expect(PACK_TEMPERATURE).toBeLessThanOrEqual(0.3);
     expect(body.messages[0]).toEqual({ role: 'system', content: PACK_SYSTEM_PROMPT });

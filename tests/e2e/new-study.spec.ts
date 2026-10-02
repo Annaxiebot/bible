@@ -15,9 +15,10 @@ import {
   NS_TITLE, NS_BOOK, NS_GENERATE, NS_EDIT_TITLE, NS_SAVE, NS_SAVED, NS_PREVIEW, NS_EXPORT, NS_MY_PACKS,
   NS_SCRIPTURE_NOTE, NS_RETRY, NS_ERR_NO_JSON, NS_RANGE_UPDATED, NS_SECTION_REMOVE_CONFIRM,
 } from '../../components/newstudy/newStudyStrings';
+import { PACK_CONTINUE_PROMPT } from '../../components/newstudy/packPrompt';
 import { JOHN3_REPLY_JSON } from '../../components/newstudy/__tests__/fixtures';
 import { LIFE_AREAS } from '../../components/studypack/principles';
-import { injectApiKey, mockOpenRouterStream, OPENROUTER_CHAT_URL } from './helpers/tv';
+import { injectApiKey, mockOpenRouterStream, mockOpenRouterSequence, sseBody, OPENROUTER_CHAT_URL } from './helpers/tv';
 
 const PACK_ID = 'local-2026-10-02-jhn3';
 
@@ -187,6 +188,31 @@ test.describe('New study', () => {
     for (let i = 0; i < 7; i++) await page.keyboard.press('ArrowRight');
     await expect(page.getByText('15/15')).toBeVisible();
     await expect(page.getByText(/闭环 Closing/)).toBeVisible();
+  });
+
+  test('a reply cut by max_tokens (finish_reason "length") is continued once — the joined JSON opens the editor', async ({ page }) => {
+    await injectApiKey(page);
+    const CUT = 900;
+    const head = JOHN3_REPLY_JSON.slice(0, CUT);
+    const tail = JOHN3_REPLY_JSON.slice(CUT);
+    const model = 'anthropic/claude-sonnet-4.5';
+    const reply = (text: string, finish: 'length' | 'stop') => sseBody([
+      ...chunked(text).map(c => ({ model, choices: [{ delta: { content: c }, finish_reason: null }] })),
+      { model, choices: [{ delta: {}, finish_reason: finish }] },
+    ]);
+    const { bodies } = await mockOpenRouterSequence(page, [{ sse: reply(head, 'length') }, { sse: reply(tail, 'stop') }]);
+    await openNewStudy(page);
+    await fillJohn3(page);
+    await page.getByRole('button', { name: NS_GENERATE }).click();
+
+    const editor = page.getByTestId('new-study-editor');
+    await expect(page.getByText(NS_EDIT_TITLE)).toBeVisible();
+    await expect(editor.getByText(/他必兴旺，我必衰微/).first()).toBeVisible();
+    for (const area of LIFE_AREAS) await expect(editor.getByText(area, { exact: true })).toBeVisible();
+    expect(bodies()).toHaveLength(2);
+    const messages = bodies()[1].messages!;
+    expect(messages[messages.length - 2]).toEqual({ role: 'assistant', content: head });
+    expect(messages[messages.length - 1]).toEqual({ role: 'user', content: PACK_CONTINUE_PROMPT });
   });
 
   test('a truncated model reply shows the bilingual error with Retry — never a half-pack', async ({ page }) => {

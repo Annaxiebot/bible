@@ -37,6 +37,14 @@ export function sseBody(chunks: object[]): string {
   return [...chunks.flatMap(c => [`data: ${JSON.stringify(c)}`, '']), 'data: [DONE]', ''].join('\n');
 }
 
+/** What a spec can assert about a recorded request body. */
+export interface RecordedBody {
+  model: string;
+  reasoning?: unknown;
+  max_tokens: number;
+  messages?: Array<{ role: string; content: string }>;
+}
+
 /**
  * Mock the chat endpoint with one scripted reply per request, in order (the
  * last one repeats). Each entry is an SSE body (status 200, streaming), a
@@ -46,8 +54,8 @@ export function sseBody(chunks: object[]): string {
 export async function mockOpenRouterSequence(
   page: Page,
   replies: Array<{ sse: string } | { json: object } | { status: number; message: string }>,
-): Promise<{ bodies: () => Array<{ model: string; reasoning?: unknown; max_tokens: number }> }> {
-  const bodies: Array<{ model: string; reasoning?: unknown; max_tokens: number }> = [];
+): Promise<{ bodies: () => RecordedBody[] }> {
+  const bodies: RecordedBody[] = [];
   let i = 0;
   await page.route(OPENROUTER_CHAT_URL, route => {
     bodies.push(route.request().postDataJSON());
