@@ -44,8 +44,28 @@ export const SU_PRIVACY = bilingualLine(
   'This information is used only for the check-ins you opted into'
 );
 
-/** Packs without an owning leader (no leaderId) have no sign-up: shown on the TV qr slide, the landing panel and #/signup. */
+/** Public packs without an owning leader (no leaderId) have no sign-up: shown on the TV qr slide, the landing panel and #/signup. */
 export const SU_DEMO_LINE = bilingualLine('示范包，无报名', 'Demo pack, no sign-up');
+/** A local pack generated while signed out: signing in on this browser claims it (packSource.packSignupState). */
+export const SU_UNCLAIMED_LINE = bilingualLine('登录以启用报名', 'Sign in to enable sign-up');
+export const SU_SIGN_IN_GOOGLE = bilingual('用 Google 登录', 'Sign in with Google');
+export const SU_SIGNING_IN = bilingual('正在跳转…', 'Redirecting…');
+/** Claiming a local pack after sign-in failed (storage or summary sync); the ids and reason follow. */
+export const SU_CLAIM_FAILED = bilingualLine('登录后未能认领查经包', 'Could not claim the pack after sign-in');
+
+// ---- commitment (the sign-up's first step, ADR-0004 §7) ----
+export const SU_PRACTICE_TITLE = bilingual('我本周的操练', 'My practice this week');
+export const SU_PRACTICE_INTRO = bilingualLine('从生活应用里选一项（可再选一项备用）', 'Pick one from the life menu (a second one is optional)');
+export const SU_PRACTICE_SECOND = bilingualLine('第二项（可选）', 'Second (optional)');
+export const SU_PRACTICE_NOTE = bilingual('我的版本（可选）', 'My own version (optional)');
+export const SU_NEXT_STEP = bilingual('下一步', 'Next');
+export const SU_PREV_STEP = bilingual('上一步', 'Back');
+export const SU_CONTACT_TITLE = bilingual('联系方式', 'How to reach you');
+export const SU_ERR_PRACTICE = bilingualLine('请先选一项操练', 'Please choose a practice first');
+/** Thank-you restatement: "你本周的操练：<text> · Your practice this week: <text>". */
+export function commitmentLine(practice: string): string {
+  return bilingualLine(`你本周的操练：${practice}`, `Your practice this week: ${practice}`);
+}
 
 // ---- QR panel (TV slide + landing), shared by every pack ----
 export const SU_QR_BODY = bilingualLine('扫码报名，周二周四收到提醒', 'Scan to sign up for the Tue/Thu check-ins');
