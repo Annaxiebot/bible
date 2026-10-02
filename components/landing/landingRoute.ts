@@ -10,6 +10,7 @@
 import { getPackIdFromHash } from '../studypack/packTypes';
 import { getSignupPackIdFromHash } from '../signup/signupRoute';
 import { getLeaderPackIdFromHash } from '../leader/leaderRoute';
+import { getCheckinFromHash } from '../checkin/checkinRoute';
 
 /** Hash the landing's "Open the app" CTA sets. */
 export const APP_HASH = '#app';
@@ -29,15 +30,29 @@ export const SETUP_HASH = '#/setup';
 /** Hash of the "新建查经 New study" page (leader generates a pack in the browser). */
 export const NEW_STUDY_HASH = '#/new';
 
-export type RootView = 'landing' | 'setup' | 'app' | 'pack' | 'new' | 'signup' | 'leader';
+const NEW_STUDY_PACK_RE = /^#\/new\/([A-Za-z0-9._-]+)$/;
+
+/** Editor hash for a saved local pack: "#/new/<packId>" reopens it in the editor (survives reload). */
+export function newStudyHash(packId: string): string {
+  return `${NEW_STUDY_HASH}/${packId}`;
+}
+
+/** "#/new/<id>" → pack id; "#/new" and anything else → null. */
+export function getNewStudyPackIdFromHash(hash: string): string | null {
+  const match = NEW_STUDY_PACK_RE.exec(hash);
+  return match ? match[1] : null;
+}
+
+export type RootView = 'landing' | 'setup' | 'app' | 'pack' | 'new' | 'signup' | 'leader' | 'checkin';
 
 /** Map a location.hash to the view the root gate should render. */
 export function resolveRootView(hash: string): RootView {
   if (getPackIdFromHash(hash)) return 'pack';
   if (getSignupPackIdFromHash(hash)) return 'signup';
   if (getLeaderPackIdFromHash(hash)) return 'leader';
+  if (getCheckinFromHash(hash)) return 'checkin';
   if (hash === '' || hash === '#') return 'landing';
   if (hash === SETUP_HASH) return 'setup';
-  if (hash === NEW_STUDY_HASH) return 'new';
+  if (hash === NEW_STUDY_HASH || getNewStudyPackIdFromHash(hash)) return 'new';
   return 'app';
 }
