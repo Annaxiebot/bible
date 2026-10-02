@@ -73,15 +73,20 @@ describe('AskAIOverlay (streaming)', () => {
     expect(screen.getByText('Q: Why birds?')).toBeInTheDocument();
 
     act(() => emit('Anxiety '));
-    expect(screen.getByTestId('streaming-answer')).toHaveTextContent('Anxiety');
+    // Markdown renders lazily, so assert through waitFor
+    await waitFor(() =>
+      expect(screen.getByTestId('streaming-answer')).toHaveTextContent('Anxiety'));
     expect(screen.getByLabelText(/Ask AI question/)).toBeDisabled(); // mid-stream
 
     act(() => emit('Anxiety follows (v.25).'));
-    expect(screen.getByTestId('streaming-answer')).toHaveTextContent('Anxiety follows (v.25).');
+    await waitFor(() =>
+      expect(screen.getByTestId('streaming-answer')).toHaveTextContent('Anxiety follows (v.25).'));
 
     await act(async () => { finish('Anxiety follows (v.25).'); });
     expect(screen.queryByTestId('streaming-answer')).not.toBeInTheDocument();
-    expect(screen.getByText('Anxiety follows (v.25).')).toBeInTheDocument(); // now a message
+    await waitFor(() => // now a finished message (markdown + verse-ref tooltip)
+      expect(screen.getByTestId('ask-answer')).toHaveTextContent('Anxiety follows (v.25).'));
+    expect(screen.getByTestId('verse-ref')).toHaveTextContent('v.25');
     expect(screen.getByLabelText(/Ask AI question/)).toBeEnabled();
   });
 
@@ -89,7 +94,8 @@ describe('AskAIOverlay (streaming)', () => {
     configureKey();
     renderOverlay(vi.fn(), 'Where does anxiety show up?');
     expect(screen.getByText('Q: Where does anxiety show up?')).toBeInTheDocument();
-    await waitFor(() => expect(screen.getByText('Answer (v.25).')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByTestId('ask-answer')).toHaveTextContent('Answer (v.25).'));
     expect(streamStudyAIMock).toHaveBeenCalledTimes(1);
     expect(streamStudyAIMock.mock.calls[0][3]).toBe('Where does anxiety show up?');
     await waitFor(() => expect(screen.getByLabelText(/Ask AI question/)).toBeEnabled());
@@ -106,7 +112,8 @@ describe('AskAIOverlay (streaming)', () => {
     const input = screen.getByLabelText(/Ask AI question/);
     fireEvent.change(input, { target: { value: 'first q' } });
     fireEvent.click(screen.getByRole('button', { name: /Ask 提问/ }));
-    await waitFor(() => expect(screen.getByText('Answer (v.25).')).toBeInTheDocument());
+    await waitFor(() =>
+      expect(screen.getByTestId('ask-answer')).toHaveTextContent('Answer (v.25).'));
     fireEvent.change(input, { target: { value: 'go deeper' } });
     fireEvent.click(screen.getByRole('button', { name: /Ask 提问/ }));
     await waitFor(() => expect(streamStudyAIMock).toHaveBeenCalledTimes(2));
@@ -127,7 +134,8 @@ describe('AskAIOverlay (streaming)', () => {
       });
     });
     const { onClose } = renderOverlay(vi.fn(), 'auto question');
-    expect(screen.getByTestId('streaming-answer')).toHaveTextContent('partial');
+    await waitFor(() =>
+      expect(screen.getByTestId('streaming-answer')).toHaveTextContent('partial'));
     expect(signal.aborted).toBe(false);
     fireEvent.keyDown(window, { key: 'Escape' });
     expect(signal.aborted).toBe(true); // clean cancel, no error surfaced

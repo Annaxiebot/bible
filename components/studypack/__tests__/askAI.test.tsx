@@ -38,7 +38,7 @@ describe('buildAskAIPrompt', () => {
     const { pack, slide } = loadPack();
     const prompt = buildAskAIPrompt(pack, slide, 'Why birds?');
     expect(prompt).toContain('Matthew 6:25–34');
-    expect(prompt).toContain('不要為生命憂慮');                 // CUV v.25
+    expect(prompt).toContain('不要为生命忧虑');                 // CUV v.25
     expect(prompt).toContain('don’t be anxious for tomorrow');  // WEB v.34
     expect(prompt).toContain(slide.heading);                    // current slide content
     expect(prompt).toContain('2 short');

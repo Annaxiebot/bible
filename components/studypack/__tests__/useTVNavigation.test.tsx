@@ -41,21 +41,9 @@ describe('useTVNavigation', () => {
     expect(onExit).toHaveBeenCalledTimes(1);
   });
 
-  it('click on right half advances, left half goes back', () => {
+  it('exposes no click navigation (clicks are reserved for text selection)', () => {
     const { result } = renderHook(() => useTVNavigation(5, vi.fn()));
-    const target = {
-      getBoundingClientRect: () => ({ left: 0, width: 1000 }),
-    } as unknown as HTMLElement;
-    const clickAt = (clientX: number) =>
-      act(() => {
-        result.current.onScreenClick({ clientX, currentTarget: target } as React.MouseEvent<HTMLElement>);
-      });
-    clickAt(900);
-    expect(result.current.index).toBe(1);
-    clickAt(900);
-    expect(result.current.index).toBe(2);
-    clickAt(100);
-    expect(result.current.index).toBe(1);
+    expect('onScreenClick' in result.current).toBe(false);
   });
 
   it('swipe left advances, swipe right goes back, small moves ignored', () => {
@@ -77,7 +65,7 @@ describe('useTVNavigation', () => {
     expect(result.current.index).toBe(0);
   });
 
-  it('suspends keys, clicks, and swipes when disabled (overlay open)', () => {
+  it('suspends keys and swipes when disabled (overlay open)', () => {
     const onExit = vi.fn();
     const { result } = renderHook(() => useTVNavigation(5, onExit, false));
     pressKey('ArrowRight');
@@ -85,11 +73,7 @@ describe('useTVNavigation', () => {
     pressKey('Escape');
     expect(result.current.index).toBe(0);
     expect(onExit).not.toHaveBeenCalled();
-    const target = {
-      getBoundingClientRect: () => ({ left: 0, width: 1000 }),
-    } as unknown as HTMLElement;
     act(() => {
-      result.current.onScreenClick({ clientX: 900, currentTarget: target } as React.MouseEvent<HTMLElement>);
       result.current.onTouchStart({ touches: [{ clientX: 800 }] } as unknown as React.TouchEvent);
       result.current.onTouchEnd({ changedTouches: [{ clientX: 100 }] } as unknown as React.TouchEvent);
     });

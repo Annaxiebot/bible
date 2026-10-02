@@ -23,7 +23,7 @@ describe('parseStudyPack', () => {
     const scripture = pack.sections.find(s => s.kind === 'scripture')!;
     expect(scripture.verses).toHaveLength(10);
     expect(scripture.verses!.map(v => v.num)).toEqual([25, 26, 27, 28, 29, 30, 31, 32, 33, 34]);
-    expect(scripture.verses![0].cuv).toContain('憂慮');
+    expect(scripture.verses![0].cuv).toContain('忧虑');
     expect(scripture.verses![0].web).toContain('anxious');
     expect(pack.sections.map(s => s.kind)).toEqual([
       'title', 'scripture', 'context', 'originalLanguage', 'crossRefs',

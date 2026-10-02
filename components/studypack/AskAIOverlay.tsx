@@ -9,23 +9,20 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StudyPack, Slide } from './packTypes';
 import { AI_NOT_CONFIGURED_MESSAGE, AskAIMessage } from './askAI';
 import { useAskAI, AskAI } from './useAskAI';
+import AskAnswer from './AskAnswer';
 
-// 3vh ≈ 32px at 1080p: a ≤60-word answer fits in ~4-6 lines of the panel
-// without scrolling; longer answers scroll inside Conversation (flex-1
-// overflow-y-auto) so the input/controls never leave the screen.
-const answerStyle: React.CSSProperties = { fontSize: '3vh', lineHeight: 1.45 };
+// Answers render through AskAnswer (markdown + verse tooltips, font scaled
+// by length). Overflow scrolls inside Conversation (flex-1 overflow-y-auto)
+// so the input/controls never leave the screen.
+const alertStyle: React.CSSProperties = { fontSize: '3vh', lineHeight: 1.45 };
 const questionStyle: React.CSSProperties = { fontSize: '2.5vh', lineHeight: 1.4 };
 
-const Message: React.FC<{ m: AskAIMessage }> = ({ m }) => (
-  <p
-    className={m.role === 'user' ? 'text-slate-400' : 'text-slate-100'}
-    style={m.role === 'user' ? questionStyle : answerStyle}
-  >
-    {m.role === 'user' ? `Q: ${m.content}` : m.content}
-  </p>
-);
+const Message: React.FC<{ m: AskAIMessage; pack: StudyPack }> = ({ m, pack }) =>
+  m.role === 'user'
+    ? <p className="text-slate-400" style={questionStyle}>{`Q: ${m.content}`}</p>
+    : <AskAnswer text={m.content} pack={pack} />;
 
-const Conversation: React.FC<{ ai: AskAI }> = ({ ai }) => {
+const Conversation: React.FC<{ ai: AskAI; pack: StudyPack }> = ({ ai, pack }) => {
   const endRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     // Guarded: jsdom (vitest) does not implement scrollIntoView.
@@ -36,15 +33,15 @@ const Conversation: React.FC<{ ai: AskAI }> = ({ ai }) => {
   return (
     <div className="flex-1 overflow-y-auto space-y-[2vh]">
       {!ai.configured && (
-        <p className="text-amber-200" style={answerStyle} role="alert">
+        <p className="text-amber-200" style={alertStyle} role="alert">
           {AI_NOT_CONFIGURED_MESSAGE}
         </p>
       )}
-      {ai.messages.map((m, i) => <Message key={i} m={m} />)}
+      {ai.messages.map((m, i) => <Message key={i} m={m} pack={pack} />)}
       {ai.streamingText !== null && (
-        <p className="text-slate-100" style={answerStyle} data-testid="streaming-answer">
-          {ai.streamingText}
-        </p>
+        <div data-testid="streaming-answer">
+          <AskAnswer text={ai.streamingText} pack={pack} />
+        </div>
       )}
       {ai.loading && ai.streamingText === null && (
         <p className="text-slate-500" style={questionStyle}>Thinking… 思考中…</p>
@@ -146,7 +143,7 @@ const AskAIOverlay: React.FC<AskAIOverlayProps> = ({ pack, slide, initialQuestio
             ✕
           </button>
         </div>
-        <Conversation ai={ai} />
+        <Conversation ai={ai} pack={pack} />
         <QuestionForm ai={ai} />
       </div>
     </div>
