@@ -225,6 +225,7 @@ export const chatWithAI = async (
     search?: boolean;
     image?: { data: string; mimeType: string };
     useFreeRouter?: boolean; // When true, uses automatic free model selection
+    maxTokens?: number;      // Explicit cap; falls back to the fast/full defaults
   } = {}
 ): Promise<{ text: string; model: string }> => {
   const apiKey = getApiKey();
@@ -274,7 +275,10 @@ export const chatWithAI = async (
         body: JSON.stringify({
           model,
           messages,
-          max_tokens: options.fast ? 1000 : 4000,
+          // TODO(R4): this file is over the 300-line budget — split the model
+          // list/auto-detect catalog (FREE_MODELS…autoDetectBestFreeModel)
+          // into openrouterModels.ts in a dedicated refactor session.
+          max_tokens: options.maxTokens ?? (options.fast ? 1000 : 4000),
           temperature: 0.7,
         }),
       });
