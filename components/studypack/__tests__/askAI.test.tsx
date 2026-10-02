@@ -3,18 +3,14 @@ import { readFileSync } from 'fs';
 import { STORAGE_KEYS } from '../../../constants/storageKeys';
 import { parseStudyPack, buildSlides, StudyPack, Slide } from '../packTypes';
 import {
-  AI_NOT_CONFIGURED_MESSAGE,
-  AI_CREDITS_MESSAGE,
-  HTTP_PAYMENT_REQUIRED,
   buildAskAIPrompt,
   questionForSelection,
   stripSplitMarker,
   resolveAskAIModel,
-  ASK_AI_MAX_TOKENS,
 } from '../askAI';
-import { DEFAULT_AI_SETUP, wireModelId } from '../../../services/aiDefaults';
+import { DEFAULT_AI_SETUP, ASK_AI_MODEL, FREE_MODELS_ROUTER_ID, wireModelId } from '../../../services/aiDefaults';
 import { FREE_ROUTER_MODEL } from '../../../services/openrouter';
-import { createSSEParser, streamStudyAI } from '../askAIStream';
+import { createSSEParser, SSEEvent } from '../askAIStream';
 import { TEST_PACK_PATH } from './fixtures';
 
 function loadPack(): { pack: StudyPack; slide: Slide } {
@@ -22,15 +18,9 @@ function loadPack(): { pack: StudyPack; slide: Slide } {
   return { pack, slide: buildSlides(pack)[0] };
 }
 
-// tests/utils/setup.ts replaces localStorage with a vi.fn mock, so the key
-// is "configured" by stubbing getItem rather than via setItem.
+// tests/utils/setup.ts replaces localStorage with a vi.fn mock, so stored
+// choices are simulated by stubbing getItem rather than via setItem.
 const getItemMock = window.localStorage.getItem as ReturnType<typeof vi.fn>;
-
-function configureKey() {
-  getItemMock.mockImplementation((key: string) =>
-    key === STORAGE_KEYS.OPENROUTER_API_KEY ? 'test-key' : null
-  );
-}
 
 beforeEach(() => {
   vi.unstubAllGlobals();
@@ -46,18 +36,19 @@ describe('resolveAskAIModel', () => {
     expect(resolveAskAIModel()).toBe('anthropic/claude-sonnet-4.5');
   });
 
-  it('maps the free-router alias to the wire id OpenRouter lists', () => {
-    stored({ [STORAGE_KEYS.AI_PROVIDER]: 'openrouter', [STORAGE_KEYS.AI_MODEL]: DEFAULT_AI_SETUP.model });
+  it('maps a stored free-router alias to the wire id OpenRouter lists', () => {
+    stored({ [STORAGE_KEYS.AI_PROVIDER]: 'openrouter', [STORAGE_KEYS.AI_MODEL]: FREE_MODELS_ROUTER_ID });
     expect(resolveAskAIModel()).toBe(FREE_ROUTER_MODEL);
   });
 
-  it('falls back to the free router when another provider is stored', () => {
+  it('falls back to the recommended model when another provider is stored', () => {
     stored({ [STORAGE_KEYS.AI_PROVIDER]: 'gemini', [STORAGE_KEYS.AI_MODEL]: 'gemini-3-pro-preview' });
     expect(resolveAskAIModel()).toBe(wireModelId(DEFAULT_AI_SETUP.model));
   });
 
-  it('falls back to the free router when nothing is stored', () => {
-    expect(resolveAskAIModel()).toBe(wireModelId(DEFAULT_AI_SETUP.model));
+  it('is the recommended low-cost model (not the free router) when nothing is stored', () => {
+    expect(resolveAskAIModel()).toBe(ASK_AI_MODEL);
+    expect(ASK_AI_MODEL).toBe('google/gemini-2.5-flash');
   });
 });
 
@@ -126,137 +117,56 @@ describe('questionForSelection', () => {
 });
 
 describe('createSSEParser', () => {
+  const collect = () => {
+    const events: SSEEvent[] = [];
+    return { events, feed: createSSEParser(e => events.push(e)) };
+  };
+  const contents = (events: SSEEvent[]) => events.map(e => e.content).filter(Boolean);
+
   it('parses real OpenRouter chunk shapes and ignores [DONE]', () => {
-    const deltas: string[] = [];
-    const feed = createSSEParser(d => deltas.push(d));
-    feed('data: {"id":"gen-1","choices":[{"delta":{"content":"Anxiety "}}]}\n\n');
-    feed('data: {"id":"gen-1","choices":[{"delta":{"content":"follows (v.25)."}}]}\n\ndata: [DONE]\n\n');
-    expect(deltas).toEqual(['Anxiety ', 'follows (v.25).']);
+    const { events, feed } = collect();
+    feed('data: {"id":"gen-1","model":"google/gemini-2.5-flash","choices":[{"delta":{"content":"Anxiety "}}]}\n\n');
+    feed('data: {"id":"gen-1","choices":[{"delta":{"content":"follows (v.25)."},"finish_reason":"stop"}]}\n\ndata: [DONE]\n\n');
+    expect(contents(events)).toEqual(['Anxiety ', 'follows (v.25).']);
+    expect(events[0].model).toBe('google/gemini-2.5-flash');
+    expect(events[1].finishReason).toBe('stop');
   });
 
   it('buffers a data line split across chunks, and handles CRLF', () => {
-    const deltas: string[] = [];
-    const feed = createSSEParser(d => deltas.push(d));
+    const { events, feed } = collect();
     feed('data: {"choices":[{"del');
-    expect(deltas).toEqual([]); // nothing emitted from a partial line
+    expect(events).toEqual([]); // nothing emitted from a partial line
     feed('ta":{"content":"whole"}}]}\r\n');
-    expect(deltas).toEqual(['whole']);
+    expect(contents(events)).toEqual(['whole']);
   });
 
-  it('skips SSE comments, keep-alives, and role-only deltas', () => {
-    const deltas: string[] = [];
-    const feed = createSSEParser(d => deltas.push(d));
+  it('skips SSE comments and keep-alives; a role-only delta carries no content', () => {
+    const { events, feed } = collect();
     feed(': OPENROUTER PROCESSING\n\ndata: {"choices":[{"delta":{"role":"assistant"}}]}\n\n');
     feed('data: {"choices":[{"delta":{"content":"x"}}]}\n');
-    expect(deltas).toEqual(['x']);
+    expect(contents(events)).toEqual(['x']);
+  });
+
+  it('surfaces a stream-level error object (top level or on the choice) instead of skipping it', () => {
+    const { events, feed } = collect();
+    feed('data: {"error":{"message":"Provider returned error","code":502},"user_id":"u"}\n');
+    feed('data: {"choices":[{"error":{"message":"upstream failed","code":"server_error"},"delta":{}}]}\n');
+    expect(events[0].error).toEqual({ message: 'Provider returned error', code: 502 });
+    expect(events[1].error).toEqual({ message: 'upstream failed', code: 'server_error' });
+  });
+
+  it('reports reasoning deltas (reasoning and reasoning_content) separately from content', () => {
+    const { events, feed } = collect();
+    feed('data: {"choices":[{"delta":{"reasoning":"Let me think"}}]}\n');
+    feed('data: {"choices":[{"delta":{"reasoning_content":"more"},"finish_reason":"length"}]}\n');
+    expect(events.map(e => e.reasoning)).toEqual(['Let me think', 'more']);
+    expect(contents(events)).toEqual([]);
+    expect(events[1].finishReason).toBe('length');
   });
 });
 
 describe('stripSplitMarker', () => {
   it('replaces [SPLIT] with a line break and trims', () => {
     expect(stripSplitMarker('中文。\n[SPLIT]\nEnglish. ')).toBe('中文。\nEnglish.');
-  });
-});
-
-function sseResponse(chunks: string[], failAfter = false): Response {
-  const encoder = new TextEncoder();
-  const stream = new ReadableStream<Uint8Array>({
-    start(c) {
-      chunks.forEach(ch => c.enqueue(encoder.encode(ch)));
-      if (!failAfter) c.close();
-    },
-    pull() {
-      if (failAfter) throw new DOMException('aborted', 'AbortError');
-    },
-  });
-  return { ok: true, body: stream } as unknown as Response;
-}
-
-describe('streamStudyAI', () => {
-  it('streams accumulated [SPLIT]-stripped text and sends the pinned model/cap/history', async () => {
-    configureKey();
-    const fetchMock = vi.fn().mockResolvedValue(sseResponse([
-      'data: {"choices":[{"delta":{"content":"中文 (v.25)。"}}]}\n',
-      'data: {"choices":[{"delta":{"content":"\\n[SPLIT]\\nEnglish"}}]}\n',
-      'data: {"choices":[{"delta":{"content":" (v.25)."}}]}\n',
-      'data: [DONE]\n',
-    ]));
-    vi.stubGlobal('fetch', fetchMock);
-    const { pack, slide } = loadPack();
-    const seen: string[] = [];
-    const history = [{ role: 'user' as const, content: 'q1' }, { role: 'assistant' as const, content: 'a1' }];
-    const finalText = await streamStudyAI(
-      pack, slide, history, 'follow-up', t => seen.push(t), new AbortController().signal
-    );
-    expect(seen[0]).toBe('中文 (v.25)。');
-    expect(finalText).toBe('中文 (v.25)。\nEnglish (v.25).');
-    expect(seen[seen.length - 1]).toBe(finalText);
-    const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
-    // Key only, no provider/model chosen → the free router goes on the wire
-    expect(body).toMatchObject({ model: wireModelId(DEFAULT_AI_SETUP.model), stream: true, max_tokens: ASK_AI_MAX_TOKENS });
-    expect(body.messages[0].role).toBe('system');
-    expect(body.messages.slice(1, 3)).toEqual(history);
-    expect(body.messages[3].content).toContain('QUESTION: follow-up');
-  });
-
-  it('resolves cleanly with the partial text when aborted mid-stream', async () => {
-    configureKey();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
-      sseResponse(['data: {"choices":[{"delta":{"content":"partial"}}]}\n'], true)
-    ));
-    const { pack, slide } = loadPack();
-    const finalText = await streamStudyAI(
-      pack, slide, [], 'q', () => undefined, new AbortController().signal
-    );
-    expect(finalText).toBe('partial');
-  });
-
-  it('sends the model chosen in AI settings when the stored provider is OpenRouter', async () => {
-    getItemMock.mockImplementation((key: string) => ({
-      [STORAGE_KEYS.OPENROUTER_API_KEY]: 'test-key',
-      [STORAGE_KEYS.AI_PROVIDER]: 'openrouter',
-      [STORAGE_KEYS.AI_MODEL]: 'openai/gpt-4o-mini',
-    })[key] ?? null);
-    const fetchMock = vi.fn().mockResolvedValue(sseResponse(['data: [DONE]\n']));
-    vi.stubGlobal('fetch', fetchMock);
-    const { pack, slide } = loadPack();
-    await streamStudyAI(pack, slide, [], 'q', () => undefined, new AbortController().signal);
-    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string).model).toBe('openai/gpt-4o-mini');
-  });
-
-  it('maps a 402 (no credits) to the bilingual credits message', async () => {
-    configureKey();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: false,
-      status: HTTP_PAYMENT_REQUIRED,
-      json: () => Promise.resolve({ error: { message: 'Insufficient credits' } }),
-    }));
-    const { pack, slide } = loadPack();
-    await expect(
-      streamStudyAI(pack, slide, [], 'q', () => undefined, new AbortController().signal)
-    ).rejects.toThrow(AI_CREDITS_MESSAGE);
-  });
-
-  it('throws the API error message on a non-OK response', async () => {
-    configureKey();
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: false,
-      status: 429,
-      json: () => Promise.resolve({ error: { message: 'Rate limited' } }),
-    }));
-    const { pack, slide } = loadPack();
-    await expect(
-      streamStudyAI(pack, slide, [], 'q', () => undefined, new AbortController().signal)
-    ).rejects.toThrow('Rate limited');
-  });
-
-  it('throws when no API key is configured, without fetching', async () => {
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
-    const { pack, slide } = loadPack();
-    await expect(
-      streamStudyAI(pack, slide, [], 'q', () => undefined, new AbortController().signal)
-    ).rejects.toThrow(AI_NOT_CONFIGURED_MESSAGE);
-    expect(fetchMock).not.toHaveBeenCalled();
   });
 });

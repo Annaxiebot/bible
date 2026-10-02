@@ -7,9 +7,12 @@
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StudyPack, Slide } from './packTypes';
-import { AskAIMessage, AI_CREDITS_MESSAGE } from './askAI';
-import { ASK_AI_LABEL, ASK_INPUT_PLACEHOLDER, ASK_SUBMIT_LABEL, TV_THINKING } from './tvHints';
-import { useAskAI, AskAI } from './useAskAI';
+import { AskAIMessage } from './askAI';
+import { SETUP_KINDS, RETRY_KINDS } from './askAIErrors';
+import {
+  ASK_AI_LABEL, ASK_INPUT_PLACEHOLDER, ASK_SUBMIT_LABEL, TV_RETRY, thinkingLine, modelLine,
+} from './tvHints';
+import { useAskAI, AskAI, AskAIFailure } from './useAskAI';
 import AskAnswer from './AskAnswer';
 import { QuickAISetupForm } from '../setup/QuickAISetup';
 import { SETUP_TITLE } from '../setup/setupStrings';
@@ -18,28 +21,30 @@ import { SETUP_TITLE } from '../setup/setupStrings';
 // by length). Overflow scrolls inside Conversation (flex-1 overflow-y-auto)
 // so the input/controls never leave the screen.
 const questionStyle: React.CSSProperties = { fontSize: '2.5vh', lineHeight: 1.4 };
+const inlineButtonClass = 'ml-3 rounded-lg border border-amber-400 px-4 py-1 text-amber-300';
 
 const Message: React.FC<{ m: AskAIMessage; pack: StudyPack }> = ({ m, pack }) =>
   m.role === 'user'
     ? <p className="text-slate-400" style={questionStyle}>{`Q: ${m.content}`}</p>
     : <AskAnswer text={m.content} pack={pack} />;
 
-/** Error line; a credits (402) error also offers the inline setup. */
-const ErrorLine: React.FC<{ error: string; onSetup: () => void }> = ({ error, onSetup }) => (
-  <p className="text-red-400" style={questionStyle} role="alert">
-    {error}
-    {error === AI_CREDITS_MESSAGE && (
-      <button
-        type="button"
-        onClick={onSetup}
-        className="ml-3 rounded-lg border border-amber-400 px-4 py-1 text-amber-300"
-        style={questionStyle}
-      >
-        {SETUP_TITLE}
-      </button>
-    )}
-  </p>
-);
+/** Error line; its kind decides which of Retry / Set up AI accompany it. */
+const ErrorLine: React.FC<{ error: AskAIFailure; onSetup: () => void; onRetry: () => void }> =
+  ({ error, onSetup, onRetry }) => (
+    <p className="text-red-400" style={questionStyle} role="alert">
+      {error.message}
+      {RETRY_KINDS.has(error.kind) && (
+        <button type="button" onClick={onRetry} className={inlineButtonClass} style={questionStyle}>
+          {TV_RETRY}
+        </button>
+      )}
+      {SETUP_KINDS.has(error.kind) && (
+        <button type="button" onClick={onSetup} className={inlineButtonClass} style={questionStyle}>
+          {SETUP_TITLE}
+        </button>
+      )}
+    </p>
+  );
 
 const Conversation: React.FC<{ ai: AskAI; pack: StudyPack }> = ({ ai, pack }) => {
   const endRef = useRef<HTMLDivElement>(null);
@@ -67,9 +72,16 @@ const Conversation: React.FC<{ ai: AskAI; pack: StudyPack }> = ({ ai, pack }) =>
         </div>
       )}
       {ai.loading && ai.streamingText === null && (
-        <p className="text-slate-500" style={questionStyle}>{TV_THINKING}</p>
+        <p className="text-slate-500" style={questionStyle} data-testid="ask-thinking">
+          {thinkingLine(ai.model ?? '')}
+        </p>
       )}
-      {ai.error && <ErrorLine error={ai.error} onSetup={() => setSetupOpen(true)} />}
+      {!ai.loading && ai.model && ai.messages.some(m => m.role === 'assistant') && (
+        <p className="text-slate-500" style={questionStyle} data-testid="ask-model">{modelLine(ai.model)}</p>
+      )}
+      {ai.error && (
+        <ErrorLine error={ai.error} onSetup={() => setSetupOpen(true)} onRetry={() => { void ai.retry(); }} />
+      )}
       <div ref={endRef} />
     </div>
   );
