@@ -6,6 +6,7 @@ import { STORAGE_KEYS } from '../../../constants/storageKeys';
 import { SAMPLE_PACK_ID, TEST_PACK_PATH } from './fixtures';
 import TVPresentationView from '../TVPresentationView';
 import { FIRST_SLIDE_HINT, ASK_AI_LABEL } from '../tvHints';
+import { SETUP_TITLE } from '../../setup/setupStrings';
 
 
 const packJson = () => JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8'));
@@ -206,11 +207,12 @@ describe('TVPresentationView', () => {
     expect(screen.getByLabelText(/Ask AI question/)).toHaveValue('');
   });
 
-  it('shows the OpenRouter not-configured message when no API key is set', async () => {
+  it('shows the inline key setup in the overlay when no API key is set', async () => {
     mockFetchOk(packJson());
     await renderLoaded();
     fireEvent.keyDown(window, { key: 'a' });
-    expect(screen.getByText(/OpenRouter API key/)).toBeInTheDocument();
+    expect(screen.getByTestId('quick-ai-setup')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: SETUP_TITLE })).toBeInTheDocument();
     expect(streamStudyAIMock).not.toHaveBeenCalled();
   });
 });

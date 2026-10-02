@@ -4,12 +4,16 @@ import { STORAGE_KEYS } from '../../../constants/storageKeys';
 import { parseStudyPack, buildSlides, StudyPack, Slide } from '../packTypes';
 import {
   AI_NOT_CONFIGURED_MESSAGE,
+  AI_CREDITS_MESSAGE,
+  HTTP_PAYMENT_REQUIRED,
   buildAskAIPrompt,
   questionForSelection,
   stripSplitMarker,
-  ASK_AI_MODEL,
+  resolveAskAIModel,
   ASK_AI_MAX_TOKENS,
 } from '../askAI';
+import { DEFAULT_AI_SETUP, wireModelId } from '../../../services/aiDefaults';
+import { FREE_ROUTER_MODEL } from '../../../services/openrouter';
 import { createSSEParser, streamStudyAI } from '../askAIStream';
 import { TEST_PACK_PATH } from './fixtures';
 
@@ -31,6 +35,30 @@ function configureKey() {
 beforeEach(() => {
   vi.unstubAllGlobals();
   getItemMock.mockReset().mockReturnValue(null);
+});
+
+describe('resolveAskAIModel', () => {
+  const stored = (map: Record<string, string>) =>
+    getItemMock.mockImplementation((key: string) => map[key] ?? null);
+
+  it('uses the model chosen in AI settings when the stored provider is OpenRouter', () => {
+    stored({ [STORAGE_KEYS.AI_PROVIDER]: 'openrouter', [STORAGE_KEYS.AI_MODEL]: 'anthropic/claude-sonnet-4.5' });
+    expect(resolveAskAIModel()).toBe('anthropic/claude-sonnet-4.5');
+  });
+
+  it('maps the free-router alias to the wire id OpenRouter lists', () => {
+    stored({ [STORAGE_KEYS.AI_PROVIDER]: 'openrouter', [STORAGE_KEYS.AI_MODEL]: DEFAULT_AI_SETUP.model });
+    expect(resolveAskAIModel()).toBe(FREE_ROUTER_MODEL);
+  });
+
+  it('falls back to the free router when another provider is stored', () => {
+    stored({ [STORAGE_KEYS.AI_PROVIDER]: 'gemini', [STORAGE_KEYS.AI_MODEL]: 'gemini-3-pro-preview' });
+    expect(resolveAskAIModel()).toBe(wireModelId(DEFAULT_AI_SETUP.model));
+  });
+
+  it('falls back to the free router when nothing is stored', () => {
+    expect(resolveAskAIModel()).toBe(wireModelId(DEFAULT_AI_SETUP.model));
+  });
 });
 
 describe('buildAskAIPrompt', () => {
@@ -164,7 +192,8 @@ describe('streamStudyAI', () => {
     expect(finalText).toBe('中文 (v.25)。\nEnglish (v.25).');
     expect(seen[seen.length - 1]).toBe(finalText);
     const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
-    expect(body).toMatchObject({ model: ASK_AI_MODEL, stream: true, max_tokens: ASK_AI_MAX_TOKENS });
+    // Key only, no provider/model chosen → the free router goes on the wire
+    expect(body).toMatchObject({ model: wireModelId(DEFAULT_AI_SETUP.model), stream: true, max_tokens: ASK_AI_MAX_TOKENS });
     expect(body.messages[0].role).toBe('system');
     expect(body.messages.slice(1, 3)).toEqual(history);
     expect(body.messages[3].content).toContain('QUESTION: follow-up');
@@ -180,6 +209,32 @@ describe('streamStudyAI', () => {
       pack, slide, [], 'q', () => undefined, new AbortController().signal
     );
     expect(finalText).toBe('partial');
+  });
+
+  it('sends the model chosen in AI settings when the stored provider is OpenRouter', async () => {
+    getItemMock.mockImplementation((key: string) => ({
+      [STORAGE_KEYS.OPENROUTER_API_KEY]: 'test-key',
+      [STORAGE_KEYS.AI_PROVIDER]: 'openrouter',
+      [STORAGE_KEYS.AI_MODEL]: 'openai/gpt-4o-mini',
+    })[key] ?? null);
+    const fetchMock = vi.fn().mockResolvedValue(sseResponse(['data: [DONE]\n']));
+    vi.stubGlobal('fetch', fetchMock);
+    const { pack, slide } = loadPack();
+    await streamStudyAI(pack, slide, [], 'q', () => undefined, new AbortController().signal);
+    expect(JSON.parse(fetchMock.mock.calls[0][1].body as string).model).toBe('openai/gpt-4o-mini');
+  });
+
+  it('maps a 402 (no credits) to the bilingual credits message', async () => {
+    configureKey();
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
+      ok: false,
+      status: HTTP_PAYMENT_REQUIRED,
+      json: () => Promise.resolve({ error: { message: 'Insufficient credits' } }),
+    }));
+    const { pack, slide } = loadPack();
+    await expect(
+      streamStudyAI(pack, slide, [], 'q', () => undefined, new AbortController().signal)
+    ).rejects.toThrow(AI_CREDITS_MESSAGE);
   });
 
   it('throws the API error message on a non-OK response', async () => {

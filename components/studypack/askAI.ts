@@ -6,11 +6,23 @@
  * means changing only these two files.
  */
 import { getApiKey } from '../../services/openrouter';
+import { STORAGE_KEYS } from '../../constants/storageKeys';
+import { DEFAULT_AI_SETUP, wireModelId } from '../../services/aiDefaults';
 import { StudyPack, Slide } from './packTypes';
 import { ASK_AI_ANSWER_CONTRACT, TRANSLATIONS } from './principles';
 
-/** Default model, routed via OpenRouter. Change here to switch models. */
-export const ASK_AI_MODEL = 'anthropic/claude-sonnet-4.5';
+/**
+ * The OpenRouter model the overlay sends: the model chosen in AI settings
+ * when the stored provider is OpenRouter (same keys AIProviderSettings and
+ * aiDefaults use), otherwise the free-models router. A new visitor who only
+ * pasted a key therefore gets free models (ADR goal: one paste, it works).
+ */
+export function resolveAskAIModel(): string {
+  const provider = localStorage.getItem(STORAGE_KEYS.AI_PROVIDER);
+  const model = localStorage.getItem(STORAGE_KEYS.AI_MODEL);
+  const chosen = provider === DEFAULT_AI_SETUP.provider && model ? model : DEFAULT_AI_SETUP.model;
+  return wireModelId(chosen);
+}
 
 /**
  * Token cap for overlay answers. The contract is ≤2 short sentences
@@ -21,6 +33,14 @@ export const ASK_AI_MAX_TOKENS = 300;
 export const AI_NOT_CONFIGURED_MESSAGE =
   '未配置AI — 请在应用设置中填写 OpenRouter API 密钥。 ' +
   'AI not configured — set your OpenRouter API key in app Settings.';
+
+/** OpenRouter 402: the chosen model needs credits. The overlay renders this with a Set up AI button. */
+export const AI_CREDITS_MESSAGE =
+  '所选模型需要付费额度 — 请在“设置AI”改用免费模型，或为 OpenRouter 充值。 ' +
+  'The chosen model needs OpenRouter credits — open Set up AI to use the free models, or add credits.';
+
+/** HTTP status OpenRouter returns when the account has no credits for the model. */
+export const HTTP_PAYMENT_REQUIRED = 402;
 
 export interface AskAIMessage {
   role: 'user' | 'assistant';
