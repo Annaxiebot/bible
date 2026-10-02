@@ -247,3 +247,10 @@ describe('AskAIOverlay (streaming)', () => {
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('AskAIOverlay text selection', () => {
+  it('lets the mouse select answer text (the TV root is select-none)', () => {
+    renderOverlay();
+    expect(screen.getByTestId('ask-ai-overlay').className).toContain('select-text');
+  });
+});
