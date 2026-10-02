@@ -184,13 +184,3 @@ export async function streamChatCompletionDetailed(
   }
   return outcome;
 }
-
-/** Text-only convenience over streamChatCompletionDetailed (pack generation). */
-export async function streamChatCompletion(
-  body: string,
-  onDelta: (delta: string) => void,
-  signal: AbortSignal,
-  title?: string
-): Promise<string> {
-  return (await streamChatCompletionDetailed(body, onDelta, signal, title)).text;
-}
