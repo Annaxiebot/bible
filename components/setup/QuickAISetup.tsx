@@ -11,11 +11,12 @@
  */
 import React, { useEffect, useRef } from 'react';
 import { OPENROUTER_KEYS_URL } from '../../services/aiDefaults';
-import { useQuickAISetup, TestStatus } from './useQuickAISetup';
+import { modelLine } from '../studypack/tvHints';
+import { useQuickAISetup, TestStatus, QuickAISetup } from './useQuickAISetup';
 import {
   SETUP_TITLE, SETUP_EXPLANATION, SETUP_KEY_LABEL, SETUP_KEY_PLACEHOLDER,
   SETUP_SHOW_KEY, SETUP_HIDE_KEY, SETUP_GET_KEY, SETUP_TEST, SETUP_TESTING,
-  SETUP_SAVE, SETUP_CANCEL, SETUP_CLOSE,
+  SETUP_SAVE, SETUP_CANCEL, SETUP_CLOSE, SETUP_REPLACE, SETUP_USE_RECOMMENDED, savedKeyLine,
 } from './setupStrings';
 
 /** ADR-0003 §15 floors: inputs/buttons ≥ 18px type, ≥ 48px tap targets. */
@@ -35,6 +36,29 @@ const TestResult: React.FC<{ test: TestStatus }> = ({ test }) => {
   );
 };
 
+const secondaryButtonClass = 'rounded-lg border border-slate-600 px-4 text-slate-300 hover:text-slate-100';
+
+/**
+ * Saved state: masked key (last 4 only) + the model Ask AI will send,
+ * Replace to reveal the field, one-tap switch to the recommended model.
+ */
+const SavedKeyPanel: React.FC<{ s: QuickAISetup }> = ({ s }) => (
+  <div data-testid="saved-state" className="flex flex-col gap-3">
+    <p data-testid="saved-key" className="text-emerald-300" style={textStyle}>{savedKeyLine(s.maskedKey ?? '')}</p>
+    <p data-testid="saved-model" className="text-slate-400" style={textStyle}>{modelLine(s.model)}</p>
+    <div className="flex flex-wrap gap-3">
+      <button type="button" onClick={s.startReplace} className={secondaryButtonClass} style={controlStyle}>
+        {SETUP_REPLACE}
+      </button>
+      {s.recommendedAvailable && (
+        <button type="button" onClick={s.useRecommended} className={secondaryButtonClass} style={controlStyle}>
+          {SETUP_USE_RECOMMENDED}
+        </button>
+      )}
+    </div>
+  </div>
+);
+
 export interface QuickAISetupFormProps {
   /** Called after the key is stored. */
   onSaved: () => void;
@@ -45,7 +69,8 @@ export interface QuickAISetupFormProps {
 export const QuickAISetupForm: React.FC<QuickAISetupFormProps> = ({ onSaved, onCancel }) => {
   const s = useQuickAISetup();
   const inputRef = useRef<HTMLInputElement>(null);
-  useEffect(() => { inputRef.current?.focus(); }, []);
+  // Focus the field when it is on screen: on open without a stored key, and when Replace reveals it.
+  useEffect(() => { if (!s.showingSaved) inputRef.current?.focus(); }, [s.showingSaved]);
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,6 +84,7 @@ export const QuickAISetupForm: React.FC<QuickAISetupFormProps> = ({ onSaved, onC
       </h2>
       <p className="text-slate-300" style={textStyle}>{SETUP_EXPLANATION}</p>
 
+      {s.showingSaved ? <SavedKeyPanel s={s} /> : (
       <label className="flex flex-col gap-2">
         <span className="text-slate-400" style={textStyle}>{SETUP_KEY_LABEL}</span>
         <div className="flex gap-2">
@@ -86,6 +112,7 @@ export const QuickAISetupForm: React.FC<QuickAISetupFormProps> = ({ onSaved, onC
           </button>
         </div>
       </label>
+      )}
       {s.error && <p role="alert" className="text-red-300" style={textStyle}>{s.error}</p>}
       <TestResult test={s.test} />
 
@@ -119,13 +146,15 @@ export const QuickAISetupForm: React.FC<QuickAISetupFormProps> = ({ onSaved, onC
         >
           {s.test.kind === 'testing' ? SETUP_TESTING : SETUP_TEST}
         </button>
-        <button
-          type="submit"
-          className="rounded-lg bg-amber-500 px-6 font-semibold text-slate-950 hover:bg-amber-400"
-          style={controlStyle}
-        >
-          {SETUP_SAVE}
-        </button>
+        {!s.showingSaved && (
+          <button
+            type="submit"
+            className="rounded-lg bg-amber-500 px-6 font-semibold text-slate-950 hover:bg-amber-400"
+            style={controlStyle}
+          >
+            {SETUP_SAVE}
+          </button>
+        )}
       </div>
     </form>
   );
