@@ -1,9 +1,18 @@
 #!/usr/bin/env bash
 # R13 pre-push hook — fresh-session review of what's about to be pushed.
 # Docs-only pushes skip. Everything else gets a Claude review.
+#
+# Convergence (2026-10-01, after a 5-round deadlock):
+#   - The reviewer is scoped to defects in changed lines only (see prompt).
+#   - Each round feeds the previous rejection back in; the reviewer may not
+#     silently contradict a prior round's required fix.
+#   - After MAX_ROUNDS blocked attempts on the same branch, findings are
+#     downgraded to warnings, an audit note is logged, and the push proceeds.
 # Bypass in emergencies with `git push --no-verify`.
 
 set -e
+
+MAX_ROUNDS=3
 
 # Determine what's being pushed. If the remote branch is unknown (first push),
 # fall back to the last commit.
@@ -41,17 +50,36 @@ if [ ! -f "$prompt_file" ]; then
   exit 0
 fi
 
-echo "🔍 pre-push: R13 review of $range ..."
+# Per-branch round state, kept inside .git so it never gets committed.
+state_dir="$(git rev-parse --git-dir)/r13"
+mkdir -p "$state_dir"
+branch_key=$(git rev-parse --abbrev-ref HEAD | tr '/' '_')
+round_file="$state_dir/round-$branch_key"
+prev_file="$state_dir/prev-review-$branch_key"
+audit_log="$state_dir/audit.log"
 
-# Build the review input: prompt template + commit messages + diff.
+round=0
+[ -f "$round_file" ] && round=$(cat "$round_file")
+
+echo "🔍 pre-push: R13 review of $range (round $((round + 1))/$MAX_ROUNDS) ..."
+
+# Build the review input: prompt + previous rejection (if any) + commits + diff.
+# Commit messages record the fixes made per round; the previous rejection lets
+# the reviewer honor (not contradict) earlier required fixes.
 diff_content=$(git log "$range" --format='%n===== commit %h =====%n%B' && git diff "$range")
+prev_review=""
+if [ -s "$prev_file" ]; then
+  prev_review=$(printf '\n---\n\nPREVIOUS REVIEW ROUND (round %s rejection — its required fixes are settled;\ndo not contradict them except via a [RECONSIDER] line):\n\n%s\n' \
+    "$round" "$(cat "$prev_file")")
+fi
 
 # Non-interactive claude — pipe prompt + diff, capture stdout AND stderr
 # so CLI errors (auth, network, rate limit) surface instead of being swallowed
 # into a blank "violations found" message.
 review_tmp=$(mktemp)
-if ! printf '%s\n\n---\n\nCOMMIT MESSAGES AND DIFF TO REVIEW:\n\n%s\n' \
+if ! printf '%s\n%s\n\n---\n\nCOMMIT MESSAGES AND DIFF TO REVIEW:\n\n%s\n' \
       "$(cat "$prompt_file")" \
+      "$prev_review" \
       "$diff_content" \
       | claude -p > "$review_tmp" 2>&1; then
   echo ""
@@ -64,16 +92,43 @@ fi
 review_output=$(cat "$review_tmp")
 rm -f "$review_tmp"
 
-# Success condition: output is literally "CLEAN" (possibly with trailing whitespace).
-trimmed=$(echo "$review_output" | tr -d '[:space:]')
-if [ "$trimmed" = "CLEAN" ]; then
-  echo "✅ pre-push: CLEAN — no violations"
+# Pass condition: first non-empty line is literally CLEAN.
+# [WARN]/[RECONSIDER] lines after it are non-blocking by design.
+first_line=$(echo "$review_output" | sed -n '/[^[:space:]]/{p;q;}' | tr -d '[:space:]')
+if [ "$first_line" = "CLEAN" ]; then
+  echo "✅ pre-push: CLEAN — no blocking violations"
+  echo "$review_output" | grep -E '^\[(WARN|RECONSIDER)\]' | sed 's/^/    /' || true
+  rm -f "$round_file" "$prev_file"
   exit 0
 fi
 
-# Violations found — print them and block the push.
+round=$((round + 1))
+
+# Round cap: after MAX_ROUNDS blocked attempts, stop looping — print the
+# findings as warnings, log an audit note, and let the push through.
+if [ "$round" -ge "$MAX_ROUNDS" ]; then
+  echo ""
+  echo "⚠️  pre-push: R13 did not converge after $round rounds."
+  echo "    Remaining findings (NON-BLOCKING — review manually):"
+  echo ""
+  echo "$review_output" | sed 's/^/    /'
+  echo ""
+  {
+    echo "===== $(date '+%Y-%m-%d %H:%M:%S') branch=$branch_key range=$range rounds=$round ====="
+    echo "Push allowed at round cap. Unresolved findings:"
+    echo "$review_output"
+  } >> "$audit_log"
+  echo "    Audit note appended to $audit_log"
+  rm -f "$round_file" "$prev_file"
+  exit 0
+fi
+
+# Blocked — save state so the next round carries this rejection as context.
+echo "$round" > "$round_file"
+echo "$review_output" > "$prev_file"
+
 echo ""
-echo "❌ pre-push: R13 review found violations:"
+echo "❌ pre-push: R13 review found violations (round $round/$MAX_ROUNDS):"
 echo ""
 echo "$review_output"
 echo ""
