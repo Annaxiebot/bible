@@ -7,14 +7,14 @@
  */
 import React from 'react';
 import {
-  PRINCIPLES_EYEBROW, PRINCIPLES_HEADING_ZH, PRINCIPLES_HEADING_EN, PRINCIPLES_DESC, PILLARS,
+  PRINCIPLES_EYEBROW, PRINCIPLES_HEADING_ZH, PRINCIPLES_HEADING_EN, PRINCIPLES_DESC, PILLARS, PRINCIPLES_SECTION_ID,
 } from './landingStrings';
 import { PointIconGlyph } from './landingIcons';
 import LandingSection from './LandingSection';
 
 const LandingPrinciples: React.FC = () => (
   <LandingSection
-    id="principles"
+    id={PRINCIPLES_SECTION_ID}
     eyebrow={PRINCIPLES_EYEBROW}
     headingZh={PRINCIPLES_HEADING_ZH}
     headingEn={PRINCIPLES_HEADING_EN}
