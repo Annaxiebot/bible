@@ -1,0 +1,8 @@
+/*
+ * landingSky.css — the fixed, click-through stage every hero theme draws on.
+ * Theme-specific keyframes live beside each theme under themes/.
+ */
+.ld-sky, .ld-sky > * {
+  position: fixed; inset: 0; z-index: -1; pointer-events: none;
+}
+.ld-sky { overflow: hidden; }

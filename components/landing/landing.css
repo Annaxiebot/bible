@@ -1,0 +1,114 @@
+/*
+ * landing.css — type scale, motion, and micro-interactions for the landing · 首頁樣式
+ *
+ * Type uses rem + clamp() so it scales with browser zoom. All motion is
+ * transform/opacity only (no layout shift) and is switched off entirely
+ * under prefers-reduced-motion.
+ */
+
+/* ---- type scale (≥18px phone, ≥20px desktop body; ≥28px card titles) ---- */
+.ld-wordmark { font-size: clamp(2.75rem, 2rem + 3vw, 4.5rem); line-height: 1.1; }
+.ld-wordmark-zh { font-size: clamp(2rem, 1.5rem + 2vw, 3rem); line-height: 1.3; }
+.ld-mission { font-size: clamp(1.375rem, 1.1rem + 1.2vw, 2rem); line-height: 1.5; }
+.ld-step-zh { font-size: clamp(1.25rem, 1rem + 0.9vw, 1.625rem); line-height: 1.4; }
+.ld-step-en { font-size: clamp(1rem, 0.9rem + 0.5vw, 1.2rem); line-height: 1.4; }
+.ld-body { font-size: clamp(1.125rem, 1rem + 0.6vw, 1.3rem); line-height: 1.6; }
+.ld-card-title { font-size: clamp(1.75rem, 1.4rem + 1.2vw, 2.25rem); line-height: 1.3; }
+.ld-cta { font-size: clamp(1.25rem, 1.1rem + 0.5vw, 1.4rem); min-height: 3.5rem; }
+.ld-footer { font-size: 1rem; line-height: 1.6; }
+
+/* ---- background: amber radial glow + faint SVG noise ---- */
+.ld-root { position: relative; isolation: isolate; }
+/* fixed, not absolute: the root is the scroll container, so absolute would scroll away */
+.ld-root::before {
+  content: '';
+  position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  background: linear-gradient(180deg, #060b1c 0%, #020617 55%);
+}
+.ld-root::after {
+  content: '';
+  position: fixed; inset: 0; z-index: -1; pointer-events: none;
+  opacity: 0.045; mix-blend-mode: screen;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---- hero fade-up on load (opacity + transform only) ---- */
+.ld-fade { animation: ld-fade-up 700ms cubic-bezier(0.2, 0.7, 0.2, 1) both; }
+.ld-fade-1 { animation-delay: 80ms; }
+.ld-fade-2 { animation-delay: 200ms; }
+.ld-fade-3 { animation-delay: 340ms; }
+.ld-fade-4 { animation-delay: 480ms; }
+@keyframes ld-fade-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---- loop diagram: nodes light in sequence, glow travels along arrows ---- */
+/* base fill/stroke matter: a bare SVG circle is black before its delayed animation starts */
+.ld-node {
+  fill: #0f172a; stroke: #475569;
+  animation: ld-node-glow 7.5s ease-in-out infinite;
+  transform-box: fill-box; transform-origin: center;
+}
+.ld-node-1 { animation-delay: 0s; }
+.ld-node-2 { animation-delay: 2.5s; }
+.ld-node-3 { animation-delay: 5s; }
+@keyframes ld-node-glow {
+  0%, 4% { fill: #0f172a; stroke: #475569; filter: none; transform: scale(1); }
+  12%, 24% { fill: #f59e0b; stroke: #fbbf24; filter: drop-shadow(0 0 10px rgba(251, 191, 36, 0.9)); transform: scale(1.08); }
+  36%, 100% { fill: #0f172a; stroke: #475569; filter: none; transform: scale(1); }
+}
+.ld-arrow-glow {
+  stroke-dasharray: 36 400;
+  stroke-dashoffset: 436;
+  animation: ld-arrow-travel 7.5s linear infinite;
+}
+.ld-arrow-glow-1 { animation-delay: 0.9s; }
+.ld-arrow-glow-2 { animation-delay: 3.4s; }
+@keyframes ld-arrow-travel {
+  0% { stroke-dashoffset: 436; opacity: 0; }
+  2% { opacity: 1; }
+  20% { stroke-dashoffset: 260; opacity: 1; }
+  24% { opacity: 0; }
+  100% { stroke-dashoffset: 260; opacity: 0; }
+}
+.ld-step-label { animation: ld-label-glow 7.5s ease-in-out infinite; }
+.ld-step-label-1 { animation-delay: 0s; }
+.ld-step-label-2 { animation-delay: 2.5s; }
+.ld-step-label-3 { animation-delay: 5s; }
+@keyframes ld-label-glow {
+  0%, 4% { color: #e2e8f0; }
+  12%, 24% { color: #fbbf24; }
+  36%, 100% { color: #e2e8f0; }
+}
+
+/* ---- cards & CTAs: lift + amber glow + icon nudge (200ms) ---- */
+.ld-card {
+  transition: transform 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
+}
+.ld-card:hover, .ld-card:focus-within {
+  transform: translateY(-4px);
+  border-color: rgba(251, 191, 36, 0.55);
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.25), 0 18px 48px -18px rgba(245, 158, 11, 0.45);
+}
+.ld-card-art { transition: transform 200ms ease; }
+.ld-card:hover .ld-card-art { transform: translateY(-2px) scale(1.03); }
+.ld-cta { transition: background-color 150ms ease, transform 150ms ease, box-shadow 150ms ease; }
+.ld-cta:hover { transform: translateY(-1px); box-shadow: 0 10px 24px -10px rgba(245, 158, 11, 0.7); }
+.ld-cta:active { transform: translateY(0); }
+.ld-cta-icon { transition: transform 200ms ease; }
+.ld-cta:hover .ld-cta-icon, .ld-cta:focus-visible .ld-cta-icon { transform: translateX(4px); }
+.ld-cta:focus-visible, .ld-card:focus-visible {
+  outline: 3px solid #fbbf24; outline-offset: 3px;
+}
+
+/* ---- reduced motion: everything static, layout unchanged ---- */
+@media (prefers-reduced-motion: reduce) {
+  .ld-fade, .ld-node, .ld-arrow-glow, .ld-step-label { animation: none; }
+  .ld-fade { opacity: 1; transform: none; }
+  .ld-arrow-glow { opacity: 0; }
+  .ld-card, .ld-card-art, .ld-cta, .ld-cta-icon { transition: none; }
+  .ld-card:hover, .ld-card:focus-within { transform: none; }
+  .ld-cta:hover { transform: none; }
+  .ld-card:hover .ld-card-art, .ld-cta:hover .ld-cta-icon { transform: none; }
+}

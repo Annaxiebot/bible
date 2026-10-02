@@ -1,0 +1,15 @@
+/* birds.css — Matthew 6:26, the birds of the air · 天上的飛鳥 */
+.ld-birds { width: 100%; height: 100%; }
+.ld-bird { fill: none; stroke: #cbd5e1; stroke-width: 0.2; stroke-linecap: round; opacity: 0.1; }
+.ld-bird-flight {
+  transform: translateX(-15%);
+  animation: ld-bird-drift 45s linear infinite;
+}
+@keyframes ld-bird-drift {
+  0% { transform: translateX(-15%) translateY(0); }
+  40% { transform: translateX(110%) translateY(-6%); }
+  100% { transform: translateX(110%) translateY(-6%); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ld-bird-flight { animation: none; transform: translateX(-15%); }
+}
