@@ -104,7 +104,7 @@ const QuestionForm: React.FC<{ ai: AskAI }> = ({ ai }) => {
         onChange={e => setDraft(e.target.value)}
         disabled={!ai.configured || ai.loading}
         placeholder={ASK_INPUT_PLACEHOLDER}
-        aria-label="问AI问题 Ask AI question"
+        aria-label="问一问 Ask AI question"
         className="flex-1 bg-slate-800 text-slate-100 rounded-lg px-4 border border-slate-600 focus:outline-none focus:border-amber-400"
         style={questionStyle}
       />
@@ -171,7 +171,7 @@ const AskAIOverlay: React.FC<AskAIOverlayProps> = ({ pack, slide, initialQuestio
             onClick={close}
             className="text-slate-400 hover:text-slate-100 px-3 py-1"
             style={{ fontSize: '3vh' }}
-            aria-label="关闭问AI Close Ask AI"
+            aria-label="关闭问一问 Close Ask AI"
           >
             ✕
           </button>
