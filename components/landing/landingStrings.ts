@@ -88,7 +88,7 @@ export const NEXT_LOADING = '载入中 · loading';
 export const NUMBERS_EYEBROW = '真实的数字 · Honest numbers';
 export const NUMBERS_HEADING_ZH = '只说能证明的';
 export const NUMBERS_HEADING_EN = 'Only what we can prove';
-export const NUMBERS_DESC = '没有用户数，没有见证 · No user counts, no testimonials';
+export const NUMBERS_DESC = '来自内置的圣经数据，每一个都可核验 · From the bundled Bible text; every figure is verifiable';
 /**
  * 31,100: verses in the bundled 和合本 (public/bible-data/cuv, 1,189
  * chapters), produced by scripts/fetch-bible-data.mjs; BSB has 31,086.
