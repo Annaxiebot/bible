@@ -11,9 +11,14 @@ import { getPackIdFromHash } from '../studypack/packTypes';
 /** Hash the landing's "Open the app" CTA sets. */
 export const APP_HASH = '#app';
 
+/** TV-mode hash for a pack id (inverse of getPackIdFromHash). */
+export function packHash(packId: string): string {
+  return `#/pack/${packId}`;
+}
+
 /** Hash the landing's "See a sample pack" CTA sets. */
 export const SAMPLE_PACK_ID = '2026-10-02-matt6';
-export const SAMPLE_PACK_HASH = `#/pack/${SAMPLE_PACK_ID}`;
+export const SAMPLE_PACK_HASH = packHash(SAMPLE_PACK_ID);
 
 /** Hash that opens the landing with the quick AI setup dialog (a pastor can be sent this link). */
 export const SETUP_HASH = '#/setup';

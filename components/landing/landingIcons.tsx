@@ -4,7 +4,7 @@
  * 24×24 stroke icons in the amber/slate palette. No icon library, no raster.
  */
 import React from 'react';
-import type { PointIcon } from './landingStrings';
+import type { PointIcon, PillarIcon } from './landingStrings';
 
 const ICON_PROPS = {
   width: 28,
@@ -69,7 +69,51 @@ const SparkleIcon: React.FC = () => (
   </svg>
 );
 
-const ICONS: Record<PointIcon, React.FC> = {
+/* ---- principle pillars ---- */
+const ZhFirstIcon: React.FC = () => (
+  <svg {...ICON_PROPS}>
+    <path d="M4 7h16M12 4v3M7 7c0 5 3 9 8 11M17 7c0 5-3 9-8 11" />
+    <path d="M4 20h7" />
+  </svg>
+);
+
+const PublicDomainIcon: React.FC = () => (
+  <svg {...ICON_PROPS}>
+    <path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z" />
+    <path d="M4 19a2 2 0 0 1 2-2h13" />
+    <path d="M9 8l2 5 2-5M9 11h4" />
+  </svg>
+);
+
+const VerbatimIcon: React.FC = () => (
+  <svg {...ICON_PROPS}>
+    <path d="M6 3h9l4 4v14H6z" />
+    <path d="M15 3v4h4M9 11h6M9 15h6" />
+    <path d="M3 21l3-3" />
+  </svg>
+);
+
+const DeviceIcon: React.FC = () => (
+  <svg {...ICON_PROPS}>
+    <rect x="7" y="2" width="10" height="20" rx="2" />
+    <path d="M11 18h2" />
+    <rect x="9.5" y="8" width="5" height="4" rx="1" />
+    <path d="M12 8V6.5" />
+  </svg>
+);
+
+const GroupIcon: React.FC = () => (
+  <svg {...ICON_PROPS}>
+    <circle cx="8" cy="8" r="3" />
+    <circle cx="16" cy="9" r="2.5" />
+    <path d="M2.5 19a5.5 5.5 0 0 1 11 0M13 18.5a4 4 0 0 1 8 0" />
+  </svg>
+);
+
+/** Every landing icon: card bullets and principle pillars. */
+export type LandingIcon = PointIcon | PillarIcon;
+
+const ICONS: Record<LandingIcon, React.FC> = {
   deck: DeckIcon,
   question: QuestionIcon,
   qr: QrIcon,
@@ -77,10 +121,15 @@ const ICONS: Record<PointIcon, React.FC> = {
   bible: BibleIcon,
   pencil: PencilIcon,
   sparkle: SparkleIcon,
+  zhFirst: ZhFirstIcon,
+  publicDomain: PublicDomainIcon,
+  verbatim: VerbatimIcon,
+  device: DeviceIcon,
+  group: GroupIcon,
 };
 
-/** Icon beside a card bullet, by name. */
-export const PointIconGlyph: React.FC<{ name: PointIcon }> = ({ name }) => {
+/** Icon beside a card bullet or a principle pillar, by name. */
+export const PointIconGlyph: React.FC<{ name: LandingIcon }> = ({ name }) => {
   const Glyph = ICONS[name];
   return <Glyph />;
 };

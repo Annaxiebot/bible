@@ -59,3 +59,59 @@ export const NEW_STUDY_SUB = '輸入經文，AI 生成查經包，大屏演示 �
 export const LEADER_ZH = '組長：上傳查經講義，變成大屏簡報。';
 export const LEADER_EN =
   'Group leaders: bring your study guide PDF — it becomes a presentation with an AI helper.';
+
+/* ---- sticky top nav: three scroll links (section ids live in LandingNav) ---- */
+export const NAV_LINKS = [
+  { id: 'group', zh: GROUP_TITLE_ZH, en: 'Group' },
+  { id: 'personal', zh: PERSONAL_TITLE_ZH, en: 'Personal' },
+  { id: 'principles', zh: '原則', en: 'Principles' },
+] as const;
+export type NavSectionId = (typeof NAV_LINKS)[number]['id'];
+export const NAV_LABEL = '頁內導航 Page sections';
+
+/* ---- 下次查經 Next study ---- */
+export const NEXT_EYEBROW = '下次查經 · Next study';
+export const NEXT_HEADING_ZH = '這週我們讀';
+export const NEXT_HEADING_EN = 'This week we read';
+export const NEXT_DESC = '當前查經包，隨時打開 · The current study pack, ready to open';
+export const NEXT_OPEN_CTA = '打開查經包 Open the pack';
+export const NEXT_SIGNUP_CTA = '掃碼報名 Sign up';
+export const NEXT_SIGNUP_CLOSE = '收起 Close';
+export const NEXT_SIGNUP_LINK = '或點此打開報名表 · or open the sign-up form';
+/** Rendered instead of the pack when it cannot be loaded (no error noise). */
+export const NEXT_NONE_YET = '暫無 · none yet';
+export const NEXT_LOADING = '載入中 · loading';
+
+/* ---- 我們的原則 Our principles (ADR-0003) ---- */
+export const PRINCIPLES_EYEBROW = '我們的原則 · Our principles';
+export const PRINCIPLES_HEADING_ZH = '五件不會改變的事';
+export const PRINCIPLES_HEADING_EN = 'Five things that will not change';
+export const PRINCIPLES_DESC = '寫在 ADR-0003，約束這個應用的每一部分 · Written down in ADR-0003; binding on every part of the app';
+export const PILLARS = [
+  { icon: 'zhFirst', zh: '中文優先', en: 'Chinese first' },
+  { icon: 'publicDomain', zh: '和合本 + BSB 公共領域譯本', en: 'Public-domain translations' },
+  { icon: 'verbatim', zh: '講義原文照登，提示不上屏', en: 'Your guide verbatim; leader hints never on screen' },
+  { icon: 'device', zh: '反思只存本機', en: 'Reflections stay on your device' },
+  { icon: 'group', zh: 'AI 不取代牧者與小組', en: 'AI never replaces the pastor or the group' },
+] as const;
+export type PillarIcon = (typeof PILLARS)[number]['icon'];
+
+/* ---- 真實的數字 Honest numbers ---- */
+export const NUMBERS_EYEBROW = '真實的數字 · Honest numbers';
+export const NUMBERS_HEADING_ZH = '只說能證明的';
+export const NUMBERS_HEADING_EN = 'Only what we can prove';
+export const NUMBERS_DESC = '沒有用戶數，沒有見證 · No user counts, no testimonials';
+/**
+ * 31,100: verses in the bundled 和合本 (public/bible-data/cuv, 1,189
+ * chapters), produced by scripts/fetch-bible-data.mjs; BSB has 31,086.
+ * LandingNumbers.test.tsx re-counts the bundled data and pins this label.
+ */
+export const VERSE_COUNT_LABEL = '31,100+';
+export const BOOK_COUNT = 66;
+export const OFFLINE_FIGURE = '離線';
+export const HONEST_NUMBERS = [
+  { value: String(BOOK_COUNT), zh: '卷', en: 'books' },
+  { value: VERSE_COUNT_LABEL, zh: '節', en: 'verses' },
+  { value: '2', zh: '譯本', en: 'translations', note: '和合本 · BSB' },
+  { value: OFFLINE_FIGURE, zh: '可用', en: 'works offline', note: '大屏與經文不需網絡 · TV mode and verses need no network' },
+] as const;

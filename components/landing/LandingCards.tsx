@@ -10,7 +10,7 @@ import { APP_HASH, SAMPLE_PACK_HASH } from './landingRoute';
 import {
   GROUP_TITLE_ZH, GROUP_TITLE_EN, GROUP_CTA, GROUP_POINTS,
   PERSONAL_TITLE_ZH, PERSONAL_TITLE_EN, PERSONAL_CTA, PERSONAL_POINTS,
-  PointIcon,
+  PointIcon, NavSectionId,
 } from './landingStrings';
 import { PointIconGlyph, ArrowIcon } from './landingIcons';
 import { TvIllustration, PhoneIllustration } from './landingIllustrations';
@@ -29,12 +29,15 @@ interface DoorCardProps {
   ctaHash: string;
   art: React.ReactNode;
   testId: string;
+  /** Scroll target id for the sticky nav (NAV_LINKS). */
+  id: NavSectionId;
 }
 
 const DoorCard: React.FC<DoorCardProps> = ({
-  titleZh, titleEn, points, ctaLabel, ctaHash, art, testId,
+  titleZh, titleEn, points, ctaLabel, ctaHash, art, testId, id,
 }) => (
   <section
+    id={id}
     data-testid={testId}
     className="ld-card flex flex-col rounded-3xl border border-slate-800 bg-slate-900/60 p-6 sm:p-7"
   >
@@ -75,6 +78,7 @@ const LandingCards: React.FC = () => (
       ctaHash={SAMPLE_PACK_HASH}
       art={<TvIllustration />}
       testId="card-group"
+      id="group"
     />
     <DoorCard
       titleZh={PERSONAL_TITLE_ZH}
@@ -84,6 +88,7 @@ const LandingCards: React.FC = () => (
       ctaHash={APP_HASH}
       art={<PhoneIllustration />}
       testId="card-personal"
+      id="personal"
     />
   </div>
 );
