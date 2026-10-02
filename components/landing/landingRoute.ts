@@ -15,11 +15,15 @@ export const APP_HASH = '#app';
 export const SAMPLE_PACK_ID = '2026-10-02-matt6';
 export const SAMPLE_PACK_HASH = `#/pack/${SAMPLE_PACK_ID}`;
 
-export type RootView = 'landing' | 'app' | 'pack';
+/** Hash that opens the landing with the quick AI setup dialog (a pastor can be sent this link). */
+export const SETUP_HASH = '#/setup';
+
+export type RootView = 'landing' | 'setup' | 'app' | 'pack';
 
 /** Map a location.hash to the view the root gate should render. */
 export function resolveRootView(hash: string): RootView {
   if (getPackIdFromHash(hash)) return 'pack';
   if (hash === '' || hash === '#') return 'landing';
+  if (hash === SETUP_HASH) return 'setup';
   return 'app';
 }
