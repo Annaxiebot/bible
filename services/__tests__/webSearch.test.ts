@@ -73,7 +73,8 @@ vi.mock('../gemini', () => ({
 vi.mock('../claude', () => ({ chatWithAI: vi.fn() }));
 vi.mock('../kimi', () => ({ chatWithAI: vi.fn() }));
 vi.mock('../openai', () => ({ chatWithAI: vi.fn() }));
-vi.mock('../openrouter', () => ({
+vi.mock('../openrouter', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../openrouter')>()), // real constants (FREE_ROUTER_MODEL is read at module load by aiDefaults)
   chatWithAI: vi.fn(),
   testApiKey: vi.fn(),
   FREE_MODELS: [],

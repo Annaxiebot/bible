@@ -198,6 +198,7 @@ describe('openrouter', () => {
       const result = await testApiKey('sk-bad-key');
       expect(result.success).toBe(false);
       expect(result.error).toBe('Invalid API key');
+      expect(result.status).toBe(401); // typed outcome for the setup dialog
     });
 
     it('returns error on network failure', async () => {
@@ -206,6 +207,7 @@ describe('openrouter', () => {
       const result = await testApiKey('sk-test-key');
       expect(result.success).toBe(false);
       expect(result.error).toBe('Network error');
+      expect(result.status).toBeUndefined(); // no HTTP reply at all
     });
 
     it('handles non-Error throw', async () => {

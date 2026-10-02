@@ -11,6 +11,7 @@ import { generateStudyPack, loadPassage } from '../generatePack';
 import { JOHN3_REQUEST, JOHN3_REPLY_JSON } from './fixtures';
 import { STORAGE_KEYS } from '../../../constants/storageKeys';
 import { OPENROUTER_API_URL } from '../../../services/openrouter';
+import { PACK_GENERATION_MODEL } from '../../../services/aiDefaults';
 import {
   NS_STEP_VERSES, NS_STEP_AI, NS_STEP_VALIDATE, NS_ERR_NO_JSON, NS_ERR_VERSES_OUT_OF_RANGE,
   NS_ERR_VERSES_UNAVAILABLE,
@@ -103,6 +104,7 @@ describe('generateStudyPack', () => {
     const init = call[1] as RequestInit;
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer unit-test-key');
     expect(init.body as string).toContain('耶稣和门徒到了犹太地');
+    expect(JSON.parse(init.body as string).model).toBe(PACK_GENERATION_MODEL); // not the Ask-AI model
   });
 
   it('fails with the bilingual JSON error on a truncated reply (no half-pack)', async () => {

@@ -8,7 +8,7 @@ import { buildPackPrompt, GENERATED_SHAPE, PACK_MAX_TOKENS, PACK_TEMPERATURE, PA
 import { buildPackRequestBody } from '../generatePack';
 import { JOHN3_REQUEST } from './fixtures';
 import { PACK_CONTENT_CONTRACT, ASK_AI_ANSWER_CONTRACT, LIFE_AREAS, TRANSLATIONS } from '../../studypack/principles';
-import { FREE_ROUTER_MODEL } from '../../../services/openrouter';
+import { PACK_GENERATION_MODEL } from '../../../services/aiDefaults';
 
 const verses = [
   { num: 22, cuv: '这事以后，耶稣和门徒到了犹太地', en: 'After this, Jesus and His disciples went into the Judean countryside' },
@@ -57,12 +57,12 @@ describe('buildPackRequestBody', () => {
     (window.localStorage.getItem as ReturnType<typeof vi.fn>).mockReset().mockReturnValue(null);
   });
 
-  it('streams with the resolved model, a full-pack token budget and low temperature', () => {
+  it('streams with the pack-generation model, a full-pack token budget and low temperature', () => {
     const body = JSON.parse(buildPackRequestBody(JOHN3_REQUEST, verses)) as {
       model: string; stream: boolean; max_tokens: number; temperature: number;
       messages: Array<{ role: string; content: string }>;
     };
-    expect(body.model).toBe(FREE_ROUTER_MODEL);
+    expect(body.model).toBe(PACK_GENERATION_MODEL);
     expect(body.stream).toBe(true);
     expect(body.max_tokens).toBe(PACK_MAX_TOKENS);
     expect(PACK_MAX_TOKENS).toBeGreaterThanOrEqual(3000);
