@@ -3,18 +3,23 @@
  *
  * #/new renders the form Chinese-first (large type, ≥48px targets); with the
  * OpenRouter endpoint mocked to stream a valid pack JSON, generating
- * John 3:22–36 yields an editor holding the real bundled verses; Save then
- * Preview opens TV mode from IndexedDB showing 和合本|BSB verses and 18
- * slides; Export downloads the pack JSON. No live AI call is made.
+ * John 3:22–36 yields an editor holding the real bundled verses; the pack
+ * is auto-saved the moment it appears (never lost), the URL becomes
+ * #/new/<id>; Save then Preview opens TV mode from IndexedDB showing
+ * 和合本|BSB verses and 18 slides, and Escape returns to the editor;
+ * reloading #/new/<id> restores it; Export downloads the pack JSON. No
+ * live AI call is made.
  */
 import { test, expect, Page } from '@playwright/test';
 import { NEW_STUDY_HASH } from '../../components/landing/landingRoute';
 import { NEW_STUDY_LINE } from '../../components/landing/landingStrings';
 import { SETUP_TITLE } from '../../components/setup/setupStrings';
 import {
-  NS_TITLE, NS_BOOK, NS_GENERATE, NS_EDIT_TITLE, NS_SAVE, NS_SAVED, NS_PREVIEW, NS_EXPORT, NS_MY_PACKS,
-  NS_SCRIPTURE_NOTE, NS_RETRY, NS_ERR_NO_JSON, NS_RANGE_UPDATED, NS_SECTION_REMOVE_CONFIRM,
+  NS_TITLE, NS_BOOK, NS_GENERATE, NS_EDIT_TITLE, NS_SAVE, NS_SAVED, NS_AUTOSAVED, NS_PREVIEW, NS_EXPORT, NS_MY_PACKS, NS_EDIT,
+  NS_SCRIPTURE_NOTE, NS_RETRY, NS_ERR_NO_JSON, NS_RANGE_UPDATED, NS_SECTION_REMOVE_CONFIRM, NS_ERR_FEEDBACK_FORM,
 } from '../../components/newstudy/newStudyStrings';
+import { newStudyHash } from '../../components/landing/landingRoute';
+import { STORAGE_KEYS } from '../../constants/storageKeys';
 import { PACK_CONTINUE_PROMPT } from '../../components/newstudy/packPrompt';
 import { JOHN3_REPLY_JSON } from '../../components/newstudy/__tests__/fixtures';
 import { LIFE_AREAS } from '../../components/studypack/principles';
@@ -98,6 +103,9 @@ test.describe('New study', () => {
     await expect(editor.getByText(/他必兴旺，我必衰微/).first()).toBeVisible();
     for (const area of LIFE_AREAS) await expect(editor.getByText(area, { exact: true })).toBeVisible();
 
+    // Auto-saved before the leader presses anything: the URL already carries the pack id.
+    await expect(page).toHaveURL(new RegExp(`${newStudyHash(PACK_ID)}$`));
+    await expect(page.getByTestId('ns-status')).toHaveText(NS_AUTOSAVED);
     await page.getByTestId('ns-save').click();
     await expect(page.getByRole('status')).toHaveText(NS_SAVED);
 
@@ -116,10 +124,23 @@ test.describe('New study', () => {
     await expect(page.getByText('18/18')).toBeVisible();
     await expect(page.getByText(/闭环 Closing/)).toBeVisible();
 
-    // Back to the page: the pack is listed; Export downloads its JSON.
+    // Escape returns to the editor that opened the preview, content intact.
+    await page.keyboard.press('Escape');
+    await expect(page).toHaveURL(new RegExp(`${newStudyHash(PACK_ID)}$`));
+    await expect(page.getByTestId('new-study-editor')).toBeVisible();
+    await expect(editor.getByText(/这事以后，耶稣和门徒到了犹太地/)).toBeVisible();
+
+    // Reload keeps the editor open (the pack comes back from IndexedDB).
+    await page.reload();
+    await expect(page.getByTestId('new-study-editor')).toBeVisible();
+    await expect(page.getByText(NS_EDIT_TITLE)).toBeVisible();
+    await expect(editor.getByText(/他必兴旺，我必衰微/).first()).toBeVisible();
+
+    // Back to the page: the pack is listed with Edit; Export downloads its JSON.
     await openNewStudy(page);
     const row = page.getByTestId('pack-row').first();
     await expect(row).toContainText('祂必兴旺，我必衰微');
+    await expect(row.getByRole('link', { name: NS_EDIT })).toHaveAttribute('href', newStudyHash(PACK_ID));
     const download = page.waitForEvent('download');
     await row.getByRole('button', { name: NS_EXPORT }).click();
     const file = await download;
@@ -213,6 +234,52 @@ test.describe('New study', () => {
     const messages = bodies()[1].messages!;
     expect(messages[messages.length - 2]).toEqual({ role: 'assistant', content: head });
     expect(messages[messages.length - 1]).toEqual({ role: 'user', content: PACK_CONTINUE_PROMPT });
+  });
+
+  test('generation never loses the pack: Preview straight after generating, close TV mode → the editor is back and the pack is listed', async ({ page }) => {
+    await injectApiKey(page);
+    await mockOpenRouterStream(page, chunked(JOHN3_REPLY_JSON));
+    await openNewStudy(page);
+    await fillJohn3(page);
+    await page.getByRole('button', { name: NS_GENERATE }).click();
+    await expect(page.getByText(NS_EDIT_TITLE)).toBeVisible();
+    await page.getByTestId('ns-preview').click();   // no Save pressed
+    await expect(page.getByTestId('tv-presentation')).toBeVisible();
+    await page.getByLabel('退出演示 Exit presentation').click();
+    await expect(page.getByTestId('new-study-editor')).toBeVisible();
+    await expect(page).toHaveURL(new RegExp(`${newStudyHash(PACK_ID)}$`));
+    await openNewStudy(page);
+    await expect(page.getByTestId('pack-row').first()).toContainText('祂必兴旺，我必衰微');
+  });
+
+  test('a Google Form link on the generation form is validated, remembered as the default, and carried into the pack', async ({ page }) => {
+    await injectApiKey(page);
+    await mockOpenRouterStream(page, chunked(JOHN3_REPLY_JSON));
+    await openNewStudy(page);
+    await fillJohn3(page);
+    await page.getByTestId('ns-feedback-link').fill('https://example.com/not-a-form');
+    await page.getByRole('button', { name: NS_GENERATE }).click();
+    await expect(page.getByRole('alert')).toHaveText(NS_ERR_FEEDBACK_FORM);
+    const FORM = 'https://docs.google.com/forms/d/e/1FAIpQLSd_e2e/viewform';
+    await page.getByTestId('ns-feedback-link').fill(FORM);
+    await page.getByTestId('ns-feedback-default').check();
+    await page.getByRole('button', { name: NS_GENERATE }).click();
+    await expect(page.getByText(NS_EDIT_TITLE)).toBeVisible();
+    await expect(page.getByTestId('ns-feedback-url')).toHaveValue(FORM);
+    expect(await page.evaluate(k => localStorage.getItem(k), STORAGE_KEYS.FEEDBACK_FORM_DEFAULT_URL)).toBe(FORM);
+    // The stored pack carries the link; a fresh generation form is pre-filled with the default.
+    await expect.poll(() => page.evaluate(async (id) => new Promise<string | undefined>((resolve, reject) => {
+      const open = indexedDB.open('BibleApp');
+      open.onerror = () => reject(open.error);
+      open.onsuccess = () => {
+        const get = open.result.transaction('studypacks').objectStore('studypacks').get(id);
+        get.onsuccess = () => { open.result.close(); resolve((get.result?.pack as { feedbackFormUrl?: string } | undefined)?.feedbackFormUrl); };
+        get.onerror = () => reject(get.error);
+      };
+    }), PACK_ID)).toBe(FORM);
+    await openNewStudy(page);
+    await expect(page.getByTestId('ns-feedback-link')).toHaveValue(FORM);
+    await expect(page.getByTestId('ns-feedback-default')).toBeChecked();
   });
 
   test('a truncated model reply shows the bilingual error with Retry — never a half-pack', async ({ page }) => {

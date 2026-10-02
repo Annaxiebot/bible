@@ -10,6 +10,8 @@ import { StudyPack } from '../studypack/packTypes';
 import NewStudyForm from './NewStudyForm';
 import NewStudyEditor from './NewStudyEditor';
 import { StudyRequest } from './packAssembly';
+import type { AutoSaveStatus } from './useAutoSave';
+import type { FormNotice } from './useFeedbackForm';
 import { NS_CANCEL, NS_RETRY, NS_BACK } from './newStudyStrings';
 import { textStyle, controlStyle, headingStyle, secondaryButtonClass, quietButtonClass } from './newStudyStyles';
 
@@ -47,10 +49,13 @@ export interface PhaseViewProps {
   onChange: (pack: StudyPack) => void;
   onSave: (pack: StudyPack) => Promise<void>;
   onPreview: (pack: StudyPack) => Promise<void>;
+  autosave: { status: AutoSaveStatus; error: string | null };
+  /** The auto-created feedback form's outcome (useFeedbackForm). */
+  notice: FormNotice | null;
 }
 
 const PhaseView: React.FC<PhaseViewProps> = ({
-  phase, configured, onGenerate, onCancel, onBack, onChange, onSave, onPreview,
+  phase, configured, onGenerate, onCancel, onBack, onChange, onSave, onPreview, autosave, notice,
 }) => {
   switch (phase.kind) {
     case 'form':
@@ -61,7 +66,8 @@ const PhaseView: React.FC<PhaseViewProps> = ({
       return <Failed message={phase.message} onRetry={() => onGenerate(phase.req)} onBack={onBack} />;
     case 'editor':
       return (
-        <NewStudyEditor pack={phase.pack} onChange={onChange} onSave={onSave} onPreview={onPreview} onBack={onBack} />
+        <NewStudyEditor pack={phase.pack} onChange={onChange} onSave={onSave} onPreview={onPreview} onBack={onBack}
+          autosave={autosave} notice={notice} />
       );
   }
 };

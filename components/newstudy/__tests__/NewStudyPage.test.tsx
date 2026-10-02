@@ -1,9 +1,12 @@
 /**
  * NewStudyPage.test.tsx — the leader's flow in jsdom: no key → inline setup;
  * key → form (Chinese-first, validated) → generation (mocked pipeline) →
- * editor (editable questions, scripture read-only) → Save lists the pack
- * (real fake-indexeddb) → Preview sets the TV hash; a failed generation
- * shows the bilingual error with Retry.
+ * editor (editable questions, scripture read-only) → the pack is auto-saved
+ * the moment generation completes and after edits (real fake-indexeddb),
+ * the URL becomes #/new/<id> and reopening that hash restores the editor
+ * → Preview remembers the editor as TV mode's exit and sets the TV hash; a
+ * failed generation shows the bilingual error with Retry; My packs lists
+ * each pack with Edit.
  */
 import React from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -15,9 +18,12 @@ import { validateGenerated } from '../generatedPack';
 import { JOHN3_GENERATED, JOHN3_REQUEST } from './fixtures';
 import { SETUP_TITLE } from '../../setup/setupStrings';
 import {
-  NS_TITLE, NS_GENERATE, NS_BOOK, NS_EDIT_TITLE, NS_SAVE, NS_SAVED, NS_PREVIEW, NS_MY_PACKS, NS_NO_PACKS,
-  NS_RETRY, NS_ERR_NO_JSON, NS_ERR_RANGE, NS_SCRIPTURE_NOTE, NS_QUESTION_ADD, NS_STEP_AI,
+  NS_TITLE, NS_GENERATE, NS_BOOK, NS_EDIT_TITLE, NS_SAVE, NS_SAVED, NS_AUTOSAVED, NS_PREVIEW, NS_MY_PACKS, NS_NO_PACKS,
+  NS_RETRY, NS_ERR_NO_JSON, NS_ERR_RANGE, NS_SCRIPTURE_NOTE, NS_QUESTION_ADD, NS_STEP_AI, NS_EDIT, NS_BACK,
 } from '../newStudyStrings';
+import { newStudyHash, NEW_STUDY_HASH } from '../../landing/landingRoute';
+import { TV_RETURN_KEY } from '../../studypack/tvReturn';
+import { AUTOSAVE_DELAY_MS } from '../useAutoSave';
 import NewStudyPage from '../NewStudyPage';
 import { validateRequest, DEFAULT_REQUEST } from '../NewStudyForm';
 
@@ -45,6 +51,8 @@ describe('NewStudyPage', () => {
     generateMock.mockReset();
     await idbService.clear('studypacks');
     window.location.hash = '';
+    (window.sessionStorage.getItem as ReturnType<typeof vi.fn>).mockReset();
+    (window.sessionStorage.setItem as ReturnType<typeof vi.fn>).mockReset();
   });
 
   it('shows the quick AI setup inline (and no form) when no key is configured', () => {
@@ -121,6 +129,54 @@ describe('NewStudyPage', () => {
 
     fireEvent.click(screen.getByTestId('ns-preview'));
     await waitFor(() => expect(window.location.hash).toBe('#/pack/local-2026-10-02-jhn3'));
+    // TV mode's exit goes back to this editor (tvReturn), not to the app.
+    expect(window.sessionStorage.setItem).toHaveBeenCalledWith(
+      TV_RETURN_KEY, JSON.stringify({ packId: 'local-2026-10-02-jhn3', hash: newStudyHash('local-2026-10-02-jhn3') }));
+  });
+
+  it('auto-saves: the generated pack is stored without pressing anything, the URL becomes #/new/<id>, and edits save after the quiet period', async () => {
+    withKey('k');
+    generateMock.mockResolvedValue(generatedPack());
+    render(<NewStudyPage />);
+    await fillAndGenerate();
+    await waitFor(() => expect(screen.getByText(NS_EDIT_TITLE)).toBeInTheDocument());
+    await rangeReady();
+    expect(window.location.hash).toBe(newStudyHash('local-2026-10-02-jhn3'));
+    await waitFor(async () => expect(await idbService.get('studypacks', 'local-2026-10-02-jhn3')).toBeDefined());
+    await waitFor(() => expect(screen.getByTestId('ns-status')).toHaveTextContent(NS_AUTOSAVED));
+
+    fireEvent.change(screen.getByTestId('ns-title'), { target: { value: '新标题 New title' } });
+    await new Promise(r => setTimeout(r, AUTOSAVE_DELAY_MS + 50));
+    await waitFor(async () => {
+      const stored = await idbService.get('studypacks', 'local-2026-10-02-jhn3');
+      expect((stored!.pack as { title: string }).title).toContain('新标题 New title');
+    });
+
+    // Back flushes and returns to the list, where the pack has an Edit link.
+    fireEvent.click(screen.getByRole('button', { name: NS_BACK }));
+    const row = await screen.findByTestId('pack-row');
+    expect(window.location.hash).toBe(NEW_STUDY_HASH);
+    expect(row).toHaveTextContent('新标题 New title');
+    expect(within(row).getByRole('link', { name: NS_EDIT })).toHaveAttribute('href', newStudyHash('local-2026-10-02-jhn3'));
+  });
+
+  it('#/new/<id> on load restores the saved pack in the editor (reload keeps the editor open); an unknown id is a visible error', async () => {
+    withKey('k');
+    await idbService.put('studypacks', { id: 'local-2026-10-02-jhn3', pack: generatedPack(), savedAt: 1 });
+    window.location.hash = newStudyHash('local-2026-10-02-jhn3');
+    render(<NewStudyPage />);
+    await waitFor(() => expect(screen.getByText(NS_EDIT_TITLE)).toBeInTheDocument());
+    await rangeReady();
+    expect(screen.getByTestId('ns-scripture')).toHaveTextContent('第22节');
+    expect(screen.queryByTestId('pack-list')).toBeNull();
+    // Opening a stored pack is not an edit: nothing is re-saved.
+    const before = (await idbService.get('studypacks', 'local-2026-10-02-jhn3'))!.savedAt;
+    await new Promise(r => setTimeout(r, AUTOSAVE_DELAY_MS + 50));
+    expect((await idbService.get('studypacks', 'local-2026-10-02-jhn3'))!.savedAt).toBe(before);
+
+    window.location.hash = newStudyHash('local-2026-01-01-none');
+    fireEvent(window, new HashChangeEvent('hashchange'));
+    expect(await screen.findByRole('alert')).toHaveTextContent('找不到这个查经包');
   });
 
   it('shows the bilingual error with Retry when generation fails, and retries the same request', async () => {
@@ -142,7 +198,8 @@ describe('NewStudyPage', () => {
     render(<NewStudyPage />);
     const row = await screen.findByTestId('pack-row');
     expect(row).toHaveTextContent('祂必兴旺，我必衰微');
-    fireEvent.click(within(row).getByRole('button', { name: '打开 Open' }));
+    fireEvent.click(within(row).getByRole('link', { name: NS_EDIT }));
+    expect(window.location.hash).toBe(newStudyHash('local-2026-10-02-jhn3'));
     expect(screen.getByText(NS_EDIT_TITLE)).toBeInTheDocument();
     await rangeReady();
     expect(screen.getByRole('button', { name: NS_PREVIEW })).toBeInTheDocument();

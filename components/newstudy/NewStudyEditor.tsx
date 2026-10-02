@@ -7,7 +7,8 @@
  * "添加段落 Add section" appends an allowed kind. Every edit is a pure
  * function in packEdits; validateEdited runs on every render and keeps
  * Save/Preview disabled with the bilingual reason shown while invalid.
- * Save stores the pack; Preview saves then opens TV mode.
+ * Every edit is auto-saved by the page (useAutoSave; one status line here);
+ * Save is the explicit confirmation, Preview flushes and opens TV mode.
  */
 import React, { useRef, useState } from 'react';
 import { StudyPack, SectionKind } from '../studypack/packTypes';
@@ -19,7 +20,12 @@ import { canMoveUp, canMoveDown, canRemove, moveItem, removeItem, insertItem } f
 import {
   validateEdited, withTitle, withSection, withMovedSection, withoutSection, withAddedSection,
 } from './packEdits';
-import { NS_EDIT_TITLE, NS_EDIT_HINT, NS_PACK_TITLE, NS_SAVE, NS_SAVED, NS_PREVIEW, NS_BACK } from './newStudyStrings';
+import FeedbackFormField from './FeedbackFormField';
+import type { AutoSaveStatus } from './useAutoSave';
+import type { FormNotice } from './useFeedbackForm';
+import {
+  NS_EDIT_TITLE, NS_EDIT_HINT, NS_PACK_TITLE, NS_SAVE, NS_SAVED, NS_AUTOSAVED, NS_SAVING, NS_PREVIEW, NS_BACK,
+} from './newStudyStrings';
 import {
   textStyle, controlStyle, headingStyle, inputClass, primaryButtonClass, secondaryButtonClass,
   quietButtonClass, labelClass,
@@ -31,6 +37,26 @@ interface Props {
   onSave: (pack: StudyPack) => Promise<void>;
   onPreview: (pack: StudyPack) => Promise<void>;
   onBack: () => void;
+  /** Auto-save state from useAutoSave (NewStudyPage); absent in isolated renders. */
+  autosave?: { status: AutoSaveStatus; error: string | null };
+  /** The auto-created feedback form's outcome (useFeedbackForm): created + link, or the fallback cause. */
+  notice?: FormNotice | null;
+}
+
+const FormNoticeLine: React.FC<{ notice: FormNotice }> = ({ notice }) => (
+  <p role={notice.ok ? 'status' : 'alert'} data-testid="ns-form-notice"
+    className={notice.ok ? 'text-emerald-300' : 'text-amber-300'} style={textStyle}>
+    {notice.text}
+    {notice.link && <>{' '}<a href={notice.link} target="_blank" rel="noreferrer" className="break-all underline underline-offset-4">{notice.link}</a></>}
+  </p>
+);
+
+/** The single status line: explicit Save wins, then the quiet auto-save indicator. */
+function statusLine(explicit: 'idle' | 'saved' | 'error', autosave?: Props['autosave']): string | null {
+  if (explicit === 'saved') return NS_SAVED;
+  if (autosave?.status === 'saved') return NS_AUTOSAVED;
+  if (autosave?.status === 'saving') return NS_SAVING;
+  return null;
 }
 
 /**
@@ -69,7 +95,7 @@ const Footer: React.FC<{ invalid: boolean; onBack: () => void; onSave: () => voi
   </div>
 );
 
-const NewStudyEditor: React.FC<Props> = ({ pack, onChange, onSave, onPreview, onBack }) => {
+const NewStudyEditor: React.FC<Props> = ({ pack, onChange, onSave, onPreview, onBack, autosave, notice }) => {
   const [status, setStatus] = useState<'idle' | 'saved' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
   const edit = (nextPack: StudyPack) => { setStatus('idle'); onChange(nextPack); };
@@ -90,7 +116,8 @@ const NewStudyEditor: React.FC<Props> = ({ pack, onChange, onSave, onPreview, on
 
   const titleHeading = pack.sections.find(s => s.kind === 'title')?.heading ?? '';
   const firstScripture = pack.sections.findIndex(s => s.kind === 'scripture');
-  const shownError = problem ?? error;
+  const shownError = problem ?? error ?? autosave?.error ?? null;
+  const shownStatus = statusLine(status, autosave);
   return (
     <div data-testid="new-study-editor" className="flex flex-col gap-6">
       <h2 className="font-bold text-amber-300" style={headingStyle}>{NS_EDIT_TITLE}</h2>
@@ -110,8 +137,12 @@ const NewStudyEditor: React.FC<Props> = ({ pack, onChange, onSave, onPreview, on
         </div>
       ))}
       <AddSectionMenu sections={pack.sections} onAdd={add} />
+      <FeedbackFormField pack={pack} onEdit={edit} />
+      {notice && <FormNoticeLine notice={notice} />}
       {shownError && <p role="alert" className="text-red-300" style={textStyle}>{shownError}</p>}
-      {status === 'saved' && <p role="status" className="text-emerald-300" style={textStyle}>{NS_SAVED}</p>}
+      {shownStatus && (
+        <p role="status" data-testid="ns-status" className="text-emerald-300" style={textStyle}>{shownStatus}</p>
+      )}
       <Footer invalid={!!problem} onBack={onBack} onSave={() => void run(onSave, 'saved')} onPreview={() => void run(onPreview, 'idle')} />
     </div>
   );

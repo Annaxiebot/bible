@@ -1,31 +1,97 @@
 /**
- * NewStudyPage.tsx — "新建查经 New study" (#/new) · 新建查经页
+ * NewStudyPage.tsx — "新建查经 New study" (#/new, #/new/<packId>) · 新建查经页
  *
  * Owns the phase state (PhaseView renders it) and "我的查经包 My packs".
  * With no OpenRouter key the quick setup form renders inline first (reused
  * from components/setup). Packs stay in this browser's IndexedDB; the key
  * never leaves localStorage; nothing is logged.
+ *
+ * A pack is never lost: the editor's pack is auto-saved (useAutoSave) the
+ * moment generation completes and after every edit; the URL follows it
+ * ("#/new/<packId>", useEditorRoute) so a reload — or coming back from the
+ * TV preview — reopens the same editor.
  */
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { StudyPack } from '../studypack/packTypes';
+import { getLocalPack, LOCAL_PACK_NOT_FOUND } from '../studypack/packSource';
+import { rememberTvReturn } from '../studypack/tvReturn';
 import { getApiKey } from '../../services/openrouter';
 import { QuickAISetupForm } from '../setup/QuickAISetup';
+import { NEW_STUDY_HASH, newStudyHash, getNewStudyPackIdFromHash, packHash } from '../landing/landingRoute';
 import PhaseView, { Phase } from './PhaseView';
 import PackList from './PackList';
 import { useLocalPacks } from './useLocalPacks';
 import { useGeneration } from './useGeneration';
-import { NS_TITLE, NS_INTRO, NS_PRIVACY, NS_BACK } from './newStudyStrings';
+import { useAutoSave } from './useAutoSave';
+import { useFeedbackForm } from './useFeedbackForm';
+import { NS_TITLE, NS_INTRO, NS_PRIVACY, NS_BACK, NS_ERR_STORAGE } from './newStudyStrings';
 import { textStyle, controlStyle, quietButtonClass, pageTitleStyle } from './newStudyStyles';
+
+/**
+ * Keep the editor in step with the hash: "#/new/<id>" opens that stored
+ * pack (reload, browser back/forward, the Edit link); a bare "#/new" while
+ * editing closes the editor. A missing or unreadable pack is a visible error.
+ */
+function useEditorRoute(
+  currentId: string | null, open: (pack: StudyPack) => void, close: () => void, onError: (message: string) => void,
+): void {
+  useEffect(() => {
+    let cancelled = false;
+    const sync = () => {
+      const id = getNewStudyPackIdFromHash(window.location.hash);
+      if (id === currentId) return;
+      if (!id) { close(); return; }
+      getLocalPack(id)
+        .then(pack => { if (!cancelled) (pack ? open(pack) : onError(LOCAL_PACK_NOT_FOUND)); })
+        .catch((err: unknown) => { if (!cancelled) onError(`${NS_ERR_STORAGE}: ${err instanceof Error ? err.message : String(err)}`); });
+    };
+    sync();
+    window.addEventListener('hashchange', sync);
+    return () => { cancelled = true; window.removeEventListener('hashchange', sync); };
+  }, [currentId, open, close, onError]);
+}
 
 const NewStudyPage: React.FC = () => {
   const [configured, setConfigured] = useState(() => !!getApiKey());
-  const [phase, setPhase] = useState<Phase>({ kind: 'form' });
-  const { generate, cancel } = useGeneration(setPhase);
+  const [phase, setPhaseRaw] = useState<Phase>({ kind: 'form' });
+  const [routeError, setRouteError] = useState<string | null>(null);
   const packs = useLocalPacks();
+  const editing = phase.kind === 'editor' ? phase.pack : null;
+  const autosave = useAutoSave(editing, packs.save);
+
+  // Generation and edits land here; the URL follows the pack so a reload reopens the editor.
+  const setPhase = useCallback((next: Phase) => {
+    setPhaseRaw(next);
+    if (next.kind === 'editor') window.location.hash = newStudyHash(next.pack.id);
+  }, []);
+  const { generate, cancel } = useGeneration(setPhase);
+
+  // The pack's Google Form is created once it is in the editor; the patched pack flows through setPhase → auto-save.
+  const applyForm = useCallback((patched: StudyPack) => setPhase({ kind: 'editor', pack: patched }), [setPhase]);
+  const form = useFeedbackForm(editing, applyForm);
+
+  const { markClean, flush } = autosave;
+  const openSaved = useCallback((pack: StudyPack) => {
+    markClean(pack);
+    setRouteError(null);
+    setPhase({ kind: 'editor', pack });
+  }, [markClean, setPhase]);
+  const closeEditor = useCallback(() => {
+    setPhaseRaw(current => (current.kind === 'editor' ? { kind: 'form' } : current));
+  }, []);
+  useEditorRoute(editing?.id ?? null, openSaved, closeEditor, setRouteError);
+
+  /** Back: store any pending edit first; a failed save keeps the editor open with the error shown. */
+  const back = async () => {
+    await flush();
+    closeEditor();
+    window.location.hash = NEW_STUDY_HASH;
+  };
 
   const preview = async (pack: StudyPack) => {
-    await packs.save(pack);
-    window.location.hash = `#/pack/${pack.id}`;
+    await flush();
+    rememberTvReturn(pack.id, newStudyHash(pack.id));
+    window.location.hash = packHash(pack.id);
   };
 
   return (
@@ -43,13 +109,16 @@ const NewStudyPage: React.FC = () => {
             <QuickAISetupForm onSaved={() => setConfigured(true)} />
           </div>
         )}
+        {routeError && <p role="alert" className="text-red-300" style={textStyle}>{routeError}</p>}
         <PhaseView
           phase={phase} configured={configured}
           onGenerate={req => void generate(req)} onCancel={cancel}
-          onBack={() => setPhase({ kind: 'form' })} onChange={pack => setPhase({ kind: 'editor', pack })}
-          onSave={pack => packs.save(pack)} onPreview={preview}
+          onBack={() => void back().catch(() => undefined /* shown by the editor via autosave.error */)}
+          onChange={pack => setPhase({ kind: 'editor', pack })}
+          onSave={async () => { form.retry(); await flush(); }} onPreview={preview}
+          autosave={{ status: autosave.status, error: autosave.error }} notice={form.notice}
         />
-        {phase.kind === 'form' && <PackList packs={packs} onOpen={pack => setPhase({ kind: 'editor', pack })} />}
+        {phase.kind === 'form' && <PackList packs={packs} onOpen={openSaved} />}
         <p className="text-slate-500" style={textStyle}>{NS_PRIVACY}</p>
       </div>
     </div>
