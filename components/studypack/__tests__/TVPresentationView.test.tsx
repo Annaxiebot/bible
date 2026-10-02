@@ -5,6 +5,7 @@ import React from 'react';
 import { STORAGE_KEYS } from '../../../constants/storageKeys';
 import { SAMPLE_PACK_ID, TEST_PACK_PATH } from './fixtures';
 import TVPresentationView from '../TVPresentationView';
+import { FIRST_SLIDE_HINT } from '../tvHints';
 
 
 const packJson = () => JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8'));
@@ -57,9 +58,7 @@ describe('TVPresentationView', () => {
     expect(String(fetchMock.mock.calls[0][0])).toContain(`packs/${SAMPLE_PACK_ID}.json`);
     expect(screen.getByText('1/16')).toBeInTheDocument();
     // Pinned hint: must match the actual inputs (no click nav; select-to-ask)
-    expect(screen.getByText(
-      '← → 或滑动翻页 · Arrow keys or swipe · 选中文字或按 A 问AI · Select text or press A to ask AI · Esc 退出'
-    )).toBeInTheDocument();
+    expect(screen.getByText(FIRST_SLIDE_HINT)).toBeInTheDocument();
   });
 
   it('advances through every slide with ArrowRight', async () => {

@@ -7,6 +7,7 @@
  * for text selection). "a", the Ask AI button, or selecting slide text opens
  * the Ask-AI overlay; Escape closes the overlay first, exits the app second.
  */
+import { FIRST_SLIDE_HINT } from './tvHints';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { parseStudyPack, buildSlides, StudyPack, Slide } from './packTypes';
 import { questionForSelection } from './askAI';
@@ -69,7 +70,7 @@ const TVChrome: React.FC<TVChromeProps> = ({ slideCount, index, onAskAI }) => (
     </div>
     {index === 0 && (
       <div className="absolute bottom-[2vh] left-[3vw] text-slate-500" style={{ fontSize: '2vh' }}>
-        ← → 或滑动翻页 · Arrow keys or swipe · 选中文字或按 A 问AI · Select text or press A to ask AI · Esc 退出
+        {FIRST_SLIDE_HINT}
       </div>
     )}
     <button
