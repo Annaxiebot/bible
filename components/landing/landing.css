@@ -16,9 +16,17 @@
 .ld-card-title { font-size: clamp(1.75rem, 1.4rem + 1.2vw, 2.25rem); line-height: 1.3; }
 .ld-cta { font-size: clamp(1.25rem, 1.1rem + 0.5vw, 1.4rem); min-height: 3.5rem; }
 .ld-footer { font-size: 1rem; line-height: 1.6; }
+.ld-setup-line { min-height: 3rem; padding: 0.5rem 1rem; } /* ≥48px tap target */
 
+/* ---- root: the viewport-sized scroll container (body is overflow:hidden app-wide) ---- */
+/* One source for the root's box: Landing.tsx sets no positioning classes. */
+.ld-root {
+  position: fixed; inset: 0;
+  height: 100vh; height: 100dvh;
+  overflow-y: auto; -webkit-overflow-scrolling: touch;
+  isolation: isolate;
+}
 /* ---- background: amber radial glow + faint SVG noise ---- */
-.ld-root { position: relative; isolation: isolate; }
 /* fixed, not absolute: the root is the scroll container, so absolute would scroll away */
 .ld-root::before {
   content: '';

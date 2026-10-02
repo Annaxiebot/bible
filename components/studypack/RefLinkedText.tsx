@@ -8,19 +8,23 @@
  */
 import React from 'react';
 import { StudyPack } from './packTypes';
-import { findVerseRefs } from './verseRefs';
+import { findVerseRefs, packBookId, packChapter } from './verseRefs';
 import { planRef } from './externalVerses';
+import { bilingualRefLabel } from './refLabel';
 import VerseTooltip from './VerseTooltip';
 
 /** One string → text fragments interleaved with verse-ref tooltips. */
 export function linkifyString(text: string, pack: StudyPack): React.ReactNode[] {
   const out: React.ReactNode[] = [];
   let cursor = 0;
+  const bookId = packBookId(pack);
+  const chapter = packChapter(pack);
   findVerseRefs(text).forEach((ref, i) => {
     if (ref.index > cursor) out.push(text.slice(cursor, ref.index));
     const plan = planRef(ref, pack);
     out.push(plan
-      ? <VerseTooltip key={i} label={ref.text} verses={plan.verses} load={plan.load} />
+      ? <VerseTooltip key={i} label={ref.text} title={bilingualRefLabel(ref, bookId, chapter)}
+          verses={plan.verses} load={plan.load} />
       : <span key={i} className="text-amber-200">{ref.text}</span>);
     cursor = ref.index + ref.length;
   });

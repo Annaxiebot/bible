@@ -57,12 +57,29 @@ function parseVerseList(list: string): number[] {
   return verses;
 }
 
+/**
+ * 繁體 → 简体 for the characters that differ in Bible book names (the
+ * canonical table is 简体). A tiny fixed map, not the opencc converter:
+ * the lookup runs synchronously at render and the dictionary loads lazily.
+ */
+const TRAD_TO_SIMP_BOOK_CHARS: Readonly<Record<string, string>> = {
+  '創': '创', '詩': '诗', '記': '记', '約': '约', '書': '书', '馬': '马', '傳': '传',
+  '羅': '罗', '歷': '历', '紀': '纪', '門': '门', '來': '来', '後': '后', '貳': '贰',
+  '叄': '叁', '參': '叁', '猶': '犹', '啟': '启', '錄': '录', '數': '数', '師': '师',
+  '賽': '赛', '結': '结', '亞': '亚', '彌': '弥', '鴻': '鸿', '該': '该', '瑪': '玛',
+};
+
+function simplifyBookName(name: string): string {
+  return Array.from(name, ch => TRAD_TO_SIMP_BOOK_CHARS[ch] ?? ch).join('');
+}
+
 /** Book-name prefix of a "Book C:V" match → canonical book id, or null. */
 function lookupBookId(namePart: string): string | null {
   const name = namePart.replace(/[.\s]+$/, '').trim();
   if (!name) return null;
   return (
     CHINESE_ABBREV_TO_BOOK_ID[name] ??
+    CHINESE_ABBREV_TO_BOOK_ID[simplifyBookName(name)] ??
     EN_NAME_TO_ID.get(name.replace(/\./g, '').replace(/\s+/g, ' ').toLowerCase()) ??
     null
   );

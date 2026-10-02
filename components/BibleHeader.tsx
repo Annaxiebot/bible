@@ -248,7 +248,7 @@ const BibleHeader: React.FC<BibleHeaderProps> = ({
           onChange={(e) => onEnglishVersionChange(e.target.value)}
           title="English version"
         >
-          <option value="bsb">{isIPhone ? 'BSB' : 'BSB'}</option>
+          <option value="bsb">BSB</option>
           <option value="web">{isIPhone ? 'WEB' : 'WEB'}</option>
           <option value="kjv">{isIPhone ? 'KJV' : 'KJV'}</option>
           <option value="asv">{isIPhone ? 'ASV' : 'ASV'}</option>

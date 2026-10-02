@@ -53,6 +53,8 @@ describe('AskAnswer rendering', () => {
     const ref = await screen.findByTestId('verse-ref');
     fireEvent.mouseEnter(ref);
     const tooltip = screen.getByRole('tooltip');
+    // Header: 简体 book first, then English (ADR-0003 §1), from the pack's book/chapter
+    expect(screen.getByTestId('verse-tooltip-title')).toHaveTextContent('马太福音 6:26 · Matthew 6:26');
     expect(tooltip).toHaveTextContent('飞鸟');                 // CUV v.26
     expect(tooltip).toHaveTextContent('birds of the air');     // BSB v.26
     fireEvent.mouseLeave(ref);
