@@ -5,7 +5,7 @@
  * closes the overlay only — slide navigation is suspended by the parent
  * while the overlay is open. Q&A is ephemeral (in-memory, per opening).
  */
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StudyPack, Slide } from './packTypes';
 import { AI_NOT_CONFIGURED_MESSAGE, AskAIMessage } from './askAI';
 import { useAskAI, AskAI } from './useAskAI';
@@ -32,7 +32,7 @@ const Conversation: React.FC<{ ai: AskAI }> = ({ ai }) => {
     if (typeof endRef.current?.scrollIntoView === 'function') {
       endRef.current.scrollIntoView({ block: 'end' });
     }
-  }, [ai.messages.length, ai.loading]);
+  }, [ai.messages.length, ai.loading, ai.streamingText]);
   return (
     <div className="flex-1 overflow-y-auto space-y-[2vh]">
       {!ai.configured && (
@@ -41,7 +41,14 @@ const Conversation: React.FC<{ ai: AskAI }> = ({ ai }) => {
         </p>
       )}
       {ai.messages.map((m, i) => <Message key={i} m={m} />)}
-      {ai.loading && <p className="text-slate-500" style={questionStyle}>Thinking… 思考中…</p>}
+      {ai.streamingText !== null && (
+        <p className="text-slate-100" style={answerStyle} data-testid="streaming-answer">
+          {ai.streamingText}
+        </p>
+      )}
+      {ai.loading && ai.streamingText === null && (
+        <p className="text-slate-500" style={questionStyle}>Thinking… 思考中…</p>
+      )}
       {ai.error && (
         <p className="text-red-400" style={questionStyle} role="alert">{ai.error}</p>
       )}
@@ -94,6 +101,10 @@ export interface AskAIOverlayProps {
 const AskAIOverlay: React.FC<AskAIOverlayProps> = ({ pack, slide, initialQuestion, onClose }) => {
   const ai = useAskAI(pack, slide);
   const autoSentRef = useRef(false);
+  const close = useCallback(() => {
+    ai.cancel(); // abort an in-flight stream before leaving
+    onClose();
+  }, [ai, onClose]);
 
   // One-click smart open: submit the initial question immediately, once.
   // ai.ask() itself no-ops when the provider is not configured, so the
@@ -108,12 +119,12 @@ const AskAIOverlay: React.FC<AskAIOverlayProps> = ({ pack, slide, initialQuestio
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.stopPropagation();
-        onClose();
+        close();
       }
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [onClose]);
+  }, [close]);
 
   return (
     <div
@@ -127,7 +138,7 @@ const AskAIOverlay: React.FC<AskAIOverlayProps> = ({ pack, slide, initialQuestio
         <div className="flex items-center justify-between mb-[2vh]">
           <h2 className="text-amber-300 font-bold" style={{ fontSize: '3.5vh' }}>Ask AI 问AI</h2>
           <button
-            onClick={onClose}
+            onClick={close}
             className="text-slate-400 hover:text-slate-100 px-3 py-1"
             style={{ fontSize: '3vh' }}
             aria-label="Close Ask AI 关闭问AI"

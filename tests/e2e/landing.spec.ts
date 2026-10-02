@@ -5,6 +5,7 @@
  * to TV mode and to the app respectively; a bookmarked hash bypasses it.
  */
 import { test, expect, Page } from '@playwright/test';
+import { APP_HASH, SAMPLE_PACK_HASH } from '../../components/landing/landingRoute';
 
 async function openLanding(page: Page) {
   await page.goto('./');
@@ -25,7 +26,7 @@ test.describe('Landing page', () => {
   test('sample pack CTA navigates to TV presentation mode', async ({ page }) => {
     await openLanding(page);
     await page.getByRole('link', { name: /See a sample pack/ }).click();
-    await expect(page).toHaveURL(/#\/pack\/2026-10-02-matt6$/);
+    await expect(page).toHaveURL(new RegExp(SAMPLE_PACK_HASH.replace(/\//g, '\\/') + '$'));
     await expect(page.getByTestId('tv-presentation')).toBeVisible();
     await expect(page.getByText('Do Not Be Anxious 不要忧虑')).toBeVisible();
     await expect(page.getByTestId('landing-page')).toHaveCount(0);
@@ -41,7 +42,7 @@ test.describe('Landing page', () => {
   });
 
   test('a bookmarked hash bypasses the landing entirely', async ({ page }) => {
-    await page.goto('./#app');
+    await page.goto(`./${APP_HASH}`);
     await expect(page.getByTestId('landing-page')).toHaveCount(0);
   });
 

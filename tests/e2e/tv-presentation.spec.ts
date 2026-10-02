@@ -1,10 +1,9 @@
 import { test, expect, Page } from '@playwright/test';
 import { STORAGE_KEYS } from '../../constants/storageKeys';
-
-const PACK_URL = '#/pack/2026-10-02-matt6';
+import { SAMPLE_PACK_HASH } from '../../components/landing/landingRoute';
 
 async function openTV(page: Page) {
-  await page.goto(PACK_URL);
+  await page.goto(SAMPLE_PACK_HASH);
   await expect(page.getByTestId('tv-presentation')).toBeVisible();
   await expect(page.getByText('Do Not Be Anxious 不要忧虑')).toBeVisible();
 }
@@ -139,18 +138,27 @@ test.describe('Ask AI overlay', () => {
   });
 
   test('discussion slide: Ask AI auto-sends the question, one click', async ({ page }) => {
-    // Key injected + the OpenRouter endpoint mocked at the network level,
-    // mirroring the real chat/completions response shape — no live AI call.
+    // Key injected + the OpenRouter endpoint mocked at the network level with
+    // a real SSE stream body (delta chunks + [DONE]) — no live AI call.
+    // Honest limitation: route.fulfill delivers the whole body at once, so
+    // this asserts the final streamed render; token-by-token incremental
+    // rendering is covered by the AskAIOverlay unit tests.
     await page.addInitScript(
       (key) => localStorage.setItem(key, 'e2e-test-key'),
       STORAGE_KEYS.OPENROUTER_API_KEY,
     );
     await page.route('https://openrouter.ai/api/v1/chat/completions', route =>
       route.fulfill({
-        json: {
-          model: 'anthropic/claude-sonnet-4.5',
-          choices: [{ message: { role: 'assistant', content: 'Anxiety follows the treasure (v.25).' } }],
-        },
+        status: 200,
+        headers: { 'Content-Type': 'text/event-stream' },
+        body: [
+          'data: {"choices":[{"delta":{"role":"assistant","content":"Anxiety follows "}}]}',
+          '',
+          'data: {"choices":[{"delta":{"content":"the treasure (v.25)."}}]}',
+          '',
+          'data: [DONE]',
+          '',
+        ].join('\n'),
       }));
     await openTV(page);
     for (let i = 0; i < 7; i++) await page.keyboard.press('ArrowRight');

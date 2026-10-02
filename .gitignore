@@ -43,3 +43,6 @@ ios/App/App/public/
 coverage/
 playwright-report/
 test-results/
+
+# Church-internal study pack content - kept local, never published (see docs/adr or ask Chris)
+public/packs/2026-10-02-john3.json

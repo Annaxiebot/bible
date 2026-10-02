@@ -16,6 +16,7 @@
  */
 
 import { test, expect, type Page } from '@playwright/test';
+import { APP_HASH } from '../../components/landing/landingRoute';
 import { tap, drag, hold } from './helpers/pointerSynth';
 import { NOTABILITY_PAGE_HEIGHT_PX } from '../../services/notabilityCanvasMigration';
 
@@ -34,7 +35,7 @@ const LIVE_CANVAS_HEIGHT_CSS = `${NOTABILITY_PAGE_HEIGHT_PX}px`;
  * do not paper over it in individual tests.
  */
 async function openNotability(page: Page) {
-  await page.goto('/#app');
+  await page.goto(`/${APP_HASH}`);
   await page.waitForLoadState('networkidle');
 
   // Switch to the Notes layout so JournalView is mounted.
