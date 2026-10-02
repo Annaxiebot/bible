@@ -22,12 +22,12 @@ describe('LandingNav', () => {
     vi.unstubAllGlobals();
   });
 
-  it('renders exactly three buttons, Chinese first, with no anchors', () => {
+  it('renders one button per NAV_LINKS entry, Chinese first, with no anchors', () => {
     render(<LandingNav />);
     const nav = screen.getByRole('navigation', { name: NAV_LABEL });
     const buttons = within(nav).getAllByRole('button');
-    expect(buttons).toHaveLength(3);
-    expect(NAV_LINKS).toHaveLength(3);
+    expect(buttons).toHaveLength(NAV_LINKS.length);
+    expect(NAV_LINKS).toHaveLength(2);
     expect(nav.querySelectorAll('a')).toHaveLength(0);
     NAV_LINKS.forEach((link, i) => {
       expect(buttons[i].textContent).toBe(`${link.zh}${link.en}`);
@@ -45,15 +45,14 @@ describe('LandingNav', () => {
     }
     expect(screen.getByTestId('card-group')).toHaveAttribute('id', 'group');
     expect(screen.getByTestId('card-personal')).toHaveAttribute('id', 'personal');
-    expect(screen.getByTestId('section-principles')).toHaveAttribute('id', 'principles');
   });
 
   it('scrolls instantly when the user prefers reduced motion (ADR-0003 §16)', async () => {
     vi.stubGlobal('matchMedia', vi.fn(() => ({ matches: true })));
     render(<Landing />);
     await screen.findByText(NEXT_NONE_YET);
-    fireEvent.click(screen.getByTestId('nav-principles'));
-    expect(document.getElementById('principles')!.scrollIntoView)
+    fireEvent.click(screen.getByTestId('nav-personal'));
+    expect(document.getElementById('personal')!.scrollIntoView)
       .toHaveBeenLastCalledWith({ block: 'start', behavior: 'auto' });
   });
 });

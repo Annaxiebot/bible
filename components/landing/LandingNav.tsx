@@ -2,7 +2,7 @@
  * LandingNav.tsx — sticky three-link top nav · 頁內導航
  *
  * Three large tap targets (≥48px) that scroll to the group card, the
- * personal card and the principles section. They are buttons, not hash
+ * personal card. They are buttons, not hash
  * links: any hash other than the bare root routes away from the landing
  * (landingRoute.ts), so navigation stays in-page via scrollIntoView. The
  * scroll is smooth unless the user prefers reduced motion (decided here, in

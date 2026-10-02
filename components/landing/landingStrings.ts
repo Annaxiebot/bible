@@ -60,15 +60,13 @@ export const LEADER_ZH = '組長：上傳查經講義，變成大屏簡報。';
 export const LEADER_EN =
   'Group leaders: bring your study guide PDF — it becomes a presentation with an AI helper.';
 
-/* ---- sticky top nav: three scroll links (section ids live in LandingNav) ---- */
+/* ---- sticky top nav: two scroll links ---- */
 /* Section element ids — the nav scrolls to these; components set them from the same constants (R3). */
 export const GROUP_SECTION_ID = 'group' as const;
 export const PERSONAL_SECTION_ID = 'personal' as const;
-export const PRINCIPLES_SECTION_ID = 'principles' as const;
 export const NAV_LINKS = [
   { id: GROUP_SECTION_ID, zh: GROUP_TITLE_ZH, en: 'Group' },
   { id: PERSONAL_SECTION_ID, zh: PERSONAL_TITLE_ZH, en: 'Personal' },
-  { id: PRINCIPLES_SECTION_ID, zh: '原則', en: 'Principles' },
 ] as const;
 export type NavSectionId = (typeof NAV_LINKS)[number]['id'];
 export const NAV_LABEL = '頁內導航 Page sections';
@@ -85,20 +83,6 @@ export const NEXT_SIGNUP_LINK = '或點此打開報名表 · or open the sign-up
 /** Rendered instead of the pack when it cannot be loaded (no error noise). */
 export const NEXT_NONE_YET = '暫無 · none yet';
 export const NEXT_LOADING = '載入中 · loading';
-
-/* ---- 我們的原則 Our principles (ADR-0003) ---- */
-export const PRINCIPLES_EYEBROW = '我們的原則 · Our principles';
-export const PRINCIPLES_HEADING_ZH = '五件不會改變的事';
-export const PRINCIPLES_HEADING_EN = 'Five things that will not change';
-export const PRINCIPLES_DESC = '寫在 ADR-0003，約束這個應用的每一部分 · Written down in ADR-0003; binding on every part of the app';
-export const PILLARS = [
-  { icon: 'zhFirst', zh: '中文優先', en: 'Chinese first' },
-  { icon: 'publicDomain', zh: '和合本 + BSB 公共領域譯本', en: 'Public-domain translations' },
-  { icon: 'verbatim', zh: '講義原文照登，提示不上屏', en: 'Your guide verbatim; leader hints never on screen' },
-  { icon: 'device', zh: '反思只存本機', en: 'Reflections stay on your device' },
-  { icon: 'group', zh: 'AI 不取代牧者與小組', en: 'AI never replaces the pastor or the group' },
-] as const;
-export type PillarIcon = (typeof PILLARS)[number]['icon'];
 
 /* ---- 真實的數字 Honest numbers ---- */
 export const NUMBERS_EYEBROW = '真實的數字 · Honest numbers';

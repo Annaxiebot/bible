@@ -7,10 +7,10 @@
  * content except the next-study block's pack fetch. Strings live in landingStrings.ts (ADR-0003:
  * Chinese first, English second). The hero background theme is chosen once
  * per session (heroThemeSession.ts). A one-line entry under the cards (and
- * the #/setup hash) opens the quick AI key dialog. Below the cards, three
- * sections (next study · principles · honest numbers) share one shell
- * (LandingSection); a sticky three-link nav scrolls to the cards and the
- * principles. The next-study block takes a pack id so a later "current
+ * the #/setup hash) opens the quick AI key dialog. Below the cards, two
+ * sections (next study · honest numbers) share one shell
+ * (LandingSection); a sticky two-link nav scrolls to the cards.
+ * The next-study block takes a pack id so a later "current
  * pack" setting can drive it; today it is the sample pack.
  */
 import React, { useState, useEffect, useCallback } from 'react';
@@ -20,7 +20,6 @@ import LandingHero from './LandingHero';
 import LandingCards from './LandingCards';
 import LandingNav from './LandingNav';
 import LandingNextStudy from './LandingNextStudy';
-import LandingPrinciples from './LandingPrinciples';
 import LandingNumbers from './LandingNumbers';
 import { resolveSessionThemeFromWindow } from './heroThemeSession';
 import { SETUP_HASH, NEW_STUDY_HASH, SAMPLE_PACK_ID } from './landingRoute';
@@ -99,7 +98,6 @@ const Landing: React.FC<{ setupOpen?: boolean }> = ({ setupOpen = false }) => {
         <NewStudyLine />
         <LeaderLine />
         <LandingNextStudy packId={SAMPLE_PACK_ID} />
-        <LandingPrinciples />
         <LandingNumbers />
         <Footer />
       </div>
