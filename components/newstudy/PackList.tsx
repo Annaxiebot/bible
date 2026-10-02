@@ -1,16 +1,17 @@
 /**
  * PackList.tsx — "我的查经包 My packs" · 本地查经包列表
  *
- * Open (into the editor), export JSON (download), sign-ups (the leader list
- * at #/leader/<id>), delete (with a bilingual confirm), import JSON (file
- * picker). Storage errors render inline.
+ * Edit (the editor at #/new/<id>), export JSON (download), sign-ups (the
+ * leader list at #/leader/<id>), delete (with a bilingual confirm), import
+ * JSON (file picker). Storage errors render inline.
  */
 import React, { useRef } from 'react';
 import { StudyPack } from '../studypack/packTypes';
 import { LocalPacks } from './useLocalPacks';
 import { leaderHash } from '../leader/leaderRoute';
+import { newStudyHash } from '../landing/landingRoute';
 import {
-  NS_MY_PACKS, NS_NO_PACKS, NS_OPEN, NS_EXPORT, NS_IMPORT, NS_DELETE, NS_DELETE_CONFIRM, NS_INVALID_RECORDS, NS_SIGNUPS,
+  NS_MY_PACKS, NS_NO_PACKS, NS_EDIT, NS_EXPORT, NS_IMPORT, NS_DELETE, NS_DELETE_CONFIRM, NS_INVALID_RECORDS, NS_SIGNUPS,
 } from './newStudyStrings';
 import { textStyle, controlStyle, headingStyle, secondaryButtonClass, quietButtonClass } from './newStudyStyles';
 
@@ -24,9 +25,11 @@ const PackRow: React.FC<{ pack: StudyPack; packs: LocalPacks; onOpen: (pack: Stu
     <span className="text-slate-100" style={textStyle}>{pack.title}</span>
     <span className="text-slate-500" style={textStyle}>{pack.passageRef} · {pack.date}</span>
     <div className="flex flex-wrap gap-2">
-      <button type="button" onClick={() => onOpen(pack)} className={secondaryButtonClass} style={controlStyle}>
-        {NS_OPEN}
-      </button>
+      {/* A real link (#/new/<id>) so the editor URL survives reload; the click opens it in place. */}
+      <a href={newStudyHash(pack.id)} data-testid="pack-edit" onClick={e => { e.preventDefault(); onOpen(pack); }}
+        className={`${secondaryButtonClass} inline-flex items-center`} style={controlStyle}>
+        {NS_EDIT}
+      </a>
       <button type="button" onClick={() => packs.exportJson(pack)} className={secondaryButtonClass} style={controlStyle}>
         {NS_EXPORT}
       </button>

@@ -28,6 +28,8 @@ export interface StudyRequest extends VerseRange {
   lessonTitle?: string;
   lessonNumber?: number;
   date: string; // ISO yyyy-mm-dd
+  /** Optional Google Form pasted by the leader (ADR-0004 §9); overrides the auto-created one. */
+  feedbackFormUrl?: string;
 }
 
 /** Section headings, as the sample pack writes them (Chinese first). */
@@ -146,6 +148,7 @@ export function assemblePack(req: StudyRequest, verses: PackVerse[], gen: Genera
     date: req.date,
     passageRef: label.ref,
     enVersion: TRANSLATIONS.en.label,
+    ...(req.feedbackFormUrl ? { feedbackFormUrl: req.feedbackFormUrl } : {}),
     sections,
   });
 }

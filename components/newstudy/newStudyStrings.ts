@@ -67,6 +67,30 @@ export const NS_QUESTION_ADD = bilingual('加一题', 'Add a question');
 export const NS_QUESTION_REMOVE = bilingual('删除', 'Remove');
 export const NS_SAVE = bilingual('保存', 'Save');
 export const NS_SAVED = bilingual('已保存', 'Saved');
+/** Quiet auto-save indicator: the pack is stored without the leader pressing anything. */
+export const NS_AUTOSAVED = bilingual('已自动保存', 'Saved');
+export const NS_SAVING = bilingual('保存中…', 'Saving…');
+/** Optional Google Form for feedback; when set, check-in links point there instead of #/checkin. */
+export const NS_FEEDBACK_FORM = bilingual('反馈表（可选）', 'Google Form for feedback (optional)');
+export const NS_FEEDBACK_FORM_HINT = bilingualLine(
+  '留空则用内置的跟进页；填表单链接后，提醒里的链接会指向该表单',
+  'Leave empty to use the built-in check-in page; with a form link, check-ins link to that form'
+);
+export const NS_ERR_FEEDBACK_FORM = bilingualLine(
+  '反馈表链接必须是 Google 表单地址（https://docs.google.com/forms/…）',
+  'The feedback form link must be a Google Form URL (https://docs.google.com/forms/…)'
+);
+// ---- auto-created feedback form (services/googleForms, ADR-0004 §9) ----
+export const NS_FORM_CREATED = bilingual('已创建反馈表', 'Feedback form created');
+export const NS_FORM_CREATING = bilingual('正在创建反馈表…', 'Creating the feedback form…');
+export const NS_FORM_FALLBACK = bilingualLine('将使用内置的跟进页', 'The built-in check-in page will be used');
+export const NS_FORM_NO_TOKEN = bilingualLine('未获得 Google 表单权限 — 请重新登录', 'Google Forms permission not granted — sign in again');
+export const NS_FORM_NO_PERMISSION = NS_FORM_NO_TOKEN;
+export const NS_FORM_API_DISABLED = bilingualLine('表单 API 未启用', 'Forms API not enabled');
+export const NS_FORM_FAILED = bilingualLine('创建反馈表失败', 'Could not create the feedback form');
+/** Generation form: the same link, remembered as the leader's default when the checkbox is on. */
+export const NS_FEEDBACK_FORM_LINK = bilingual('反馈表链接（可选）', 'Google Form link for feedback (optional)');
+export const NS_FEEDBACK_FORM_DEFAULT = bilingualLine('用于我所有的查经', 'Use for all my studies');
 export const NS_PREVIEW = bilingual('预览', 'Preview on TV');
 export const NS_ERR_EMPTY_QUESTION = bilingualLine('讨论题不能为空', 'A discussion question cannot be empty');
 
@@ -90,7 +114,7 @@ export const NS_ERR_DUPLICATE_SECTION = bilingualLine('这种段落只能有一�
 // ---- my packs ----
 export const NS_MY_PACKS = bilingual('我的查经包', 'My packs');
 export const NS_NO_PACKS = bilingualLine('还没有查经包', 'No packs yet');
-export const NS_OPEN = bilingual('打开', 'Open');
+export const NS_EDIT = bilingual('编辑', 'Edit');
 export const NS_EXPORT = bilingual('导出 JSON', 'Export JSON');
 export const NS_IMPORT = bilingual('导入 JSON', 'Import JSON');
 export const NS_DELETE = bilingual('删除', 'Delete');

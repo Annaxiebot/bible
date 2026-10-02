@@ -11,8 +11,10 @@ import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { getBookById } from '../../../services/bibleBookData';
 import { TV_LOADING } from '../../studypack/tvHints';
-import { NS_ERR_RANGE, NS_ERR_CHAPTER } from '../newStudyStrings';
+import { NS_ERR_RANGE, NS_ERR_CHAPTER, NS_ERR_FEEDBACK_FORM } from '../newStudyStrings';
 import NewStudyForm, { validateRequest, DEFAULT_REQUEST } from '../NewStudyForm';
+import { STORAGE_KEYS } from '../../../constants/storageKeys';
+import { readDefaultFormUrl, rememberDefaultFormUrl, validateFeedbackFormUrl } from '../feedbackFormDefault';
 import { MAX_VERSES_IN_A_CHAPTER } from '../useVerseCount';
 
 /** Verse counts the mocked bundled data reports; anything else is 30. */
@@ -120,5 +122,53 @@ describe('validateRequest', () => {
     expect(validateRequest({ ...DEFAULT_REQUEST, verseFrom: 0 })).toBe(NS_ERR_RANGE);
     expect(validateRequest({ ...DEFAULT_REQUEST, chapter: 29 })).toBe(NS_ERR_CHAPTER);
     expect(validateRequest({ ...DEFAULT_REQUEST, bookId: 'NARNIA' })).toBe(NS_ERR_CHAPTER);
+  });
+
+  const FORM = 'https://docs.google.com/forms/d/e/abc/viewform';
+  const storage = () => window.localStorage as unknown as { getItem: ReturnType<typeof vi.fn>; setItem: ReturnType<typeof vi.fn>; removeItem: ReturnType<typeof vi.fn> };
+
+  it('the optional feedback form link is validated (Google Forms URL or empty) and carried on the request', async () => {
+    storage().getItem.mockReset().mockReturnValue(null);
+    const onGenerate = vi.fn();
+    render(<NewStudyForm busy={false} onGenerate={onGenerate} />);
+    await versesReady();
+    fireEvent.change(screen.getByTestId('ns-feedback-link'), { target: { value: 'https://example.com/form' } });
+    fireEvent.click(screen.getByTestId('ns-generate'));
+    expect(screen.getByRole('alert')).toHaveTextContent(NS_ERR_FEEDBACK_FORM);
+    expect(onGenerate).not.toHaveBeenCalled();
+    expect(validateFeedbackFormUrl('https://example.com/form')).toBe(NS_ERR_FEEDBACK_FORM);
+    expect(validateFeedbackFormUrl('')).toBeNull();
+    expect(validateRequest({ ...DEFAULT_REQUEST, feedbackFormUrl: 'nope' })).toBe(NS_ERR_FEEDBACK_FORM);
+    fireEvent.change(screen.getByTestId('ns-feedback-link'), { target: { value: ` ${FORM} ` } });
+    fireEvent.click(screen.getByTestId('ns-generate'));
+    expect(onGenerate.mock.calls[0][0]).toMatchObject({ feedbackFormUrl: FORM });
+    expect(storage().removeItem).toHaveBeenCalledWith(STORAGE_KEYS.FEEDBACK_FORM_DEFAULT_URL);   // box off: no default kept
+  });
+
+  it('"Use for all my studies" remembers the link under STORAGE_KEYS.FEEDBACK_FORM_DEFAULT_URL and pre-fills later forms', async () => {
+    storage().getItem.mockReset().mockReturnValue(null);
+    storage().setItem.mockReset();
+    const onGenerate = vi.fn();
+    render(<NewStudyForm busy={false} onGenerate={onGenerate} />);
+    await versesReady();
+    expect(screen.getByTestId('ns-feedback-default')).not.toBeChecked();
+    fireEvent.change(screen.getByTestId('ns-feedback-link'), { target: { value: FORM } });
+    fireEvent.click(screen.getByTestId('ns-feedback-default'));
+    fireEvent.click(screen.getByTestId('ns-generate'));
+    expect(storage().setItem).toHaveBeenCalledWith(STORAGE_KEYS.FEEDBACK_FORM_DEFAULT_URL, FORM);
+    expect(onGenerate.mock.calls[0][0]).toMatchObject({ feedbackFormUrl: FORM });
+
+    storage().getItem.mockImplementation((k: string) => (k === STORAGE_KEYS.FEEDBACK_FORM_DEFAULT_URL ? FORM : null));
+    expect(readDefaultFormUrl()).toBe(FORM);
+    render(<NewStudyForm busy={false} onGenerate={onGenerate} />);
+    const links = screen.getAllByTestId('ns-feedback-link');
+    expect(links[links.length - 1]).toHaveValue(FORM);
+    expect(screen.getAllByTestId('ns-feedback-default')[1]).toBeChecked();
+    const mem = new Map<string, string>();
+    const store = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => { mem.set(k, v); }, removeItem: (k: string) => { mem.delete(k); } };
+    rememberDefaultFormUrl(FORM, true, store as unknown as Storage);
+    expect(readDefaultFormUrl(store as unknown as Storage)).toBe(FORM);
+    rememberDefaultFormUrl(FORM, false, store as unknown as Storage);
+    expect(readDefaultFormUrl(store as unknown as Storage)).toBe('');
   });
 });
