@@ -13,11 +13,11 @@ import { NEW_STUDY_LINE } from '../../components/landing/landingStrings';
 import { SETUP_TITLE } from '../../components/setup/setupStrings';
 import {
   NS_TITLE, NS_BOOK, NS_GENERATE, NS_EDIT_TITLE, NS_SAVE, NS_SAVED, NS_PREVIEW, NS_EXPORT, NS_MY_PACKS,
-  NS_SCRIPTURE_NOTE, NS_RETRY, NS_ERR_NO_JSON,
+  NS_SCRIPTURE_NOTE, NS_RETRY, NS_ERR_NO_JSON, NS_RANGE_UPDATED, NS_SECTION_REMOVE_CONFIRM,
 } from '../../components/newstudy/newStudyStrings';
 import { JOHN3_REPLY_JSON } from '../../components/newstudy/__tests__/fixtures';
 import { LIFE_AREAS } from '../../components/studypack/principles';
-import { injectApiKey, mockOpenRouterStream } from './helpers/tv';
+import { injectApiKey, mockOpenRouterStream, OPENROUTER_CHAT_URL } from './helpers/tv';
 
 const PACK_ID = 'local-2026-10-02-jhn3';
 
@@ -127,6 +127,66 @@ test.describe('New study', () => {
     const json = JSON.parse(Buffer.concat(body).toString('utf-8')) as { id: string; enVersion: string };
     expect(json.id).toBe(PACK_ID);
     expect(json.enVersion).toBe('BSB');
+  });
+
+  test('editor: change the range to John 3:22–30 without regenerating, move a section, remove one with inline confirm → Preview order', async ({ page }) => {
+    await injectApiKey(page);
+    await mockOpenRouterStream(page, chunked(JOHN3_REPLY_JSON));
+    let modelCalls = 0;
+    page.on('request', r => { if (r.url() === OPENROUTER_CHAT_URL) modelCalls++; });
+    await openNewStudy(page);
+    await fillJohn3(page);
+    await page.getByRole('button', { name: NS_GENERATE }).click();
+    const editor = page.getByTestId('new-study-editor');
+    await expect(page.getByText(NS_EDIT_TITLE)).toBeVisible();
+    const section = (kind: string) => editor.locator(`[data-testid="ns-section"][data-kind="${kind}"]`);
+    const contextBefore = await section('context').locator('textarea').inputValue();
+    expect(contextBefore).toContain('约翰的门徒为施洗的事起了争论');
+
+    // Range → 3:22–30 from the bundled text: 9 verses (v.31 gone), scripture heading + title updated, no model call.
+    await expect(page.getByTestId('ns-range-verse-to')).toHaveValue('36');
+    expect((await page.getByTestId('ns-range-apply').boundingBox())!.height).toBeGreaterThanOrEqual(48);
+    await page.getByTestId('ns-range-verse-to').selectOption('30');
+    await page.getByTestId('ns-range-apply').click();
+    await expect(page.getByTestId('ns-range-status')).toHaveText(NS_RANGE_UPDATED);
+    const scripture = editor.getByTestId('ns-scripture');
+    await expect(scripture).toContainText('约翰福音 3:22–30');
+    await expect(scripture.getByText(/他必兴旺，我必衰微/)).toBeVisible();
+    await expect(scripture.getByText(/从天上来的是在万有之上/)).toHaveCount(0);
+    expect(await section('context').locator('textarea').inputValue()).toBe(contextBefore);
+    expect(modelCalls).toBe(1);
+
+    // Move 讨论 below 生活应用; remove 原文 after the inline confirm (no window.confirm).
+    page.on('dialog', d => { throw new Error(`unexpected dialog: ${d.message()}`); });
+    expect((await section('discussion').getByTestId('ns-section-down').boundingBox())!.height).toBeGreaterThanOrEqual(48);
+    await section('discussion').getByTestId('ns-section-down').click();
+    await section('originalLanguage').getByTestId('ns-section-remove').click();
+    await expect(section('originalLanguage').getByText(NS_SECTION_REMOVE_CONFIRM)).toBeVisible();
+    await section('originalLanguage').getByTestId('ns-section-remove-yes').click();
+    await expect(section('originalLanguage')).toHaveCount(0);
+    expect(await editor.locator('[data-testid="ns-section"]').evaluateAll(els => els.map(e => e.getAttribute('data-kind'))))
+      .toEqual(['title', 'scripture', 'context', 'crossRefs', 'lifeMenu', 'discussion', 'reflection', 'qr', 'closing']);
+
+    // Preview: 15 slides (1 + 3 scripture + context + crossRefs + lifeMenu + 5 questions + reflection + qr + closing).
+    await page.getByTestId('ns-preview').click();
+    await expect(page.getByTestId('tv-presentation')).toBeVisible();
+    await expect(page.getByText('祂必兴旺，我必衰微 He Must Increase')).toBeVisible();
+    await expect(page.getByText('约翰福音 3:22–30 · John 3:22–30')).toBeVisible();
+    await expect(page.getByText('1/15')).toBeVisible();
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByText(/经文 Scripture — 约翰福音 3:22–30 John · 1\/3/)).toBeVisible();
+    for (let i = 0; i < 3; i++) await page.keyboard.press('ArrowRight');
+    await expect(page.getByText('5/15')).toBeVisible();
+    await expect(page.getByText(/^背景 Context/)).toBeVisible();
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByText(/^交叉经文 Cross-references/)).toBeVisible();
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByText(/^生活应用 Life Menu/)).toBeVisible();
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByText(/讨论 Discussion · 1\/5/)).toBeVisible();
+    for (let i = 0; i < 7; i++) await page.keyboard.press('ArrowRight');
+    await expect(page.getByText('15/15')).toBeVisible();
+    await expect(page.getByText(/闭环 Closing/)).toBeVisible();
   });
 
   test('a truncated model reply shows the bilingual error with Retry — never a half-pack', async ({ page }) => {
