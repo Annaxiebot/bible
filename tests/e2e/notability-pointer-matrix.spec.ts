@@ -34,7 +34,7 @@ const LIVE_CANVAS_HEIGHT_CSS = `${NOTABILITY_PAGE_HEIGHT_PX}px`;
  * do not paper over it in individual tests.
  */
 async function openNotability(page: Page) {
-  await page.goto('/');
+  await page.goto('/#app');
   await page.waitForLoadState('networkidle');
 
   // Switch to the Notes layout so JournalView is mounted.
