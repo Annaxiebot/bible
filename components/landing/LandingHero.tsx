@@ -8,6 +8,10 @@
  */
 import React from 'react';
 import type { HeroTheme } from './heroThemes';
+import { findVerseRefs } from '../studypack/verseRefs';
+import { planExternalRef } from '../studypack/externalVerses';
+import { bilingualRefLabel } from '../studypack/refLabel';
+import VerseTooltip from '../studypack/VerseTooltip';
 import {
   BRAND_EN, BRAND_ZH, LOOP_STEPS, LOOP_LINE_ZH, LOOP_LINE_EN, HERO_SUB_ZH, HERO_SUB_EN,
 } from './landingStrings';
@@ -65,13 +69,27 @@ const LoopLabels: React.FC = () => (
   </ol>
 );
 
+/**
+ * A caption reference as a VerseTooltip (ADR-0003 §8: every reference is
+ * interactive) — the same popup as slide refs, resolved from the bundled
+ * Bible data. Falls back to plain text if the ref cannot be parsed.
+ */
+const CaptionRef: React.FC<{ text: string }> = ({ text }) => {
+  const ref = findVerseRefs(text)[0];
+  const plan = ref ? planExternalRef(ref) : null;
+  if (!plan) return <>{text}</>;
+  return <VerseTooltip label={text} title={bilingualRefLabel(ref)} load={plan.load} />;
+};
+
 /** Tiny low-contrast corner caption naming the theme's verse, Chinese first. */
 const ThemeCaption: React.FC<{ theme: HeroTheme }> = ({ theme }) => (
   <p
     className="absolute right-0 top-4 text-base text-slate-400 sm:top-6"
     data-testid="theme-caption"
   >
-    <span className="font-serif-sc">{theme.verseZh}</span> · {theme.verseEn}
+    <span className="font-serif-sc"><CaptionRef text={theme.verseZh} /></span>
+    {' · '}
+    <CaptionRef text={theme.verseEn} />
   </p>
 );
 

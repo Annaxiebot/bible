@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'fs';
 import { parseStudyPack, StudyPack } from '../packTypes';
 import { findVerseRefs } from '../verseRefs';
-import { planRef, loadExternalVerses, clearExternalVerseCache } from '../externalVerses';
+import { planRef, planExternalRef, loadExternalVerses, clearExternalVerseCache } from '../externalVerses';
 import { TEST_PACK_PATH } from './fixtures';
 
 const pack: StudyPack = parseStudyPack(JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8')));
@@ -52,6 +52,19 @@ describe('planRef', () => {
 
   it('returns null for an unknown book (rendered plain)', () => {
     expect(planRef(ref('Narnia 3:1'), pack)).toBeNull();
+  });
+});
+
+describe('planExternalRef (no pack context — landing captions)', () => {
+  it('plans a bundled load for the hero captions, 繁體 and English', () => {
+    for (const text of ['詩篇 147:4', 'Psalm 147:4', '創世記 1:3', 'Genesis 1:3']) {
+      expect(planExternalRef(ref(text))!.load, text).toBeTypeOf('function');
+    }
+  });
+
+  it('stays plain for bare v.N and unknown books', () => {
+    expect(planExternalRef(ref('v.24'))).toBeNull();
+    expect(planExternalRef(ref('Narnia 3:1'))).toBeNull();
   });
 });
 

@@ -52,11 +52,7 @@ export interface PackSection {
   url?: string;           // qr only — the URL the QR encodes, printed for typers
 }
 
-/**
- * Bump when the pack JSON shape changes. The TV view appends it to the pack
- * URL so a browser never pairs a cached pack from an older deploy with newer
- * code (GitHub Pages caches JSON for 10 minutes).
- */
+// Bump on pack-shape changes; appended to the pack URL so a 10-min CDN-cached pack never meets newer code.
 export const PACK_SCHEMA_VERSION = 2;
 
 export interface StudyPack {

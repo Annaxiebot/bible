@@ -74,6 +74,17 @@ export interface RefPlan {
 }
 
 /**
+ * Plan a bundled-data load for a ref with no pack context (e.g. the landing
+ * hero's verse caption). Only full "Book C:V" refs can be resolved; a bare
+ * "v.N" or an unknown book stays plain (null).
+ */
+export function planExternalRef(ref: VerseRef): RefPlan | null {
+  const { bookId, chapter } = ref;
+  if (!bookId || !chapter || ref.verses.length === 0) return null;
+  return { load: () => loadExternalVerses(bookId, chapter, ref.verses) };
+}
+
+/**
  * Decide how to resolve a ref: pack verses when they cover the whole ref,
  * bundled data otherwise, null when the target cannot be determined
  * (render plain).
@@ -86,8 +97,9 @@ export function planRef(ref: VerseRef, pack: StudyPack): RefPlan | null {
   // A Book C:V match whose book name we don't recognize stays plain text —
   // guessing the pack's book for "Narnia 3:1" would show wrong scripture.
   if (ref.chapter !== null && ref.bookId === null) return null;
-  const bookId = ref.bookId ?? packBookId(pack);
-  const chapter = ref.chapter ?? packChapter(pack);
-  if (!bookId || !chapter || ref.verses.length === 0) return null;
-  return { load: () => loadExternalVerses(bookId, chapter, ref.verses) };
+  return planExternalRef({
+    ...ref,
+    bookId: ref.bookId ?? packBookId(pack),
+    chapter: ref.chapter ?? packChapter(pack),
+  });
 }

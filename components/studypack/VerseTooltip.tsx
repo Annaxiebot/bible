@@ -24,6 +24,8 @@ const CLOSE_DELAY_MS = 150;
 
 export interface VerseTooltipProps {
   label: string;             // the reference as written, e.g. "v.26", "路加福音 12:22–31"
+  /** Popup header, 中文 first (refLabel.ts); defaults to `label`. */
+  title?: string;
   verses?: PackVerse[];      // in-pack verses, already resolved
   load?: () => Promise<PackVerse[]>;  // bundled-data loader for external refs
 }
@@ -69,7 +71,7 @@ const PopupBody: React.FC<{ state: LoadState }> = ({ state }) => {
   );
 };
 
-const VerseTooltip: React.FC<VerseTooltipProps> = ({ label, verses, load }) => {
+const VerseTooltip: React.FC<VerseTooltipProps> = ({ label, title = label, verses, load }) => {
   const [placement, setPlacement] = useState<TooltipPlacement | null>(null);
   const anchorRef = useRef<HTMLSpanElement>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -139,8 +141,8 @@ const VerseTooltip: React.FC<VerseTooltipProps> = ({ label, verses, load }) => {
             zIndex: 9999,
           }}
         >
-          <span className="block text-amber-400 font-semibold mb-[1vh]" style={tooltipTextStyle}>
-            {label}
+          <span className="block text-amber-400 font-semibold mb-[1vh]" style={tooltipTextStyle} data-testid="verse-tooltip-title">
+            {title}
           </span>
           <PopupBody state={state} />
         </span>,

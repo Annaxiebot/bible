@@ -3,6 +3,7 @@ import { readFileSync } from 'fs';
 import path from 'path';
 import { parseStudyPack, StudyPack } from '../packTypes';
 import { findVerseRefs, packVerseIndex, packChapter, packBookId, resolveRef, VerseRef } from '../verseRefs';
+import { CHINESE_ABBREV_TO_BOOK_ID } from '../../../services/bibleBookData';
 
 const PACK_PATH = path.resolve(__dirname, '../../../public/packs/2026-10-02-matt6.json');
 const pack: StudyPack = parseStudyPack(JSON.parse(readFileSync(PACK_PATH, 'utf-8')));
@@ -43,6 +44,24 @@ describe('findVerseRefs', () => {
     expect(one('彼前5:7')).toMatchObject({ bookId: '1PE', chapter: 5, verses: [7] });
     expect(one('腓4:6')).toMatchObject({ bookId: 'PHP', chapter: 4, verses: [6] });
     expect(one('诗篇 55:22')).toMatchObject({ bookId: 'PSA', chapter: 55, verses: [22] });
+  });
+
+  it('accepts 繁體 book names (landing captions) by mapping to the 简体 table', () => {
+    expect(one('詩篇 147:4')).toMatchObject({ bookId: 'PSA', chapter: 147, verses: [4] });
+    expect(one('創世記 1:3')).toMatchObject({ bookId: 'GEN', chapter: 1, verses: [3] });
+    expect(one('創世記 1:2–3')).toMatchObject({ bookId: 'GEN', chapter: 1, verses: [2, 3] });
+    expect(one('約叄 1:2')).toMatchObject({ bookId: '3JN', chapter: 1, verses: [2] });
+    expect(one('約翰三書 1:2')).toMatchObject({ bookId: '3JN', chapter: 1, verses: [2] });
+  });
+
+  it('resolves every full 繁體 book name produced by opencc from the 简体 table', async () => {
+    const { Converter } = await import('opencc-js');
+    const toTrad = Converter({ from: 'cn', to: 'tw' });
+    const fullNames = Object.entries(CHINESE_ABBREV_TO_BOOK_ID).filter(([name]) => name.length >= 2);
+    expect(fullNames.length).toBeGreaterThan(60);
+    for (const [name, id] of fullNames) {
+      expect(one(`${toTrad(name)} 1:1`), name).toMatchObject({ bookId: id });
+    }
   });
 
   it('marks an unknown book name with bookId null', () => {
