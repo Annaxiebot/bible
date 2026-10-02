@@ -47,6 +47,11 @@ export type PointIcon =
   | (typeof GROUP_POINTS)[number]['icon']
   | (typeof PERSONAL_POINTS)[number]['icon'];
 
+/** One-line AI setup entry under the two cards; opens the quick key dialog. */
+export const SETUP_LINE = '一分鐘設置 AI：粘貼密鑰即可 · 1-minute AI setup';
+/** Same line once a key is stored (still opens the dialog to change it). */
+export const SETUP_DONE_LINE = 'AI 已設置 · AI is set up';
+
 export const LEADER_ZH = '組長：上傳查經講義，變成大屏簡報。';
 export const LEADER_EN =
   'Group leaders: bring your study guide PDF — it becomes a presentation with an AI helper.';

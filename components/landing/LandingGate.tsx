@@ -3,7 +3,7 @@
  *
  * Wraps StudyPackGate (which already splits "#/pack/<id>" TV mode from the
  * app) and adds one more branch in front: a bare root URL renders the
- * lazy-loaded Landing page. Keeps the touch-point in index.tsx to a single
+ * lazy-loaded Landing page; "#/setup" renders it with the AI setup dialog open. Keeps the touch-point in index.tsx to a single
  * wrapper line, same pattern as StudyPackGate.
  */
 import React, { useState, useEffect, lazy, Suspense } from 'react';
@@ -23,10 +23,10 @@ const LandingGate: React.FC<{ app: React.ReactElement }> = ({ app }) => {
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
 
-  if (view !== 'landing') return <StudyPackGate app={app} />;
+  if (view !== 'landing' && view !== 'setup') return <StudyPackGate app={app} />;
   return (
     <Suspense fallback={<div className="fixed inset-0 bg-slate-950" />}>
-      <Landing />
+      <Landing setupOpen={view === 'setup'} />
     </Suspense>
   );
 };

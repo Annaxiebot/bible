@@ -6,15 +6,16 @@
  * the landing vs the app branch. Strings come from landingStrings (R3).
  */
 import React from 'react';
-import { describe, it, expect, afterEach } from 'vitest';
-import { render, screen, within, cleanup } from '@testing-library/react';
+import { describe, it, expect, afterEach, vi } from 'vitest';
+import { render, screen, within, cleanup, fireEvent } from '@testing-library/react';
 import { STAR_COUNT } from '../themes/StarsTheme';
 import { HERO_THEMES } from '../heroThemes';
-import { resolveRootView, APP_HASH, SAMPLE_PACK_HASH } from '../landingRoute';
+import { resolveRootView, APP_HASH, SAMPLE_PACK_HASH, SETUP_HASH } from '../landingRoute';
 import {
   BRAND_EN, BRAND_ZH, GROUP_CTA, PERSONAL_CTA,
-  GROUP_TITLE_ZH, GROUP_TITLE_EN, PERSONAL_TITLE_ZH, PERSONAL_TITLE_EN, LOOP_STEPS,
+  GROUP_TITLE_ZH, GROUP_TITLE_EN, PERSONAL_TITLE_ZH, PERSONAL_TITLE_EN, LOOP_STEPS, SETUP_LINE,
 } from '../landingStrings';
+import { SETUP_TITLE, SETUP_CLOSE } from '../../setup/setupStrings';
 import LandingGate from '../LandingGate';
 
 describe('resolveRootView', () => {
@@ -32,7 +33,12 @@ describe('resolveRootView', () => {
     expect(resolveRootView('#/pack/2026-10-02-john3')).toBe('pack');
   });
 
+  it('routes #/setup to the landing with the setup dialog', () => {
+    expect(resolveRootView(SETUP_HASH)).toBe('setup');
+  });
+
   it('falls through to the app on any unrecognized hash (bookmarked deep state)', () => {
+    expect(resolveRootView('#/setup/extra')).toBe('app');
     expect(resolveRootView('#journal')).toBe('app');
     expect(resolveRootView('#/pack/')).toBe('app');
     expect(resolveRootView('#/pack/bad id!')).toBe('app');
@@ -88,6 +94,29 @@ describe('LandingGate', () => {
     expect(screen.getByTestId('theme-caption').textContent).toBe(`${starsTheme.verseZh} · ${starsTheme.verseEn}`);
   });
 
+  it('the caption verse refs are interactive: hover opens the bundled-verse popup, 和合本 first', async () => {
+    window.history.replaceState(null, '', '?theme=stars');
+    vi.stubGlobal('fetch', vi.fn(async (url: string) => ({
+      ok: true,
+      json: async () => ({
+        reference: 'x',
+        verses: [{ book_id: 'PSA', book_name: 'x', chapter: 147, verse: 4,
+          text: url.includes('/cuv/') ? '他数点星宿的数目' : 'He determines the number of the stars' }],
+      }),
+    })));
+    render(<LandingGate app={app} />);
+    await screen.findByTestId('landing-page');
+    const refs = within(screen.getByTestId('theme-caption')).getAllByTestId('verse-ref');
+    expect(refs.map(r => r.textContent)).toEqual(['詩篇 147:4', 'Psalm 147:4']);
+    fireEvent.mouseEnter(refs[0]);
+    const tooltip = await screen.findByRole('tooltip');
+    expect(screen.getByTestId('verse-tooltip-title')).toHaveTextContent('诗篇 147:4 · Psalm 147:4');
+    await within(tooltip).findByText(/他数点星宿的数目/);
+    const text = tooltip.textContent ?? '';
+    expect(text.indexOf('他数点星宿的数目')).toBeLessThan(text.indexOf('He determines the number of the stars'));
+    vi.unstubAllGlobals();
+  });
+
   it('renders the dawn theme on ?theme=dawn', async () => {
     window.history.replaceState(null, '', '?theme=dawn');
     render(<LandingGate app={app} />);
@@ -104,6 +133,30 @@ describe('LandingGate', () => {
     expect(sample).toHaveAttribute('href', SAMPLE_PACK_HASH);
     const open = screen.getByRole('link', { name: PERSONAL_CTA });
     expect(open).toHaveAttribute('href', APP_HASH);
+  });
+
+  it('the setup line opens the quick AI dialog; closing it leaves the landing in place', async () => {
+    window.location.hash = '';
+    render(<LandingGate app={app} />);
+    await screen.findByTestId('landing-page');
+    expect(screen.queryByRole('dialog')).toBeNull();
+    const line = screen.getByTestId('landing-setup-line');
+    expect(line).toHaveTextContent(SETUP_LINE);
+    fireEvent.click(line);
+    expect(screen.getByRole('dialog', { name: SETUP_TITLE })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(screen.getByTestId('landing-page')).toBeInTheDocument();
+  });
+
+  it('#/setup opens the landing with the dialog already open; closing clears the hash', async () => {
+    window.location.hash = SETUP_HASH;
+    render(<LandingGate app={app} />);
+    await screen.findByTestId('landing-page');
+    expect(screen.getByRole('dialog', { name: SETUP_TITLE })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: SETUP_CLOSE }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+    expect(window.location.hash).toBe('');
   });
 
   it('renders the app at #app', () => {
