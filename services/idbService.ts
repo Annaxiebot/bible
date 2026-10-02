@@ -220,6 +220,10 @@ export interface BibleAppSchema extends DBSchema {
       'by-created': number;
     };
   };
+  studypacks: {
+    key: string;
+    value: LocalPackRecord;
+  };
 }
 
 export interface ImageBlobRecord {
@@ -229,12 +233,25 @@ export interface ImageBlobRecord {
   createdAt: number;
 }
 
+/**
+ * A leader-generated StudyPack kept on this device (components/newstudy).
+ * `pack` is the validated StudyPack JSON; typed loosely here to avoid a
+ * services → components import (components/studypack/packSource.ts parses it).
+ */
+export interface LocalPackRecord {
+  id: string;        // "local-<yyyy-mm-dd>-<book><ch>"
+  pack: object;      // StudyPack JSON (parseStudyPack validates on read)
+  savedAt: number;   // epoch ms
+}
+// TODO(R4): idbService.ts is over the 300-line budget; split the schema
+// (types + upgrade steps) from the IDBService class in a refactor session.
+
 // ---------------------------------------------------------------------------
 // IDBService class
 // ---------------------------------------------------------------------------
 
 const DB_NAME = 'BibleApp';
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 
 class IDBService {
   private dbPromise: Promise<IDBPDatabase<BibleAppSchema>>;
@@ -309,6 +326,11 @@ class IDBService {
         if (!db.objectStoreNames.contains('imageBlobs')) {
           const blobStore = db.createObjectStore('imageBlobs', { keyPath: 'id' });
           blobStore.createIndex('by-created', 'createdAt');
+        }
+
+        // studypacks (added in v6) — leader-generated study packs, device-local
+        if (!db.objectStoreNames.contains('studypacks')) {
+          db.createObjectStore('studypacks', { keyPath: 'id' });
         }
       },
     });

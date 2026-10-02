@@ -1,29 +1,22 @@
 /**
  * TVPresentationView.tsx — full-screen TV presentation mode · 电视演示模式
  *
- * Fetches a StudyPack JSON from public/packs/<id>.json and shows it as
- * slides. Scripture text is embedded in the pack (no IndexedDB dependency).
+ * Loads a StudyPack by id (packSource: public/packs/<id>.json, or this
+ * device's IndexedDB for leader-generated "local-" ids) and shows it as
+ * slides. Scripture text is embedded in the pack.
  * Navigation: arrow keys / Space and touch swipe only (clicks are reserved
  * for text selection). "a", the Ask AI button, or selecting slide text opens
  * the Ask-AI overlay; Escape closes the overlay first, exits the app second.
  */
 import { FIRST_SLIDE_HINT, FIRST_SLIDE_HINT_SHORT, ASK_AI_LABEL, TV_LOADING } from './tvHints';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { parseStudyPack, buildSlides, StudyPack, Slide, PACK_SCHEMA_VERSION } from './packTypes';
+import { buildSlides, StudyPack, Slide } from './packTypes';
+import { loadPack } from './packSource';
 import { questionForSelection } from './askAI';
 import { useTVNavigation } from './useTVNavigation';
 import { useSelectToAsk } from './useSelectToAsk';
 import TVSlide from './TVSlide';
 import AskAIOverlay from './AskAIOverlay';
-
-async function loadPack(packId: string): Promise<StudyPack> {
-  const url = `${import.meta.env.BASE_URL}packs/${packId}.json?schema=${PACK_SCHEMA_VERSION}`;
-  const response = await fetch(url, { cache: 'no-cache' });
-  if (!response.ok) {
-    throw new Error(`Failed to load study pack ${packId}: HTTP ${response.status}`);
-  }
-  return parseStudyPack(await response.json());
-}
 
 /**
  * What the overlay should auto-send on open (one-click smart Ask AI):
