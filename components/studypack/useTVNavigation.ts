@@ -10,7 +10,7 @@
  * `enabled: false` suspends every input (used while the Ask-AI overlay is
  * open, so typing a question never flips slides or exits TV mode).
  */
-import { useState, useCallback, useEffect, useRef } from 'react';
+import { useState, useCallback, useEffect, useLayoutEffect, useRef } from 'react';
 
 const SWIPE_THRESHOLD_PX = 50;
 
@@ -29,10 +29,16 @@ export function useTVNavigation(
 ): TVNavigation {
   const [index, setIndex] = useState(0);
   const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  // The pack loads after mount (slideCount 0 → N). Reading the count through a
+  // ref updated at commit time keeps `next` stable, so the keydown listener
+  // registered at mount is never a stale closure clamped to 0 slides while
+  // the passive effect that would re-register it is still pending.
+  const slideCountRef = useRef(slideCount);
+  useLayoutEffect(() => { slideCountRef.current = slideCount; }, [slideCount]);
 
   const next = useCallback(() => {
-    setIndex(i => Math.min(i + 1, Math.max(slideCount - 1, 0)));
-  }, [slideCount]);
+    setIndex(i => Math.min(i + 1, Math.max(slideCountRef.current - 1, 0)));
+  }, []);
 
   const prev = useCallback(() => {
     setIndex(i => Math.max(i - 1, 0));
