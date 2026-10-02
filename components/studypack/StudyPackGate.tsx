@@ -6,6 +6,7 @@
  */
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { getPackIdFromHash } from './packTypes';
+import { takeTvReturn } from './tvReturn';
 
 const TVPresentationView = lazy(() => import('./TVPresentationView'));
 
@@ -23,7 +24,8 @@ const StudyPackGate: React.FC<{ app: React.ReactElement }> = ({ app }) => {
   if (!packId) return app;
   return (
     <Suspense fallback={<div className="fixed inset-0 bg-slate-950" />}>
-      <TVPresentationView packId={packId} onExit={() => { window.location.hash = ''; }} />
+      {/* Exit returns to the editor that opened the preview (tvReturn), else to the app as before. */}
+      <TVPresentationView packId={packId} onExit={() => { window.location.hash = takeTvReturn(packId); }} />
     </Suspense>
   );
 };

@@ -7,6 +7,7 @@
  */
 
 import { currentSignupUrl } from '../signup/signupRoute';
+import { isGoogleFormUrl, isFormEntryId } from './feedbackForm';
 
 export type SectionKind =
   | 'title'
@@ -57,6 +58,15 @@ export interface PackSection {
 // Bump on pack-shape changes; appended to the pack URL so a 10-min CDN-cached pack never meets newer code.
 export const PACK_SCHEMA_VERSION = 2;
 
+/**
+ * Prefill field ids of the leader's optional Google Form ("entry.123456");
+ * without them the plain form is linked (ADR-0004 §9).
+ */
+export interface FeedbackFormEntries {
+  name?: string;
+  practice?: string;
+}
+
 export interface StudyPack {
   id: string;
   title: string;
@@ -64,6 +74,8 @@ export interface StudyPack {
   passageRef: string;  // e.g. "马太福音 6:25–34 · Matthew 6:25–34"
   enVersion: string;   // display label of the English translation, e.g. "BSB"
   leaderId?: string;   // Supabase auth uid of the owning leader; absent = demo pack, no sign-up
+  feedbackFormUrl?: string;              // when set, check-in links point at this Google Form instead of #/checkin
+  feedbackFormEntries?: FeedbackFormEntries;
   sections: PackSection[];
 }
 
@@ -154,8 +166,26 @@ export function parseStudyPack(raw: unknown): StudyPack {
   if (p.leaderId !== undefined && (typeof p.leaderId !== 'string' || p.leaderId.length === 0)) {
     throw new Error('StudyPack leaderId must be a non-empty string when present');
   }
+  parseFeedbackForm(p);
   const sections = p.sections.map(parseSection);
   return { ...(p as StudyPack), sections };
+}
+
+/** The optional Google Form: a docs.google.com/forms URL; entry ids, when present, "entry.<digits>". */
+function parseFeedbackForm(p: Partial<StudyPack>): void {
+  if (p.feedbackFormUrl !== undefined && !isGoogleFormUrl(p.feedbackFormUrl)) {
+    throw new Error('StudyPack feedbackFormUrl must be a https://docs.google.com/forms/... URL');
+  }
+  if (p.feedbackFormEntries === undefined) return;
+  if (typeof p.feedbackFormEntries !== 'object' || p.feedbackFormEntries === null) {
+    throw new Error('StudyPack feedbackFormEntries must be an object');
+  }
+  for (const key of ['name', 'practice'] as const) {
+    const id = p.feedbackFormEntries[key];
+    if (id !== undefined && !isFormEntryId(id)) {
+      throw new Error(`StudyPack feedbackFormEntries.${key} must look like "entry.123456"`);
+    }
+  }
 }
 
 /**

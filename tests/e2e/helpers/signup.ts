@@ -21,6 +21,45 @@ export async function routeOwnedSamplePack(page: Page) {
   });
 }
 
+/** Same-origin fake Supabase base so PostgREST / functions calls need no CORS preflight. */
+export const E2E_SUPABASE_PATH = '/e2e-supabase';
+export const E2E_ANON_KEY = 'e2e-anon-key';
+
+/** Point the signup client at the fake base (dev-only window override, components/signup/signupClient). */
+export async function injectSupabaseOverride(page: Page) {
+  await page.addInitScript(([path, key]) => {
+    (window as Window & { __SUPABASE_E2E__?: unknown }).__SUPABASE_E2E__ = { url: `${location.origin}${path}`, anonKey: key };
+  }, [E2E_SUPABASE_PATH, E2E_ANON_KEY] as const);
+}
+
+/**
+ * Seed one pack into this browser's IndexedDB (the store the app reads for
+ * "local-" ids). The app must have opened its database once (any page
+ * load does), so this navigates to #/new first and then writes the record.
+ */
+export async function seedLocalPack(page: Page, pack: Record<string, unknown> & { id: string }) {
+  await page.goto('./#/new');
+  await page.getByTestId('new-study-page').waitFor();
+  await page.evaluate(async (record) => {
+    await new Promise<void>((resolve, reject) => {
+      const open = indexedDB.open('BibleApp');
+      open.onerror = () => reject(open.error);
+      open.onsuccess = () => {
+        const db = open.result;
+        const tx = db.transaction('studypacks', 'readwrite');
+        tx.objectStore('studypacks').put({ id: record.id, pack: record, savedAt: Date.now() });
+        tx.oncomplete = () => { db.close(); resolve(); };
+        tx.onerror = () => reject(tx.error);
+      };
+    });
+  }, pack);
+}
+
+/** The committed sample pack's JSON, as served by this dev server. */
+export async function fetchSamplePack(page: Page): Promise<Record<string, unknown>> {
+  return (await page.request.get(`./packs/${SAMPLE_PACK_ID}.json`)).json();
+}
+
 /** The sign-up URL the QR must encode for this page's origin and base path. */
 export function expectedSignupUrl(page: Page, packId = SAMPLE_PACK_ID): string {
   const here = new URL(page.url());

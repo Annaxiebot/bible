@@ -15,8 +15,9 @@ import { SETUP_TITLE, SETUP_KEY_LABEL, SETUP_SAVE } from '../../components/setup
 import { openTV, injectApiKey, mockOpenRouterStream } from './helpers/tv';
 import QRCode from 'qrcode';
 import { QR_SVG_OPTIONS, qrModulesPath } from '../../components/signup/signupRoute';
-import { SU_QR_BODY, SU_DEMO_LINE } from '../../components/signup/signupStrings';
-import { routeOwnedSamplePack, expectedSignupUrl } from './helpers/signup';
+import { SU_QR_BODY, SU_DEMO_LINE, SU_UNCLAIMED_LINE } from '../../components/signup/signupStrings';
+import { packHash } from '../../components/landing/landingRoute';
+import { routeOwnedSamplePack, expectedSignupUrl, seedLocalPack, fetchSamplePack } from './helpers/signup';
 
 test.describe('TV Presentation Mode', () => {
   test('loads the pack from the URL and shows the title slide', async ({ page }) => {
@@ -96,6 +97,21 @@ test.describe('TV Presentation Mode', () => {
     await expect(page.getByText('签到 Sign up')).toBeVisible();
     await expect(page.getByTestId('qr-demo')).toHaveText(SU_DEMO_LINE);
     await expect(page.getByTestId('signup-qr')).toHaveCount(0);
+  });
+
+  test('an unclaimed LOCAL pack (seeded in IndexedDB) shows "sign in to enable sign-up" on its QR slide, not the demo line', async ({ page }) => {
+    const sample = await fetchSamplePack(page);
+    await seedLocalPack(page, { ...sample, id: 'local-2026-10-02-matt6' });
+    await page.goto(packHash('local-2026-10-02-matt6'));
+    await expect(page.getByTestId('tv-presentation')).toBeVisible();
+    await expect(page.getByText('1/17')).toBeVisible();
+    for (let i = 0; i < 15; i++) await page.keyboard.press('ArrowRight');
+    await expect(page.getByText('签到 Sign up')).toBeVisible();
+    await expect(page.getByTestId('qr-unclaimed')).toContainText(SU_UNCLAIMED_LINE);
+    await expect(page.getByTestId('qr-demo')).toHaveCount(0);
+    await expect(page.getByTestId('signup-qr')).toHaveCount(0);
+    const line = page.getByTestId('qr-unclaimed').getByText(SU_UNCLAIMED_LINE);
+    expect(await line.evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(20);
   });
 
   test('an owned pack\'s QR slide draws its sign-up QR, prints its URL, and the instruction', async ({ page }) => {
