@@ -10,9 +10,13 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import StudyPackGate from '../studypack/StudyPackGate';
 import { resolveRootView, RootView } from './landingRoute';
+import { getSignupPackIdFromHash } from '../signup/signupRoute';
+import { getLeaderPackIdFromHash } from '../leader/leaderRoute';
 
 const Landing = lazy(() => import('./Landing'));
 const NewStudyPage = lazy(() => import('../newstudy/NewStudyPage'));
+const SignupPage = lazy(() => import('../signup/SignupPage'));
+const LeaderPage = lazy(() => import('../leader/LeaderPage'));
 
 const fallback = <div className="fixed inset-0 bg-slate-950" />;
 
@@ -29,6 +33,14 @@ const LandingGate: React.FC<{ app: React.ReactElement }> = ({ app }) => {
 
   if (view === 'new') {
     return <Suspense fallback={fallback}><NewStudyPage /></Suspense>;
+  }
+  if (view === 'signup') {
+    const packId = getSignupPackIdFromHash(window.location.hash)!;
+    return <Suspense fallback={fallback}><SignupPage packId={packId} /></Suspense>;
+  }
+  if (view === 'leader') {
+    const packId = getLeaderPackIdFromHash(window.location.hash)!;
+    return <Suspense fallback={fallback}><LeaderPage packId={packId} /></Suspense>;
   }
   if (view !== 'landing' && view !== 'setup') return <StudyPackGate app={app} />;
   return (

@@ -2,11 +2,14 @@
  * landingRoute.ts — root-view resolution for the landing gate · 首页路由
  *
  * Only a bare root URL (no hash at all, or a lone "#") shows the landing.
- * "#/pack/<id>" is TV presentation mode; every other hash — "#app" and any
- * bookmarked deep state we do not recognize — falls through to the app, so
- * existing bookmarks keep working.
+ * "#/pack/<id>" is TV presentation mode, "#/signup/<id>" the member sign-up
+ * page, "#/leader/<id>" the leader's sign-up list; every other hash — "#app"
+ * and any bookmarked deep state we do not recognize — falls through to the
+ * app, so existing bookmarks keep working.
  */
 import { getPackIdFromHash } from '../studypack/packTypes';
+import { getSignupPackIdFromHash } from '../signup/signupRoute';
+import { getLeaderPackIdFromHash } from '../leader/leaderRoute';
 
 /** Hash the landing's "Open the app" CTA sets. */
 export const APP_HASH = '#app';
@@ -26,11 +29,13 @@ export const SETUP_HASH = '#/setup';
 /** Hash of the "新建查经 New study" page (leader generates a pack in the browser). */
 export const NEW_STUDY_HASH = '#/new';
 
-export type RootView = 'landing' | 'setup' | 'app' | 'pack' | 'new';
+export type RootView = 'landing' | 'setup' | 'app' | 'pack' | 'new' | 'signup' | 'leader';
 
 /** Map a location.hash to the view the root gate should render. */
 export function resolveRootView(hash: string): RootView {
   if (getPackIdFromHash(hash)) return 'pack';
+  if (getSignupPackIdFromHash(hash)) return 'signup';
+  if (getLeaderPackIdFromHash(hash)) return 'leader';
   if (hash === '' || hash === '#') return 'landing';
   if (hash === SETUP_HASH) return 'setup';
   if (hash === NEW_STUDY_HASH) return 'new';

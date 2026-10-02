@@ -79,7 +79,7 @@ export const NEXT_DESC = '当前查经包，随时打开 · The current study pa
 export const NEXT_OPEN_CTA = '打开查经包 Open the pack';
 export const NEXT_SIGNUP_CTA = '扫码报名 Sign up';
 export const NEXT_SIGNUP_CLOSE = '收起 Close';
-export const NEXT_SIGNUP_LINK = '或点此打开报名表 · or open the sign-up form';
+export const NEXT_SIGNUP_LINK = '或点此打开报名页 · or open the sign-up page';
 /** Rendered instead of the pack when it cannot be loaded (no error noise). */
 export const NEXT_NONE_YET = '暂无 · none yet';
 export const NEXT_LOADING = '载入中 · loading';

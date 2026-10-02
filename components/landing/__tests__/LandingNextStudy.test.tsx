@@ -8,10 +8,11 @@
  */
 import React from 'react';
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { render, screen, fireEvent, cleanup } from '@testing-library/react';
+import { render, screen, fireEvent, cleanup, within, waitFor } from '@testing-library/react';
 import LandingNextStudy from '../LandingNextStudy';
 import { packHash } from '../landingRoute';
-import { SIGNUP_QR } from '../../newstudy/packAssembly';
+import { currentSignupUrl, signupHash } from '../../signup/signupRoute';
+import { SU_QR_BODY, SU_DEMO_LINE, qrAltText } from '../../signup/signupStrings';
 import { PACK_SCHEMA_VERSION } from '../../studypack/packTypes';
 import {
   NEXT_EYEBROW, NEXT_HEADING_ZH, NEXT_HEADING_EN, NEXT_OPEN_CTA, NEXT_SIGNUP_CTA,
@@ -87,8 +88,19 @@ describe('LandingNextStudy', () => {
     expect(screen.getByRole('link', { name: NEXT_OPEN_CTA })).toHaveAttribute('href', packHash('2026-10-02-john3'));
   });
 
-  it('sign-up reveals the shared QR image and forms link from packAssembly', async () => {
+  it('sign-up on a demo pack (no leaderId) reveals the bilingual no-sign-up line, no QR', async () => {
     stubFetch(async () => ({ ok: true, json: async () => PACK }));
+    render(<LandingNextStudy packId={PACK_ID} />);
+    await screen.findByTestId('next-study-pack');
+    fireEvent.click(screen.getByRole('button', { name: NEXT_SIGNUP_CTA }));
+    const panel = screen.getByTestId('next-study-signup');
+    expect(within(panel).getByTestId('next-study-demo')).toHaveTextContent(SU_DEMO_LINE);
+    expect(panel.querySelector('[data-testid="signup-qr"]')).toBeNull();
+    expect(panel.querySelector('a')).toBeNull();
+  });
+
+  it('sign-up on an owned pack reveals its QR (encoding its sign-up URL) and the #/signup link', async () => {
+    stubFetch(async () => ({ ok: true, json: async () => ({ ...PACK, leaderId: 'uid-lead' }) }));
     render(<LandingNextStudy packId={PACK_ID} />);
     await screen.findByTestId('next-study-pack');
     expect(screen.queryByTestId('next-study-signup')).toBeNull();
@@ -96,9 +108,11 @@ describe('LandingNextStudy', () => {
     expect(toggle).toHaveAttribute('aria-expanded', 'false');
     fireEvent.click(toggle);
     const panel = screen.getByTestId('next-study-signup');
-    expect(panel.querySelector('img')?.getAttribute('src')).toBe(`/${SIGNUP_QR.image}`);
-    expect(panel.querySelector('a')).toHaveAttribute('href', SIGNUP_QR.url);
-    expect(panel).toHaveTextContent(SIGNUP_QR.body);
+    const qr = within(panel).getByRole('img', { name: qrAltText(currentSignupUrl(PACK_ID)) });
+    expect(qr).toHaveAttribute('data-signup-url', currentSignupUrl(PACK_ID));
+    await waitFor(() => expect(qr.querySelector('svg')).not.toBeNull());
+    expect(panel.querySelector('a')).toHaveAttribute('href', signupHash(PACK_ID));
+    expect(panel).toHaveTextContent(SU_QR_BODY);
     expect(screen.getByRole('button', { name: NEXT_SIGNUP_CLOSE })).toHaveAttribute('aria-expanded', 'true');
     fireEvent.click(screen.getByRole('button', { name: NEXT_SIGNUP_CLOSE }));
     expect(screen.queryByTestId('next-study-signup')).toBeNull();
