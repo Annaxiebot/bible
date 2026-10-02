@@ -37,9 +37,14 @@ scripturetolife.org serves Chinese-speaking congregations. During the first week
 13. **Three kinds of claims stay separate.** "Scripture says X" (theological/interpretive) → "X may lead to behavior Y" (application hypothesis) → "Y affects physiology Z" (scientific claim requiring evidence). The last two are evidence-linked and never presented as biblical claims.
 14. **Practice and reflection first; biometrics later, opt-in.**
 
+### Readability 可读性
+
+15. **Large type by default.** The audience includes many adults and seniors. Landing body text ≥ 20px desktop / 18px phone; TV-mode body and verse text ≥ 3.6vh on 1080p, headings ≥ 7vh, verse popups ≥ 3vh; phones get a px floor so vh units never shrink text below legibility. Sizes live in `components/studypack/principles.ts` (`TYPE_SCALE`) and scale with browser zoom (rem/clamp).
+16. **Motion is decoration, never information.** Landing animations (hero loop, hover lifts) must respect `prefers-reduced-motion` and the page must read identically with motion off.
+
 ### Privacy 隐私
 
-15. **Reflections are private by default**, stored on the member's own device; sharing is an explicit per-reflection choice. Sign-up data (name, phone) is used only for the mid-week check-ins the member opted into.
+17. **Reflections are private by default**, stored on the member's own device; sharing is an explicit per-reflection choice. Sign-up data (name, phone) is used only for the mid-week check-ins the member opted into.
 
 ## Consequences
 
