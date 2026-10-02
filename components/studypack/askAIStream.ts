@@ -72,6 +72,62 @@ function buildRequestBody(
 }
 
 /**
+ * POST one chat/completions request body to OpenRouter and stream the
+ * reply. `onDelta` receives each content delta; the resolved value is the
+ * full raw text. Aborting via `signal` resolves cleanly with whatever has
+ * arrived. HTTP and mid-stream errors throw (callers surface them).
+ * Shared by the Ask-AI overlay and the pack generator (R3: one transport).
+ */
+export async function streamChatCompletion(
+  body: string,
+  onDelta: (delta: string) => void,
+  signal: AbortSignal,
+  title = 'Scripture Scholar TV'
+): Promise<string> {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    throw new Error(AI_NOT_CONFIGURED_MESSAGE);
+  }
+  const response = await fetch(OPENROUTER_API_URL, {
+    method: 'POST',
+    signal,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${apiKey}`,
+      'HTTP-Referer': window.location.origin,
+      'X-Title': title,
+    },
+    body,
+  });
+  if (!response.ok) {
+    if (response.status === HTTP_PAYMENT_REQUIRED) throw new Error(AI_CREDITS_MESSAGE);
+    const data: { error?: { message?: string } } = await response.json().catch(() => ({}));
+    throw new Error(data.error?.message || `OpenRouter API error: ${response.status}`);
+  }
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error('OpenRouter returned no response body');
+
+  let raw = '';
+  const feed = createSSEParser(delta => {
+    raw += delta;
+    onDelta(delta);
+  });
+  const decoder = new TextDecoder();
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      feed(decoder.decode(value, { stream: true }));
+    }
+  } catch (err) {
+    // A user-initiated abort (Escape / close) is a clean cancel, not a failure.
+    if ((err as Error).name === 'AbortError') return raw;
+    throw err;
+  }
+  return raw;
+}
+
+/**
  * Ask one question with a streamed answer. `onText` receives the accumulated,
  * [SPLIT]-stripped answer after every delta; the resolved value is the final
  * text. Aborting via `signal` resolves cleanly with whatever has arrived.
@@ -85,45 +141,14 @@ export async function streamStudyAI(
   onText: (accumulated: string) => void,
   signal: AbortSignal
 ): Promise<string> {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    throw new Error(AI_NOT_CONFIGURED_MESSAGE);
-  }
-  const response = await fetch(OPENROUTER_API_URL, {
-    method: 'POST',
-    signal,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-      'HTTP-Referer': window.location.origin,
-      'X-Title': 'Scripture Scholar TV',
-    },
-    body: buildRequestBody(pack, slide, history, question),
-  });
-  if (!response.ok) {
-    if (response.status === HTTP_PAYMENT_REQUIRED) throw new Error(AI_CREDITS_MESSAGE);
-    const data: { error?: { message?: string } } = await response.json().catch(() => ({}));
-    throw new Error(data.error?.message || `OpenRouter API error: ${response.status}`);
-  }
-  const reader = response.body?.getReader();
-  if (!reader) throw new Error('OpenRouter returned no response body');
-
   let raw = '';
-  const feed = createSSEParser(delta => {
-    raw += delta;
-    onText(stripSplitMarker(raw));
-  });
-  const decoder = new TextDecoder();
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      feed(decoder.decode(value, { stream: true }));
-    }
-  } catch (err) {
-    // A user-initiated abort (Escape / close) is a clean cancel, not a failure.
-    if ((err as Error).name === 'AbortError') return stripSplitMarker(raw);
-    throw err;
-  }
-  return stripSplitMarker(raw);
+  const final = await streamChatCompletion(
+    buildRequestBody(pack, slide, history, question),
+    delta => {
+      raw += delta;
+      onText(stripSplitMarker(raw));
+    },
+    signal
+  );
+  return stripSplitMarker(final);
 }
