@@ -40,6 +40,7 @@ export function bilingualRefLabel(
   const chapter = ref.chapter ?? passageChapter;
   const book = bookId ? BIBLE_BOOKS.find(b => b.id === bookId) : undefined;
   if (!book || !chapter || ref.verses.length === 0) return ref.text;
+  // Invariant: every BIBLE_BOOKS name is "中文 English" (static data); no English segment would yield "中文 C:V · C:V".
   const [zh, ...enParts] = book.name.split(' ');
   // The table names the book "Psalms"; a chapter reference reads "Psalm 147:4".
   const en = enParts.join(' ').replace(/^Psalms$/, 'Psalm');
