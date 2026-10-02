@@ -21,6 +21,20 @@ export function isLocalPackId(id: string): boolean {
   return id.startsWith(LOCAL_PACK_PREFIX);
 }
 
+/**
+ * Whether a pack can take sign-ups (ADR-0004 §8):
+ * - 'owned'     — it has a leader; the QR / form show.
+ * - 'unclaimed' — a local pack generated while signed out; it exists only in
+ *                 this browser, so signing in here claims it (claimLocalPacks).
+ * - 'demo'      — a public pack with no leader (the committed sample).
+ */
+export type PackSignupState = 'owned' | 'unclaimed' | 'demo';
+
+export function packSignupState(pack: Pick<StudyPack, 'id' | 'leaderId'>): PackSignupState {
+  if (pack.leaderId) return 'owned';
+  return isLocalPackId(pack.id) ? 'unclaimed' : 'demo';
+}
+
 /** "local-<yyyy-mm-dd>-<book><ch>", e.g. local-2026-10-02-jhn3. */
 export function makeLocalPackId(date: string, bookId: string, chapter: number): string {
   return `${LOCAL_PACK_PREFIX}${date}-${bookId.toLowerCase()}${chapter}`;

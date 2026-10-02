@@ -12,6 +12,7 @@ import { FIRST_SLIDE_HINT, FIRST_SLIDE_HINT_SHORT, ASK_AI_LABEL, TV_LOADING } fr
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { buildSlides, StudyPack, Slide } from './packTypes';
 import { loadPack } from './packSource';
+import { useLocalPackClaim } from '../newstudy/claimLocalPacks';
 import { questionForSelection } from './askAI';
 import { useTVNavigation } from './useTVNavigation';
 import { useSelectToAsk } from './useSelectToAsk';
@@ -123,6 +124,8 @@ const TVPresentationView: React.FC<TVPresentationViewProps> = ({ packId, onExit 
   }, []);
   useSelectToAsk(contentRef, !askOpen && !!slide, onSlideSelection);
 
+  // Re-read after a sign-in claims this local pack (claimLocalPacks): the QR appears without a reload.
+  const claim = useLocalPackClaim(packId);
   useEffect(() => {
     let cancelled = false;
     loadPack(packId)
@@ -135,7 +138,7 @@ const TVPresentationView: React.FC<TVPresentationViewProps> = ({ packId, onExit 
         if (!cancelled) setError(err.message);
       });
     return () => { cancelled = true; };
-  }, [packId]);
+  }, [packId, claim.version]);
 
   return (
     <div

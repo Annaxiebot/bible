@@ -11,7 +11,9 @@ import { Slide, StudyPack } from './packTypes';
 import { TRANSLATIONS, TYPE_SCALE, bilingual } from './principles';
 import RefLinkedText from './RefLinkedText';
 import SignupQr from '../signup/SignupQr';
+import UnclaimedSignIn from '../signup/UnclaimedSignIn';
 import { SU_DEMO_LINE } from '../signup/signupStrings';
+import { packSignupState } from './packSource';
 
 // TYPE_SCALE (principles.ts): senior-readable floors on TV, px floors on phones.
 const headingStyle: React.CSSProperties = { fontSize: TYPE_SCALE.heading, lineHeight: 1.2 };
@@ -105,11 +107,19 @@ const LifeMenuSlide: React.FC<SlideProps> = ({ slide, pack }) => (
   </div>
 );
 
+/** Without a sign-up URL: a local pack asks its leader to sign in (claims it); a public pack is a demo. */
+const NoSignup: React.FC<{ pack?: StudyPack }> = ({ pack }) => {
+  if (pack && packSignupState(pack) === 'unclaimed') {
+    return <UnclaimedSignIn packId={pack.id} lineStyle={bodyStyle} buttonStyle={bodyStyle} />;
+  }
+  return <p data-testid="qr-demo" className="text-slate-300" style={bodyStyle}>{SU_DEMO_LINE}</p>;
+};
+
 /**
  * QR sign-up slide: the pack's own sign-up URL drawn as a large centered
  * code (SignupQr renders it on a white quiet zone), the URL printed under it
  * for people who prefer typing, plus the one-line instruction. A pack with
- * no owning leader (no signupUrl) shows the demo line instead.
+ * no owning leader (no signupUrl) shows the sign-in block or the demo line.
  */
 const QrSlide: React.FC<SlideProps> = ({ slide, pack }) => (
   <div className="h-full flex flex-col items-center justify-center text-center">
@@ -121,7 +131,7 @@ const QrSlide: React.FC<SlideProps> = ({ slide, pack }) => (
         <BodyLines lines={slide.body} />
       </>
     ) : (
-      <p data-testid="qr-demo" className="text-slate-300" style={bodyStyle}>{SU_DEMO_LINE}</p>
+      <NoSignup pack={pack} />
     )}
   </div>
 );

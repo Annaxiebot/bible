@@ -6,7 +6,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { readFileSync } from 'fs';
 import {
-  loadPack, saveLocalPack, getLocalPack, listLocalPacks, deleteLocalPack, isLocalPackId, makeLocalPackId,
+  loadPack, saveLocalPack, getLocalPack, listLocalPacks, deleteLocalPack, isLocalPackId, makeLocalPackId, packSignupState,
   LOCAL_PACK_NOT_FOUND, LOCAL_PACK_PREFIX,
 } from '../packSource';
 import { parseStudyPack, StudyPack } from '../packTypes';
@@ -23,6 +23,13 @@ describe('local pack ids', () => {
     expect(isLocalPackId(id)).toBe(true);
     expect(isLocalPackId(SAMPLE_PACK_ID)).toBe(false);
     expect(id.startsWith(LOCAL_PACK_PREFIX)).toBe(true);
+  });
+
+  it('packSignupState: owned with a leader; a leaderless LOCAL pack is unclaimed (sign in claims it); a leaderless public pack is a demo', () => {
+    expect(packSignupState({ id: 'local-2026-10-02-jhn3', leaderId: 'uid' })).toBe('owned');
+    expect(packSignupState({ id: SAMPLE_PACK_ID, leaderId: 'uid' })).toBe('owned');
+    expect(packSignupState({ id: 'local-2026-10-02-jhn3' })).toBe('unclaimed');
+    expect(packSignupState({ id: SAMPLE_PACK_ID })).toBe('demo');
   });
 });
 
