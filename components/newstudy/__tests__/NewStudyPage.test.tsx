@@ -72,6 +72,8 @@ describe('NewStudyPage', () => {
   });
 
   const versesReady = () => waitFor(() => expect(screen.getByTestId('ns-verse-to')).toBeEnabled());
+  /** The editor's range selects read the bundled chapter too; wait so no state update lands after the test. */
+  const rangeReady = () => waitFor(() => expect(screen.getByTestId('ns-range-verse-to')).toBeEnabled());
 
   async function fillAndGenerate() {
     fireEvent.change(screen.getByTestId('ns-book'), { target: { value: 'JHN' } });
@@ -96,6 +98,7 @@ describe('NewStudyPage', () => {
     expect(generateMock.mock.calls[0][0]).toMatchObject({ bookId: 'JHN', chapter: 3, verseFrom: 22, verseTo: 36 });
 
     await waitFor(() => expect(screen.getByText(NS_EDIT_TITLE)).toBeInTheDocument());
+    await rangeReady();
     expect(screen.getByText(NS_SCRIPTURE_NOTE)).toBeInTheDocument();
     expect(screen.getByTestId('ns-scripture')).toHaveTextContent('第22节');
     const questions = within(screen.getByTestId('ns-questions')).getAllByRole('textbox');
@@ -128,6 +131,7 @@ describe('NewStudyPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(NS_ERR_NO_JSON);
     fireEvent.click(screen.getByRole('button', { name: NS_RETRY }));
     await waitFor(() => expect(screen.getByText(NS_EDIT_TITLE)).toBeInTheDocument());
+    await rangeReady();
     expect(generateMock).toHaveBeenCalledTimes(2);
     expect(generateMock.mock.calls[1][0]).toEqual(generateMock.mock.calls[0][0]);
   });
@@ -140,6 +144,7 @@ describe('NewStudyPage', () => {
     expect(row).toHaveTextContent('祂必兴旺，我必衰微');
     fireEvent.click(within(row).getByRole('button', { name: '打开 Open' }));
     expect(screen.getByText(NS_EDIT_TITLE)).toBeInTheDocument();
+    await rangeReady();
     expect(screen.getByRole('button', { name: NS_PREVIEW })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: NS_SAVE })).toBeInTheDocument();
   });

@@ -16,7 +16,7 @@ import { streamChatCompletion } from '../studypack/askAIStream';
 import { fetchBundledChapter } from '../../services/bibleDataSource';
 import { buildPackPrompt, PACK_SYSTEM_PROMPT, PACK_MAX_TOKENS, PACK_TEMPERATURE } from './packPrompt';
 import { extractJsonObject, validateGenerated } from './generatedPack';
-import { assemblePack, passageLabel, StudyRequest } from './packAssembly';
+import { assemblePack, passageLabel, StudyRequest, VerseRange } from './packAssembly';
 import {
   NS_STEP_VERSES, NS_STEP_AI, NS_STEP_VALIDATE, NS_PROGRESS_CHARS,
   NS_ERR_VERSES_UNAVAILABLE, NS_ERR_VERSES_OUT_OF_RANGE,
@@ -25,7 +25,7 @@ import {
 export type ProgressReporter = (step: string, detail?: string) => void;
 
 /** The requested verses from the bundled chapter files, both translations required. */
-export async function loadPassage(req: StudyRequest): Promise<PackVerse[]> {
+export async function loadPassage(req: VerseRange): Promise<PackVerse[]> {
   const [zh, en] = await Promise.all([
     fetchBundledChapter(req.bookId, req.chapter, TRANSLATIONS.zh.id),
     fetchBundledChapter(req.bookId, req.chapter, TRANSLATIONS.en.id),
