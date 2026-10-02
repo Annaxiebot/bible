@@ -66,7 +66,15 @@ echo "🔍 pre-push: R13 review of $range (round $((round + 1))/$MAX_ROUNDS) ...
 # Build the review input: prompt + previous rejection (if any) + commits + diff.
 # Commit messages record the fixes made per round; the previous rejection lets
 # the reviewer honor (not contradict) earlier required fixes.
-diff_content=$(git log "$range" --format='%n===== commit %h =====%n%B' && git diff "$range")
+# Generated data (bundled Bible text, 20+ MB) is excluded: it would exceed
+# the reviewer's input and is produced by scripts/fetch-bible-data.mjs,
+# which IS reviewed. Add further generated dirs to REVIEW_EXCLUDES.
+REVIEW_EXCLUDES=(':(exclude)public/bible-data')
+diff_content=$(git log "$range" --format='%n===== commit %h =====%n%B' && git diff "$range" -- . "${REVIEW_EXCLUDES[@]}")
+diff_bytes=${#diff_content}
+if [ "$diff_bytes" -gt 2000000 ]; then
+  echo "⚠️  pre-push: diff is ${diff_bytes} bytes; the reviewer may truncate or fail. Consider splitting the push."
+fi
 prev_review=""
 if [ -s "$prev_file" ]; then
   prev_review=$(printf '\n---\n\nPREVIOUS REVIEW ROUND (round %s rejection — its required fixes are settled;\ndo not contradict them except via a [RECONSIDER] line):\n\n%s\n' \
