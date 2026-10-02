@@ -13,6 +13,8 @@ import {
 } from '../services/openrouter';
 import { autoSaveResearchService } from '../services/autoSaveResearchService';
 import { STORAGE_KEYS } from '../constants/storageKeys';
+import { FREE_MODELS_ROUTER_ID, OPENROUTER_KEYS_URL, initialModelChoice } from '../services/aiDefaults';
+// TODO(R4): over budget — split the web-search key section (line ~750 on) into WebSearchSettings.tsx.
 
 function formatTestedAt(iso: string): string {
   const d = new Date(iso);
@@ -50,7 +52,7 @@ const ALL_KEY_CONFIGS: Record<string, string> = {
 };
 
 const KEY_UI: Record<string, { label: string; placeholder: string; helpUrl: string; helpText: string }> = {
-  openrouter: { label: 'OpenRouter API Key', placeholder: 'Enter your OpenRouter API key', helpUrl: 'https://openrouter.ai/keys', helpText: 'OpenRouter (Free $5 credits + free models)' },
+  openrouter: { label: 'OpenRouter API Key', placeholder: 'Enter your OpenRouter API key', helpUrl: OPENROUTER_KEYS_URL, helpText: 'OpenRouter (Free $5 credits + free models)' },
   gemini: { label: 'Google Gemini API Key', placeholder: 'Enter your Gemini API key', helpUrl: 'https://aistudio.google.com/app/apikey', helpText: 'Google AI Studio' },
   claude: { label: 'Anthropic Claude API Key', placeholder: 'Enter your Claude API key', helpUrl: 'https://console.anthropic.com/', helpText: 'Anthropic Console' },
   openai: { label: 'OpenAI ChatGPT API Key', placeholder: 'Enter your OpenAI API key', helpUrl: 'https://platform.openai.com/api-keys', helpText: 'OpenAI Platform' },
@@ -78,7 +80,7 @@ interface AIProviderSettingsProps {
 
 const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose }) => {
   const [currentProvider, setCurrentProvider] = useState<aiProvider.AIProvider>(aiProvider.getCurrentProvider());
-  const [selectedModel, setSelectedModel] = useState<string>(aiProvider.getCurrentModel() || '');
+  const [selectedModel, setSelectedModel] = useState<string>(initialModelChoice);
   const [lastUsedModel, setLastUsedModel] = useState<string | null>(() => localStorage.getItem('lastUsedModel'));
   const [useFreeRouter, setUseFreeRouter] = useState<boolean>(() => {
     const stored = localStorage.getItem('useFreeRouter');
@@ -136,7 +138,7 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
     }
     setApiKeys(keys);
     setAutoSaveResearch(autoSaveResearchService.isAutoSaveEnabled());
-    setSelectedModel(aiProvider.getCurrentModel() || '');
+    setSelectedModel(initialModelChoice());
     setUseFreeRouter(localStorage.getItem('useFreeRouter') !== null ? localStorage.getItem('useFreeRouter') === 'true' : true);
     setUseServerAI(localStorage.getItem('useServerAI') !== 'false');
     setAutoRace(localStorage.getItem('autoRaceAI') === 'true');
@@ -564,7 +566,7 @@ const AIProviderSettings: React.FC<AIProviderSettingsProps> = ({ isOpen, onClose
                 {currentProvider === 'openrouter' ? (
                   <>
                     <optgroup label="Auto">
-                      <option value="openrouter/auto:free">Auto (free models only)</option>
+                      <option value={FREE_MODELS_ROUTER_ID}>Auto (free models only)</option>
                       <option value="openrouter/auto">Auto (any model, may use credits)</option>
                     </optgroup>
                     <optgroup label={verifiedModels ? `Verified Working Free Models (${verifiedModels.length})` : 'Free Models'}>
