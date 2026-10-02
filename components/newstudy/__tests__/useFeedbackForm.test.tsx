@@ -84,3 +84,16 @@ describe('useFeedbackForm', () => {
     expect(apply).not.toHaveBeenCalled();
   });
 });
+
+describe('useFeedbackForm network failure', () => {
+  beforeEach(() => { uid = 'uid-lead'; token = 'tok'; createMock.mockReset(); });
+
+  it('surfaces a thrown fetch error as the failure notice with the fallback (never stuck on creating)', async () => {
+    createMock.mockRejectedValueOnce(new Error('Failed to fetch'));
+    const apply = vi.fn();
+    const { result } = renderHook(() => useFeedbackForm(pack, apply));
+    await waitFor(() => expect(result.current.notice?.ok).toBe(false));
+    expect(result.current.notice!.text).toBe(`${NS_FORM_FAILED}: Failed to fetch; ${NS_FORM_FALLBACK}`);
+    expect(apply).not.toHaveBeenCalled();
+  });
+});

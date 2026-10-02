@@ -59,7 +59,14 @@ export function useFeedbackForm(pack: StudyPack | null, apply: (pack: StudyPack)
     if (!current || current.feedbackFormUrl || !authManager.getUserId()) return;
     attempted.current = current.id;
     setNotice({ ok: true, text: NS_FORM_CREATING });
-    const result = await createFeedbackForm(formSourceOf(current), providerToken());
+    let result: Awaited<ReturnType<typeof createFeedbackForm>>;
+    try {
+      result = await createFeedbackForm(formSourceOf(current), providerToken());
+    } catch (err) {
+      // A network-level failure (fetch TypeError) must reach the user, not leave "creating" spinning.
+      setNotice(failureNotice({ kind: 'api', message: err instanceof Error ? err.message : String(err) }));
+      return;
+    }
     if (latest.current?.id !== current.id) return;   // the editor moved on; nothing to apply
     if (result.ok === false) { setNotice(failureNotice(result.failure)); return; }
     setNotice({ ok: true, text: NS_FORM_CREATED, link: result.responderUri });
