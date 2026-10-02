@@ -55,6 +55,15 @@ CREATE POLICY "Leaders can delete their own sign-ups"
 
 -- No UPDATE policy on purpose: a sign-up is replaced by a new row, never edited.
 
+-- The commitment (ADR-0004 §7): a sign-up is a promise to one life-menu
+-- practice for the week (an optional second, an optional own version).
+-- Added as nullable columns so rows from before the commitment step keep loading.
+ALTER TABLE study_signups ADD COLUMN IF NOT EXISTS practice_area TEXT;
+ALTER TABLE study_signups ADD COLUMN IF NOT EXISTS practice_text TEXT;
+ALTER TABLE study_signups ADD COLUMN IF NOT EXISTS practice2_area TEXT;
+ALTER TABLE study_signups ADD COLUMN IF NOT EXISTS practice2_text TEXT;
+ALTER TABLE study_signups ADD COLUMN IF NOT EXISTS practice_note TEXT;
+
 -- =====================================================
 -- PACK_SUMMARIES — the only part of a pack the server ever sees
 -- =====================================================
@@ -73,6 +82,11 @@ CREATE TABLE IF NOT EXISTS pack_summaries (
   closing_question TEXT,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Optional Google Form for feedback (ADR-0004 §9): the edge function links
+-- check-ins to it instead of #/checkin when present; entries = prefill ids.
+ALTER TABLE pack_summaries ADD COLUMN IF NOT EXISTS feedback_form_url TEXT;
+ALTER TABLE pack_summaries ADD COLUMN IF NOT EXISTS feedback_form_entries JSONB;
 
 CREATE INDEX IF NOT EXISTS idx_pack_summaries_leader_id ON pack_summaries(leader_id);
 
@@ -123,6 +137,10 @@ CREATE TABLE IF NOT EXISTS checkin_sends (
   error TEXT                              -- provider message when status = 'failed'
 );
 
+-- 'welcome' = the sign-up confirmation (ADR-0004 §7), audited like the scheduled kinds.
+ALTER TABLE checkin_sends DROP CONSTRAINT IF EXISTS checkin_sends_kind_check;
+ALTER TABLE checkin_sends ADD CONSTRAINT checkin_sends_kind_check CHECK (kind IN ('tue', 'thu', 'weekend', 'welcome'));
+
 CREATE INDEX IF NOT EXISTS idx_checkin_sends_pack_kind ON checkin_sends(pack_id, kind, sent_at DESC);
 CREATE INDEX IF NOT EXISTS idx_checkin_sends_signup ON checkin_sends(signup_id);
 CREATE INDEX IF NOT EXISTS idx_checkin_sends_leader_id ON checkin_sends(leader_id);
@@ -135,6 +153,83 @@ CREATE POLICY "Leaders can view their own send log"
   TO authenticated
   USING (auth.uid() = leader_id);
 -- Only the service role (the edge function) writes here; no INSERT policy for app roles.
+
+-- =====================================================
+-- CHECKIN_ANSWERS — feedback a member chose to share (ADR-0004 §7)
+-- =====================================================
+-- Reflections are private by default (ADR-0003 §17): the check-in page
+-- keeps a "只记在我的手机 Keep private" answer in the member's own browser
+-- and never sends it. Only "分享给组长 Share with leader" writes here, and
+-- only through share_checkin_answer(): the member's token is the signup
+-- uuid (unguessable, no uid in the URL); pack_id and leader_id are copied
+-- from the matching study_signups row inside the function, so nothing
+-- client-supplied decides whose list the answer lands on. No INSERT policy
+-- for app roles; leaders SELECT their own rows.
+CREATE TABLE IF NOT EXISTS checkin_answers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  signup_id UUID NOT NULL REFERENCES study_signups(id) ON DELETE CASCADE,
+  pack_id TEXT NOT NULL,
+  leader_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  kind TEXT NOT NULL CHECK (kind IN ('tue', 'thu', 'weekend')),
+  answer TEXT NOT NULL CHECK (char_length(answer) BETWEEN 1 AND 2000),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_checkin_answers_pack_created ON checkin_answers(pack_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_checkin_answers_leader_id ON checkin_answers(leader_id);
+CREATE INDEX IF NOT EXISTS idx_checkin_answers_signup ON checkin_answers(signup_id);
+
+ALTER TABLE checkin_answers ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Leaders can view their own shared answers" ON checkin_answers;
+CREATE POLICY "Leaders can view their own shared answers"
+  ON checkin_answers FOR SELECT
+  TO authenticated
+  USING (auth.uid() = leader_id);
+-- No INSERT/UPDATE/DELETE policies for app roles: writes go through share_checkin_answer() only.
+
+-- Share one answer. SECURITY DEFINER so the anon member can write without
+-- any table privilege; ownership is copied from the signup row, never
+-- taken from the caller. search_path pinned (definer-function hygiene).
+CREATE OR REPLACE FUNCTION public.share_checkin_answer(p_signup_id UUID, p_kind TEXT, p_answer TEXT)
+RETURNS UUID
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+DECLARE
+  v_pack_id TEXT;
+  v_leader_id UUID;
+  v_id UUID;
+BEGIN
+  SELECT pack_id, leader_id INTO v_pack_id, v_leader_id FROM study_signups WHERE id = p_signup_id;
+  IF v_pack_id IS NULL THEN
+    RAISE EXCEPTION 'unknown signup' USING ERRCODE = 'P0002';
+  END IF;
+  INSERT INTO checkin_answers (signup_id, pack_id, leader_id, kind, answer)
+    VALUES (p_signup_id, v_pack_id, v_leader_id, p_kind, p_answer)
+    RETURNING id INTO v_id;
+  RETURN v_id;
+END $$;
+REVOKE ALL ON FUNCTION public.share_checkin_answer(UUID, TEXT, TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.share_checkin_answer(UUID, TEXT, TEXT) TO anon, authenticated;
+
+-- What the check-in page may know about its token: the pack title, the
+-- member's first name and commitment, the three check-in prompt lines and
+-- the optional feedback form. Never phone or email.
+CREATE OR REPLACE FUNCTION public.checkin_context(p_signup_id UUID)
+RETURNS TABLE (
+  pack_id TEXT, pack_title TEXT, name TEXT,
+  practice_area TEXT, practice_text TEXT, practice_note TEXT,
+  reflection_lines TEXT[], feedback_form_url TEXT
+)
+LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
+  SELECT s.pack_id, s.pack_title, s.name,
+         s.practice_area, s.practice_text, s.practice_note,
+         COALESCE(p.reflection_lines, '{}'), p.feedback_form_url
+  FROM study_signups s
+  LEFT JOIN pack_summaries p ON p.pack_id = s.pack_id
+  WHERE s.id = p_signup_id;
+$$;
+REVOKE ALL ON FUNCTION public.checkin_context(UUID) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.checkin_context(UUID) TO anon, authenticated;
 
 -- =====================================================
 -- SCHEDULE — pg_cron calls the send-checkins edge function via pg_net

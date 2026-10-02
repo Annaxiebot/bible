@@ -1,7 +1,8 @@
 /**
  * checkins.test.ts — the pure parts of send-checkins · 周中提醒单元测试
  *
- * Templates (Chinese first, two lines + link), kind-from-date in Los Angeles
+ * Templates (Chinese first: greeting, practice, prompt, personal link; the
+ * welcome; the Google Form path), kind-from-date in Los Angeles
  * time across DST, the 09:00 send-hour gate, recipient selection by consent
  * and channel, prompt extraction from the real sample pack, the schema-
  * version pin, and the two REST senders against a stubbed fetch.
@@ -10,10 +11,13 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import { readFileSync } from 'fs';
 import path from 'path';
 import {
-  renderCheckin, kindFromDate, isSendHour, promptsFromPack, packUrl, greeting, KIND_LABEL,
-  BILINGUAL_SEPARATOR, SITE_ORIGIN, CHECKIN_FROM_EMAIL, CheckinPack,
+  renderCheckin, kindFromDate, isSendHour, promptsFromPack, packUrl, greeting, practiceLine, checkinPageUrl, feedbackUrl,
+  prefillFormUrl, KIND_LABEL, BILINGUAL_SEPARATOR, SITE_ORIGIN, CHECKIN_FROM_EMAIL, WELCOME_KIND, CheckinPack, MemberContext,
 } from '../templates.ts';
-import { selectRecipients, testRecipientRow, verifyLeader, SignupRow } from '../recipients.ts';
+import {
+  selectRecipients, testRecipientRow, verifyLeader, memberContext, welcomeAllowed, WELCOME_WINDOW_MS, SignupRow,
+} from '../recipients.ts';
+import { checkinHash } from '../../../../components/checkin/checkinRoute';
 import { sendEmail, sendSms, RESEND_EMAILS_URL, twilioMessagesUrl } from '../senders.ts';
 import { loadCheckinPack, packFromSummary, PackSummaryRow } from '../packSource.ts';
 import { PACK_SCHEMA_VERSION as APP_SCHEMA_VERSION } from '../../../../components/studypack/packTypes';
@@ -24,24 +28,76 @@ const PACK: CheckinPack = {
   title: '不要忧虑 Do Not Be Anxious',
   leaderId: 'uid-lead',
   prompts: { tue: '周二跟进：操练做了吗？ · Tuesday check-in: did it happen?', thu: '周四 · Thu', weekend: '周末 · Weekend' },
+  feedbackFormUrl: null,
+  feedbackFormEntries: null,
 };
+const SIGNUP_ID = '7d4e8b2a-1c3f-4a5b-9e6d-0f1a2b3c4d5e';
+const MEMBER: MemberContext = { name: '小明', signupId: SIGNUP_ID, practice: '睡前程序 · Wind-down' };
+const FORM = 'https://docs.google.com/forms/d/e/abc/viewform';
 
 describe('renderCheckin', () => {
-  it('is two short lines plus the pack link, Chinese first on every line', () => {
-    const m = renderCheckin('tue', PACK, '小明');
+  it('is greeting, the member\'s own practice, the prompt, then the personal check-in link — Chinese first on every line', () => {
+    const m = renderCheckin('tue', PACK, MEMBER);
     const lines = m.text.split('\n');
-    expect(lines).toHaveLength(3);
+    expect(lines).toHaveLength(4);
     expect(lines[0]).toBe(greeting('小明'));
     expect(lines[0].indexOf('平安')).toBeLessThan(lines[0].indexOf('Peace'));
-    expect(lines[1]).toBe(PACK.prompts.tue);
-    expect(lines[2]).toBe(packUrl(PACK.id));
-    expect(lines[2]).toBe(`${SITE_ORIGIN}/#/pack/${PACK.id}`);
+    expect(lines[1]).toBe(practiceLine(MEMBER.practice!));
+    expect(lines[1]).toBe('你选的操练：睡前程序 · Wind-down · Your practice: 睡前程序 · Wind-down');
+    expect(lines[2]).toBe(PACK.prompts.tue);
+    expect(lines[3]).toBe(checkinPageUrl(SIGNUP_ID, 'tue'));
+    expect(lines[3]).toBe(`${SITE_ORIGIN}/${checkinHash(SIGNUP_ID, 'tue')}`);   // same route the app parses
+    expect(lines[3]).not.toContain('uid-lead');
   });
 
-  it('subject is bilingual (中文 · English) and names the pack', () => {
-    const m = renderCheckin('weekend', PACK, 'Ann');
+  it('the welcome restates the practice, promises the mid-week reminder, and links the check-in page without a kind', () => {
+    const m = renderCheckin(WELCOME_KIND, PACK, MEMBER);
+    expect(m.subject).toBe(`${KIND_LABEL.welcome.zh}${BILINGUAL_SEPARATOR}${KIND_LABEL.welcome.en} — ${PACK.title}`);
+    const lines = m.text.split('\n');
+    expect(lines[1]).toBe(practiceLine(MEMBER.practice!));
+    expect(lines[2]).toBe('周中我们会再提醒你 · We will remind you mid-week');
+    expect(lines[3]).toBe(checkinPageUrl(SIGNUP_ID, null));
+  });
+
+  it('without a practice (pre-commitment row) the line is omitted; the leader test (no signup id) links the pack', () => {
+    const m = renderCheckin('weekend', PACK, { name: 'Ann', signupId: null, practice: null });
     expect(m.subject).toBe(`${KIND_LABEL.weekend.zh}${BILINGUAL_SEPARATOR}${KIND_LABEL.weekend.en} — ${PACK.title}`);
-    expect(m.text).toContain(PACK.prompts.weekend);
+    const lines = m.text.split('\n');
+    expect(lines).toHaveLength(3);
+    expect(lines[1]).toBe(PACK.prompts.weekend);
+    expect(lines[2]).toBe(packUrl(PACK.id));
+  });
+
+  it('a pack with a Google Form links the form (prefilled when entry ids exist) for every kind, welcome included', () => {
+    const withForm = { ...PACK, feedbackFormUrl: FORM, feedbackFormEntries: { name: 'entry.1', practice: 'entry.2' } };
+    const link = feedbackUrl(withForm, MEMBER, 'thu');
+    expect(link).toBe(prefillFormUrl(FORM, withForm.feedbackFormEntries, { name: '小明', practice: MEMBER.practice! }));
+    expect(new URL(link).searchParams.get('entry.2')).toBe('睡前程序 · Wind-down');
+    expect(renderCheckin(WELCOME_KIND, withForm, MEMBER).text.split('\n')[3]).toBe(link);
+    expect(feedbackUrl({ ...PACK, feedbackFormUrl: FORM }, MEMBER, 'tue')).toBe(FORM);   // no ids: plain form
+    expect(feedbackUrl(PACK, MEMBER, 'tue')).toBe(checkinPageUrl(SIGNUP_ID, 'tue'));
+  });
+});
+
+describe('memberContext + welcomeAllowed', () => {
+  const row = (over: Partial<SignupRow>): SignupRow => ({
+    id: SIGNUP_ID, pack_id: 'p', leader_id: 'uid-lead', name: 'n', phone: null, email: 'a@x.org', consent_checkins: true,
+    practice_text: 'menu', practice_note: null, ...over,
+  });
+
+  it('the own version beats the menu text; neither → null', () => {
+    expect(memberContext(row({}))).toEqual({ name: 'n', signupId: SIGNUP_ID, practice: 'menu' });
+    expect(memberContext(row({ practice_note: ' mine ' })).practice).toBe('mine');
+    expect(memberContext(row({ practice_text: null })).practice).toBeNull();
+  });
+
+  it('a welcome is allowed only for a row created within the last 10 minutes', () => {
+    const now = new Date('2026-10-02T20:10:00Z');
+    expect(welcomeAllowed(row({ created_at: '2026-10-02T20:05:00Z' }), now)).toEqual({ ok: true });
+    expect(welcomeAllowed(row({ created_at: new Date(now.getTime() - WELCOME_WINDOW_MS - 1).toISOString() }), now).ok).toBe(false);
+    expect(welcomeAllowed(row({ created_at: '2026-10-02T20:11:00Z' }), now).ok).toBe(false);   // from the future
+    expect(welcomeAllowed(row({}), now).ok).toBe(false);                                        // no created_at
+    expect(WELCOME_WINDOW_MS).toBe(10 * 60 * 1000);
   });
 });
 
@@ -72,7 +128,8 @@ describe('isSendHour', () => {
 
 describe('selectRecipients', () => {
   const row = (over: Partial<SignupRow>): SignupRow => ({
-    id: 'x', pack_id: 'p', leader_id: 'uid-lead', name: 'n', phone: null, email: null, consent_checkins: true, ...over,
+    id: 'x', pack_id: 'p', leader_id: 'uid-lead', name: 'n', phone: null, email: null, consent_checkins: true,
+    practice_text: null, practice_note: null, ...over,
   });
 
   it('emails consenting rows with an email; skips no-consent and no-contact rows with a reason', () => {
@@ -107,7 +164,8 @@ describe('selectRecipients', () => {
 
 describe('verifyLeader', () => {
   const row = (over: Partial<SignupRow>): SignupRow => ({
-    id: 'x', pack_id: PACK.id, leader_id: 'uid-lead', name: 'n', phone: null, email: 'a@x.org', consent_checkins: true, ...over,
+    id: 'x', pack_id: PACK.id, leader_id: 'uid-lead', name: 'n', phone: null, email: 'a@x.org', consent_checkins: true,
+    practice_text: null, practice_note: null, ...over,
   });
 
   it('returns the pack leader when every row carries that leader and pack id', () => {
@@ -131,6 +189,10 @@ describe('promptsFromPack', () => {
     expect(pack.prompts.tue).toMatch(/^周二跟进/);
     expect(pack.prompts.thu).toMatch(/^周四跟进/);
     expect(pack.prompts.weekend).toMatch(/^周末回顾/);
+    expect(pack.feedbackFormUrl).toBeNull();
+    const raw = JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8'));
+    expect(promptsFromPack({ ...raw, feedbackFormUrl: FORM, feedbackFormEntries: { name: 'entry.1' } }))
+      .toMatchObject({ feedbackFormUrl: FORM, feedbackFormEntries: { name: 'entry.1' } });
   });
 
   it('throws with context when the reflection section is missing or short', () => {
@@ -153,7 +215,12 @@ describe('loadCheckinPack (packSource)', () => {
     expect(pack).toEqual(packFromSummary(summary));
     expect(pack.leaderId).toBe('uid-lead');
     expect(pack.prompts).toEqual({ tue: '周二 · Tue', thu: '周四 · Thu', weekend: '周末 · Weekend' });
+    expect(pack.feedbackFormUrl).toBeNull();
     expect(fetchPublic).not.toHaveBeenCalled();
+    const withForm = await loadCheckinPack(summary.pack_id, {
+      readSummary: async () => ({ ...summary, feedback_form_url: FORM, feedback_form_entries: { practice: 'entry.2' } }), fetchPublic,
+    });
+    expect(withForm).toMatchObject({ feedbackFormUrl: FORM, feedbackFormEntries: { practice: 'entry.2' } });
   });
 
   it('falls back to the public pack JSON only when there is no summary; errors when neither exists', async () => {

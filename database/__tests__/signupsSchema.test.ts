@@ -11,6 +11,7 @@ import { readFileSync } from 'fs';
 import path from 'path';
 import { SIGNUPS_TABLE } from '../../components/signup/signupSchema';
 import { PACK_SUMMARIES_TABLE } from '../../components/signup/packSummary';
+import { CHECKIN_ANSWERS_TABLE, SHARE_ANSWER_FN, CHECKIN_CONTEXT_FN } from '../../components/signup/signupSchema';
 import { PACK_SUMMARIES_TABLE as FN_SUMMARIES_TABLE } from '../../supabase/functions/send-checkins/packSource.ts';
 
 const sql = readFileSync(path.resolve(__dirname, '../signups-schema.sql'), 'utf-8');
@@ -31,7 +32,7 @@ describe('signups-schema.sql', () => {
   });
 
   it('every table carries a NOT NULL leader_id and RLS is enabled on each', () => {
-    for (const table of [SIGNUPS_TABLE, PACK_SUMMARIES_TABLE, 'checkin_sends']) {
+    for (const table of [SIGNUPS_TABLE, PACK_SUMMARIES_TABLE, 'checkin_sends', CHECKIN_ANSWERS_TABLE]) {
       const body = sql.slice(sql.indexOf(`CREATE TABLE IF NOT EXISTS ${table} (`));
       expect(body.slice(0, body.indexOf(');'))).toMatch(/leader_id UUID NOT NULL REFERENCES auth\.users\(id\)/);
       expect(sql).toContain(`ALTER TABLE ${table} ENABLE ROW LEVEL SECURITY;`);
@@ -57,6 +58,40 @@ describe('signups-schema.sql', () => {
     expect(policy('Leaders can update their own pack summaries')).toBe(
       `ON ${PACK_SUMMARIES_TABLE} FOR UPDATE TO authenticated USING (auth.uid() = leader_id) WITH CHECK (auth.uid() = leader_id)`);
     expect(sql).not.toMatch(new RegExp(`ON ${PACK_SUMMARIES_TABLE} [^;]*TO anon`));
+  });
+
+  it('study_signups carries the commitment columns; pack_summaries the optional feedback form', () => {
+    for (const col of ['practice_area', 'practice_text', 'practice2_area', 'practice2_text', 'practice_note']) {
+      expect(sql).toContain(`ALTER TABLE ${SIGNUPS_TABLE} ADD COLUMN IF NOT EXISTS ${col} TEXT;`);
+    }
+    expect(sql).toContain(`ALTER TABLE ${PACK_SUMMARIES_TABLE} ADD COLUMN IF NOT EXISTS feedback_form_url TEXT;`);
+    expect(sql).toContain(`ALTER TABLE ${PACK_SUMMARIES_TABLE} ADD COLUMN IF NOT EXISTS feedback_form_entries JSONB;`);
+    expect(sql).toContain("CHECK (kind IN ('tue', 'thu', 'weekend', 'welcome'))");
+  });
+
+  it('checkin_answers: leader-scoped SELECT only; writes go through the SECURITY DEFINER function that copies ownership from the signup row', () => {
+    expect(sql).toContain(`CREATE TABLE IF NOT EXISTS ${CHECKIN_ANSWERS_TABLE} (`);
+    expect(sql).toContain(`ALTER TABLE ${CHECKIN_ANSWERS_TABLE} ENABLE ROW LEVEL SECURITY;`);
+    expect(policy('Leaders can view their own shared answers')).toBe(
+      `ON ${CHECKIN_ANSWERS_TABLE} FOR SELECT TO authenticated USING (auth.uid() = leader_id)`);
+    expect(sql).not.toMatch(new RegExp(`ON ${CHECKIN_ANSWERS_TABLE} FOR (INSERT|UPDATE|DELETE)`));
+    const fn = sql.slice(sql.indexOf(`CREATE OR REPLACE FUNCTION public.${SHARE_ANSWER_FN}(`));
+    const body = fn.slice(0, fn.indexOf('$$;') + 3);
+    expect(body).toContain('SECURITY DEFINER');
+    expect(body).toContain('SET search_path = public');
+    expect(body).toMatch(/SELECT pack_id, leader_id INTO v_pack_id, v_leader_id FROM study_signups WHERE id = p_signup_id/);
+    expect(body).toMatch(/INSERT INTO checkin_answers \(signup_id, pack_id, leader_id, kind, answer\)\s+VALUES \(p_signup_id, v_pack_id, v_leader_id, p_kind, p_answer\)/);
+    expect(sql).toContain(`GRANT EXECUTE ON FUNCTION public.${SHARE_ANSWER_FN}(UUID, TEXT, TEXT) TO anon, authenticated;`);
+  });
+
+  it('checkin_context: the member page reads practice + prompts by token only, never contact details', () => {
+    const fn = sql.slice(sql.indexOf(`CREATE OR REPLACE FUNCTION public.${CHECKIN_CONTEXT_FN}(`));
+    const body = fn.slice(0, fn.indexOf('$$;') + 3);
+    expect(body).toContain('SECURITY DEFINER');
+    expect(body).toContain('WHERE s.id = p_signup_id');
+    expect(body).not.toMatch(/\b(phone|email)\b/);
+    expect(body).toContain('feedback_form_url');
+    expect(sql).toContain(`GRANT EXECUTE ON FUNCTION public.${CHECKIN_CONTEXT_FN}(UUID) TO anon, authenticated;`);
   });
 
   it('checkin_sends: owner-scoped SELECT, no app-role INSERT; the cron body marks itself scheduled', () => {
