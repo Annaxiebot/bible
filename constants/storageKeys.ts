@@ -42,6 +42,9 @@ export const STORAGE_KEYS = {
   AI_PROVIDER: 'ai_provider',
   AI_MODEL: 'ai_model',
 
+  // New study: the leader's default Google Form for feedback ("用于我所有的查经 Use for all my studies")
+  FEEDBACK_FORM_DEFAULT_URL: 'feedback_form_default_url',
+
   // Device/sync
   DEVICE_ID: 'bible_device_id',
   SYNC_STATE: 'bible-app-sync-state',

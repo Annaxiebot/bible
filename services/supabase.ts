@@ -7,6 +7,8 @@
  */
 
 import { createClient, User, Session, AuthError } from '@supabase/supabase-js';
+import { rememberAuthReturn, takeAuthReturn } from './authReturnHash';
+import { GOOGLE_SIGN_IN_SCOPES, GOOGLE_SIGN_IN_QUERY } from './googleForms';
 
 // Get configuration from environment variables
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
@@ -127,12 +129,19 @@ class AuthManager {
   }
 
   private updateState(session: Session | null) {
+    const signedIn = !this.state.isAuthenticated && !!session;
     this.state = {
       user: session?.user || null,
       session,
       isAuthenticated: !!session,
       isLoading: false
     };
+    // Back to the hash route the sign-in started from (authReturnHash); no-op when none was stored.
+    // TODO(R4): services/supabase.ts is over budget — split AuthManager into services/authManager.ts.
+    if (signedIn) {
+      const back = takeAuthReturn();
+      if (back) window.location.hash = back;
+    }
     this.notify();
   }
 
@@ -154,12 +163,13 @@ class AuthManager {
     if (!supabase) {
       return { error: new Error('Supabase not configured') as unknown as AuthError };
     }
+    rememberAuthReturn(window.location.hash);
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: window.location.origin + window.location.pathname,
-        scopes: 'openid email profile',
-        queryParams: { prompt: 'consent' },
+        scopes: GOOGLE_SIGN_IN_SCOPES,
+        queryParams: GOOGLE_SIGN_IN_QUERY,
       }
     });
     return { error };
