@@ -1,5 +1,5 @@
 /**
- * LandingNav.tsx — sticky three-link top nav · 頁內導航
+ * LandingNav.tsx — sticky three-link top nav · 页内导航
  *
  * Three large tap targets (≥48px) that scroll to the group card, the
  * personal card. They are buttons, not hash

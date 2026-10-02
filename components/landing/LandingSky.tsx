@@ -1,5 +1,5 @@
 /**
- * LandingSky.tsx — the hero's living background · 首頁夜空
+ * LandingSky.tsx — the hero's living background · 首页夜空
  *
  * Theme: God's sovereignty and care, without intimidation — vast scale,
  * gentle motion. Renders the selected hero theme (see heroThemes.ts) with

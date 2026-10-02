@@ -1,5 +1,5 @@
 /**
- * heroThemes.ts — registry + pure selector for the hero background · 主視覺主題
+ * heroThemes.ts — registry + pure selector for the hero background · 主视觉主题
  *
  * The site rotates among background animations DETERMINISTICALLY:
  *   1. `override` (from a `?theme=<id>` URL param) wins;
@@ -25,8 +25,8 @@ export interface HeroTheme {
 }
 
 export const HERO_THEMES: readonly HeroTheme[] = [
-  { id: 'dawn', verseZh: '創世記 1:3', verseEn: 'Genesis 1:3', Component: DawnTheme },
-  { id: 'stars', verseZh: '詩篇 147:4', verseEn: 'Psalm 147:4', Component: StarsTheme },
+  { id: 'dawn', verseZh: '创世记 1:3', verseEn: 'Genesis 1:3', Component: DawnTheme },
+  { id: 'stars', verseZh: '诗篇 147:4', verseEn: 'Psalm 147:4', Component: StarsTheme },
 ];
 
 /** Sample pack id → theme id. Only honoured when that theme is registered. */

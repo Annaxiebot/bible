@@ -1,5 +1,5 @@
 /**
- * Landing.tsx — scripturetolife.org home page · 首頁
+ * Landing.tsx — scripturetolife.org home page · 首页
  *
  * Minimalist, mobile-first, dark (slate-950/amber, matching TV mode), with
  * large type for adults and seniors. Shown only at the bare root URL; the

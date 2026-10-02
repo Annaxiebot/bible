@@ -1,5 +1,5 @@
 /**
- * DawnTheme.tsx — "Light over the deep" · 淵面之光
+ * DawnTheme.tsx — "Light over the deep" · 渊面之光
  *
  * Genesis 1:2–3: darkness over the deep, then light. A very slow amber dawn
  * rises from the bottom of the hero over faint horizontal ripple bands.

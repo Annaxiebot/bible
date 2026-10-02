@@ -1,5 +1,5 @@
 /**
- * LandingNumbers.tsx — "真實的數字 Honest numbers": four true figures · 真實的數字
+ * LandingNumbers.tsx — "真实的数字 Honest numbers": four true figures · 真实的数字
  *
  * Exactly four figures, every one verifiable from the repo (HONEST_NUMBERS
  * in landingStrings carries the sources; LandingNumbers.test.tsx re-counts

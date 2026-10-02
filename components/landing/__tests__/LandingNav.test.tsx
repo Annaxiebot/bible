@@ -1,5 +1,5 @@
 /**
- * LandingNav.test.tsx — sticky three-link nav · 頁內導航測試
+ * LandingNav.test.tsx — sticky three-link nav · 页内导航测试
  *
  * Three buttons (never hash links: a hash would route away from the
  * landing), each scrolling its section into view. The full landing mounts

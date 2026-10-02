@@ -1,5 +1,5 @@
 /**
- * landingRoute.ts — root-view resolution for the landing gate · 首頁路由
+ * landingRoute.ts — root-view resolution for the landing gate · 首页路由
  *
  * Only a bare root URL (no hash at all, or a lone "#") shows the landing.
  * "#/pack/<id>" is TV presentation mode; every other hash — "#app" and any

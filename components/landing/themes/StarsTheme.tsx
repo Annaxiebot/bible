@@ -1,5 +1,5 @@
 /**
- * StarsTheme.tsx — "He counts the stars and names each one" · 數點星宿
+ * StarsTheme.tsx — "He counts the stars and names each one" · 数点星宿
  *
  * Psalm 147:4. ~40 sparse tiny stars (1–2px, slate-300 at 30–60%) breathing
  * on staggered 8–20s cycles; every ~10s one warms to amber and swells

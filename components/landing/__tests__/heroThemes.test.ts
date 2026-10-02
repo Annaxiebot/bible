@@ -1,5 +1,5 @@
 /**
- * heroThemes.test.ts — deterministic hero theme selection · 主題選擇測試
+ * heroThemes.test.ts — deterministic hero theme selection · 主题选择测试
  */
 import React from 'react';
 import { describe, it, expect, beforeEach } from 'vitest';

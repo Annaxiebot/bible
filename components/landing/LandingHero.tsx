@@ -1,5 +1,5 @@
 /**
- * LandingHero.tsx — wordmark, animated loop diagram, sub-line · 首頁主視覺
+ * LandingHero.tsx — wordmark, animated loop diagram, sub-line · 首页主视觉
  *
  * The three-step loop is an inline SVG: three nodes that light up in
  * sequence while an amber glow travels along the arrows (CSS-only, see

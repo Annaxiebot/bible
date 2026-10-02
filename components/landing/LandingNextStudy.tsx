@@ -1,5 +1,5 @@
 /**
- * LandingNextStudy.tsx — "下次查經 Next study": the current pack · 下次查經
+ * LandingNextStudy.tsx — "下次查经 Next study": the current pack · 下次查经
  *
  * Takes a pack id (today the sample pack; later a "current pack" setting)
  * and loads it through the same seam TV mode uses (packSource.loadPack →
@@ -7,7 +7,7 @@
  * type with two CTAs: open the pack in TV mode, and reveal the group's
  * sign-up QR (SIGNUP_QR from packAssembly — one definition for every pack).
  * A failed load is a handled state, not an error: the block still renders
- * with the static pack link and a bilingual "暫無 · none yet" line.
+ * with the static pack link and a bilingual "暂无 · none yet" line.
  */
 import React, { useEffect, useState } from 'react';
 import { loadPack } from '../studypack/packSource';

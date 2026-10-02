@@ -1,5 +1,5 @@
 /**
- * heroThemeSession.ts — pick the hero theme once per session · 每次造訪只選一次
+ * heroThemeSession.ts — pick the hero theme once per session · 每次造访只选一次
  *
  * Reads `?theme=<id>` and the sample pack, selects via selectHeroTheme, and
  * pins the result in sessionStorage so a reload never switches themes

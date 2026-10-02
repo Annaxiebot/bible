@@ -1,5 +1,5 @@
 /**
- * landing.spec.ts — landing page in a real browser · 首頁端到端測試
+ * landing.spec.ts — landing page in a real browser · 首页端到端测试
  *
  * The bare root URL shows the landing; its two CTAs set the hash and route
  * to TV mode and to the app; a bookmarked hash bypasses it; type meets the
@@ -154,7 +154,7 @@ test.describe('Landing page', () => {
     await page.goto('./?theme=stars');
     await expect(page.getByTestId('landing-page')).toBeVisible();
     const zhRef = page.getByTestId('theme-caption').getByTestId('verse-ref').first();
-    await expect(zhRef).toHaveText('詩篇 147:4');
+    await expect(zhRef).toHaveText('诗篇 147:4');
     await zhRef.hover();
     const tooltip = page.getByRole('tooltip');
     await expect(page.getByTestId('verse-tooltip-title')).toHaveText('诗篇 147:4 · Psalm 147:4');
