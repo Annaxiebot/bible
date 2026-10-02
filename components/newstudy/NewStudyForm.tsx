@@ -53,6 +53,31 @@ const NumberField: React.FC<{
   </label>
 );
 
+/** Optional lesson title + the lesson-number/date sub-grid. */
+const LessonFields: React.FC<{ req: StudyRequest; update: (patch: Partial<StudyRequest>) => void }> = ({ req, update }) => (
+  <>
+    <label className={labelClass} style={textStyle}>
+      <span>{NS_LESSON_TITLE}</span>
+      <input type="text" value={req.lessonTitle ?? ''} aria-label={NS_LESSON_TITLE} data-testid="ns-lesson-title"
+        onChange={e => update({ lessonTitle: e.target.value })} className={inputClass} style={controlStyle} />
+    </label>
+    <div className="grid grid-cols-2 gap-4">
+      <label className={labelClass} style={textStyle}>
+        <span>{NS_LESSON_NUMBER}</span>
+        <input type="number" inputMode="numeric" min={1} value={req.lessonNumber ?? ''} aria-label={NS_LESSON_NUMBER}
+          data-testid="ns-lesson-number"
+          onChange={e => update({ lessonNumber: e.target.value ? Number(e.target.value) : undefined })}
+          className={inputClass} style={controlStyle} />
+      </label>
+      <label className={labelClass} style={textStyle}>
+        <span>{NS_DATE}</span>
+        <input type="date" value={req.date} aria-label={NS_DATE} data-testid="ns-date"
+          onChange={e => update({ date: e.target.value })} className={inputClass} style={controlStyle} />
+      </label>
+    </div>
+  </>
+);
+
 const NewStudyForm: React.FC<Props> = ({ busy, onGenerate }) => {
   const [req, setReq] = useState<StudyRequest>({ ...DEFAULT_REQUEST, date: todayIso() });
   const [error, setError] = useState<string | null>(null);
@@ -86,25 +111,7 @@ const NewStudyForm: React.FC<Props> = ({ busy, onGenerate }) => {
         <NumberField label={NS_VERSE_TO} value={req.verseTo} min={1} testId="ns-verse-to"
           onChange={verseTo => update({ verseTo })} />
       </div>
-      <label className={labelClass} style={textStyle}>
-        <span>{NS_LESSON_TITLE}</span>
-        <input type="text" value={req.lessonTitle ?? ''} aria-label={NS_LESSON_TITLE} data-testid="ns-lesson-title"
-          onChange={e => update({ lessonTitle: e.target.value })} className={inputClass} style={controlStyle} />
-      </label>
-      <div className="grid grid-cols-2 gap-4">
-        <label className={labelClass} style={textStyle}>
-          <span>{NS_LESSON_NUMBER}</span>
-          <input type="number" inputMode="numeric" min={1} value={req.lessonNumber ?? ''} aria-label={NS_LESSON_NUMBER}
-            data-testid="ns-lesson-number"
-            onChange={e => update({ lessonNumber: e.target.value ? Number(e.target.value) : undefined })}
-            className={inputClass} style={controlStyle} />
-        </label>
-        <label className={labelClass} style={textStyle}>
-          <span>{NS_DATE}</span>
-          <input type="date" value={req.date} aria-label={NS_DATE} data-testid="ns-date"
-            onChange={e => update({ date: e.target.value })} className={inputClass} style={controlStyle} />
-        </label>
-      </div>
+      <LessonFields req={req} update={update} />
       {error && <p role="alert" className="text-red-300" style={textStyle}>{error}</p>}
       <button type="submit" disabled={busy} className={primaryButtonClass} style={controlStyle} data-testid="ns-generate">
         {busy ? NS_GENERATING : NS_GENERATE}
