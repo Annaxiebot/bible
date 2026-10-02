@@ -1,14 +1,18 @@
-import { test, expect, Page } from '@playwright/test';
+/**
+ * tv-presentation.spec.ts — TV presentation mode + Ask AI overlay · 大屏模式端到端
+ *
+ * Navigation, slide content and the Ask AI overlay (configured, mocked at
+ * the network level; unconfigured → inline key setup → auto-send). Cross-
+ * references live in tv-cross-refs.spec.ts; 1080p fit and phone viewports
+ * in tv-phone.spec.ts. Shared helpers: helpers/tv.ts.
+ */
+import { test, expect } from '@playwright/test';
 import { STORAGE_KEYS } from '../../constants/storageKeys';
-import { SAMPLE_PACK_HASH } from '../../components/landing/landingRoute';
 import { FIRST_SLIDE_HINT, ASK_AI_LABEL } from '../../components/studypack/tvHints';
 import { LIFE_AREAS } from '../../components/studypack/principles';
-
-async function openTV(page: Page) {
-  await page.goto(SAMPLE_PACK_HASH);
-  await expect(page.getByTestId('tv-presentation')).toBeVisible();
-  await expect(page.getByText('不要忧虑 Do Not Be Anxious')).toBeVisible();
-}
+import { DEFAULT_AI_SETUP, wireModelId } from '../../services/aiDefaults';
+import { SETUP_TITLE, SETUP_KEY_LABEL, SETUP_SAVE } from '../../components/setup/setupStrings';
+import { openTV, injectApiKey, mockOpenRouterStream } from './helpers/tv';
 
 test.describe('TV Presentation Mode', () => {
   test('loads the pack from the URL and shows the title slide', async ({ page }) => {
@@ -145,28 +149,10 @@ test.describe('Ask AI overlay', () => {
   });
 
   test('discussion slide: Ask AI auto-sends the question, one click', async ({ page }) => {
-    // Key injected + the OpenRouter endpoint mocked at the network level with
-    // a real SSE stream body (delta chunks + [DONE]) — no live AI call.
-    // Honest limitation: route.fulfill delivers the whole body at once, so
-    // this asserts the final streamed render; token-by-token incremental
-    // rendering is covered by the AskAIOverlay unit tests.
-    await page.addInitScript(
-      (key) => localStorage.setItem(key, 'e2e-test-key'),
-      STORAGE_KEYS.OPENROUTER_API_KEY,
-    );
-    await page.route('https://openrouter.ai/api/v1/chat/completions', route =>
-      route.fulfill({
-        status: 200,
-        headers: { 'Content-Type': 'text/event-stream' },
-        body: [
-          'data: {"choices":[{"delta":{"role":"assistant","content":"Anxiety follows "}}]}',
-          '',
-          'data: {"choices":[{"delta":{"content":"the treasure (v.25)."}}]}',
-          '',
-          'data: [DONE]',
-          '',
-        ].join('\n'),
-      }));
+    // Key injected + OpenRouter mocked at the network level (helpers/tv.ts).
+    await injectApiKey(page);
+    // Only a key injected (no provider/model chosen): the request must carry the free router.
+    await mockOpenRouterStream(page, ['Anxiety follows ', 'the treasure (v.25).'], wireModelId(DEFAULT_AI_SETUP.model));
     await openTV(page);
     for (let i = 0; i < 8; i++) await page.keyboard.press('ArrowRight');
     await expect(page.getByText(/讨论 Discussion · 1\/5/)).toBeVisible();
@@ -181,25 +167,10 @@ test.describe('Ask AI overlay', () => {
   });
 
   test('answers render markdown with verse-ref tooltips from the pack', async ({ page }) => {
-    await page.addInitScript(
-      (key) => localStorage.setItem(key, 'e2e-test-key'),
-      STORAGE_KEYS.OPENROUTER_API_KEY,
-    );
-    await page.route('https://openrouter.ai/api/v1/chat/completions', route =>
-      route.fulfill({
-        status: 200,
-        headers: { 'Content-Type': 'text/event-stream' },
-        body: [
-          // Mocked streamed answer: markdown bold + one in-pack ref (v.26)
-          // and one out-of-pack ref (v.24 — resolved from the bundled data).
-          'data: {"choices":[{"delta":{"content":"**Trust** the Father "}}]}',
-          '',
-          'data: {"choices":[{"delta":{"content":"(v.26), unlike v.24."}}]}',
-          '',
-          'data: [DONE]',
-          '',
-        ].join('\n'),
-      }));
+    await injectApiKey(page);
+    // Mocked streamed answer: markdown bold + one in-pack ref (v.26)
+    // and one out-of-pack ref (v.24 — resolved from the bundled data).
+    await mockOpenRouterStream(page, ['**Trust** the Father ', '(v.26), unlike v.24.']);
     await openTV(page);
     for (let i = 0; i < 8; i++) await page.keyboard.press('ArrowRight');
     await page.keyboard.press('a');
@@ -220,126 +191,35 @@ test.describe('Ask AI overlay', () => {
     await expect(page.getByRole('tooltip')).toContainText('No one can serve two masters'); // then BSB
   });
 
-  test('without an API key the overlay says OpenRouter is not configured', async ({ page }) => {
+  test('without a key: the overlay shows the inline setup; Save sends the pending question', async ({ page }) => {
     // Fresh browser context has no OpenRouter key: the real unconfigured path.
-    // The AI call itself is NOT exercised in e2e — no key, no network call.
+    // The key is typed into the masked field (never a URL); the chat call is mocked.
+    await mockOpenRouterStream(page, ['Anxiety follows ', 'the treasure (v.25).'], wireModelId(DEFAULT_AI_SETUP.model));
     await openTV(page);
+    for (let i = 0; i < 8; i++) await page.keyboard.press('ArrowRight');
     await page.keyboard.press('a');
-    await expect(page.getByText(/OpenRouter API key/)).toBeVisible();
+    const setup = page.getByTestId('quick-ai-setup');
+    await expect(setup).toBeVisible();
+    await expect(setup.getByRole('heading', { name: SETUP_TITLE })).toBeVisible();
     await expect(page.getByLabel(/Ask AI question/)).toBeDisabled();
+    await expect(page.getByText(/Q: 这一周/)).toHaveCount(0); // nothing sent yet
+
+    const field = setup.getByLabel(SETUP_KEY_LABEL);
+    await expect(field).toHaveAttribute('type', 'password');
+    await field.fill('sk-or-e2e-key');
+    await setup.getByRole('button', { name: SETUP_SAVE }).click();
+
+    // Stored under the existing key + defaults applied; the key never reached the URL
+    const stored = await page.evaluate(([k, p, m]) => [
+      localStorage.getItem(k), localStorage.getItem(p), localStorage.getItem(m),
+    ], [STORAGE_KEYS.OPENROUTER_API_KEY, STORAGE_KEYS.AI_PROVIDER, STORAGE_KEYS.AI_MODEL]);
+    expect(stored).toEqual(['sk-or-e2e-key', DEFAULT_AI_SETUP.provider, DEFAULT_AI_SETUP.model]);
+    expect(page.url()).not.toContain('sk-or-e2e-key');
+
+    // The pending discussion question auto-sends and the mocked answer renders
+    await expect(setup).toHaveCount(0);
+    await expect(page.getByText(/Q: 这一周，忧虑实际出现在哪里/)).toBeVisible();
+    await expect(page.getByText('Anxiety follows the treasure (v.25).')).toBeVisible();
+    await expect(page.getByLabel(/Ask AI question/)).toBeEnabled();
   });
 });
-
-test.describe('Interactive cross-references (bundled Bible data)', () => {
-  // Slide order: 1 title, 2–4 scripture, 5 context, 6 original language, 7 cross-refs
-  async function openCrossRefsSlide(page: Page) {
-    await openTV(page);
-    for (let i = 0; i < 7; i++) await page.keyboard.press('ArrowRight');
-    await expect(page.getByText(/交叉经文 Cross-references/)).toBeVisible();
-  }
-
-  test('hovering "Philippians 4:6–7" shows 和合本 text first, then BSB', async ({ page }) => {
-    await openCrossRefsSlide(page);
-    const ref = page.getByTestId('verse-ref').filter({ hasText: 'Philippians 4:6–7' });
-    await expect(ref).toBeVisible();
-    await ref.hover();
-    const tooltip = page.getByRole('tooltip');
-    await expect(tooltip).toContainText('应当一无挂虑');                 // 和合本 (简体) v.6
-    await expect(tooltip).toContainText('Be anxious for nothing');      // BSB v.6
-    await expect(tooltip).toContainText('present your requests to God');
-    // Chinese renders before English within the verse block
-    const text = await tooltip.innerText();
-    expect(text.indexOf('应当一无挂虑')).toBeLessThan(text.indexOf('Be anxious for nothing'));
-  });
-
-  test('the Chinese form 路加福音 12:22–31 opens a long-range popup that stays in the viewport and scrolls', async ({ page }) => {
-    await openCrossRefsSlide(page);
-    const ref = page.getByTestId('verse-ref').filter({ hasText: '路加福音 12:22–31' });
-    await ref.hover();
-    const tooltip = page.getByRole('tooltip');
-    await expect(tooltip).toContainText('不要为生命忧虑');  // Luke 12:22 和合本
-    const box = (await tooltip.boundingBox())!;
-    const viewport = page.viewportSize()!;
-    expect(box.x).toBeGreaterThanOrEqual(0);
-    expect(box.y).toBeGreaterThanOrEqual(0);
-    expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1);
-    expect(box.y + box.height).toBeLessThanOrEqual(viewport.height + 1);
-    // 10 bilingual verses cannot fit in half the viewport: content must scroll
-    const scrollable = await tooltip.evaluate(el => el.scrollHeight > el.clientHeight);
-    expect(scrollable).toBe(true);
-  });
-
-  test('a popup fetch failure shows the bilingual error line (no silent catch)', async ({ page }) => {
-    await page.route('**/bible-data/**', route => route.fulfill({ status: 404, body: 'nope' }));
-    await openCrossRefsSlide(page);
-    await page.getByTestId('verse-ref').filter({ hasText: '1 Peter 5:7' }).hover();
-    await expect(page.getByRole('tooltip')).toContainText('无法加载 could not load');
-  });
-});
-
-test.describe('TV fit at 1080p', () => {
-  test.use({ viewport: { width: 1920, height: 1080 } });
-
-  test('the densest scripture slide (3 bilingual verses) fits without scrolling', async ({ page }) => {
-    await openTV(page);
-    for (let i = 0; i < 4; i++) await page.keyboard.press('ArrowRight');
-    await expect(page.getByText(/经文 Scripture.*· 4\/4/)).toBeVisible(); // vv.32–34
-    const fits = await page
-      .getByTestId('tv-presentation')
-      .evaluate(root => {
-        const area = root.querySelector('.overflow-y-auto.flex-1') as HTMLElement;
-        return area !== null && area.scrollHeight <= area.clientHeight + 1;
-      });
-    expect(fits).toBe(true);
-  });
-});
-
-/** Dispatch a touch gesture through the real event system (React listens at the root). */
-async function swipe(page: Page, from: { x: number; y: number }, to: { x: number; y: number }) {
-  await page.evaluate(([a, b]) => {
-    const el = document.querySelector('[data-testid="tv-presentation"]')!;
-    const touch = (x: number, y: number) =>
-      new Touch({ identifier: 1, target: el, clientX: x, clientY: y });
-    el.dispatchEvent(new TouchEvent('touchstart', {
-      bubbles: true, touches: [touch(a.x, a.y)], changedTouches: [touch(a.x, a.y)],
-    }));
-    el.dispatchEvent(new TouchEvent('touchend', {
-      bubbles: true, touches: [], changedTouches: [touch(b.x, b.y)],
-    }));
-  }, [from, to] as const);
-}
-
-for (const viewport of [{ width: 844, height: 390 }, { width: 390, height: 844 }]) {
-  test.describe(`Phone viewport ${viewport.width}x${viewport.height}`, () => {
-    test.use({ viewport, hasTouch: true });
-
-    test('scripture and life-menu slides have no horizontal clipping and scroll vertically', async ({ page }) => {
-      await openTV(page);
-      await page.keyboard.press('ArrowRight'); // scripture 1/4
-      const root = page.getByTestId('tv-presentation');
-      const noHClip = () => root.evaluate(el => el.scrollWidth <= el.clientWidth + 1);
-      expect(await noHClip()).toBe(true);
-
-      for (let i = 0; i < 12; i++) await page.keyboard.press('ArrowRight'); // life menu (slide 14/17)
-      await expect(page.getByText(/生活应用 Life Menu/)).toBeVisible();
-      expect(await noHClip()).toBe(true);
-      // The dense 7-row menu exceeds a phone screen: the slide area must scroll
-      const scrolls = await root.evaluate(el => {
-        const content = el.querySelector('.select-text') as HTMLElement;
-        return content.scrollHeight > content.clientHeight;
-      });
-      expect(scrolls).toBe(true);
-    });
-
-    test('a horizontal swipe still advances while vertical gestures scroll', async ({ page }) => {
-      await openTV(page);
-      const w = viewport.width;
-      await swipe(page, { x: w * 0.8, y: 200 }, { x: w * 0.2, y: 210 }); // horizontal → next
-      await expect(page.getByText('2/17')).toBeVisible();
-      await swipe(page, { x: w * 0.5, y: 300 }, { x: w * 0.5 - 20, y: 80 }); // vertical-dominant → no flip
-      await expect(page.getByText('2/17')).toBeVisible();
-      await swipe(page, { x: w * 0.2, y: 200 }, { x: w * 0.8, y: 190 }); // horizontal back
-      await expect(page.getByText('1/17')).toBeVisible();
-    });
-  });
-}
