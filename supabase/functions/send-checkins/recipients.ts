@@ -7,6 +7,7 @@
  * consent, are skipped — the skip reasons are returned so the caller logs
  * them instead of dropping them silently.
  */
+import type { MemberContext } from './templates.ts';
 
 export type Channel = 'email' | 'sms';
 
@@ -18,6 +19,9 @@ export interface SignupRow {
   phone: string | null;
   email: string | null;
   consent_checkins: boolean;
+  practice_text: string | null;  // the committed life-menu practice (ADR-0004 §7)
+  practice_note: string | null;  // the member's own version, when written
+  created_at?: string;           // ISO; the welcome window is checked against it
 }
 
 export interface Recipient {
@@ -51,9 +55,29 @@ export function selectRecipients(rows: SignupRow[], options: { smsEnabled: boole
   return selection;
 }
 
+/** The member context a template renders for: own version beats the menu text. */
+export function memberContext(signup: SignupRow): MemberContext {
+  const practice = signup.practice_note?.trim() || signup.practice_text || null;
+  return { name: signup.name, signupId: signup.id, practice };
+}
+
 /** The leader's "send me a test" recipient: a synthetic consenting row with only an email. */
 export function testRecipientRow(packId: string, leaderId: string, email: string, name: string): SignupRow {
-  return { id: null, pack_id: packId, leader_id: leaderId, name, phone: null, email, consent_checkins: true };
+  return {
+    id: null, pack_id: packId, leader_id: leaderId, name, phone: null, email, consent_checkins: true,
+    practice_text: null, practice_note: null,
+  };
+}
+
+/** How long after sign-up the member's browser may still ask for the welcome message (anon, by signup id). */
+export const WELCOME_WINDOW_MS = 10 * 60 * 1000;
+
+/** A welcome may be requested only for a row created within the window; otherwise the reason. */
+export function welcomeAllowed(row: SignupRow, now: Date): { ok: true } | { ok: false; reason: string } {
+  if (!row.created_at) return { ok: false, reason: 'signup has no created_at' };
+  const age = now.getTime() - new Date(row.created_at).getTime();
+  if (Number.isNaN(age) || age < 0 || age > WELCOME_WINDOW_MS) return { ok: false, reason: 'signup is outside the welcome window' };
+  return { ok: true };
 }
 
 /**

@@ -4,6 +4,7 @@
  * POST /send-checkins
  * Body: { pack_id, kind?: 'tue'|'thu'|'weekend', scheduled?: boolean,
  *         test_to?: email, test_name?: string }
+ *   or  { kind: 'welcome', signup_id }   — the sign-up confirmation
  *
  * - kind defaults to the Los Angeles weekday; `scheduled: true` (pg_cron)
  *   additionally requires the 09:00 LA hour so the PST/PDT cron pair sends once.
@@ -15,6 +16,9 @@
  *   into a dry run addressed to `test_to`. The leader_id of every row must
  *   match the pack's leaderId (verifyLeader); nothing client-supplied is
  *   trusted for ownership.
+ * - 'welcome' is the one anonymous path: the member's browser passes the
+ *   signup id it just received; the row must exist and be younger than
+ *   WELCOME_WINDOW_MS (recipients.welcomeAllowed). One email, to that row.
  * - DRY_RUN=1 logs instead of sending. Every attempt — sent, dry-run or
  *   failed — writes one checkin_sends row.
  *
@@ -22,16 +26,19 @@
  */
 import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import {
-  CheckinKind, CheckinPack, isCheckinKind, kindFromDate, isSendHour, publicPackJsonUrl, renderCheckin,
+  CheckinKind, MessageKind, CheckinPack, WELCOME_KIND, isCheckinKind, kindFromDate, isSendHour, publicPackJsonUrl, renderCheckin,
 } from './templates.ts';
 import { loadCheckinPack, PACK_SUMMARIES_TABLE, SUMMARY_COLUMNS, PackSummaryRow } from './packSource.ts';
-import { selectRecipients, testRecipientRow, verifyLeader, Recipient, SignupRow } from './recipients.ts';
+import {
+  selectRecipients, testRecipientRow, verifyLeader, memberContext, welcomeAllowed, Recipient, SignupRow,
+} from './recipients.ts';
 import { sendEmail, sendSms, TwilioConfig } from './senders.ts';
 
 /** Must equal components/studypack/packTypes.ts PACK_SCHEMA_VERSION (pinned by checkins.test.ts). */
 export const PACK_SCHEMA_VERSION = 2;
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' };
+const SIGNUP_COLUMNS = 'id, pack_id, leader_id, name, phone, email, consent_checkins, practice_text, practice_note, created_at';
 
 interface RequestBody {
   pack_id?: unknown;
@@ -39,6 +46,7 @@ interface RequestBody {
   scheduled?: unknown;
   test_to?: unknown;
   test_name?: unknown;
+  signup_id?: unknown;
 }
 
 interface SendResult {
@@ -63,6 +71,10 @@ function isServiceRole(request: Request): boolean {
   return key.length > 0 && auth === `Bearer ${key}`;
 }
 
+function serviceClient(): SupabaseClient {
+  return createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'));
+}
+
 function loadPack(client: SupabaseClient, packId: string): Promise<CheckinPack> {
   return loadCheckinPack(packId, {
     readSummary: async id => {
@@ -80,20 +92,23 @@ function loadPack(client: SupabaseClient, packId: string): Promise<CheckinPack> 
 }
 
 async function loadSignups(client: SupabaseClient, packId: string): Promise<SignupRow[]> {
-  const { data, error } = await client
-    .from('study_signups')
-    .select('id, pack_id, leader_id, name, phone, email, consent_checkins')
-    .eq('pack_id', packId);
+  const { data, error } = await client.from('study_signups').select(SIGNUP_COLUMNS).eq('pack_id', packId);
   if (error) throw new Error(`study_signups query failed: ${error.message}`);
   return (data ?? []) as SignupRow[];
+}
+
+async function loadSignup(client: SupabaseClient, signupId: string): Promise<SignupRow | null> {
+  const { data, error } = await client.from('study_signups').select(SIGNUP_COLUMNS).eq('id', signupId).maybeSingle();
+  if (error) throw new Error(`study_signups query failed: ${error.message}`);
+  return (data as SignupRow | null) ?? null;
 }
 
 function twilioConfig(): TwilioConfig {
   return { accountSid: env('TWILIO_ACCOUNT_SID'), authToken: env('TWILIO_AUTH_TOKEN'), from: env('TWILIO_FROM') };
 }
 
-async function deliver(recipient: Recipient, kind: CheckinKind, pack: CheckinPack, dryRun: boolean): Promise<SendResult> {
-  const message = renderCheckin(kind, pack, recipient.signup.name);
+async function deliver(recipient: Recipient, kind: MessageKind, pack: CheckinPack, dryRun: boolean): Promise<SendResult> {
+  const message = renderCheckin(kind, pack, memberContext(recipient.signup));
   const base = { signup_id: recipient.signup.id, channel: recipient.channel, to: recipient.to };
   if (dryRun) {
     // DRY_RUN contract: log what would have gone out (function logs) and audit it below; never send.
@@ -111,7 +126,7 @@ async function deliver(recipient: Recipient, kind: CheckinKind, pack: CheckinPac
 }
 
 async function audit(
-  client: SupabaseClient, packId: string, leaderId: string, kind: CheckinKind, result: SendResult,
+  client: SupabaseClient, packId: string, leaderId: string, kind: MessageKind, result: SendResult,
 ): Promise<string | null> {
   const { error } = await client.from('checkin_sends').insert({
     signup_id: result.signup_id, pack_id: packId, leader_id: leaderId, kind, channel: result.channel,
@@ -134,13 +149,50 @@ function resolveKind(body: RequestBody, now: Date): CheckinKind | null {
   return kindFromDate(now);
 }
 
+/** Deliver to every recipient, audit each attempt, and shape the response. */
+async function sendAll(
+  client: SupabaseClient, pack: CheckinPack, leaderId: string, kind: MessageKind, rows: SignupRow[], dryRun: boolean,
+): Promise<Response> {
+  const selection = selectRecipients(rows, { smsEnabled: env('CHECKIN_SMS_ENABLED') === '1' });
+  const results: SendResult[] = [];
+  const auditErrors: string[] = [];
+  for (const recipient of selection.recipients) {
+    const result = await deliver(recipient, kind, pack, dryRun);
+    results.push(result);
+    const auditError = await audit(client, pack.id, leaderId, kind, result);
+    if (auditError) auditErrors.push(auditError);
+  }
+  return jsonResponse(auditErrors.length ? 500 : 200, {
+    pack_id: pack.id, kind, dry_run: dryRun,
+    attempted: results.length,
+    sent: results.filter(r => r.status === 'sent').length,
+    failed: results.filter(r => r.status === 'failed').length,
+    skipped: selection.skipped.map(s => ({ signup_id: s.signup.id, reason: s.reason })),
+    results, audit_errors: auditErrors,
+  });
+}
+
+/** The anonymous welcome: one email to the signup row the browser just created. */
+async function handleWelcome(body: RequestBody, now: Date): Promise<Response> {
+  if (typeof body.signup_id !== 'string' || body.signup_id.length === 0) return jsonResponse(400, { error: 'signup_id is required' });
+  const client = serviceClient();
+  const row = await loadSignup(client, body.signup_id);
+  if (!row) return jsonResponse(404, { error: 'unknown signup' });
+  const allowed = welcomeAllowed(row, now);
+  if (!allowed.ok) return jsonResponse(403, { error: allowed.reason });
+  const pack = await loadPack(client, row.pack_id);
+  const leaderId = verifyLeader(pack, [row]);
+  return sendAll(client, pack, leaderId, WELCOME_KIND, [row], env('DRY_RUN') === '1');
+}
+
 async function handle(request: Request): Promise<Response> {
   if (request.method !== 'POST') return jsonResponse(405, { error: 'POST only' });
   const body = (await request.json().catch(() => ({}))) as RequestBody;
+  const now = new Date();
+  if (body.kind === WELCOME_KIND) return handleWelcome(body, now);
   if (typeof body.pack_id !== 'string' || body.pack_id.length === 0) {
     return jsonResponse(400, { error: 'pack_id is required' });
   }
-  const now = new Date();
   if (body.scheduled === true && !isSendHour(now)) {
     return jsonResponse(200, { skipped: 'off-hour', now: now.toISOString() });
   }
@@ -152,7 +204,7 @@ async function handle(request: Request): Promise<Response> {
   if (!trusted && !testTo) return jsonResponse(403, { error: 'Leaders may only send a test to their own email (test_to)' });
   const dryRun = !trusted || env('DRY_RUN') === '1' || testTo !== null;
 
-  const client = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'));
+  const client = serviceClient();
   const pack = await loadPack(client, body.pack_id);
   if (pack.id !== body.pack_id) return jsonResponse(400, { error: `pack_id ${body.pack_id} does not match the pack (${pack.id})` });
   if (!pack.leaderId) return jsonResponse(400, { error: `Pack ${pack.id} has no leader (demo pack): nothing to send` });
@@ -163,24 +215,7 @@ async function handle(request: Request): Promise<Response> {
     ? [testRecipientRow(pack.id, pack.leaderId, testTo, typeof body.test_name === 'string' ? body.test_name : 'Leader')]
     : await loadSignups(client, pack.id);
   const leaderId = verifyLeader(pack, rows);
-  const selection = selectRecipients(rows, { smsEnabled: env('CHECKIN_SMS_ENABLED') === '1' });
-
-  const results: SendResult[] = [];
-  const auditErrors: string[] = [];
-  for (const recipient of selection.recipients) {
-    const result = await deliver(recipient, kind, pack, dryRun);
-    results.push(result);
-    const auditError = await audit(client, pack.id, leaderId, kind, result);
-    if (auditError) auditErrors.push(auditError);
-  }
-  return jsonResponse(auditErrors.length ? 500 : 200, {
-    pack_id: body.pack_id, kind, dry_run: dryRun,
-    attempted: results.length,
-    sent: results.filter(r => r.status === 'sent').length,
-    failed: results.filter(r => r.status === 'failed').length,
-    skipped: selection.skipped.map(s => ({ signup_id: s.signup.id, reason: s.reason })),
-    results, audit_errors: auditErrors,
-  });
+  return sendAll(client, pack, leaderId, kind, rows, dryRun);
 }
 
 Deno.serve(async (request: Request) => {

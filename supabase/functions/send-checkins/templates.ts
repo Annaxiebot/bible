@@ -3,11 +3,17 @@
  *
  * Pure module (no Deno globals) so vitest covers it; index.ts is the only
  * Deno-specific file. Chinese first, English second on every line
- * (ADR-0003 §1); a message is two short lines plus the pack link.
+ * (ADR-0003 §1). A message is: greeting, the member's own practice, the
+ * prompt (or the welcome line), then the feedback link — the in-app
+ * check-in page keyed by the signup uuid, or the pack's Google Form
+ * (prefilled) when the leader set one (ADR-0004 §7, §9).
  */
 
 export type CheckinKind = 'tue' | 'thu' | 'weekend';
 export const CHECKIN_KINDS: readonly CheckinKind[] = ['tue', 'thu', 'weekend'];
+/** The confirmation sent right after sign-up; requested by the member's browser, never scheduled. */
+export const WELCOME_KIND = 'welcome';
+export type MessageKind = CheckinKind | typeof WELCOME_KIND;
 
 /** Public site; pack JSON and TV links are served from here. */
 export const SITE_ORIGIN = 'https://scripturetolife.org';
@@ -19,25 +25,40 @@ export const CHECKIN_HOUR_LA = 9;
 
 export const BILINGUAL_SEPARATOR = ' · ';
 
-export const KIND_LABEL: Record<CheckinKind, { zh: string; en: string }> = {
+export const KIND_LABEL: Record<MessageKind, { zh: string; en: string }> = {
   tue: { zh: '周二跟进', en: 'Tuesday check-in' },
   thu: { zh: '周四跟进', en: 'Thursday check-in' },
   weekend: { zh: '周末回顾', en: 'Weekend reflection' },
+  welcome: { zh: '报名确认', en: 'Sign-up confirmed' },
 };
 
 /** Which reflection body line (0-based) carries each kind's prompt in a pack. */
 export const REFLECTION_LINE_INDEX: Record<CheckinKind, number> = { tue: 0, thu: 1, weekend: 2 };
+
+export interface FeedbackFormEntries {
+  name?: string;
+  practice?: string;
+}
 
 export interface CheckinPack {
   id: string;
   title: string;
   leaderId: string | null;  // owning leader's auth uid; null = demo pack, nobody to send for
   prompts: Record<CheckinKind, string>;
+  feedbackFormUrl: string | null;          // the leader's Google Form, when set (ADR-0004 §9)
+  feedbackFormEntries: FeedbackFormEntries | null;
 }
 
 export interface CheckinMessage {
   subject: string;
   text: string;
+}
+
+/** What a message is addressed to: the signup token (for the in-app link) and the committed practice. */
+export interface MemberContext {
+  name: string;
+  signupId: string | null;   // null for the leader's ad-hoc test recipient
+  practice: string | null;   // own version if written, else the chosen menu text; null before the commitment step
 }
 
 export function packUrl(packId: string): string {
@@ -46,6 +67,34 @@ export function packUrl(packId: string): string {
 
 export function publicPackJsonUrl(packId: string, schemaVersion: number): string {
   return `${SITE_ORIGIN}/packs/${packId}.json?schema=${schemaVersion}`;
+}
+
+/** In-app check-in page for a signup token; mirrors components/checkin/checkinRoute.checkinHash. */
+export function checkinPageUrl(signupId: string, kind: CheckinKind | null): string {
+  return kind ? `${SITE_ORIGIN}/#/checkin/${signupId}/${kind}` : `${SITE_ORIGIN}/#/checkin/${signupId}`;
+}
+
+/**
+ * Google Forms prefill: <form>?usp=pp_url&entry.<id>=<value>. Must stay
+ * byte-identical to components/studypack/feedbackForm.prefillFormUrl
+ * (Deno cannot import the app's extensionless modules; a test pins both).
+ */
+export function prefillFormUrl(formUrl: string, entries: FeedbackFormEntries | null | undefined, values: { name: string; practice: string }): string {
+  const params = new URLSearchParams();
+  if (entries?.name) params.set(entries.name, values.name);
+  if (entries?.practice) params.set(entries.practice, values.practice);
+  if ([...params.keys()].length === 0) return formUrl;
+  params.set('usp', 'pp_url');
+  const joiner = formUrl.includes('?') ? '&' : '?';
+  return `${formUrl}${joiner}${params.toString()}`;
+}
+
+/** The feedback link for one member: the form when the pack has one, else the in-app page, else the pack. */
+export function feedbackUrl(pack: CheckinPack, member: MemberContext, kind: CheckinKind | null): string {
+  if (pack.feedbackFormUrl) {
+    return prefillFormUrl(pack.feedbackFormUrl, pack.feedbackFormEntries, { name: member.name, practice: member.practice ?? '' });
+  }
+  return member.signupId ? checkinPageUrl(member.signupId, kind) : packUrl(pack.id);
 }
 
 function laParts(date: Date): { weekday: string; hour: number } {
@@ -80,12 +129,24 @@ export function greeting(name: string): string {
   return `${name} 平安${BILINGUAL_SEPARATOR}Peace, ${name}`;
 }
 
-/** Two short lines + the pack link; subject is bilingual with the pack title. */
-export function renderCheckin(kind: CheckinKind, pack: CheckinPack, name: string): CheckinMessage {
+/** "你选的操练：… · Your practice: …" — present whenever the member committed to one. */
+export function practiceLine(practice: string): string {
+  return `你选的操练：${practice}${BILINGUAL_SEPARATOR}Your practice: ${practice}`;
+}
+
+const WELCOME_LINE = `周中我们会再提醒你${BILINGUAL_SEPARATOR}We will remind you mid-week`;
+
+/** Greeting, practice, prompt (or the welcome line), link; subject is bilingual with the pack title. */
+export function renderCheckin(kind: MessageKind, pack: CheckinPack, member: MemberContext): CheckinMessage {
   const label = KIND_LABEL[kind];
+  const checkinKind = kind === WELCOME_KIND ? null : kind;
+  const lines = [greeting(member.name)];
+  if (member.practice) lines.push(practiceLine(member.practice));
+  lines.push(kind === WELCOME_KIND ? WELCOME_LINE : pack.prompts[kind]);
+  lines.push(feedbackUrl(pack, member, checkinKind));
   return {
     subject: `${label.zh}${BILINGUAL_SEPARATOR}${label.en} — ${pack.title}`,
-    text: [greeting(name), pack.prompts[kind], packUrl(pack.id)].join('\n'),
+    text: lines.join('\n'),
   };
 }
 
@@ -95,7 +156,9 @@ export function renderCheckin(kind: CheckinKind, pack: CheckinPack, name: string
  * context when the pack has no usable reflection section.
  */
 export function promptsFromPack(raw: unknown): CheckinPack {
-  const pack = raw as { id?: unknown; title?: unknown; leaderId?: unknown; sections?: unknown };
+  const pack = raw as {
+    id?: unknown; title?: unknown; leaderId?: unknown; sections?: unknown; feedbackFormUrl?: unknown; feedbackFormEntries?: unknown;
+  };
   if (typeof pack?.id !== 'string' || typeof pack.title !== 'string' || !Array.isArray(pack.sections)) {
     throw new Error('Pack JSON needs id, title and sections[]');
   }
@@ -114,5 +177,8 @@ export function promptsFromPack(raw: unknown): CheckinPack {
       thu: lines[REFLECTION_LINE_INDEX.thu],
       weekend: lines[REFLECTION_LINE_INDEX.weekend],
     },
+    feedbackFormUrl: typeof pack.feedbackFormUrl === 'string' ? pack.feedbackFormUrl : null,
+    feedbackFormEntries: typeof pack.feedbackFormEntries === 'object' && pack.feedbackFormEntries !== null
+      ? (pack.feedbackFormEntries as FeedbackFormEntries) : null,
   };
 }
