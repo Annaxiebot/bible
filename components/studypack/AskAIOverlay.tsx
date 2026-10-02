@@ -158,7 +158,8 @@ const AskAIOverlay: React.FC<AskAIOverlayProps> = ({ pack, slide, initialQuestio
 
   return (
     <div
-      className="absolute inset-0 bg-slate-950/90 flex items-center justify-center cursor-default"
+      // select-text: the TV root is select-none (for swipes); answers must be selectable and copyable.
+      className="absolute inset-0 bg-slate-950/90 flex items-center justify-center cursor-default select-text"
       data-testid="ask-ai-overlay"
       onClick={e => e.stopPropagation()}
       onTouchStart={e => e.stopPropagation()}
