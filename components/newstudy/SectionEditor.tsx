@@ -41,17 +41,28 @@ const ScriptureSection: React.FC<{ section: PackSection }> = ({ section }) => (
   </div>
 );
 
+/** Stable row keys for a string[] (the pack schema has no ids): index keys made React reuse a removed row's textarea. */
+function useRowKeys(length: number): { keys: number[]; drop: (i: number) => void } {
+  const keys = React.useRef<number[]>([]);
+  const seq = React.useRef(0);
+  while (keys.current.length < length) keys.current.push(seq.current++);
+  if (keys.current.length > length) keys.current.length = length;
+  return { keys: keys.current, drop: i => { keys.current.splice(i, 1); } };
+}
+
 const QuestionsSection: React.FC<{ section: PackSection; onQuestions: (q: string[]) => void }> = ({ section, onQuestions }) => {
   const questions = section.questions ?? [];
+  const { keys, drop } = useRowKeys(questions.length);
   const set = (i: number, value: string) => onQuestions(questions.map((q, j) => (j === i ? value : q)));
+  const remove = (i: number) => { drop(i); onQuestions(questions.filter((_, j) => j !== i)); };
   return (
     <div className="flex flex-col gap-3" data-testid="ns-questions">
       <SectionHeading text={section.heading} />
       {questions.map((q, i) => (
-        <div key={i} className="flex gap-2">
+        <div key={keys.at(i)} className="flex gap-2">
           <textarea value={q} rows={2} aria-label={`${section.heading} ${i + 1}`}
             onChange={e => set(i, e.target.value)} className={inputClass} style={textStyle} />
-          <button type="button" onClick={() => onQuestions(questions.filter((_, j) => j !== i))}
+          <button type="button" onClick={() => remove(i)}
             className={quietButtonClass} style={controlStyle} aria-label={`${NS_QUESTION_REMOVE} ${i + 1}`}>
             {NS_QUESTION_REMOVE}
           </button>
