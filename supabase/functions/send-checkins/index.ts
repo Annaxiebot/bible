@@ -1,0 +1,193 @@
+/**
+ * send-checkins Edge Function · 周中提醒发送
+ *
+ * POST /send-checkins
+ * Body: { pack_id, kind?: 'tue'|'thu'|'weekend', scheduled?: boolean,
+ *         test_to?: email, test_name?: string }
+ *
+ * - kind defaults to the Los Angeles weekday; `scheduled: true` (pg_cron)
+ *   additionally requires the 09:00 LA hour so the PST/PDT cron pair sends once.
+ * - The pack's text comes from its pack_summaries row (written by the owner's
+ *   browser), else the public pack JSON on scripturetolife.org (packSource.ts).
+ *   Nothing in the request body supplies message content.
+ * - Only the service role may send to the sign-up list. Any other caller
+ *   must be the pack's owning leader (JWT uid = pack.leaderId) and is forced
+ *   into a dry run addressed to `test_to`. The leader_id of every row must
+ *   match the pack's leaderId (verifyLeader); nothing client-supplied is
+ *   trusted for ownership.
+ * - DRY_RUN=1 logs instead of sending. Every attempt — sent, dry-run or
+ *   failed — writes one checkin_sends row.
+ *
+ * Deno-only imports stay in this file; the helpers are plain TS under vitest.
+ */
+import { createClient, SupabaseClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import {
+  CheckinKind, CheckinPack, isCheckinKind, kindFromDate, isSendHour, publicPackJsonUrl, renderCheckin,
+} from './templates.ts';
+import { loadCheckinPack, PACK_SUMMARIES_TABLE, SUMMARY_COLUMNS, PackSummaryRow } from './packSource.ts';
+import { selectRecipients, testRecipientRow, verifyLeader, Recipient, SignupRow } from './recipients.ts';
+import { sendEmail, sendSms, TwilioConfig } from './senders.ts';
+
+/** Must equal components/studypack/packTypes.ts PACK_SCHEMA_VERSION (pinned by checkins.test.ts). */
+export const PACK_SCHEMA_VERSION = 2;
+
+const JSON_HEADERS = { 'Content-Type': 'application/json' };
+
+interface RequestBody {
+  pack_id?: unknown;
+  kind?: unknown;
+  scheduled?: unknown;
+  test_to?: unknown;
+  test_name?: unknown;
+}
+
+interface SendResult {
+  signup_id: string | null;
+  channel: Recipient['channel'];
+  to: string;
+  status: 'sent' | 'dry-run' | 'failed';
+  error?: string;
+}
+
+function env(name: string): string {
+  return Deno.env.get(name) ?? '';
+}
+
+function jsonResponse(status: number, body: unknown): Response {
+  return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
+}
+
+function isServiceRole(request: Request): boolean {
+  const auth = request.headers.get('Authorization') ?? '';
+  const key = env('SUPABASE_SERVICE_ROLE_KEY');
+  return key.length > 0 && auth === `Bearer ${key}`;
+}
+
+function loadPack(client: SupabaseClient, packId: string): Promise<CheckinPack> {
+  return loadCheckinPack(packId, {
+    readSummary: async id => {
+      const { data, error } = await client.from(PACK_SUMMARIES_TABLE).select(SUMMARY_COLUMNS).eq('pack_id', id).maybeSingle();
+      if (error) throw new Error(`pack_summaries query failed: ${error.message}`);
+      return (data as PackSummaryRow | null) ?? null;
+    },
+    fetchPublic: async id => {
+      const response = await fetch(publicPackJsonUrl(id, PACK_SCHEMA_VERSION));
+      if (response.status === 404) return null;
+      if (!response.ok) throw new Error(`Public pack ${id}: HTTP ${response.status}`);
+      return response.json();
+    },
+  });
+}
+
+async function loadSignups(client: SupabaseClient, packId: string): Promise<SignupRow[]> {
+  const { data, error } = await client
+    .from('study_signups')
+    .select('id, pack_id, leader_id, name, phone, email, consent_checkins')
+    .eq('pack_id', packId);
+  if (error) throw new Error(`study_signups query failed: ${error.message}`);
+  return (data ?? []) as SignupRow[];
+}
+
+function twilioConfig(): TwilioConfig {
+  return { accountSid: env('TWILIO_ACCOUNT_SID'), authToken: env('TWILIO_AUTH_TOKEN'), from: env('TWILIO_FROM') };
+}
+
+async function deliver(recipient: Recipient, kind: CheckinKind, pack: CheckinPack, dryRun: boolean): Promise<SendResult> {
+  const message = renderCheckin(kind, pack, recipient.signup.name);
+  const base = { signup_id: recipient.signup.id, channel: recipient.channel, to: recipient.to };
+  if (dryRun) {
+    // DRY_RUN contract: log what would have gone out (function logs) and audit it below; never send.
+    console.info('[dry-run]', recipient.channel, recipient.to, message.subject);
+    return { ...base, status: 'dry-run' };
+  }
+  try {
+    if (recipient.channel === 'email') await sendEmail(env('RESEND_API_KEY'), recipient.to, message);
+    else await sendSms(twilioConfig(), recipient.to, message);
+    return { ...base, status: 'sent' };
+  } catch (err) {
+    // Surfaced: recorded in checkin_sends and returned in the response body.
+    return { ...base, status: 'failed', error: err instanceof Error ? err.message : String(err) };
+  }
+}
+
+async function audit(
+  client: SupabaseClient, packId: string, leaderId: string, kind: CheckinKind, result: SendResult,
+): Promise<string | null> {
+  const { error } = await client.from('checkin_sends').insert({
+    signup_id: result.signup_id, pack_id: packId, leader_id: leaderId, kind, channel: result.channel,
+    status: result.status, error: result.error ?? null,
+  });
+  return error ? `checkin_sends insert failed for ${result.to}: ${error.message}` : null;
+}
+
+/** The uid behind a user JWT (null when the header is missing or invalid). */
+async function callerUid(request: Request): Promise<string | null> {
+  const auth = request.headers.get('Authorization') ?? '';
+  if (!auth.startsWith('Bearer ')) return null;
+  const client = createClient(env('SUPABASE_URL'), env('SUPABASE_ANON_KEY'), { global: { headers: { Authorization: auth } } });
+  const { data, error } = await client.auth.getUser();
+  return error ? null : data.user?.id ?? null;
+}
+
+function resolveKind(body: RequestBody, now: Date): CheckinKind | null {
+  if (isCheckinKind(body.kind)) return body.kind;
+  return kindFromDate(now);
+}
+
+async function handle(request: Request): Promise<Response> {
+  if (request.method !== 'POST') return jsonResponse(405, { error: 'POST only' });
+  const body = (await request.json().catch(() => ({}))) as RequestBody;
+  if (typeof body.pack_id !== 'string' || body.pack_id.length === 0) {
+    return jsonResponse(400, { error: 'pack_id is required' });
+  }
+  const now = new Date();
+  if (body.scheduled === true && !isSendHour(now)) {
+    return jsonResponse(200, { skipped: 'off-hour', now: now.toISOString() });
+  }
+  const kind = resolveKind(body, now);
+  if (!kind) return jsonResponse(200, { skipped: 'no check-in today', now: now.toISOString() });
+
+  const trusted = isServiceRole(request);
+  const testTo = typeof body.test_to === 'string' && body.test_to.includes('@') ? body.test_to : null;
+  if (!trusted && !testTo) return jsonResponse(403, { error: 'Leaders may only send a test to their own email (test_to)' });
+  const dryRun = !trusted || env('DRY_RUN') === '1' || testTo !== null;
+
+  const client = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'));
+  const pack = await loadPack(client, body.pack_id);
+  if (pack.id !== body.pack_id) return jsonResponse(400, { error: `pack_id ${body.pack_id} does not match the pack (${pack.id})` });
+  if (!pack.leaderId) return jsonResponse(400, { error: `Pack ${pack.id} has no leader (demo pack): nothing to send` });
+  if (!trusted && (await callerUid(request)) !== pack.leaderId) {
+    return jsonResponse(403, { error: 'Only the pack\'s owning leader may send a test' });
+  }
+  const rows = testTo
+    ? [testRecipientRow(pack.id, pack.leaderId, testTo, typeof body.test_name === 'string' ? body.test_name : 'Leader')]
+    : await loadSignups(client, pack.id);
+  const leaderId = verifyLeader(pack, rows);
+  const selection = selectRecipients(rows, { smsEnabled: env('CHECKIN_SMS_ENABLED') === '1' });
+
+  const results: SendResult[] = [];
+  const auditErrors: string[] = [];
+  for (const recipient of selection.recipients) {
+    const result = await deliver(recipient, kind, pack, dryRun);
+    results.push(result);
+    const auditError = await audit(client, pack.id, leaderId, kind, result);
+    if (auditError) auditErrors.push(auditError);
+  }
+  return jsonResponse(auditErrors.length ? 500 : 200, {
+    pack_id: body.pack_id, kind, dry_run: dryRun,
+    attempted: results.length,
+    sent: results.filter(r => r.status === 'sent').length,
+    failed: results.filter(r => r.status === 'failed').length,
+    skipped: selection.skipped.map(s => ({ signup_id: s.signup.id, reason: s.reason })),
+    results, audit_errors: auditErrors,
+  });
+}
+
+Deno.serve(async (request: Request) => {
+  try {
+    return await handle(request);
+  } catch (err) {
+    // Surfaced to the caller (pg_net response / leader page) as a 500 body, never swallowed.
+    return jsonResponse(500, { error: err instanceof Error ? err.message : String(err) });
+  }
+});
