@@ -15,9 +15,7 @@ import PackList from './PackList';
 import { useLocalPacks } from './useLocalPacks';
 import { useGeneration } from './useGeneration';
 import { NS_TITLE, NS_INTRO, NS_PRIVACY, NS_BACK } from './newStudyStrings';
-import { textStyle, controlStyle, quietButtonClass } from './newStudyStyles';
-
-const titleStyle: React.CSSProperties = { fontSize: 'clamp(1.75rem, 1.4rem + 1.2vw, 2.25rem)' };
+import { textStyle, controlStyle, quietButtonClass, pageTitleStyle } from './newStudyStyles';
 
 const NewStudyPage: React.FC = () => {
   const [configured, setConfigured] = useState(() => !!getApiKey());
@@ -35,7 +33,7 @@ const NewStudyPage: React.FC = () => {
       <div className="mx-auto flex max-w-3xl flex-col gap-8 px-4 py-8 sm:px-6">
         <header className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="font-bold text-amber-300" style={titleStyle}>{NS_TITLE}</h1>
+            <h1 className="font-bold text-amber-300" style={pageTitleStyle}>{NS_TITLE}</h1>
             <p className="mt-2 text-slate-400" style={textStyle}>{NS_INTRO}</p>
           </div>
           <a href="#" className={quietButtonClass} style={controlStyle} aria-label={NS_BACK}>✕</a>

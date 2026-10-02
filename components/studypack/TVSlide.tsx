@@ -10,6 +10,8 @@ import React from 'react';
 import { Slide, StudyPack } from './packTypes';
 import { TRANSLATIONS, TYPE_SCALE, bilingual } from './principles';
 import RefLinkedText from './RefLinkedText';
+import SignupQr from '../signup/SignupQr';
+import { SU_DEMO_LINE } from '../signup/signupStrings';
 
 // TYPE_SCALE (principles.ts): senior-readable floors on TV, px floors on phones.
 const headingStyle: React.CSSProperties = { fontSize: TYPE_SCALE.heading, lineHeight: 1.2 };
@@ -104,22 +106,23 @@ const LifeMenuSlide: React.FC<SlideProps> = ({ slide, pack }) => (
 );
 
 /**
- * QR sign-up slide: large centered code on a white card (QR codes need a
- * light quiet zone to scan against the dark TV background), the URL printed
- * under it for people who prefer typing, plus the one-line instruction.
+ * QR sign-up slide: the pack's own sign-up URL drawn as a large centered
+ * code (SignupQr renders it on a white quiet zone), the URL printed under it
+ * for people who prefer typing, plus the one-line instruction. A pack with
+ * no owning leader (no signupUrl) shows the demo line instead.
  */
-const QrSlide: React.FC<SlideProps> = ({ slide }) => (
+const QrSlide: React.FC<SlideProps> = ({ slide, pack }) => (
   <div className="h-full flex flex-col items-center justify-center text-center">
     <Heading text={slide.headingZh ? `${slide.heading} ${slide.headingZh}` : slide.heading} />
-    <div className="bg-white rounded-xl p-[2vh] mb-[3vh]">
-      <img
-        src={`${import.meta.env.BASE_URL}${slide.image}`}
-        alt={`QR code for ${slide.url}`}
-        style={{ width: '50vh', height: '50vh' }}
-      />
-    </div>
-    <p className="text-amber-300 font-semibold mb-[2vh]" style={bodyStyle}>{slide.url}</p>
-    <BodyLines lines={slide.body} />
+    {slide.signupUrl ? (
+      <>
+        <SignupQr url={slide.signupUrl} size="54vh" className="mb-[3vh]" pack={pack} />
+        <p className="text-amber-300 font-semibold mb-[2vh] break-all" style={bodyStyle}>{slide.signupUrl}</p>
+        <BodyLines lines={slide.body} />
+      </>
+    ) : (
+      <p data-testid="qr-demo" className="text-slate-300" style={bodyStyle}>{SU_DEMO_LINE}</p>
+    )}
   </div>
 );
 
@@ -128,7 +131,7 @@ const TVSlide: React.FC<SlideProps> = ({ slide, pack }) => {
   if (slide.kind === 'scripture') return <ScriptureSlide slide={slide} pack={pack} />;
   if (slide.kind === 'discussion') return <DiscussionSlide slide={slide} pack={pack} />;
   if (slide.kind === 'lifeMenu') return <LifeMenuSlide slide={slide} pack={pack} />;
-  if (slide.kind === 'qr') return <QrSlide slide={slide} />;
+  if (slide.kind === 'qr') return <QrSlide slide={slide} pack={pack} />;
   return (
     <div className="h-full flex flex-col">
       <Heading text={slide.heading} />

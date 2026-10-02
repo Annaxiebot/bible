@@ -5,7 +5,8 @@
  * 2026-10-02-matt6.json): same section order, same headings, Chinese-first
  * "中文 · English" body lines. Scripture verses come in from the bundled Bible
  * data; the model never touches them. The app-owned layers (reflection
- * privacy line, QR sign-up, closing lead line) are fixed here (ADR-0003 §7).
+ * privacy line, QR sign-up line, closing lead line) are fixed here (ADR-0003
+ * §7); the QR itself is drawn per pack from its id (signupRoute).
  */
 import { StudyPack, PackSection, PackVerse, parseStudyPack } from '../studypack/packTypes';
 import { bilingual, bilingualLine, TRANSLATIONS } from '../studypack/principles';
@@ -13,6 +14,7 @@ import { bilingualRefLabel } from '../studypack/refLabel';
 import { makeLocalPackId } from '../studypack/packSource';
 import { getBookById } from '../../services/bibleBookData';
 import { GeneratedContent } from './generatedPack';
+import { SU_QR_BODY } from '../signup/signupStrings';
 
 export interface StudyRequest {
   bookId: string;
@@ -35,13 +37,6 @@ export const SECTION_HEADINGS = {
   reflection: bilingual('反思', 'Reflection'),
   qr: bilingual('签到', 'Sign up'),
   closing: bilingual('闭环', 'Closing'),
-} as const;
-
-/** The group's sign-up QR, shared by every pack (same image + URL as the committed packs). */
-export const SIGNUP_QR = {
-  image: 'packs/signup-qr.png',
-  url: 'https://forms.gle/kXamVsHcRTXHbZ4d6',
-  body: bilingualLine('扫码登记周中提醒', 'Scan to get the Tue/Thu check-in texts'),
 } as const;
 
 export const GROUP_LINE = bilingual('周五小组', 'Friday Small Group');
@@ -98,6 +93,15 @@ function reflectionLines(gen: GeneratedContent): string[] {
   ];
 }
 
+/**
+ * Give a pack its owner (ADR-0004): the signed-in leader's uid, so sign-ups
+ * for it carry leader_id and only that leader can read them. Signed out
+ * (null) leaves the pack untouched — it stays a demo pack with no sign-up.
+ */
+export function stampLeader(pack: StudyPack, leaderId: string | null): StudyPack {
+  return leaderId ? { ...pack, leaderId } : pack;
+}
+
 /** Build and validate the pack. Throws (parseStudyPack) if anything is malformed. */
 export function assemblePack(req: StudyRequest, verses: PackVerse[], gen: GeneratedContent): StudyPack {
   const label = passageLabel(req);
@@ -120,7 +124,7 @@ export function assemblePack(req: StudyRequest, verses: PackVerse[], gen: Genera
       rows: gen.lifeMenu.map(l => ({ area: l.area, practice: bilingualLine(l.zh, l.en) })),
     },
     { kind: 'reflection', heading: SECTION_HEADINGS.reflection, body: reflectionLines(gen) },
-    { kind: 'qr', heading: SECTION_HEADINGS.qr, image: SIGNUP_QR.image, url: SIGNUP_QR.url, body: [SIGNUP_QR.body] },
+    { kind: 'qr', heading: SECTION_HEADINGS.qr, body: [SU_QR_BODY] },
     {
       kind: 'closing',
       heading: SECTION_HEADINGS.closing,

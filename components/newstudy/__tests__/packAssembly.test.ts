@@ -1,11 +1,12 @@
 /**
  * packAssembly.test.ts — the assembled pack passes parseStudyPack, follows the
  * sample pack's shape (section order, headings, Chinese-first lines, seven
- * life areas), carries the shared QR, and gets a "local-" id.
+ * life areas), carries the shared QR line (no static image), and gets a "local-" id.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
-import { assemblePack, passageLabel, SIGNUP_QR, SECTION_HEADINGS, PRIVACY_LINE } from '../packAssembly';
+import { assemblePack, passageLabel, stampLeader, SECTION_HEADINGS, PRIVACY_LINE } from '../packAssembly';
+import { SU_QR_BODY } from '../../signup/signupStrings';
 import { validateGenerated } from '../generatedPack';
 import { parseStudyPack, buildSlides } from '../../studypack/packTypes';
 import { LIFE_AREAS, TRANSLATIONS, BILINGUAL_SEPARATOR } from '../../studypack/principles';
@@ -17,6 +18,15 @@ const verses = Array.from({ length: 15 }, (_, i) => ({
   num: 22 + i, cuv: `第${22 + i}节`, en: `verse ${22 + i}`,
 }));
 const pack = assemblePack(JOHN3_REQUEST, verses, validateGenerated(JOHN3_GENERATED));
+
+describe('stampLeader', () => {
+  it('sets leaderId for a signed-in leader and leaves a signed-out save untouched (demo pack)', () => {
+    expect(pack.leaderId).toBeUndefined();
+    expect(stampLeader(pack, 'uid-lead').leaderId).toBe('uid-lead');
+    expect(stampLeader(pack, null)).toBe(pack);
+    expect(() => parseStudyPack(stampLeader(pack, 'uid-lead'))).not.toThrow();
+  });
+});
 
 describe('passageLabel', () => {
   it('is Chinese first, with an en dash range', () => {
@@ -85,14 +95,16 @@ describe('assemblePack', () => {
     expect(closing.body![1]).toMatch(/^「.*」 · “.*”$/);
   });
 
-  it('reuses the committed sign-up QR (image + URL identical to the sample pack)', () => {
-    const sample = JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8')) as { sections: Array<{ kind: string; image?: string; url?: string }> };
+  it('the qr section carries only the shared sign-up line, identical to the sample pack (no static image/url)', () => {
+    const sample = JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8')) as { sections: Array<{ kind: string; image?: string; url?: string; body?: string[] }> };
     const sampleQr = sample.sections.find(s => s.kind === 'qr')!;
-    expect(SIGNUP_QR.image).toBe(sampleQr.image);
-    expect(SIGNUP_QR.url).toBe(sampleQr.url);
+    expect(sampleQr.body).toEqual([SU_QR_BODY]);
+    expect(sampleQr.image).toBeUndefined();
+    expect(sampleQr.url).toBeUndefined();
     const qr = pack.sections.find(s => s.kind === 'qr')!;
-    expect(qr.image).toBe(SIGNUP_QR.image);
-    expect(qr.url).toBe(SIGNUP_QR.url);
+    expect(qr.body).toEqual([SU_QR_BODY]);
+    expect(qr.image).toBeUndefined();
+    expect(qr.url).toBeUndefined();
   });
 
   it('lesson number and title go into the title slide', () => {

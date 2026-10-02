@@ -6,6 +6,8 @@
  * except `discussion`, where each question gets its own slide.
  */
 
+import { currentSignupUrl } from '../signup/signupRoute';
+
 export type SectionKind =
   | 'title'
   | 'scripture'
@@ -48,8 +50,8 @@ export interface PackSection {
   keyPhrase?: string;     // scripture only — shown in large type
   verses?: PackVerse[];   // scripture only — the full embedded passage text
   headingZh?: string;     // qr only — optional Chinese heading line
-  image?: string;         // qr only — image path relative to BASE_URL (e.g. "packs/signup-qr.png")
-  url?: string;           // qr only — the URL the QR encodes, printed for typers
+  image?: string;         // qr only — legacy static image path; ignored, the QR is drawn per pack
+  url?: string;           // qr only — legacy static form URL; ignored, see Slide.signupUrl
 }
 
 // Bump on pack-shape changes; appended to the pack URL so a 10-min CDN-cached pack never meets newer code.
@@ -61,6 +63,7 @@ export interface StudyPack {
   date: string;        // ISO date, e.g. "2026-10-02"
   passageRef: string;  // e.g. "马太福音 6:25–34 · Matthew 6:25–34"
   enVersion: string;   // display label of the English translation, e.g. "BSB"
+  leaderId?: string;   // Supabase auth uid of the owning leader; absent = demo pack, no sign-up
   sections: PackSection[];
 }
 
@@ -81,8 +84,7 @@ export interface Slide {
   partIndex?: number;  // scripture only — 1-based part number
   partTotal?: number;  // scripture only — total scripture parts
   headingZh?: string;
-  image?: string;
-  url?: string;
+  signupUrl?: string;  // qr only — this deployment's sign-up URL (what the QR encodes); absent on demo packs
 }
 
 function isStringArray(value: unknown): value is string[] {
@@ -126,9 +128,8 @@ function parseSection(raw: unknown, index: number): PackSection {
   if (s.kind === 'scripture' && (!isPackVerses(s.verses) || s.verses.length === 0)) {
     throw new Error(`StudyPack scripture section ${index} needs non-empty verses[] ({num, cuv, en})`);
   }
-  if (s.kind === 'qr' && (typeof s.image !== 'string' || s.image.length === 0 ||
-      typeof s.url !== 'string' || s.url.length === 0)) {
-    throw new Error(`StudyPack qr section ${index} needs non-empty image and url strings`);
+  if (s.kind === 'qr' && s.image !== undefined && typeof s.image !== 'string') {
+    throw new Error(`StudyPack qr section ${index} legacy image must be a string when present`);
   }
   if (s.body !== undefined && !isStringArray(s.body)) {
     throw new Error(`StudyPack section ${index} (${s.kind}) body must be a string[]`);
@@ -149,6 +150,9 @@ export function parseStudyPack(raw: unknown): StudyPack {
   }
   if (!Array.isArray(p.sections) || p.sections.length === 0) {
     throw new Error('StudyPack needs a non-empty sections[]');
+  }
+  if (p.leaderId !== undefined && (typeof p.leaderId !== 'string' || p.leaderId.length === 0)) {
+    throw new Error('StudyPack leaderId must be a non-empty string when present');
   }
   const sections = p.sections.map(parseSection);
   return { ...(p as StudyPack), sections };
@@ -181,7 +185,9 @@ export function chunkVerses(verses: PackVerse[]): PackVerse[][] {
 
 /**
  * Flatten sections into slides: one per section, one per discussion question,
- * one per scripture verse chunk.
+ * one per scripture verse chunk. The qr slide carries the pack's sign-up URL
+ * (derived from its id, never stored in the JSON) only when the pack has an
+ * owning leader; a demo pack gets no sign-up.
  */
 export function buildSlides(pack: StudyPack): Slide[] {
   const slides: Slide[] = [];
@@ -208,9 +214,13 @@ export function buildSlides(pack: StudyPack): Slide[] {
           partTotal: chunks.length,
         });
       });
+    } else if (section.kind === 'qr') {
+      const { kind, heading, body, headingZh } = section;
+      const signupUrl = pack.leaderId ? currentSignupUrl(pack.id) : undefined;
+      slides.push({ kind, heading, body, headingZh, signupUrl });
     } else {
-      const { kind, heading, body, rows, keyPhrase, headingZh, image, url } = section;
-      slides.push({ kind, heading, body, rows, keyPhrase, headingZh, image, url });
+      const { kind, heading, body, rows, keyPhrase, headingZh } = section;
+      slides.push({ kind, heading, body, rows, keyPhrase, headingZh });
     }
   }
   return slides;
