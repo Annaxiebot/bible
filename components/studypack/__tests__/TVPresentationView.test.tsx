@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { readFileSync } from 'fs';
 import React from 'react';
 import { STORAGE_KEYS } from '../../../constants/storageKeys';
@@ -40,6 +40,10 @@ async function renderLoaded(onExit = vi.fn()) {
   await waitFor(() => {
     expect(screen.getByText('不要忧虑 Do Not Be Anxious')).toBeInTheDocument();
   });
+  // waitFor resolves on the DOM commit; the passive effects that (re)attach
+  // window listeners may still be queued. Flush them so the keydowns below
+  // never race the scheduler (the root of the old ArrowRight flake).
+  await act(async () => {});
   return onExit;
 }
 
