@@ -4,7 +4,8 @@
  * Ephemeral, in-memory conversation. Answers stream in token-by-token via
  * askAIStream.ts: `streamingText` holds the partial answer while it arrives,
  * then the final text moves into `messages`. Unmounting (overlay closed)
- * aborts any in-flight stream cleanly.
+ * aborts any in-flight stream cleanly. `configured` is read once on mount
+ * and flipped by `markConfigured()` after the inline key setup saves.
  */
 import { useState, useCallback, useRef } from 'react';
 import { StudyPack, Slide } from './packTypes';
@@ -18,6 +19,8 @@ export interface AskAI {
   loading: boolean;
   error: string | null;
   configured: boolean;
+  /** Call after a key has been stored (inline setup) so asking becomes possible. */
+  markConfigured: () => void;
   ask: (question: string) => Promise<void>;
   /** Abort any in-flight stream (called when the overlay closes). */
   cancel: () => void;
@@ -28,8 +31,10 @@ export function useAskAI(pack: StudyPack, slide: Slide | undefined): AskAI {
   const [streamingText, setStreamingText] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [configured] = useState(isAskAIConfigured);
+  const [configured, setConfigured] = useState(isAskAIConfigured);
   const abortRef = useRef<AbortController | null>(null);
+
+  const markConfigured = useCallback(() => setConfigured(isAskAIConfigured()), []);
 
   // Explicit cancel (overlay Escape/✕). NOT an unmount-cleanup effect:
   // StrictMode's simulated remount would abort the auto-sent stream and
@@ -71,5 +76,5 @@ export function useAskAI(pack: StudyPack, slide: Slide | undefined): AskAI {
     }
   }, [pack, slide, messages, loading, configured]);
 
-  return { messages, streamingText, loading, error, configured, ask, cancel };
+  return { messages, streamingText, loading, error, configured, markConfigured, ask, cancel };
 }

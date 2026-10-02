@@ -7,15 +7,16 @@
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StudyPack, Slide } from './packTypes';
-import { AI_NOT_CONFIGURED_MESSAGE, AskAIMessage } from './askAI';
+import { AskAIMessage, AI_CREDITS_MESSAGE } from './askAI';
 import { ASK_AI_LABEL, ASK_INPUT_PLACEHOLDER, ASK_SUBMIT_LABEL, TV_THINKING } from './tvHints';
 import { useAskAI, AskAI } from './useAskAI';
 import AskAnswer from './AskAnswer';
+import { QuickAISetupForm } from '../setup/QuickAISetup';
+import { SETUP_TITLE } from '../setup/setupStrings';
 
 // Answers render through AskAnswer (markdown + verse tooltips, font scaled
 // by length). Overflow scrolls inside Conversation (flex-1 overflow-y-auto)
 // so the input/controls never leave the screen.
-const alertStyle: React.CSSProperties = { fontSize: '3vh', lineHeight: 1.45 };
 const questionStyle: React.CSSProperties = { fontSize: '2.5vh', lineHeight: 1.4 };
 
 const Message: React.FC<{ m: AskAIMessage; pack: StudyPack }> = ({ m, pack }) =>
@@ -23,8 +24,27 @@ const Message: React.FC<{ m: AskAIMessage; pack: StudyPack }> = ({ m, pack }) =>
     ? <p className="text-slate-400" style={questionStyle}>{`Q: ${m.content}`}</p>
     : <AskAnswer text={m.content} pack={pack} />;
 
+/** Error line; a credits (402) error also offers the inline setup. */
+const ErrorLine: React.FC<{ error: string; onSetup: () => void }> = ({ error, onSetup }) => (
+  <p className="text-red-400" style={questionStyle} role="alert">
+    {error}
+    {error === AI_CREDITS_MESSAGE && (
+      <button
+        type="button"
+        onClick={onSetup}
+        className="ml-3 rounded-lg border border-amber-400 px-4 py-1 text-amber-300"
+        style={questionStyle}
+      >
+        {SETUP_TITLE}
+      </button>
+    )}
+  </p>
+);
+
 const Conversation: React.FC<{ ai: AskAI; pack: StudyPack }> = ({ ai, pack }) => {
   const endRef = useRef<HTMLDivElement>(null);
+  const [setupOpen, setSetupOpen] = useState(false);
+  const onSaved = () => { ai.markConfigured(); setSetupOpen(false); };
   useEffect(() => {
     // Guarded: jsdom (vitest) does not implement scrollIntoView.
     if (typeof endRef.current?.scrollIntoView === 'function') {
@@ -33,10 +53,12 @@ const Conversation: React.FC<{ ai: AskAI; pack: StudyPack }> = ({ ai, pack }) =>
   }, [ai.messages.length, ai.loading, ai.streamingText]);
   return (
     <div className="flex-1 overflow-y-auto space-y-[2vh]">
-      {!ai.configured && (
-        <p className="text-amber-200" style={alertStyle} role="alert">
-          {AI_NOT_CONFIGURED_MESSAGE}
-        </p>
+      {(!ai.configured || setupOpen) && (
+        // Unconfigured (or opened from a credits error): the one-field key
+        // setup, inline. Saving flips `configured`; a pending question sends.
+        <div className="max-w-3xl">
+          <QuickAISetupForm onSaved={onSaved} onCancel={setupOpen ? () => setSetupOpen(false) : undefined} />
+        </div>
       )}
       {ai.messages.map((m, i) => <Message key={i} m={m} pack={pack} />)}
       {ai.streamingText !== null && (
@@ -47,9 +69,7 @@ const Conversation: React.FC<{ ai: AskAI; pack: StudyPack }> = ({ ai, pack }) =>
       {ai.loading && ai.streamingText === null && (
         <p className="text-slate-500" style={questionStyle}>{TV_THINKING}</p>
       )}
-      {ai.error && (
-        <p className="text-red-400" style={questionStyle} role="alert">{ai.error}</p>
-      )}
+      {ai.error && <ErrorLine error={ai.error} onSetup={() => setSetupOpen(true)} />}
       <div ref={endRef} />
     </div>
   );
@@ -105,10 +125,10 @@ const AskAIOverlay: React.FC<AskAIOverlayProps> = ({ pack, slide, initialQuestio
   }, [ai, onClose]);
 
   // One-click smart open: submit the initial question immediately, once.
-  // ai.ask() itself no-ops when the provider is not configured, so the
-  // unconfigured overlay still just shows the setup message.
+  // While unconfigured the question stays pending; it is sent as soon as
+  // the inline setup stores a key (ai.configured flips to true).
   useEffect(() => {
-    if (!initialQuestion || autoSentRef.current) return;
+    if (!initialQuestion || autoSentRef.current || !ai.configured) return;
     autoSentRef.current = true;
     void ai.ask(initialQuestion);
   }, [initialQuestion, ai]);

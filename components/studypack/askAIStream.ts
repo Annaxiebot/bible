@@ -9,8 +9,10 @@ import { BIBLE_SCHOLAR_SYSTEM_PROMPT } from '../../services/systemPrompts';
 import { StudyPack, Slide } from './packTypes';
 import {
   AI_NOT_CONFIGURED_MESSAGE,
+  AI_CREDITS_MESSAGE,
+  HTTP_PAYMENT_REQUIRED,
   AskAIMessage,
-  ASK_AI_MODEL,
+  resolveAskAIModel,
   ASK_AI_MAX_TOKENS,
   buildAskAIPrompt,
   stripSplitMarker,
@@ -57,7 +59,7 @@ function buildRequestBody(
   question: string
 ): string {
   return JSON.stringify({
-    model: ASK_AI_MODEL,
+    model: resolveAskAIModel(),
     stream: true,
     max_tokens: ASK_AI_MAX_TOKENS,
     temperature: 0.7,
@@ -99,6 +101,7 @@ export async function streamStudyAI(
     body: buildRequestBody(pack, slide, history, question),
   });
   if (!response.ok) {
+    if (response.status === HTTP_PAYMENT_REQUIRED) throw new Error(AI_CREDITS_MESSAGE);
     const data: { error?: { message?: string } } = await response.json().catch(() => ({}));
     throw new Error(data.error?.message || `OpenRouter API error: ${response.status}`);
   }

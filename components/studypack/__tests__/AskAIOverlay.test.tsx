@@ -5,6 +5,9 @@ import React from 'react';
 import { STORAGE_KEYS } from '../../../constants/storageKeys';
 import { TEST_PACK_PATH } from './fixtures';
 import { parseStudyPack, buildSlides, StudyPack, Slide } from '../packTypes';
+import { DEFAULT_AI_SETUP } from '../../../services/aiDefaults';
+import { SETUP_TITLE, SETUP_KEY_LABEL, SETUP_SAVE, SETUP_CANCEL } from '../../setup/setupStrings';
+import { AI_CREDITS_MESSAGE } from '../askAI';
 
 // Mirror of askAIStream.ts streamStudyAI:
 // (pack, slide, history, question, onText, signal) → Promise<finalText>,
@@ -26,6 +29,7 @@ function loadPack(): { pack: StudyPack; slide: Slide } {
 type OnText = (t: string) => void;
 
 const getItemMock = window.localStorage.getItem as ReturnType<typeof vi.fn>;
+const setItemMock = window.localStorage.setItem as ReturnType<typeof vi.fn>;
 
 function configureKey() {
   getItemMock.mockImplementation((key: string) =>
@@ -49,14 +53,37 @@ beforeEach(() => {
       return 'Answer (v.25).';
     });
   getItemMock.mockReset().mockReturnValue(null);
+  setItemMock.mockReset();
 });
 
 describe('AskAIOverlay (streaming)', () => {
-  it('shows the OpenRouter setup message and disables input when unconfigured', () => {
+  it('shows the inline key setup and disables input when unconfigured', () => {
     renderOverlay();
-    expect(screen.getByRole('alert')).toHaveTextContent(/OpenRouter API key/);
+    expect(screen.getByTestId('quick-ai-setup')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: SETUP_TITLE })).toBeInTheDocument();
     expect(screen.getByLabelText(/Ask AI question/)).toBeDisabled();
     expect(streamStudyAIMock).not.toHaveBeenCalled();
+  });
+
+  it('unconfigured → paste key → Save: the pending question auto-sends immediately', async () => {
+    renderOverlay(vi.fn(), 'Where does anxiety show up?');
+    expect(streamStudyAIMock).not.toHaveBeenCalled();
+    // Saving stores the key; the overlay re-reads configuration from storage.
+    setItemMock.mockImplementation((key: string, value: string) => {
+      if (key === STORAGE_KEYS.OPENROUTER_API_KEY) {
+        getItemMock.mockImplementation((k: string) => (k === key ? value : null));
+      }
+    });
+    fireEvent.change(screen.getByLabelText(SETUP_KEY_LABEL), { target: { value: 'sk-or-abc' } });
+    fireEvent.click(screen.getByRole('button', { name: SETUP_SAVE }));
+    expect(setItemMock).toHaveBeenCalledWith(STORAGE_KEYS.OPENROUTER_API_KEY, 'sk-or-abc');
+    expect(setItemMock).toHaveBeenCalledWith(STORAGE_KEYS.AI_PROVIDER, DEFAULT_AI_SETUP.provider);
+    await waitFor(() => expect(streamStudyAIMock).toHaveBeenCalledTimes(1));
+    expect(streamStudyAIMock.mock.calls[0][3]).toBe('Where does anxiety show up?');
+    expect(screen.queryByTestId('quick-ai-setup')).toBeNull();
+    await waitFor(() =>
+      expect(screen.getByTestId('ask-answer')).toHaveTextContent('Answer (v.25).'));
+    await waitFor(() => expect(screen.getByLabelText(/Ask AI question/)).toBeEnabled());
   });
 
   it('renders the answer incrementally as deltas arrive, input disabled until done', async () => {
@@ -152,6 +179,18 @@ describe('AskAIOverlay (streaming)', () => {
     await waitFor(() => {
       expect(screen.getByRole('alert')).toHaveTextContent('OpenRouter API error: 429');
     });
+  });
+
+  it('a credits (402) error shows the bilingual line with a Set up AI button that opens the inline form', async () => {
+    configureKey();
+    streamStudyAIMock.mockRejectedValue(new Error(AI_CREDITS_MESSAGE));
+    renderOverlay(vi.fn(), 'auto question');
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(AI_CREDITS_MESSAGE));
+    expect(screen.queryByTestId('quick-ai-setup')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: SETUP_TITLE }));
+    expect(screen.getByTestId('quick-ai-setup')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: SETUP_CANCEL }));
+    expect(screen.queryByTestId('quick-ai-setup')).toBeNull();
   });
 
   it('treats an empty final answer as an error, not a clean result', async () => {
