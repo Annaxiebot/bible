@@ -60,3 +60,75 @@ hand. Supabase was already in the stack (auth, sync, `ai-chat` edge function).
   the app's extensionless modules) and pinned equal by a test.
 - Member data stays limited to name/phone/email/consent per pack; reflections
   never leave the device (ADR-0003 §17 unchanged).
+
+## Addendum (2026-10-02): commitment, feedback, claim, and the feedback form
+
+7. **A sign-up is a commitment, not a contact form.** The first step of
+   `#/signup/<packId>` is "我本周的操练 My practice this week": the pack's
+   seven life-menu rows as large choices (exactly one, an optional second,
+   an optional own version), then the contact step. The row carries
+   `practice_area/practice_text/practice2_*/practice_note`. Check-ins
+   restate the member's own practice ("你选的操练：…") and link to the
+   member's check-in page `#/checkin/<signupId>[/<kind>]`
+   (components/checkin/). **Token rule:** the signup uuid is the member's
+   only credential — unguessable, no uid or pack id in the URL. The page
+   reads its context through `checkin_context()` (SECURITY DEFINER; title,
+   name, practice, prompt lines, form URL — never phone or email) and shares
+   an answer only through `share_checkin_answer()` (SECURITY DEFINER copies
+   pack_id/leader_id from the signup row; nothing client-supplied decides
+   ownership). `checkin_answers`: leaders SELECT `auth.uid() = leader_id`;
+   no INSERT/UPDATE/DELETE policy for app roles. "只记在我的手机 Keep private"
+   writes localStorage only (ADR-0003 §17: private by default; sharing is
+   the member's explicit tap). The leader page shows 承诺 Commitments (who
+   chose what, counts per area) and 反馈 Shared feedback (by kind, newest
+   first, answered-vs-signed-up) — next Friday's closing material; CSV
+   includes practice and the latest shared answer per kind.
+   Right after a sign-up with an email the browser asks the edge function
+   for kind `welcome` (the one anonymous path: the signup must exist and be
+   younger than 10 minutes, `recipients.welcomeAllowed`); the message
+   restates the practice and carries the check-in link.
+8. **Unclaimed vs demo.** A pack without `leaderId` is a *demo* only when it
+   is public (id not `local-`). A LOCAL pack without a leader is
+   *unclaimed*: it exists only in this browser, so whoever signs in here
+   owns it. The TV qr slide and `#/signup` show "登录以启用报名 · Sign in to
+   enable sign-up" with the app's Google sign-in; the sign-in returns to the
+   same hash (`services/authReturnHash`), and the one auth listener
+   (`claimLocalPacks.installClaimOnSignIn`, mounted by LandingGate) stamps
+   every leaderless local pack with the uid and syncs its summary; pages
+   re-read the pack on the claim event, so the QR appears without a reload.
+   `packSource.packSignupState` is the single decision helper.
+9. **Feedback form (default: auto-created).** Every pack gets its own Google
+   Form, created in the leader's own Google account — the same identity as
+   the Google sign-in, which now requests `forms.body` with offline access +
+   consent so the session carries `provider_token` (kept in the browser
+   session only; never logged, never sent to our backend). The form has five
+   items (name; practice as a choice from the pack's seven practices +
+   Other; what I did; what changed in me; OK to share). Its responder link
+   is stored as `StudyPack.feedbackFormUrl` and in `pack_summaries`
+   (`feedback_form_url`, `feedback_form_entries`), so every check-in link
+   (welcome, scheduled sends) points at the form instead of `#/checkin`.
+   Pasting an existing form link (generation form, with "用于我所有的查经 ·
+   Use for all my studies" as the leader's default; or the editor's per-pack
+   field) overrides auto-creation; the built-in check-in page is the
+   fallback when creation fails (typed failures: no token / permission not
+   granted / Forms API not enabled / API error — each a bilingual notice,
+   never a throw). Prefill: `?usp=pp_url&entry.<id>=<value>` with the ids the
+   leader pastes; the API's hexadecimal questionIds are not documented as
+   convertible to entry ids, so auto-created forms are linked plain. Owner
+   setup: `docs/guides/google-forms-setup.md`. Creating forms through the
+   API in the leader's account was chosen over a shared form because the
+   responses then live with the leader; reading responses back via the API
+   (another scope) is a possible later step, not now.
+10. **A pack is never lost.** The editor auto-saves (first sight at once,
+    edits after 500 ms, flush on Back/Preview/unmount; `useAutoSave`), the
+    URL follows the pack (`#/new/<packId>`, reload restores), and TV mode
+    opened from the editor exits back to it (`tvReturn`, keyed by pack id;
+    a pack opened directly still exits to the app).
+
+### Consequences (addendum)
+
+- `database/signups-schema.sql` gained columns, `checkin_answers`, two
+  SECURITY DEFINER functions, the `welcome` kind; re-run the file (idempotent).
+- The edge function's `renderCheckin` takes a member context (name, signup
+  id, practice); `prefillFormUrl` is duplicated in Deno and pinned equal to
+  the app's copy by a test.
