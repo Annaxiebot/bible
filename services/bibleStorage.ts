@@ -3,7 +3,15 @@ import { idbService, ChapterStorageData, ChapterRecord } from './idbService';
 
 export type { ChapterStorageData } from './idbService';
 
-export type BibleTranslation = 'cuv' | 'cunp' | 'web' | 'kjv' | 'asv' | 'bbe' | 'ylt';
+export type BibleTranslation = 'cuv' | 'cunp' | 'bsb' | 'web' | 'kjv' | 'asv' | 'bbe' | 'ylt';
+
+/** Chinese translations; every other BibleTranslation is an English one. */
+export const CHINESE_TRANSLATIONS: ReadonlySet<BibleTranslation> = new Set<BibleTranslation>([
+  'cuv', 'cunp',
+]);
+
+/** Default English version for users with no stored preference (BSB is bundled offline). */
+export const DEFAULT_ENGLISH_VERSION: BibleTranslation = 'bsb';
 
 class BibleStorageService {
   /** No-op: retained for backward compatibility. DB is initialized by idbService. */
@@ -28,10 +36,14 @@ class BibleStorageService {
     return result ? result.data : null;
   }
 
-  async hasChapter(bookId: string, chapter: number): Promise<boolean> {
+  async hasChapter(
+    bookId: string,
+    chapter: number,
+    english: BibleTranslation = DEFAULT_ENGLISH_VERSION
+  ): Promise<boolean> {
     const cuvData = await this.getChapter(bookId, chapter, 'cuv');
-    const webData = await this.getChapter(bookId, chapter, 'web');
-    return !!(cuvData && webData);
+    const englishData = await this.getChapter(bookId, chapter, english);
+    return !!(cuvData && englishData);
   }
 
   async hasChapterTranslation(bookId: string, chapter: number, translation: BibleTranslation): Promise<boolean> {
@@ -57,9 +69,12 @@ class BibleStorageService {
       }
     });
 
-    // Only add to offline set if both translations exist
+    // Offline means CUV plus at least one English translation is cached
     chapterMap.forEach((translations, baseKey) => {
-      if (translations.has('cuv') && translations.has('web')) {
+      const hasEnglish = [...translations].some(
+        t => !CHINESE_TRANSLATIONS.has(t as BibleTranslation)
+      );
+      if (translations.has('cuv') && hasEnglish) {
         chapters.add(baseKey);
       }
     });

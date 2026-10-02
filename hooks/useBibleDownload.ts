@@ -2,7 +2,8 @@ import React, { useCallback, useEffect, useRef } from 'react';
 import { BIBLE_BOOKS } from '../constants';
 import { bibleStorage } from '../services/bibleStorage';
 import { backgroundBibleDownload } from '../services/backgroundBibleDownload';
-import { buildChapterUrl } from '../services/apiConfig';
+import { fetchChapter as fetchChapterData } from '../services/bibleDataSource';
+import { BibleTranslation } from '../services/bibleStorage';
 import { DOWNLOAD, TIMING } from '../constants/appConfig';
 
 interface UseBibleDownloadParams {
@@ -93,6 +94,17 @@ export function useBibleDownload({
     }
   };
 
+  /** Fetch one chapter (bundled static data first, bible-api.com fallback) and cache it. Throws on failure so callers' retry loops engage. */
+  const saveChapterFromSource = async (
+    bookId: string,
+    chapter: number,
+    translation: string,
+    totalVerses?: number
+  ): Promise<void> => {
+    const data = await fetchChapterData(bookId, chapter, translation as BibleTranslation, totalVerses);
+    await bibleStorage.saveChapter(bookId, chapter, translation as BibleTranslation, data);
+  };
+
   const handleDownloadCurrentChapter = useCallback(async () => {
     setIsDownloading(true);
     setDownloadProgress(0);
@@ -105,14 +117,8 @@ export function useBibleDownload({
       let cuvSuccess = false;
       for (let retry = 0; retry < DOWNLOAD.MAX_RETRIES && !cuvSuccess; retry++) {
         try {
-          const cuvRes = await fetch(buildChapterUrl(selectedBookId, selectedChapter, chineseVersion, selectedBookTotalVerses));
-          if (cuvRes.ok) {
-            const cuvData = await cuvRes.json();
-            if (cuvData?.verses) {
-              await bibleStorage.saveChapter(selectedBookId, selectedChapter, chineseVersion as any, cuvData);
-              cuvSuccess = true;
-            }
-          }
+          await saveChapterFromSource(selectedBookId, selectedChapter, chineseVersion, selectedBookTotalVerses);
+          cuvSuccess = true;
         } catch (e) {
           if (retry === DOWNLOAD.MAX_RETRIES - 1) throw e;
           await new Promise(resolve => setTimeout(resolve, TIMING.DOWNLOAD_RETRY_DELAY_MS));
@@ -123,14 +129,8 @@ export function useBibleDownload({
       let webSuccess = false;
       for (let retry = 0; retry < DOWNLOAD.MAX_RETRIES && !webSuccess; retry++) {
         try {
-          const webRes = await fetch(buildChapterUrl(selectedBookId, selectedChapter, englishVersion, selectedBookTotalVerses));
-          if (webRes.ok) {
-            const webData = await webRes.json();
-            if (webData?.verses) {
-              await bibleStorage.saveChapter(selectedBookId, selectedChapter, englishVersion as any, webData);
-              webSuccess = true;
-            }
-          }
+          await saveChapterFromSource(selectedBookId, selectedChapter, englishVersion, selectedBookTotalVerses);
+          webSuccess = true;
         } catch (e) {
           if (retry === DOWNLOAD.MAX_RETRIES - 1) throw e;
           await new Promise(resolve => setTimeout(resolve, TIMING.DOWNLOAD_RETRY_DELAY_MS));
@@ -174,7 +174,7 @@ export function useBibleDownload({
         setDownloadStatus(`正在下载: ${selectedBookName} 第 ${chapter} 章`);
 
         // Skip if already downloaded
-        const hasChapter = await bibleStorage.hasChapter(selectedBookId, chapter);
+        const hasChapter = await bibleStorage.hasChapter(selectedBookId, chapter, englishVersion as BibleTranslation);
         if (hasChapter) {
           completed += 2;
           setDownloadProgress(Math.round((completed / total) * 100));
@@ -186,13 +186,7 @@ export function useBibleDownload({
 
         // Download CUV
         try {
-          const cuvRes = await fetch(buildChapterUrl(selectedBookId, chapter, chineseVersion, selectedBookTotalVerses));
-          if (cuvRes.ok) {
-            const cuvData = await cuvRes.json();
-            if (cuvData?.verses) {
-              await bibleStorage.saveChapter(selectedBookId, chapter, chineseVersion as any, cuvData);
-            }
-          }
+          await saveChapterFromSource(selectedBookId, chapter, chineseVersion, selectedBookTotalVerses);
         } catch (e) {
           // silently handle — chapter skipped
         }
@@ -204,13 +198,7 @@ export function useBibleDownload({
 
         // Download WEB
         try {
-          const webRes = await fetch(buildChapterUrl(selectedBookId, chapter, englishVersion, selectedBookTotalVerses));
-          if (webRes.ok) {
-            const webData = await webRes.json();
-            if (webData?.verses) {
-              await bibleStorage.saveChapter(selectedBookId, chapter, englishVersion as any, webData);
-            }
-          }
+          await saveChapterFromSource(selectedBookId, chapter, englishVersion, selectedBookTotalVerses);
         } catch (e) {
           // silently handle — chapter skipped
         }
@@ -259,7 +247,7 @@ export function useBibleDownload({
         }
 
         // Skip if already downloaded
-        const hasChapter = await bibleStorage.hasChapter(book.id, chapter);
+        const hasChapter = await bibleStorage.hasChapter(book.id, chapter, englishVersion as BibleTranslation);
         if (hasChapter) {
           completed += 2;
           setDownloadProgress(Math.round((completed / total) * 100));
@@ -284,20 +272,8 @@ export function useBibleDownload({
           let cuvSuccess = false;
           for (let retry = 0; retry < DOWNLOAD.MAX_RETRIES && !cuvSuccess; retry++) {
             try {
-              const cuvRes = await fetch(buildChapterUrl(book.id, chapter, chineseVersion, book.totalVerses));
-              if (cuvRes.ok) {
-                const cuvData = await cuvRes.json();
-                if (cuvData?.verses) {
-                  await bibleStorage.saveChapter(book.id, chapter, chineseVersion as any, cuvData);
-                  cuvSuccess = true;
-                }
-              } else if (cuvRes.status === 429) {
-                // Rate limited - wait much longer
-                const waitTime = (5 + retry * 5);
-                await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
-              } else if (retry < DOWNLOAD.MAX_RETRIES - 1) {
-                await new Promise(resolve => setTimeout(resolve, TIMING.MANUAL_DOWNLOAD_CHAPTER_DELAY_MS));
-              }
+              await saveChapterFromSource(book.id, chapter, chineseVersion, book.totalVerses);
+              cuvSuccess = true;
             } catch (e) {
               if (retry === DOWNLOAD.MAX_RETRIES - 1) {
                 // silently handle — CUV chapter skipped after retries
@@ -319,20 +295,8 @@ export function useBibleDownload({
           let webSuccess = false;
           for (let retry = 0; retry < DOWNLOAD.MAX_RETRIES && !webSuccess; retry++) {
             try {
-              const webRes = await fetch(buildChapterUrl(book.id, chapter, englishVersion, book.totalVerses));
-              if (webRes.ok) {
-                const webData = await webRes.json();
-                if (webData?.verses) {
-                  await bibleStorage.saveChapter(book.id, chapter, englishVersion as any, webData);
-                  webSuccess = true;
-                }
-              } else if (webRes.status === 429) {
-                // Rate limited - wait much longer
-                const waitTime = (5 + retry * 5);
-                await new Promise(resolve => setTimeout(resolve, waitTime * 1000));
-              } else if (retry < DOWNLOAD.MAX_RETRIES - 1) {
-                await new Promise(resolve => setTimeout(resolve, TIMING.MANUAL_DOWNLOAD_CHAPTER_DELAY_MS));
-              }
+              await saveChapterFromSource(book.id, chapter, englishVersion, book.totalVerses);
+              webSuccess = true;
             } catch (e) {
               if (retry === DOWNLOAD.MAX_RETRIES - 1) {
                 // silently handle — WEB chapter skipped after retries

@@ -24,7 +24,7 @@ describe('parseStudyPack', () => {
     expect(scripture.verses).toHaveLength(10);
     expect(scripture.verses!.map(v => v.num)).toEqual([25, 26, 27, 28, 29, 30, 31, 32, 33, 34]);
     expect(scripture.verses![0].cuv).toContain('忧虑');
-    expect(scripture.verses![0].web).toContain('anxious');
+    expect(scripture.verses![0].en).toContain('do not worry');  // BSB, not WEB
     expect(pack.sections.map(s => s.kind)).toEqual([
       'title', 'scripture', 'context', 'originalLanguage', 'crossRefs',
       'discussion', 'lifeMenu', 'reflection', 'qr', 'closing',
@@ -40,6 +40,12 @@ describe('parseStudyPack', () => {
     const pack = JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8'));
     delete pack.passageRef;
     expect(() => parseStudyPack(pack)).toThrow('passageRef');
+  });
+
+  it('rejects a pack missing the enVersion label', () => {
+    const pack = JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8'));
+    delete pack.enVersion;
+    expect(() => parseStudyPack(pack)).toThrow('enVersion');
   });
 
   it('rejects empty or missing sections', () => {
@@ -92,16 +98,17 @@ describe('parseStudyPack', () => {
 
 describe('chunkVerses', () => {
   const mk = (n: number): PackVerse[] =>
-    Array.from({ length: n }, (_, i) => ({ num: i + 1, cuv: `c${i}`, web: `w${i}` }));
+    Array.from({ length: n }, (_, i) => ({ num: i + 1, cuv: `c${i}`, en: `e${i}` }));
 
-  it('splits 10 verses into 3/3/4 (the Matt 6:25-34 case)', () => {
-    expect(chunkVerses(mk(10)).map(c => c.length)).toEqual([3, 3, 4]);
+  it('splits 10 verses into 2/2/3/3 (the Matt 6:25-34 case, cap 3)', () => {
+    expect(chunkVerses(mk(10)).map(c => c.length)).toEqual([2, 2, 3, 3]);
   });
 
   it('keeps short passages on one slide and splits evenly otherwise', () => {
-    expect(chunkVerses(mk(4)).map(c => c.length)).toEqual([4]);
+    expect(chunkVerses(mk(3)).map(c => c.length)).toEqual([3]);
+    expect(chunkVerses(mk(4)).map(c => c.length)).toEqual([2, 2]);
     expect(chunkVerses(mk(5)).map(c => c.length)).toEqual([2, 3]);
-    expect(chunkVerses(mk(8)).map(c => c.length)).toEqual([4, 4]);
+    expect(chunkVerses(mk(8)).map(c => c.length)).toEqual([2, 3, 3]);
   });
 
   it('preserves order and loses no verses', () => {
@@ -114,19 +121,19 @@ describe('buildSlides', () => {
   it('splits scripture into parts with indicators, keyPhrase only on part 1', () => {
     const slides = buildSlides(loadRealPack());
     const scripture = slides.filter(s => s.kind === 'scripture');
-    expect(scripture).toHaveLength(3);
+    expect(scripture).toHaveLength(4);
     expect(scripture.map(s => s.verses!.map(v => v.num))).toEqual([
-      [25, 26, 27], [28, 29, 30], [31, 32, 33, 34],
+      [25, 26], [27, 28], [29, 30, 31], [32, 33, 34],
     ]);
-    expect(scripture.map(s => s.partIndex)).toEqual([1, 2, 3]);
-    expect(scripture.every(s => s.partTotal === 3)).toBe(true);
+    expect(scripture.map(s => s.partIndex)).toEqual([1, 2, 3, 4]);
+    expect(scripture.every(s => s.partTotal === 4)).toBe(true);
     expect(scripture[0].keyPhrase).toContain('不要为生命忧虑');
     expect(scripture[1].keyPhrase).toBeUndefined();
   });
 
-  it('expands discussion questions into one slide each (16 total)', () => {
+  it('expands discussion questions into one slide each (17 total)', () => {
     const slides = buildSlides(loadRealPack());
-    expect(slides).toHaveLength(16);
+    expect(slides).toHaveLength(17);
     const discussion = slides.filter(s => s.kind === 'discussion');
     expect(discussion).toHaveLength(5);
     expect(discussion[0].questionNumber).toBe(1);
@@ -138,10 +145,10 @@ describe('buildSlides', () => {
   it('carries the qr section through to a slide between reflection and closing', () => {
     const slides = buildSlides(loadRealPack());
     const qrIndex = slides.findIndex(s => s.kind === 'qr');
-    expect(qrIndex).toBe(14); // second to last, before closing
+    expect(qrIndex).toBe(15); // second to last, before closing
     expect(slides[qrIndex].image).toBe('packs/signup-qr.png');
     expect(slides[qrIndex].url).toBe('https://forms.gle/kXamVsHcRTXHbZ4d6');
-    expect(slides[qrIndex].heading).toBe('Sign up 签到');
+    expect(slides[qrIndex].heading).toBe('签到 Sign up');
     expect(slides[qrIndex + 1].kind).toBe('closing');
   });
 

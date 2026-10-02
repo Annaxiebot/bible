@@ -7,6 +7,7 @@
  */
 import { getApiKey } from '../../services/openrouter';
 import { StudyPack, Slide } from './packTypes';
+import { ASK_AI_ANSWER_CONTRACT, TRANSLATIONS } from './principles';
 
 /** Default model, routed via OpenRouter. Change here to switch models. */
 export const ASK_AI_MODEL = 'anthropic/claude-sonnet-4.5';
@@ -18,8 +19,8 @@ export const ASK_AI_MODEL = 'anthropic/claude-sonnet-4.5';
 export const ASK_AI_MAX_TOKENS = 300;
 
 export const AI_NOT_CONFIGURED_MESSAGE =
-  'AI not configured — set your OpenRouter API key in app Settings. ' +
-  '未配置AI — 请在应用设置中填写 OpenRouter API 密钥。';
+  '未配置AI — 请在应用设置中填写 OpenRouter API 密钥。 ' +
+  'AI not configured — set your OpenRouter API key in app Settings.';
 
 export interface AskAIMessage {
   role: 'user' | 'assistant';
@@ -54,7 +55,7 @@ function formatPassage(pack: StudyPack): string {
     if (section.kind !== 'scripture' || !section.verses) continue;
     lines.push(`[${section.heading}]`);
     for (const v of section.verses) {
-      lines.push(`${v.num} ${v.cuv}\n${v.num} ${v.web}`);
+      lines.push(`${v.num} ${v.cuv}\n${v.num} ${v.en}`);
     }
   }
   return lines.join('\n');
@@ -74,16 +75,9 @@ export function questionForSelection(selected: string): string {
 export function buildAskAIPrompt(pack: StudyPack, slide: Slide, question: string): string {
   return [
     `We are in a small-group TV presentation of ${pack.passageRef}.`,
-    `FULL PASSAGE (CUV 和合本 / WEB):\n${formatPassage(pack)}`,
+    `FULL PASSAGE (${TRANSLATIONS.zh.label} / ${pack.enVersion}):\n${formatPassage(pack)}`,
     `CURRENT SLIDE:\n${formatSlide(slide)}`,
-    'ANSWER RULES (override any other format rules): answer in at most 2 short',
-    'sentences (max ~60 words total — this is shown on a TV and must fit the',
-    'screen), grounded in this passage, citing the verse (e.g. v.27). Answer in',
-    'the language of the question: a Chinese question gets a Chinese answer with',
-    'key terms also in English; an English question gets an English answer.',
-    'Follow-up questions may go deeper into chapter/book context and',
-    'interpretations, still within 2 short sentences. Do NOT use the [SPLIT]',
-    'marker or a two-section format.',
+    ASK_AI_ANSWER_CONTRACT,
     `QUESTION: ${question}`,
   ].join('\n\n');
 }

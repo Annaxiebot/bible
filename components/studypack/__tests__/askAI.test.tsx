@@ -39,7 +39,7 @@ describe('buildAskAIPrompt', () => {
     const prompt = buildAskAIPrompt(pack, slide, 'Why birds?');
     expect(prompt).toContain('Matthew 6:25–34');
     expect(prompt).toContain('不要为生命忧虑');                 // CUV v.25
-    expect(prompt).toContain('don’t be anxious for tomorrow');  // WEB v.34
+    expect(prompt).toContain('do not worry about tomorrow');  // BSB v.34
     expect(prompt).toContain(slide.heading);                    // current slide content
     expect(prompt).toContain('2 short');
     expect(prompt).toContain('~60 words');
@@ -53,25 +53,26 @@ describe('buildAskAIPrompt', () => {
     // hold church-internal content that never lands in the repo).
     const pack = parseStudyPack({
       id: 'two-scriptures',
-      title: 'Two Scriptures 雙經文',
+      title: '雙經文 Two Scriptures',
       date: '2026-10-02',
+      enVersion: 'WEB',
       passageRef: '約翰福音 3:22–36 · John 3:22–36',
       sections: [
-        { kind: 'title', heading: 'Two Scriptures 雙經文' },
+        { kind: 'title', heading: '雙經文 Two Scriptures' },
         {
           kind: 'scripture',
           heading: '一、約翰的衰微 v.29–30',
           verses: [
-            { num: 29, cuv: '娶新婦的就是新郎。', web: 'He who has the bride is the bridegroom.' },
-            { num: 30, cuv: '他必興旺，我必衰微。', web: 'He must increase, but I must decrease.' },
+            { num: 29, cuv: '娶新婦的就是新郎。', en: 'He who has the bride is the bridegroom.' },
+            { num: 30, cuv: '他必興旺，我必衰微。', en: 'He must increase, but I must decrease.' },
           ],
         },
         {
           kind: 'scripture',
           heading: '二、基督的至高 v.31–32',
           verses: [
-            { num: 31, cuv: '從天上來的是在萬有之上。', web: 'He who comes from above is above all.' },
-            { num: 32, cuv: '他將所見所聞的見證出來。', web: 'What he has seen and heard, of that he testifies.' },
+            { num: 31, cuv: '從天上來的是在萬有之上。', en: 'He who comes from above is above all.' },
+            { num: 32, cuv: '他將所見所聞的見證出來。', en: 'What he has seen and heard, of that he testifies.' },
           ],
         },
       ],
@@ -82,7 +83,7 @@ describe('buildAskAIPrompt', () => {
     for (const section of scriptures) {
       expect(prompt).toContain(`[${section.heading}]`);
       expect(prompt).toContain(section.verses![0].cuv);
-      expect(prompt).toContain(section.verses![section.verses!.length - 1].web);
+      expect(prompt).toContain(section.verses![section.verses!.length - 1].en);
     }
   });
 });

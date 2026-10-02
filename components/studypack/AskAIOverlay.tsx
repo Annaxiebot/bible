@@ -8,6 +8,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StudyPack, Slide } from './packTypes';
 import { AI_NOT_CONFIGURED_MESSAGE, AskAIMessage } from './askAI';
+import { ASK_AI_LABEL, ASK_INPUT_PLACEHOLDER, ASK_SUBMIT_LABEL, TV_THINKING } from './tvHints';
 import { useAskAI, AskAI } from './useAskAI';
 import AskAnswer from './AskAnswer';
 
@@ -44,7 +45,7 @@ const Conversation: React.FC<{ ai: AskAI; pack: StudyPack }> = ({ ai, pack }) =>
         </div>
       )}
       {ai.loading && ai.streamingText === null && (
-        <p className="text-slate-500" style={questionStyle}>Thinking… 思考中…</p>
+        <p className="text-slate-500" style={questionStyle}>{TV_THINKING}</p>
       )}
       {ai.error && (
         <p className="text-red-400" style={questionStyle} role="alert">{ai.error}</p>
@@ -70,8 +71,8 @@ const QuestionForm: React.FC<{ ai: AskAI }> = ({ ai }) => {
         value={draft}
         onChange={e => setDraft(e.target.value)}
         disabled={!ai.configured || ai.loading}
-        placeholder="Ask about this passage… 对这段经文提问…"
-        aria-label="Ask AI question 问AI问题"
+        placeholder={ASK_INPUT_PLACEHOLDER}
+        aria-label="问AI问题 Ask AI question"
         className="flex-1 bg-slate-800 text-slate-100 rounded-lg px-4 border border-slate-600 focus:outline-none focus:border-amber-400"
         style={questionStyle}
       />
@@ -81,7 +82,7 @@ const QuestionForm: React.FC<{ ai: AskAI }> = ({ ai }) => {
         className="bg-amber-500 disabled:bg-slate-700 text-slate-950 disabled:text-slate-500 font-semibold rounded-lg px-6"
         style={questionStyle}
       >
-        Ask 提问
+        {ASK_SUBMIT_LABEL}
       </button>
     </form>
   );
@@ -133,12 +134,12 @@ const AskAIOverlay: React.FC<AskAIOverlayProps> = ({ pack, slide, initialQuestio
     >
       <div className="bg-slate-900 border border-slate-700 rounded-xl w-[80vw] h-[80vh] p-[3vh] flex flex-col">
         <div className="flex items-center justify-between mb-[2vh]">
-          <h2 className="text-amber-300 font-bold" style={{ fontSize: '3.5vh' }}>Ask AI 问AI</h2>
+          <h2 className="text-amber-300 font-bold" style={{ fontSize: '3.5vh' }}>{ASK_AI_LABEL}</h2>
           <button
             onClick={close}
             className="text-slate-400 hover:text-slate-100 px-3 py-1"
             style={{ fontSize: '3vh' }}
-            aria-label="Close Ask AI 关闭问AI"
+            aria-label="关闭问AI Close Ask AI"
           >
             ✕
           </button>
