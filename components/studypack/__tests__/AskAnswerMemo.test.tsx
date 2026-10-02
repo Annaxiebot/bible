@@ -5,7 +5,7 @@
  * tree (flicker). LazyMarkdown is mocked here to capture the prop identity,
  * so this file stays separate from the rendering tests.
  */
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render } from '@testing-library/react';
 import { readFileSync } from 'fs';
 import React from 'react';
@@ -26,6 +26,10 @@ import AskAnswer from '../AskAnswer';
 const pack: StudyPack = parseStudyPack(JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8')));
 
 describe('AskAnswer markdown components identity', () => {
+  // `captured` is module-level: without a reset here the test order decides
+  // what captured[0] is (flaked under --sequence.shuffle).
+  beforeEach(() => { captured.length = 0; });
+
   it('keeps the same components map across re-renders with the same pack', () => {
     const { rerender } = render(<AskAnswer text="streaming " pack={pack} />);
     rerender(<AskAnswer text="streaming tok" pack={pack} />);
@@ -36,7 +40,6 @@ describe('AskAnswer markdown components identity', () => {
   });
 
   it('rebuilds the map only when the pack changes', () => {
-    captured.length = 0;
     const otherPack = { ...pack };
     const { rerender } = render(<AskAnswer text="a" pack={pack} />);
     rerender(<AskAnswer text="b" pack={otherPack} />);

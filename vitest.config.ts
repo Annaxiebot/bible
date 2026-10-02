@@ -9,7 +9,11 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './tests/utils/setup.ts',
     include: ['**/__tests__/**/*.test.{ts,tsx}', '**/*.test.{ts,tsx}'],
-    exclude: ['node_modules', 'dist', 'ios', 'tests'],
+    // '.claude/**' holds other sessions' git worktrees (full repo copies). Without
+    // this exclude vitest collected their stale test files alongside the main
+    // tree, and an old copy of TVPresentationView.test.tsx flaked the whole run.
+    // Pinned by utils/__tests__/vitestExclude.test.ts.
+    exclude: ['node_modules', 'dist', 'ios', 'tests', '**/.claude/**', '**/worktrees/**'],
     coverage: {
       provider: 'v8',
       reporter: ['text', 'json', 'json-summary', 'html'],
