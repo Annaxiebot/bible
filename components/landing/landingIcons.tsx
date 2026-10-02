@@ -1,5 +1,5 @@
 /**
- * landingIcons.tsx — hand-drawn inline SVG icons for the landing · 首頁圖標
+ * landingIcons.tsx — hand-drawn inline SVG icons for the landing · 首页图标
  *
  * 24×24 stroke icons in the amber/slate palette. No icon library, no raster.
  */

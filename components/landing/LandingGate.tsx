@@ -1,5 +1,5 @@
 /**
- * LandingGate.tsx — root gate: landing page vs the rest · 首頁路由開關
+ * LandingGate.tsx — root gate: landing page vs the rest · 首页路由开关
  *
  * Wraps StudyPackGate (which already splits "#/pack/<id>" TV mode from the
  * app) and adds branches in front: a bare root URL renders the lazy-loaded

@@ -1,5 +1,5 @@
 /**
- * LandingNumbers.test.tsx — four honest figures, pinned to the repo · 真實的數字測試
+ * LandingNumbers.test.tsx — four honest figures, pinned to the repo · 真实的数字测试
  *
  * The strip must show exactly four figures and nothing about users. The
  * book and verse figures are re-derived here from public/bible-data (the
@@ -54,7 +54,7 @@ describe('LandingNumbers', () => {
 
   it('never mentions users, visitors, members or churches as a count', () => {
     const text = HONEST_NUMBERS.map(f => `${f.value} ${f.zh} ${f.en} ${'note' in f ? f.note : ''}`).join(' ');
-    expect(text).not.toMatch(/user|visitor|member|church|用戶|用户|訪客|教會|教会/i);
+    expect(text).not.toMatch(/user|visitor|member|church|用户|用户|访客|教会|教会/i);
   });
 
   it('book and verse figures match the bundled 和合本 data', () => {

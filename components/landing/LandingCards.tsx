@@ -1,5 +1,5 @@
 /**
- * LandingCards.tsx — the two door cards · 兩扇門
+ * LandingCards.tsx — the two door cards · 两扇门
  *
  * Group study → sample pack (TV mode); personal study → the app. Each card
  * has an illustration, icon bullets and a ≥56px CTA. Hover/focus lift and

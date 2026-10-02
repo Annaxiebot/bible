@@ -1,5 +1,5 @@
 /**
- * landingIllustrations.tsx — hand-drawn SVG card art · 首頁插圖
+ * landingIllustrations.tsx — hand-drawn SVG card art · 首页插图
  *
  * A TV showing a slide (group card) and a phone showing bilingual verses
  * (personal card). Amber/slate palette, decorative (aria-hidden).

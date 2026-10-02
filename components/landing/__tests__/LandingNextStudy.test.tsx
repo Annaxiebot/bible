@@ -1,5 +1,5 @@
 /**
- * LandingNextStudy.test.tsx — the next-study block · 下次查經測試
+ * LandingNextStudy.test.tsx — the next-study block · 下次查经测试
  *
  * Loads the pack through the TV-mode seam (fetch of public/packs/<id>.json
  * with the schema query), renders title/passage/date Chinese first, and

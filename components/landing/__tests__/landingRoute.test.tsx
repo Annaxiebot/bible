@@ -1,5 +1,5 @@
 /**
- * landingRoute.test.tsx — root-gate routing · 首頁路由測試
+ * landingRoute.test.tsx — root-gate routing · 首页路由测试
  *
  * Covers the resolution table (root → landing, #app → app, #/pack/<id> → TV,
  * unknown hash → app fallback) and the LandingGate component's rendering of
@@ -113,7 +113,7 @@ describe('LandingGate', () => {
     render(<LandingGate app={app} />);
     await screen.findByTestId('landing-page');
     const refs = within(screen.getByTestId('theme-caption')).getAllByTestId('verse-ref');
-    expect(refs.map(r => r.textContent)).toEqual(['詩篇 147:4', 'Psalm 147:4']);
+    expect(refs.map(r => r.textContent)).toEqual(['诗篇 147:4', 'Psalm 147:4']);
     fireEvent.mouseEnter(refs[0]);
     const tooltip = await screen.findByRole('tooltip');
     expect(screen.getByTestId('verse-tooltip-title')).toHaveTextContent('诗篇 147:4 · Psalm 147:4');

@@ -1,5 +1,5 @@
 /**
- * BirdsLayer.tsx — grace note composed on top of any theme · 天上的飛鳥
+ * BirdsLayer.tsx — grace note composed on top of any theme · 天上的飞鸟
  *
  * Matthew 6:26: two faint bird silhouettes drift across the far background
  * once every ~45s at ~10% opacity. Not a theme of its own (yet) — a layer
