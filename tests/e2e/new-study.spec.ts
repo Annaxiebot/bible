@@ -26,11 +26,13 @@ async function openNewStudy(page: Page) {
   await expect(page.getByTestId('new-study-page')).toBeVisible();
 }
 
+/** John 3 from the dropdowns: 36 verse options come from the real bundled chapter; To defaults to 36. */
 async function fillJohn3(page: Page) {
   await page.getByTestId('ns-book').selectOption('JHN');
-  await page.getByTestId('ns-chapter').fill('3');
-  await page.getByTestId('ns-verse-from').fill('22');
-  await page.getByTestId('ns-verse-to').fill('36');
+  await page.getByTestId('ns-chapter').selectOption('3');
+  await expect(page.getByTestId('ns-verse-to').locator('option')).toHaveCount(36);
+  await expect(page.getByTestId('ns-verse-to')).toHaveValue('36');
+  await page.getByTestId('ns-verse-from').selectOption('22');
   await page.getByTestId('ns-date').fill('2026-10-02');
 }
 
@@ -58,6 +60,17 @@ test.describe('New study', () => {
     await expect(page.getByTestId('ns-book').locator('option', { hasText: '约翰福音 John' })).toHaveCount(1);
     expect(await page.getByTestId('ns-book').evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(20);
     expect((await page.getByTestId('ns-generate').boundingBox())!.height).toBeGreaterThanOrEqual(48);
+    // Chapter and verses are native dropdowns driven by real data (Matthew: 28 chapters; 6:25–34 default).
+    for (const id of ['ns-chapter', 'ns-verse-from', 'ns-verse-to']) {
+      const select = page.getByTestId(id);
+      await expect(select).toHaveJSProperty('tagName', 'SELECT');
+      expect((await select.boundingBox())!.height).toBeGreaterThanOrEqual(48);
+      expect(await select.evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(20);
+    }
+    await expect(page.getByTestId('ns-chapter').locator('option')).toHaveCount(28);
+    await expect(page.getByTestId('ns-verse-to').locator('option')).toHaveCount(34);
+    await expect(page.getByTestId('ns-verse-from')).toHaveValue('25');
+    await expect(page.getByTestId('ns-verse-to')).toHaveValue('34');
     await expect(page.getByText(NS_MY_PACKS)).toBeVisible();
   });
 

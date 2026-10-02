@@ -19,10 +19,17 @@ import {
   NS_RETRY, NS_ERR_NO_JSON, NS_ERR_RANGE, NS_SCRIPTURE_NOTE, NS_QUESTION_ADD, NS_STEP_AI,
 } from '../newStudyStrings';
 import NewStudyPage from '../NewStudyPage';
+import { validateRequest, DEFAULT_REQUEST } from '../NewStudyForm';
 
 const generateMock = vi.fn();
 vi.mock('../generatePack', () => ({
   generateStudyPack: (...args: unknown[]) => generateMock(...args),
+}));
+// The form's verse dropdowns read the bundled chapter; every chapter here has 36 verses.
+vi.mock('../../../services/bibleDataSource', () => ({
+  fetchBundledChapter: async () => ({
+    verses: Array.from({ length: 36 }, (_, i) => ({ verse: i + 1, text: `v${i + 1}` })),
+  }),
 }));
 
 const verses = Array.from({ length: 15 }, (_, i) => ({ num: 22 + i, cuv: `第${22 + i}节`, en: `verse ${22 + i}` }));
@@ -49,23 +56,29 @@ describe('NewStudyPage', () => {
     expect(screen.queryByTestId('new-study-form')).toBeNull();
   });
 
-  it('renders the Chinese-first form and validates the verse range', () => {
+  it('renders the Chinese-first form with dropdowns and never lets a bad range reach generation', async () => {
     withKey('k');
     render(<NewStudyPage />);
     expect(screen.getByLabelText(NS_BOOK)).toBeInTheDocument();
     expect(within(screen.getByTestId('ns-book')).getByText('约翰福音 John')).toBeInTheDocument();
-    fireEvent.change(screen.getByTestId('ns-verse-from'), { target: { value: '30' } });
+    expect(screen.getByTestId('ns-chapter').tagName).toBe('SELECT');
+    await versesReady();
     fireEvent.change(screen.getByTestId('ns-verse-to'), { target: { value: '20' } });
+    fireEvent.change(screen.getByTestId('ns-verse-from'), { target: { value: '30' } });
     fireEvent.click(screen.getByRole('button', { name: NS_GENERATE }));
-    expect(screen.getByRole('alert')).toHaveTextContent(NS_ERR_RANGE);
-    expect(generateMock).not.toHaveBeenCalled();
+    expect(screen.queryByRole('alert')).toBeNull();
+    expect(generateMock.mock.calls[0][0]).toMatchObject({ verseFrom: 30, verseTo: 30 });
+    expect(validateRequest({ ...DEFAULT_REQUEST, verseFrom: 30, verseTo: 20 })).toBe(NS_ERR_RANGE);
   });
+
+  const versesReady = () => waitFor(() => expect(screen.getByTestId('ns-verse-to')).toBeEnabled());
 
   async function fillAndGenerate() {
     fireEvent.change(screen.getByTestId('ns-book'), { target: { value: 'JHN' } });
     fireEvent.change(screen.getByTestId('ns-chapter'), { target: { value: '3' } });
+    await versesReady();
+    expect(screen.getByTestId('ns-verse-to')).toHaveValue('36');
     fireEvent.change(screen.getByTestId('ns-verse-from'), { target: { value: '22' } });
-    fireEvent.change(screen.getByTestId('ns-verse-to'), { target: { value: '36' } });
     fireEvent.change(screen.getByTestId('ns-date'), { target: { value: '2026-10-02' } });
     fireEvent.click(screen.getByRole('button', { name: NS_GENERATE }));
   }
