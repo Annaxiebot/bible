@@ -61,10 +61,14 @@ export const LEADER_EN =
   'Group leaders: bring your study guide PDF — it becomes a presentation with an AI helper.';
 
 /* ---- sticky top nav: three scroll links (section ids live in LandingNav) ---- */
+/* Section element ids — the nav scrolls to these; components set them from the same constants (R3). */
+export const GROUP_SECTION_ID = 'group' as const;
+export const PERSONAL_SECTION_ID = 'personal' as const;
+export const PRINCIPLES_SECTION_ID = 'principles' as const;
 export const NAV_LINKS = [
-  { id: 'group', zh: GROUP_TITLE_ZH, en: 'Group' },
-  { id: 'personal', zh: PERSONAL_TITLE_ZH, en: 'Personal' },
-  { id: 'principles', zh: '原則', en: 'Principles' },
+  { id: GROUP_SECTION_ID, zh: GROUP_TITLE_ZH, en: 'Group' },
+  { id: PERSONAL_SECTION_ID, zh: PERSONAL_TITLE_ZH, en: 'Personal' },
+  { id: PRINCIPLES_SECTION_ID, zh: '原則', en: 'Principles' },
 ] as const;
 export type NavSectionId = (typeof NAV_LINKS)[number]['id'];
 export const NAV_LABEL = '頁內導航 Page sections';

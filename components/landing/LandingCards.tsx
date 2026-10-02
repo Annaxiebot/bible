@@ -10,7 +10,7 @@ import { APP_HASH, SAMPLE_PACK_HASH } from './landingRoute';
 import {
   GROUP_TITLE_ZH, GROUP_TITLE_EN, GROUP_CTA, GROUP_POINTS,
   PERSONAL_TITLE_ZH, PERSONAL_TITLE_EN, PERSONAL_CTA, PERSONAL_POINTS,
-  PointIcon, NavSectionId,
+  PointIcon, NavSectionId, GROUP_SECTION_ID, PERSONAL_SECTION_ID,
 } from './landingStrings';
 import { PointIconGlyph, ArrowIcon } from './landingIcons';
 import { TvIllustration, PhoneIllustration } from './landingIllustrations';
@@ -78,7 +78,7 @@ const LandingCards: React.FC = () => (
       ctaHash={SAMPLE_PACK_HASH}
       art={<TvIllustration />}
       testId="card-group"
-      id="group"
+      id={GROUP_SECTION_ID}
     />
     <DoorCard
       titleZh={PERSONAL_TITLE_ZH}
@@ -88,7 +88,7 @@ const LandingCards: React.FC = () => (
       ctaHash={APP_HASH}
       art={<PhoneIllustration />}
       testId="card-personal"
-      id="personal"
+      id={PERSONAL_SECTION_ID}
     />
   </div>
 );
