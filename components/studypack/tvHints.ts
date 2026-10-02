@@ -6,7 +6,7 @@
  * Pure module (no React) so Playwright specs can import it. All strings
  * are Chinese-first (ADR-0003 §1).
  */
-import { bilingual } from './principles';
+import { bilingual, bilingualLine } from './principles';
 
 /** First-slide navigation hint: arrows / swipe, select-to-ask, A, Esc. */
 export const FIRST_SLIDE_HINT =
@@ -32,3 +32,68 @@ export const TV_THINKING = bilingual('思考中…', 'Thinking…');
 
 /** Verse popup failure line (bundled chapter could not be loaded). */
 export const VERSE_LOAD_ERROR = bilingual('无法加载', 'could not load');
+
+// ---- Ask-AI model + failure lines · 问AI模型与失败提示 -------------------
+
+/** "模型 Model: <id>" — shared by the overlay footer and the setup dialog. */
+export const MODEL_LABEL = bilingual('模型', 'Model');
+export function modelLine(modelId: string): string {
+  return `${MODEL_LABEL}: ${modelId}`;
+}
+
+/** Thinking line naming the model, so a stuck state is identifiable. */
+export function thinkingLine(modelId: string): string {
+  return `${TV_THINKING} (${modelId})`;
+}
+
+/** Retry button after a recoverable failure. */
+export const TV_RETRY = bilingual('重试', 'Retry');
+
+export const AI_NOT_CONFIGURED_MESSAGE =
+  '未配置AI — 请在应用设置中填写 OpenRouter API 密钥。 ' +
+  'AI not configured — set your OpenRouter API key in app Settings.';
+
+/** OpenRouter 402: the chosen model needs credits. Rendered with a Set up AI button. */
+export const AI_CREDITS_MESSAGE =
+  '所选模型需要付费额度 — 请在“设置AI”改用免费模型，或为 OpenRouter 充值。 ' +
+  'The chosen model needs OpenRouter credits — open Set up AI to use the free models, or add credits.';
+
+/** OpenRouter 401/403. Rendered with a Set up AI button. */
+export const AI_INVALID_KEY_MESSAGE = bilingualLine('密钥无效', 'invalid key');
+
+/** OpenRouter 400/404: the model id is unknown or not routable. */
+export const AI_MODEL_UNAVAILABLE = bilingualLine('模型不可用', 'model unavailable');
+export function modelUnavailableLine(modelId: string): string {
+  return `${AI_MODEL_UNAVAILABLE}: ${modelId}`;
+}
+
+/** Any other non-OK HTTP reply: status + OpenRouter's own message. */
+export const AI_REQUEST_FAILED = bilingualLine('请求失败', 'request failed');
+export function httpDetail(status: number, apiMessage: string): string {
+  return apiMessage ? `HTTP ${status}: ${apiMessage}` : `HTTP ${status}`;
+}
+
+/** An error event OpenRouter sent inside an otherwise-OK stream. */
+export const AI_STREAM_ERROR = bilingualLine('AI 返回错误', 'AI returned an error');
+export function streamErrorLine(message: string, code: string | number | undefined): string {
+  return `${AI_STREAM_ERROR}${code !== undefined ? ` (${code})` : ''}: ${message}`;
+}
+
+/** No first token within the budget. */
+export const AI_TIMEOUT = bilingualLine('AI 没有回应', 'no reply from the AI');
+export function timeoutLine(modelId: string, ms: number): string {
+  return `${AI_TIMEOUT} (${Math.round(ms / 1000)}s) · ${modelLine(modelId)}`;
+}
+
+/** Could not reach OpenRouter at all (fetch threw). */
+export const AI_NETWORK_ERROR = bilingualLine('无法连接 OpenRouter', 'could not reach OpenRouter');
+
+/** The stream ended with no content at all (after the automatic retries). */
+export const AI_EMPTY = bilingualLine('AI未返回内容', 'empty response from AI');
+/** finish_reason "length" with reasoning but no content. */
+export const AI_BUDGET_SPENT = bilingualLine('模型用尽了思考预算', 'the model spent its budget reasoning');
+/** finish_reason "content_filter". */
+export const AI_FILTERED = bilingualLine('内容被模型过滤', 'the model filtered this content');
+export function withModel(line: string, modelId: string): string {
+  return `${line} · ${modelLine(modelId)}`;
+}

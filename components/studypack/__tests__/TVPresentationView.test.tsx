@@ -11,10 +11,10 @@ import { SETUP_TITLE } from '../../setup/setupStrings';
 
 const packJson = () => JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8'));
 
-// Mirror of askAIStream.ts streamStudyAI:
-// (pack, slide, history, question, onText, signal) → Promise<finalText>
+// Mirror of askAIFallback.ts streamStudyAI:
+// (pack, slide, history, question, onText, signal, onModel?) → Promise<{ text, model }>
 const streamStudyAIMock = vi.fn();
-vi.mock('../askAIStream', () => ({
+vi.mock('../askAIFallback', () => ({
   streamStudyAI: (...args: unknown[]) => streamStudyAIMock(...args),
 }));
 
@@ -22,7 +22,7 @@ function mockAnswer(text: string) {
   streamStudyAIMock.mockImplementation(
     async (_p: unknown, _s: unknown, _h: unknown, _q: unknown, onText: (t: string) => void) => {
       onText(text);
-      return text;
+      return { text, model: 'test/model' };
     });
 }
 

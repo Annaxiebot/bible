@@ -16,12 +16,60 @@ export async function openTV(page: Page) {
   await expect(page.getByText('不要忧虑 Do Not Be Anxious')).toBeVisible();
 }
 
+/** The key every spec injects; never a real one. Its last 4 characters are what the saved state shows. */
+export const E2E_API_KEY = 'e2e-test-key';
+
 /** Inject an OpenRouter key before any script runs (the "configured" state). */
-export async function injectApiKey(page: Page) {
+export async function injectApiKey(page: Page, key = E2E_API_KEY) {
   await page.addInitScript(
-    (key) => localStorage.setItem(key, 'e2e-test-key'),
-    STORAGE_KEYS.OPENROUTER_API_KEY,
+    ([storageKey, value]) => localStorage.setItem(storageKey, value),
+    [STORAGE_KEYS.OPENROUTER_API_KEY, key] as const,
   );
+}
+
+/** Shorten the Ask-AI first-token budget (dev-only override read by askAIFallback.firstTokenTimeoutMs). */
+export async function setAskAITimeout(page: Page, ms: number) {
+  await page.addInitScript((value) => { (window as Window & { __ASK_AI_TIMEOUT_MS?: number }).__ASK_AI_TIMEOUT_MS = value; }, ms);
+}
+
+/** One SSE body from OpenRouter-shaped chunk objects (each becomes a "data:" line) + [DONE]. */
+export function sseBody(chunks: object[]): string {
+  return [...chunks.flatMap(c => [`data: ${JSON.stringify(c)}`, '']), 'data: [DONE]', ''].join('\n');
+}
+
+/**
+ * Mock the chat endpoint with one scripted reply per request, in order (the
+ * last one repeats). Each entry is an SSE body (status 200, streaming), a
+ * plain JSON completion (status 200, the non-streaming Test call) or a
+ * non-OK status with OpenRouter's error JSON. Records every request body.
+ */
+export async function mockOpenRouterSequence(
+  page: Page,
+  replies: Array<{ sse: string } | { json: object } | { status: number; message: string }>,
+): Promise<{ bodies: () => Array<{ model: string; reasoning?: unknown; max_tokens: number }> }> {
+  const bodies: Array<{ model: string; reasoning?: unknown; max_tokens: number }> = [];
+  let i = 0;
+  await page.route(OPENROUTER_CHAT_URL, route => {
+    bodies.push(route.request().postDataJSON());
+    const reply = replies[Math.min(i++, replies.length - 1)];
+    if ('sse' in reply) {
+      return route.fulfill({ status: 200, headers: { 'Content-Type': 'text/event-stream' }, body: reply.sse });
+    }
+    if ('json' in reply) {
+      return route.fulfill({ status: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(reply.json) });
+    }
+    return route.fulfill({
+      status: reply.status,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: { message: reply.message, code: reply.status } }),
+    });
+  });
+  return { bodies: () => bodies };
+}
+
+/** The chat endpoint never answers (the request hangs until the page aborts it). */
+export async function mockOpenRouterHang(page: Page) {
+  await page.route(OPENROUTER_CHAT_URL, () => { /* intentionally never fulfilled */ });
 }
 
 /**

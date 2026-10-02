@@ -30,18 +30,6 @@ export function resolveAskAIModel(): string {
  */
 export const ASK_AI_MAX_TOKENS = 300;
 
-export const AI_NOT_CONFIGURED_MESSAGE =
-  '未配置AI — 请在应用设置中填写 OpenRouter API 密钥。 ' +
-  'AI not configured — set your OpenRouter API key in app Settings.';
-
-/** OpenRouter 402: the chosen model needs credits. The overlay renders this with a Set up AI button. */
-export const AI_CREDITS_MESSAGE =
-  '所选模型需要付费额度 — 请在“设置AI”改用免费模型，或为 OpenRouter 充值。 ' +
-  'The chosen model needs OpenRouter credits — open Set up AI to use the free models, or add credits.';
-
-/** HTTP status OpenRouter returns when the account has no credits for the model. */
-export const HTTP_PAYMENT_REQUIRED = 402;
-
 export interface AskAIMessage {
   role: 'user' | 'assistant';
   content: string;

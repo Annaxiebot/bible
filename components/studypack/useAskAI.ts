@@ -2,37 +2,57 @@
  * useAskAI.ts — overlay Q&A state for TV presentation mode · 问AI状态
  *
  * Ephemeral, in-memory conversation. Answers stream in token-by-token via
- * askAIStream.ts: `streamingText` holds the partial answer while it arrives,
- * then the final text moves into `messages`. Unmounting (overlay closed)
- * aborts any in-flight stream cleanly. `configured` is read once on mount
- * and flipped by `markConfigured()` after the inline key setup saves.
+ * askAIFallback.ts: `streamingText` holds the partial answer while it arrives,
+ * then the final text moves into `messages`. `model` names the model in play
+ * (requested, then the concrete id OpenRouter served). Failures land in
+ * `error` with a kind the overlay maps to Retry / Set up AI buttons; `retry`
+ * re-sends the last question against the same history. `configured` is
+ * read once on mount and flipped by `markConfigured()` after the inline key
+ * setup saves.
  */
 import { useState, useCallback, useRef } from 'react';
 import { StudyPack, Slide } from './packTypes';
-import { isAskAIConfigured, AskAIMessage } from './askAI';
-import { streamStudyAI } from './askAIStream';
+import { isAskAIConfigured, resolveAskAIModel, AskAIMessage } from './askAI';
+import { streamStudyAI } from './askAIFallback';
+import { AskAIErrorKind, asAskAIError } from './askAIErrors';
+
+export interface AskAIFailure {
+  kind: AskAIErrorKind;
+  message: string;
+}
 
 export interface AskAI {
   messages: AskAIMessage[];
   /** Partial answer while streaming; null when idle. */
   streamingText: string | null;
   loading: boolean;
-  error: string | null;
+  error: AskAIFailure | null;
   configured: boolean;
+  /** Model in play: the resolved id while waiting, the served id once the stream names one. */
+  model: string | null;
   /** Call after a key has been stored (inline setup) so asking becomes possible. */
   markConfigured: () => void;
   ask: (question: string) => Promise<void>;
+  /** Re-send the last question (after a failure). */
+  retry: () => Promise<void>;
   /** Abort any in-flight stream (called when the overlay closes). */
   cancel: () => void;
+}
+
+interface LastAsk {
+  question: string;
+  history: AskAIMessage[];
 }
 
 export function useAskAI(pack: StudyPack, slide: Slide | undefined): AskAI {
   const [messages, setMessages] = useState<AskAIMessage[]>([]);
   const [streamingText, setStreamingText] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<AskAIFailure | null>(null);
   const [configured, setConfigured] = useState(isAskAIConfigured);
+  const [model, setModel] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const lastAskRef = useRef<LastAsk | null>(null);
 
   const markConfigured = useCallback(() => setConfigured(isAskAIConfigured()), []);
 
@@ -42,39 +62,51 @@ export function useAskAI(pack: StudyPack, slide: Slide | undefined): AskAI {
   // without close, the orphaned fetch finishes harmlessly in the background.
   const cancel = useCallback(() => abortRef.current?.abort(), []);
 
-  const ask = useCallback(async (question: string) => {
-    const trimmed = question.trim();
-    if (!trimmed || !slide || loading || !configured) return;
-    const history = messages;
-    setMessages(m => [...m, { role: 'user', content: trimmed }]);
+  const send = useCallback(async (question: string, history: AskAIMessage[]) => {
+    if (!slide) return;
+    lastAskRef.current = { question, history };
+    setMessages([...history, { role: 'user', content: question }]);
     setLoading(true);
     setError(null);
+    const requested = resolveAskAIModel();
+    setModel(requested);
     const controller = new AbortController();
     abortRef.current = controller;
     const live = () => !controller.signal.aborted;
     try {
-      const finalText = await streamStudyAI(
-        pack, slide, history, trimmed,
+      const result = await streamStudyAI(
+        pack, slide, history, question,
         text => { if (live()) setStreamingText(text); },
-        controller.signal
+        controller.signal,
+        id => { if (live()) setModel(id); }
       );
       if (!live()) return;
-      if (finalText.length === 0) {
-        // Empty output is a failure, not a clean result.
-        setError('Empty response from AI — try again. AI未返回内容，请重试。');
-      } else {
-        setMessages(m => [...m, { role: 'assistant', content: finalText }]);
-      }
+      setModel(result.model);
+      setMessages(m => [...m, { role: 'assistant', content: result.text }]);
     } catch (err) {
-      // Surfaced in the overlay via the returned `error` — not swallowed.
-      if (live()) setError(err instanceof Error ? err.message : String(err));
+      // Surfaced in the overlay via the returned `error` — never swallowed.
+      if (!live()) return;
+      const failure = asAskAIError(err, requested);
+      setError({ kind: failure.kind, message: failure.message });
     } finally {
       if (live()) {
         setStreamingText(null);
         setLoading(false);
       }
     }
-  }, [pack, slide, messages, loading, configured]);
+  }, [pack, slide]);
 
-  return { messages, streamingText, loading, error, configured, markConfigured, ask, cancel };
+  const ask = useCallback(async (question: string) => {
+    const trimmed = question.trim();
+    if (!trimmed || loading || !configured) return;
+    await send(trimmed, messages);
+  }, [send, messages, loading, configured]);
+
+  const retry = useCallback(async () => {
+    const last = lastAskRef.current;
+    if (!last || loading) return;
+    await send(last.question, last.history);
+  }, [send, loading]);
+
+  return { messages, streamingText, loading, error, configured, model, markConfigured, ask, retry, cancel };
 }
