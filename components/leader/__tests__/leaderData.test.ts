@@ -1,20 +1,33 @@
 /**
- * leaderData.test.ts — rows query, CSV content, dry-run test call · 组长数据层测试
+ * leaderData.test.ts — rows + answers queries, commitment/feedback counts, CSV, dry-run test call · 组长数据层测试
  */
 import { describe, it, expect, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
-  fetchSignups, signupsToCsv, csvFilename, sendTestCheckin, SignupRecord, SIGNUP_COLUMNS, CSV_COLUMNS,
-  SEND_CHECKINS_FUNCTION, TEST_CHECKIN_KIND,
+  fetchSignups, fetchAnswers, signupsToCsv, csvFilename, sendTestCheckin, commitmentCounts, feedbackCounts, latestAnswers,
+  practiceOf, SignupRecord, AnswerRecord, SIGNUP_COLUMNS, ANSWER_COLUMNS, CSV_COLUMNS, SEND_CHECKINS_FUNCTION, TEST_CHECKIN_KIND,
 } from '../leaderData';
-import { SIGNUPS_TABLE } from '../../signup/signupSchema';
+import { SIGNUPS_TABLE, CHECKIN_ANSWERS_TABLE } from '../../signup/signupSchema';
 import { LD_ERR_LOAD, LD_TEST_FAILED } from '../leaderStrings';
 import type { StudyPack } from '../../studypack/packTypes';
 
 const LEADER_ID = 'uid-lead';
 const ROWS: SignupRecord[] = [
-  { id: '1', leader_id: LEADER_ID, name: '小明', phone: '+14085551234', email: 'ming@example.org', consent_checkins: true, created_at: '2026-10-02T20:00:00Z' },
-  { id: '2', leader_id: LEADER_ID, name: 'Ann "Annie" Lee', phone: null, email: 'ann@example.org', consent_checkins: false, created_at: '2026-10-02T21:00:00Z' },
+  {
+    id: '1', leader_id: LEADER_ID, name: '小明', phone: '+14085551234', email: 'ming@example.org', consent_checkins: true,
+    created_at: '2026-10-02T20:00:00Z', practice_area: '健康 Health', practice_text: '睡前程序 · Wind-down', practice2_area: null,
+    practice2_text: null, practice_note: null,
+  },
+  {
+    id: '2', leader_id: LEADER_ID, name: 'Ann "Annie" Lee', phone: null, email: 'ann@example.org', consent_checkins: false,
+    created_at: '2026-10-02T21:00:00Z', practice_area: '健康 Health', practice_text: '睡前程序 · Wind-down', practice2_area: '工作 Work',
+    practice2_text: '写下忧虑 · Write it down', practice_note: '十点关机 · Phone off at ten',
+  },
+];
+const ANSWERS: AnswerRecord[] = [
+  { id: 'a2', signup_id: '1', leader_id: LEADER_ID, kind: 'tue', answer: 'later', created_at: '2026-10-07T00:00:00Z' },
+  { id: 'a1', signup_id: '1', leader_id: LEADER_ID, kind: 'tue', answer: 'earlier', created_at: '2026-10-06T00:00:00Z' },
+  { id: 'a3', signup_id: '2', leader_id: LEADER_ID, kind: 'thu', answer: 'did it, "mostly"', created_at: '2026-10-08T00:00:00Z' },
 ];
 
 function queryClient(result: { data: unknown; error: { message: string } | null }) {
@@ -26,14 +39,24 @@ function queryClient(result: { data: unknown; error: { message: string } | null 
   return { client: { from } as unknown as SupabaseClient, from, select, eq: chain.eq, order };
 }
 
-describe('fetchSignups', () => {
+describe('fetchSignups / fetchAnswers', () => {
   it('selects the list columns for the pack AND the leader uid, newest first', async () => {
     const { client, from, select, eq, order } = queryClient({ data: ROWS, error: null });
     expect(await fetchSignups(client, 'p', LEADER_ID)).toEqual(ROWS);
     expect(from).toHaveBeenCalledWith(SIGNUPS_TABLE);
     expect(select).toHaveBeenCalledWith(SIGNUP_COLUMNS);
+    expect(SIGNUP_COLUMNS).toContain('practice_text');
     expect(eq.mock.calls).toEqual([['pack_id', 'p'], ['leader_id', LEADER_ID]]);
     expect(order).toHaveBeenCalledWith('created_at', { ascending: false });
+  });
+
+  it('answers come from checkin_answers with the same ownership guard', async () => {
+    const foreign = { ...ANSWERS[0], id: 'x', leader_id: 'uid-other' };
+    const { client, from, select, eq } = queryClient({ data: [...ANSWERS, foreign], error: null });
+    expect(await fetchAnswers(client, 'p', LEADER_ID)).toEqual(ANSWERS);
+    expect(from).toHaveBeenCalledWith(CHECKIN_ANSWERS_TABLE);
+    expect(select).toHaveBeenCalledWith(ANSWER_COLUMNS);
+    expect(eq.mock.calls).toEqual([['pack_id', 'p'], ['leader_id', LEADER_ID]]);
   });
 
   it('drops any row whose leader_id is not the signed-in uid, even if the server returned it', async () => {
@@ -45,18 +68,39 @@ describe('fetchSignups', () => {
   it('throws the bilingual load error with the PostgREST message', async () => {
     const { client } = queryClient({ data: null, error: { message: 'JWT expired' } });
     await expect(fetchSignups(client, 'p', LEADER_ID)).rejects.toThrow(`${LD_ERR_LOAD}: JWT expired`);
+    await expect(fetchAnswers(client, 'p', LEADER_ID)).rejects.toThrow(`${LD_ERR_LOAD}: JWT expired`);
+  });
+});
+
+describe('commitments + feedback', () => {
+  it('counts first choices per area; practiceOf prefers the own version', () => {
+    expect(commitmentCounts(ROWS)).toEqual([{ area: '健康 Health', count: 2 }]);
+    expect(commitmentCounts([{ ...ROWS[0], practice_area: null }])).toEqual([]);
+    expect(practiceOf(ROWS[0])).toBe('睡前程序 · Wind-down');
+    expect(practiceOf(ROWS[1])).toBe('十点关机 · Phone off at ten');
+  });
+
+  it('feedbackCounts: members answered (any kind, and per kind) vs signed up; latestAnswers keeps the newest per kind', () => {
+    expect(feedbackCounts(ROWS, ANSWERS)).toEqual({ signedUp: 2, answered: 2, byKind: { tue: 1, thu: 1, weekend: 0 } });
+    expect(feedbackCounts(ROWS, [])).toEqual({ signedUp: 2, answered: 0, byKind: { tue: 0, thu: 0, weekend: 0 } });
+    expect(latestAnswers(ANSWERS).get('1')).toEqual({ tue: 'later' });
+    expect(latestAnswers(ANSWERS).get('2')).toEqual({ thu: 'did it, "mostly"' });
   });
 });
 
 describe('signupsToCsv', () => {
-  it('writes a BOM, the header, one line per row, quoting embedded quotes, nulls as empty', () => {
-    const csv = signupsToCsv(ROWS);
+  it('writes a BOM, the header, one line per row with practice + shared answers, quoting as needed', () => {
+    const csv = signupsToCsv(ROWS, ANSWERS);
     expect(csv.charCodeAt(0)).toBe(0xfeff);
     const lines = csv.slice(1).split('\n');
     expect(lines[0]).toBe(CSV_COLUMNS.join(','));
-    expect(lines[1]).toBe('小明,+14085551234,ming@example.org,true,2026-10-02T20:00:00Z');
-    expect(lines[2]).toBe('"Ann ""Annie"" Lee",,ann@example.org,false,2026-10-02T21:00:00Z');
+    expect(CSV_COLUMNS).toEqual(expect.arrayContaining(['practice_area', 'practice_text', 'practice_note', 'answer_tue', 'answer_thu', 'answer_weekend']));
+    expect(lines[1]).toBe('小明,+14085551234,ming@example.org,true,2026-10-02T20:00:00Z,健康 Health,睡前程序 · Wind-down,,,,later,,');
+    expect(lines[2]).toBe(
+      '"Ann ""Annie"" Lee",,ann@example.org,false,2026-10-02T21:00:00Z,健康 Health,睡前程序 · Wind-down,工作 Work,写下忧虑 · Write it down,十点关机 · Phone off at ten,,"did it, ""mostly""",'
+    );
     expect(lines[3]).toBe('');
+    expect(signupsToCsv(ROWS).split('\n')[1].endsWith(',,,')).toBe(true);
     expect(csvFilename('2026-10-02-matt6')).toBe('signups-2026-10-02-matt6.csv');
   });
 });

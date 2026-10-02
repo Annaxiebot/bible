@@ -10,16 +10,19 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import LeaderPage from '../LeaderPage';
-import { signupsToCsv, csvFilename, SignupRecord, TEST_CHECKIN_KIND } from '../leaderData';
+import { signupsToCsv, csvFilename, SignupRecord, AnswerRecord, TEST_CHECKIN_KIND } from '../leaderData';
 import {
   LD_TITLE, LD_SIGNIN, LD_NONE, LD_NOT_OWNER, countLine, LD_YES, LD_NO, LD_EXPORT, LD_TEST, LD_TEST_OK, LD_TEST_FAILED,
+  LD_COMMITMENTS, LD_FEEDBACK, answeredLine, areaCountLine,
 } from '../leaderStrings';
 import { SU_ERR_NOT_CONFIGURED, SU_DEMO_LINE, SU_SUMMARY_FAILED } from '../../signup/signupStrings';
 import { packSummaryFrom } from '../../signup/packSummary';
 
 const authState = { user: null as { id: string; email: string } | null, session: null, isAuthenticated: false, isLoading: false };
 const orderMock = vi.fn();
+const answersOrderMock = vi.fn();
 const eqMock = vi.fn();
+const answersEqMock = vi.fn();
 const upsertMock = vi.fn();
 const invokeMock = vi.fn();
 let configured = true;
@@ -34,7 +37,8 @@ vi.mock('../../../services/supabase', () => ({
   get supabase() {
     return configured
       ? {
-        from: (table: string) => (table === 'pack_summaries' ? { upsert: upsertMock } : { select: () => ({ eq: eqMock }) }),
+        from: (table: string) => (table === 'pack_summaries' ? { upsert: upsertMock }
+          : table === 'checkin_answers' ? { select: () => ({ eq: answersEqMock }) } : { select: () => ({ eq: eqMock }) }),
         functions: { invoke: invokeMock },
       }
       : null;
@@ -52,9 +56,13 @@ const PACK = {
   passageRef: '马太福音 6:25–34 · Matthew 6:25–34', enVersion: 'BSB', leaderId: LEADER_ID,
   sections: [{ kind: 'title', heading: '不要忧虑 Do Not Be Anxious' }],
 };
+const practice = { practice_area: '健康 Health', practice_text: '睡前程序 · Wind-down', practice2_area: null, practice2_text: null, practice_note: null };
 const ROWS: SignupRecord[] = [
-  { id: '1', leader_id: LEADER_ID, name: '小明', phone: '+14085551234', email: 'ming@example.org', consent_checkins: true, created_at: '2026-10-02T20:00:00Z' },
-  { id: '2', leader_id: LEADER_ID, name: 'Ann', phone: null, email: 'ann@example.org', consent_checkins: false, created_at: '2026-10-02T21:00:00Z' },
+  { id: '1', leader_id: LEADER_ID, name: '小明', phone: '+14085551234', email: 'ming@example.org', consent_checkins: true, created_at: '2026-10-02T20:00:00Z', ...practice },
+  { id: '2', leader_id: LEADER_ID, name: 'Ann', phone: null, email: 'ann@example.org', consent_checkins: false, created_at: '2026-10-02T21:00:00Z', ...practice, practice_area: '工作 Work', practice_note: '写下来 · Write it' },
+];
+const ANSWERS: AnswerRecord[] = [
+  { id: 'a1', signup_id: '1', leader_id: LEADER_ID, kind: 'tue', answer: '做了两晚 · Two nights', created_at: '2026-10-06T16:00:00Z' },
 ];
 
 function signIn(uid = LEADER_ID) {
@@ -73,6 +81,8 @@ describe('LeaderPage', () => {
     authState.isAuthenticated = false;
     orderMock.mockReset().mockResolvedValue({ data: ROWS, error: null });
     eqMock.mockReset().mockReturnValue({ eq: eqMock, order: orderMock });
+    answersOrderMock.mockReset().mockResolvedValue({ data: ANSWERS, error: null });
+    answersEqMock.mockReset().mockReturnValue({ eq: answersEqMock, order: answersOrderMock });
     upsertMock.mockReset().mockResolvedValue({ error: null });
     invokeMock.mockReset();
     downloadMock.mockReset();
@@ -113,7 +123,27 @@ describe('LeaderPage', () => {
     expect(rows[1]).toHaveTextContent('ann@example.org');
     expect(rows[1]).toHaveTextContent(LD_NO);
     fireEvent.click(screen.getByRole('button', { name: LD_EXPORT }));
-    expect(downloadMock).toHaveBeenCalledWith(signupsToCsv(ROWS), csvFilename(PACK_ID), 'text/csv;charset=utf-8');
+    expect(downloadMock).toHaveBeenCalledWith(signupsToCsv(ROWS, ANSWERS), csvFilename(PACK_ID), 'text/csv;charset=utf-8');
+    expect(signupsToCsv(ROWS, ANSWERS)).toContain('做了两晚');
+  });
+
+  it('shows 承诺 Commitments (who chose what, counts per area) and 反馈 Shared feedback (answers by kind, counts)', async () => {
+    signIn();
+    render(<LeaderPage packId={PACK_ID} />);
+    const commitments = await screen.findByTestId('leader-commitments');
+    expect(commitments).toHaveTextContent(LD_COMMITMENTS);
+    expect(screen.getByTestId('leader-area-counts')).toHaveTextContent(areaCountLine('健康 Health', 1));
+    expect(screen.getByTestId('leader-area-counts')).toHaveTextContent(areaCountLine('工作 Work', 1));
+    const rows = within(commitments).getAllByTestId('leader-commitment');
+    expect(rows[0]).toHaveTextContent('睡前程序 · Wind-down');
+    expect(rows[1]).toHaveTextContent('写下来 · Write it');   // own version beats the menu text
+    const feedback = screen.getByTestId('leader-feedback');
+    expect(feedback).toHaveTextContent(LD_FEEDBACK);
+    expect(screen.getByTestId('leader-answered')).toHaveTextContent(answeredLine(1, 2));
+    expect(within(screen.getByTestId('leader-feedback-tue')).getByTestId('leader-answer')).toHaveTextContent('小明');
+    expect(within(screen.getByTestId('leader-feedback-tue')).getByTestId('leader-answer')).toHaveTextContent('做了两晚 · Two nights');
+    expect(within(screen.getByTestId('leader-feedback-thu')).queryByTestId('leader-answer')).toBeNull();
+    expect(answersEqMock.mock.calls).toEqual([['pack_id', PACK_ID], ['leader_id', LEADER_ID]]);
   });
 
   it('signed in as someone else: the not-your-pack line, no query, no list', async () => {

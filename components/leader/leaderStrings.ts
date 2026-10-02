@@ -26,6 +26,20 @@ export const LD_COL_TIME = bilingual('时间', 'Time');
 export const LD_YES = bilingual('是', 'Yes');
 export const LD_NO = bilingual('否', 'No');
 
+// ---- commitments + shared feedback (ADR-0004 §7) ----
+export const LD_COMMITMENTS = bilingual('承诺', 'Commitments');
+export const LD_COMMITMENTS_HINT = bilingualLine('每人本周选的操练；下周五的闭环从这里来', 'Each member\'s practice this week; next Friday\'s closing starts here');
+export const LD_COL_PRACTICE = bilingual('操练', 'Practice');
+export const LD_NO_PRACTICE = bilingual('（未选）', '(none chosen)');
+export const LD_FEEDBACK = bilingual('反馈', 'Shared feedback');
+export const LD_FEEDBACK_NONE = bilingualLine('还没有人分享', 'Nothing shared yet');
+export function answeredLine(answered: number, signedUp: number): string {
+  return bilingualLine(`${answered}/${signedUp} 人已分享`, `${answered} of ${signedUp} shared`);
+}
+export function areaCountLine(area: string, count: number): string {
+  return `${area}: ${count}`;
+}
+
 // ---- actions ----
 export const LD_EXPORT = bilingual('导出 CSV', 'Export CSV');
 export const LD_TEST = bilingual('发送测试提醒', 'Send test check-in');

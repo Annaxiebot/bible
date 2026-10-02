@@ -4,11 +4,13 @@
  * Auth required: reuses the app's Supabase session (services/supabase
  * authManager) and, when signed out, renders the existing AuthPanel under a
  * bilingual prompt. Signed in as the pack's owner (pack.leaderId = uid): the
- * pack's sign-ups (name, phone, email, consent, time), a count, CSV export,
- * and a dry-run test check-in to the leader's own email; opening the page
- * also refreshes the pack's pack_summaries row (the sender's text source).
+ * pack's sign-ups (name, phone, email, consent, time), a count, 承诺
+ * Commitments and 反馈 Shared feedback (LeaderSections), CSV export with
+ * practice + answers, and a dry-run test check-in to the leader's own
+ * email; opening the page also refreshes the pack's pack_summaries row.
  * A demo pack or someone else's pack shows a bilingual line instead
- * (ADR-0004). Every failure renders inline (role=alert).
+ * (ADR-0004); an unclaimed local pack is re-read once the sign-in claims it.
+ * Every failure renders inline (role=alert).
  */
 import React, { useEffect, useState } from 'react';
 import { authManager, supabase, isSupabaseConfigured, type AuthState } from '../../services/supabase';
@@ -19,7 +21,11 @@ import { downloadFile } from '../../services/export/fileDownloader';
 import { SU_ERR_NOT_CONFIGURED, SU_DEMO_LINE } from '../signup/signupStrings';
 import { NEW_STUDY_HASH } from '../landing/landingRoute';
 import { useSummarySync } from '../signup/useSummarySync';
-import { SignupRecord, fetchSignups, signupsToCsv, csvFilename, sendTestCheckin } from './leaderData';
+import { useLocalPackClaim } from '../newstudy/claimLocalPacks';
+import {
+  SignupRecord, AnswerRecord, fetchSignups, fetchAnswers, signupsToCsv, csvFilename, sendTestCheckin,
+} from './leaderData';
+import { Commitments, Feedback } from './LeaderSections';
 import {
   LD_TITLE, LD_SIGNIN, LD_LOADING, LD_NONE, LD_NOT_OWNER, countLine, LD_COL_NAME, LD_COL_PHONE, LD_COL_EMAIL,
   LD_COL_CONSENT, LD_COL_TIME, LD_YES, LD_NO, LD_EXPORT, LD_TEST, LD_TEST_SENDING, LD_TEST_OK, LD_TEST_NO_EMAIL, LD_BACK,
@@ -28,7 +34,10 @@ import {
   textStyle, controlStyle, headingStyle, pageTitleStyle, secondaryButtonClass, quietButtonClass,
 } from '../newstudy/newStudyStyles';
 
-type Rows = { status: 'loading' } | { status: 'ready'; rows: SignupRecord[] } | { status: 'failed'; message: string };
+type Rows =
+  | { status: 'loading' }
+  | { status: 'ready'; rows: SignupRecord[]; answers: AnswerRecord[] }
+  | { status: 'failed'; message: string };
 
 const describe = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
@@ -43,8 +52,8 @@ function useSignups(packId: string, leaderId: string): Rows {
   useEffect(() => {
     if (!supabase) return;
     let cancelled = false;
-    fetchSignups(supabase, packId, leaderId)
-      .then(list => { if (!cancelled) setRows({ status: 'ready', rows: list }); })
+    Promise.all([fetchSignups(supabase, packId, leaderId), fetchAnswers(supabase, packId, leaderId)])
+      .then(([list, answers]) => { if (!cancelled) setRows({ status: 'ready', rows: list, answers }); })
       .catch((err: unknown) => { if (!cancelled) setRows({ status: 'failed', message: describe(err) }); });
     return () => { cancelled = true; };
   }, [packId, leaderId]);
@@ -113,13 +122,15 @@ const OwnerView: React.FC<{ pack: StudyPack; leaderId: string }> = ({ pack, lead
       <p data-testid="leader-count" className="font-semibold text-slate-100" style={headingStyle}>{countLine(rows.rows.length)}</p>
       <div className="flex flex-wrap gap-3">
         <button type="button" data-testid="leader-export" disabled={rows.rows.length === 0}
-          onClick={() => downloadFile(signupsToCsv(rows.rows), csvFilename(pack.id), 'text/csv;charset=utf-8')}
+          onClick={() => downloadFile(signupsToCsv(rows.rows, rows.answers), csvFilename(pack.id), 'text/csv;charset=utf-8')}
           className={secondaryButtonClass} style={controlStyle}>
           {LD_EXPORT}
         </button>
         <TestButton pack={pack} />
       </div>
       {rows.rows.length === 0 ? <p className="text-slate-500" style={textStyle}>{LD_NONE}</p> : <SignupTable rows={rows.rows} />}
+      {rows.rows.length > 0 && <Commitments rows={rows.rows} />}
+      {rows.rows.length > 0 && <Feedback rows={rows.rows} answers={rows.answers} />}
     </>
   );
 };
@@ -134,6 +145,7 @@ const SignedInView: React.FC<{ pack: StudyPack | null; uid: string }> = ({ pack,
 
 const LeaderPage: React.FC<{ packId: string }> = ({ packId }) => {
   const auth = useAuth();
+  const claim = useLocalPackClaim(packId);
   const [pack, setPack] = useState<StudyPack | null>(null);
   const [packError, setPackError] = useState<string | null>(null);
   useEffect(() => {
@@ -142,7 +154,7 @@ const LeaderPage: React.FC<{ packId: string }> = ({ packId }) => {
       .then(p => { if (!cancelled) setPack(p); })
       .catch((err: unknown) => { if (!cancelled) setPackError(describe(err)); });
     return () => { cancelled = true; };
-  }, [packId]);
+  }, [packId, claim.version]);
 
   return (
     <div data-testid="leader-page" className="fixed inset-0 overflow-y-auto bg-slate-950 text-slate-100">
@@ -152,6 +164,7 @@ const LeaderPage: React.FC<{ packId: string }> = ({ packId }) => {
             <h1 className="font-bold text-amber-300" style={pageTitleStyle}>{LD_TITLE}</h1>
             <p className="mt-2 text-slate-300" style={textStyle}>{pack ? pack.title : packId}</p>
             {packError && <p role="alert" className="text-red-300" style={textStyle}>{packError}</p>}
+            {claim.failure && <p role="alert" className="text-red-300" style={textStyle}>{claim.failure}</p>}
           </div>
           <a href={NEW_STUDY_HASH} className={quietButtonClass} style={controlStyle} aria-label={LD_BACK}>✕</a>
         </header>
