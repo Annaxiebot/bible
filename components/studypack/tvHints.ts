@@ -10,13 +10,13 @@ import { bilingual, bilingualLine } from './principles';
 
 /** First-slide navigation hint: arrows / swipe, select-to-ask, A, Esc. */
 export const FIRST_SLIDE_HINT =
-  '← → 或滑动翻页 · Arrow keys or swipe · 选中文字或按 A 问AI · Select text or press A to ask AI · Esc 退出';
+  '← → 或滑动翻页 · Arrow keys or swipe · 选中文字或按 A 问一问 · Select text or press A to ask AI · Esc 退出';
 
 /** Compact first-slide hint for phone-sized viewports. */
-export const FIRST_SLIDE_HINT_SHORT = '← → / 滑动 · swipe · 选中文字问AI';
+export const FIRST_SLIDE_HINT_SHORT = '← → / 滑动 · swipe · 选中文字问一问';
 
 /** The Ask-AI button / panel title. */
-export const ASK_AI_LABEL = bilingual('问AI', 'Ask AI');
+export const ASK_AI_LABEL = bilingual('问一问', 'Ask AI');
 
 /** Ask-AI input placeholder. */
 export const ASK_INPUT_PLACEHOLDER = bilingual('对这段经文提问…', 'Ask about this passage…');
