@@ -1,0 +1,51 @@
+/**
+ * packSource.ts — where the check-in text comes from · 提醒内容来源
+ *
+ * Pure (vitest-covered; the readers are injected). Order: the owner's
+ * pack_summaries row (written by the leader's browser; the only copy of a
+ * local pack's text the server ever sees) first; the public pack JSON on
+ * scripturetolife.org second, for committed packs that have no summary
+ * (the sample). Neither → a contextual error.
+ */
+import { CheckinPack, promptsFromPack, REFLECTION_LINE_INDEX, CHECKIN_KINDS } from './templates.ts';
+
+export const PACK_SUMMARIES_TABLE = 'pack_summaries';
+export const SUMMARY_COLUMNS = 'pack_id, leader_id, title, reflection_lines';
+
+export interface PackSummaryRow {
+  pack_id: string;
+  leader_id: string;
+  title: string;
+  reflection_lines: string[];
+}
+
+export interface PackReaders {
+  readSummary: (packId: string) => Promise<PackSummaryRow | null>;
+  fetchPublic: (packId: string) => Promise<unknown | null>;
+}
+
+/** A summary row → CheckinPack. Throws when the row has fewer than three reflection lines. */
+export function packFromSummary(row: PackSummaryRow): CheckinPack {
+  const lines = row.reflection_lines;
+  if (!Array.isArray(lines) || lines.length < CHECKIN_KINDS.length) {
+    throw new Error(`Summary for ${row.pack_id} has no ${CHECKIN_KINDS.length} reflection lines`);
+  }
+  return {
+    id: row.pack_id,
+    title: row.title,
+    leaderId: row.leader_id,
+    prompts: {
+      tue: lines[REFLECTION_LINE_INDEX.tue],
+      thu: lines[REFLECTION_LINE_INDEX.thu],
+      weekend: lines[REFLECTION_LINE_INDEX.weekend],
+    },
+  };
+}
+
+export async function loadCheckinPack(packId: string, readers: PackReaders): Promise<CheckinPack> {
+  const summary = await readers.readSummary(packId);
+  if (summary) return packFromSummary(summary);
+  const raw = await readers.fetchPublic(packId);
+  if (raw !== null) return promptsFromPack(raw);
+  throw new Error(`Pack ${packId}: no pack_summaries row (open #/leader/${packId} once while signed in) and not public`);
+}
