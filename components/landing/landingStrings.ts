@@ -52,6 +52,10 @@ export const SETUP_LINE = '一分鐘設置 AI：粘貼密鑰即可 · 1-minute A
 /** Same line once a key is stored (still opens the dialog to change it). */
 export const SETUP_DONE_LINE = 'AI 已設置 · AI is set up';
 
+/** Third door, one line: the leader generates a pack from a passage (#/new). */
+export const NEW_STUDY_LINE = '新建查經 New study';
+export const NEW_STUDY_SUB = '輸入經文，AI 生成查經包，大屏演示 · Enter a passage; a study pack is drafted in your browser';
+
 export const LEADER_ZH = '組長：上傳查經講義，變成大屏簡報。';
 export const LEADER_EN =
   'Group leaders: bring your study guide PDF — it becomes a presentation with an AI helper.';

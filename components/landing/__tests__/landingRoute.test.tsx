@@ -10,10 +10,11 @@ import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, within, cleanup, fireEvent } from '@testing-library/react';
 import { STAR_COUNT } from '../themes/StarsTheme';
 import { HERO_THEMES } from '../heroThemes';
-import { resolveRootView, APP_HASH, SAMPLE_PACK_HASH, SETUP_HASH } from '../landingRoute';
+import { resolveRootView, APP_HASH, SAMPLE_PACK_HASH, SETUP_HASH, NEW_STUDY_HASH } from '../landingRoute';
 import {
   BRAND_EN, BRAND_ZH, GROUP_CTA, PERSONAL_CTA,
   GROUP_TITLE_ZH, GROUP_TITLE_EN, PERSONAL_TITLE_ZH, PERSONAL_TITLE_EN, LOOP_STEPS, SETUP_LINE,
+  NEW_STUDY_LINE,
 } from '../landingStrings';
 import { SETUP_TITLE, SETUP_CLOSE } from '../../setup/setupStrings';
 import LandingGate from '../LandingGate';
@@ -37,8 +38,13 @@ describe('resolveRootView', () => {
     expect(resolveRootView(SETUP_HASH)).toBe('setup');
   });
 
+  it('routes #/new to the New study page', () => {
+    expect(resolveRootView(NEW_STUDY_HASH)).toBe('new');
+  });
+
   it('falls through to the app on any unrecognized hash (bookmarked deep state)', () => {
     expect(resolveRootView('#/setup/extra')).toBe('app');
+    expect(resolveRootView('#/new/extra')).toBe('app');
     expect(resolveRootView('#journal')).toBe('app');
     expect(resolveRootView('#/pack/')).toBe('app');
     expect(resolveRootView('#/pack/bad id!')).toBe('app');
@@ -157,6 +163,21 @@ describe('LandingGate', () => {
     fireEvent.click(screen.getByRole('button', { name: SETUP_CLOSE }));
     expect(screen.queryByRole('dialog')).toBeNull();
     expect(window.location.hash).toBe('');
+  });
+
+  it('the New study line points at #/new, and #/new renders the New study page', async () => {
+    window.location.hash = '';
+    render(<LandingGate app={app} />);
+    await screen.findByTestId('landing-page');
+    const line = screen.getByTestId('landing-new-study-line');
+    expect(line).toHaveTextContent(NEW_STUDY_LINE);
+    expect(line).toHaveAttribute('href', NEW_STUDY_HASH);
+    cleanup();
+    window.location.hash = NEW_STUDY_HASH;
+    render(<LandingGate app={app} />);
+    expect(await screen.findByTestId('new-study-page')).toBeInTheDocument();
+    expect(screen.queryByTestId('landing-page')).toBeNull();
+    expect(screen.queryByTestId('the-app')).toBeNull();
   });
 
   it('renders the app at #app', () => {

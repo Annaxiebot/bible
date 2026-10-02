@@ -18,12 +18,16 @@ export const SAMPLE_PACK_HASH = `#/pack/${SAMPLE_PACK_ID}`;
 /** Hash that opens the landing with the quick AI setup dialog (a pastor can be sent this link). */
 export const SETUP_HASH = '#/setup';
 
-export type RootView = 'landing' | 'setup' | 'app' | 'pack';
+/** Hash of the "新建查经 New study" page (leader generates a pack in the browser). */
+export const NEW_STUDY_HASH = '#/new';
+
+export type RootView = 'landing' | 'setup' | 'app' | 'pack' | 'new';
 
 /** Map a location.hash to the view the root gate should render. */
 export function resolveRootView(hash: string): RootView {
   if (getPackIdFromHash(hash)) return 'pack';
   if (hash === '' || hash === '#') return 'landing';
   if (hash === SETUP_HASH) return 'setup';
+  if (hash === NEW_STUDY_HASH) return 'new';
   return 'app';
 }
