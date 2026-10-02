@@ -66,6 +66,23 @@ export const NS_SAVED = bilingual('已保存', 'Saved');
 export const NS_PREVIEW = bilingual('预览', 'Preview on TV');
 export const NS_ERR_EMPTY_QUESTION = bilingualLine('讨论题不能为空', 'A discussion question cannot be empty');
 
+// ---- editor: scripture range ----
+export const NS_RANGE_APPLY = bilingual('更新经文', 'Update scripture');
+export const NS_RANGE_UPDATED = bilingualLine('经文已更新', 'Scripture updated');
+export const NS_RANGE_UPDATING = bilingualLine('读取经文中…', 'Loading the passage…');
+
+// ---- editor: section order ----
+export const NS_SECTION_UP = bilingual('上移', 'Move up');
+export const NS_SECTION_DOWN = bilingual('下移', 'Move down');
+export const NS_SECTION_REMOVE = bilingual('删除本段', 'Remove section');
+export const NS_SECTION_REMOVE_CONFIRM = bilingualLine('确定删除这一段？', 'Remove this section?');
+export const NS_CONFIRM = bilingual('确定', 'Confirm');
+export const NS_SECTION_ADD = bilingual('添加段落', 'Add section');
+export const NS_ERR_TITLE_FIRST = bilingualLine('标题必须在最前', 'The title must come first');
+export const NS_ERR_SCRIPTURE_PLACE = bilingualLine('经文必须紧跟标题', 'Scripture must directly follow the title');
+export const NS_ERR_TAIL = bilingualLine('签到和闭环必须在最后', 'Sign up and Closing must be the last sections');
+export const NS_ERR_DUPLICATE_SECTION = bilingualLine('这种段落只能有一个', 'Only one section of this kind is allowed');
+
 // ---- my packs ----
 export const NS_MY_PACKS = bilingual('我的查经包', 'My packs');
 export const NS_NO_PACKS = bilingualLine('还没有查经包', 'No packs yet');

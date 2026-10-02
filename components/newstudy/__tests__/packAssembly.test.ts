@@ -95,6 +95,9 @@ describe('assemblePack', () => {
     expect(closing.body![1]).toMatch(/^「.*」 · “.*”$/);
   });
 
+  // Known R3 exception: the sample pack is JSON data and cannot import
+  // SU_QR_BODY, so the literal lives there too. This equality is the drift
+  // guard — if either side changes, this test fails at test time.
   it('the qr section carries only the shared sign-up line, identical to the sample pack (no static image/url)', () => {
     const sample = JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8')) as { sections: Array<{ kind: string; image?: string; url?: string; body?: string[] }> };
     const sampleQr = sample.sections.find(s => s.kind === 'qr')!;

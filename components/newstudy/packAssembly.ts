@@ -16,11 +16,15 @@ import { getBookById } from '../../services/bibleBookData';
 import { GeneratedContent } from './generatedPack';
 import { SU_QR_BODY } from '../signup/signupStrings';
 
-export interface StudyRequest {
+/** A passage inside one chapter (the editor's range change needs only this). */
+export interface VerseRange {
   bookId: string;
   chapter: number;
   verseFrom: number;
   verseTo: number;
+}
+
+export interface StudyRequest extends VerseRange {
   lessonTitle?: string;
   lessonNumber?: number;
   date: string; // ISO yyyy-mm-dd
@@ -54,7 +58,7 @@ export const REFLECTION_PREFIX = {
 const RANGE_DASH = '–';
 
 /** "约翰福音 3:22–36 · John 3:22–36" plus the halves, from the canonical book table. */
-export function passageLabel(req: StudyRequest): { zh: string; en: string; ref: string } {
+export function passageLabel(req: VerseRange): { zh: string; en: string; ref: string } {
   const book = getBookById(req.bookId);
   if (!book) throw new Error(`Unknown book id: ${req.bookId}`);
   const [zhName, ...enParts] = book.name.split(' ');
@@ -72,15 +76,20 @@ function titleHeading(req: StudyRequest, gen: GeneratedContent): string {
   return `${lesson}${bilingual(gen.title.zh, gen.title.en)}`;
 }
 
-function scriptureSection(req: StudyRequest, verses: PackVerse[], gen: GeneratedContent): PackSection {
+/** The scripture section for a range; the AI key phrase (if any) rides along. Also used when the range changes. */
+export function scriptureSection(req: VerseRange, verses: PackVerse[], keyPhrase: string | undefined): PackSection {
   const label = passageLabel(req);
   const enBook = label.en.split(' ').slice(0, -1).join(' ');
   return {
     kind: 'scripture',
     heading: `${SECTION_HEADINGS.scripture} — ${label.zh} ${enBook}`,
-    keyPhrase: `${gen.keyPhrase.zh} ${gen.keyPhrase.en} (v.${gen.keyPhrase.verse})`,
+    keyPhrase,
     verses,
   };
+}
+
+function keyPhraseLine(gen: GeneratedContent): string {
+  return `${gen.keyPhrase.zh} ${gen.keyPhrase.en} (v.${gen.keyPhrase.verse})`;
 }
 
 function reflectionLines(gen: GeneratedContent): string[] {
@@ -109,7 +118,7 @@ export function assemblePack(req: StudyRequest, verses: PackVerse[], gen: Genera
   const lines = (items: { zh: string; en: string }[]) => items.map(i => bilingualLine(i.zh, i.en));
   const sections: PackSection[] = [
     { kind: 'title', heading, body: [label.ref, `${GROUP_LINE} · ${req.date}`] },
-    scriptureSection(req, verses, gen),
+    scriptureSection(req, verses, keyPhraseLine(gen)),
     { kind: 'context', heading: SECTION_HEADINGS.context, body: lines(gen.context) },
     { kind: 'originalLanguage', heading: SECTION_HEADINGS.originalLanguage, body: lines(gen.originalLanguage) },
     {
