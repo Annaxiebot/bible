@@ -18,6 +18,8 @@ import { openDB, IDBPDatabase, DBSchema, StoreNames, IndexNames, IndexKey, Store
 import { BibleResponse } from '../types';
 import { VerseData } from '../types/verseData';
 import type { JournalBlock } from '../types/journalBlocks';
+import { StudypacksSchema, upgradeStudypacks } from './idbStudypacks';
+export type { LocalPackRecord } from './idbStudypacks';
 
 // ---------------------------------------------------------------------------
 // Types for stores (defined here to avoid circular imports)
@@ -145,7 +147,7 @@ export interface ReadingPlanState {
 // Unified schema
 // ---------------------------------------------------------------------------
 
-export interface BibleAppSchema extends DBSchema {
+export interface BibleAppSchema extends DBSchema, StudypacksSchema {
   bibleChapters: {
     key: string;
     value: ChapterRecord;
@@ -220,10 +222,6 @@ export interface BibleAppSchema extends DBSchema {
       'by-created': number;
     };
   };
-  studypacks: {
-    key: string;
-    value: LocalPackRecord;
-  };
 }
 
 export interface ImageBlobRecord {
@@ -233,18 +231,9 @@ export interface ImageBlobRecord {
   createdAt: number;
 }
 
-/**
- * A leader-generated StudyPack kept on this device (components/newstudy).
- * `pack` is the validated StudyPack JSON; typed loosely here to avoid a
- * services → components import (components/studypack/packSource.ts parses it).
- */
-export interface LocalPackRecord {
-  id: string;        // "local-<yyyy-mm-dd>-<book><ch>"
-  pack: object;      // StudyPack JSON (parseStudyPack validates on read)
-  savedAt: number;   // epoch ms
-}
-// TODO(R4): idbService.ts is over the 300-line budget; split the schema
-// (types + upgrade steps) from the IDBService class in a refactor session.
+// TODO(R4): idbService.ts is over the 300-line budget; split the remaining
+// schema (types + upgrade steps) from the IDBService class in a refactor
+// session, the way idbStudypacks.ts already holds the studypacks store.
 
 // ---------------------------------------------------------------------------
 // IDBService class
@@ -327,11 +316,7 @@ class IDBService {
           const blobStore = db.createObjectStore('imageBlobs', { keyPath: 'id' });
           blobStore.createIndex('by-created', 'createdAt');
         }
-
-        // studypacks (added in v6) — leader-generated study packs, device-local
-        if (!db.objectStoreNames.contains('studypacks')) {
-          db.createObjectStore('studypacks', { keyPath: 'id' });
-        }
+        upgradeStudypacks(db); // studypacks (added in v6) — see idbStudypacks.ts
       },
     });
   }
