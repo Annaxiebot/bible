@@ -4,18 +4,26 @@
  * Minimalist, mobile-first, dark (slate-950/amber, matching TV mode), with
  * large type for adults and seniors. Shown only at the bare root URL; the
  * two door-card CTAs set the hash that LandingGate routes on. Static
- * content — no data fetching. Strings live in landingStrings.ts (ADR-0003:
+ * content except the next-study block's pack fetch. Strings live in landingStrings.ts (ADR-0003:
  * Chinese first, English second). The hero background theme is chosen once
  * per session (heroThemeSession.ts). A one-line entry under the cards (and
- * the #/setup hash) opens the quick AI key dialog.
+ * the #/setup hash) opens the quick AI key dialog. Below the cards, three
+ * sections (next study · principles · honest numbers) share one shell
+ * (LandingSection); a sticky three-link nav scrolls to the cards and the
+ * principles. The next-study block takes a pack id so a later "current
+ * pack" setting can drive it; today it is the sample pack.
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import './landing.css';
 import LandingSky from './LandingSky';
 import LandingHero from './LandingHero';
 import LandingCards from './LandingCards';
+import LandingNav from './LandingNav';
+import LandingNextStudy from './LandingNextStudy';
+import LandingPrinciples from './LandingPrinciples';
+import LandingNumbers from './LandingNumbers';
 import { resolveSessionThemeFromWindow } from './heroThemeSession';
-import { SETUP_HASH, NEW_STUDY_HASH } from './landingRoute';
+import { SETUP_HASH, NEW_STUDY_HASH, SAMPLE_PACK_ID } from './landingRoute';
 import {
   LEADER_ZH, LEADER_EN, SITE_LINE, LOOP_LINE_ZH, LOOP_LINE_EN, SETUP_LINE, SETUP_DONE_LINE,
   NEW_STUDY_LINE, NEW_STUDY_SUB,
@@ -83,12 +91,16 @@ const Landing: React.FC<{ setupOpen?: boolean }> = ({ setupOpen = false }) => {
   return (
     <div data-testid="landing-page" className="ld-root bg-slate-950 text-slate-100">
       <LandingSky theme={theme} />
+      <LandingNav />
       <div className="mx-auto max-w-4xl px-4 sm:px-6">
         <LandingHero theme={theme} />
         <LandingCards />
         <SetupLine configured={configured} onOpen={() => setOpen(true)} />
         <NewStudyLine />
         <LeaderLine />
+        <LandingNextStudy packId={SAMPLE_PACK_ID} />
+        <LandingPrinciples />
+        <LandingNumbers />
         <Footer />
       </div>
       <QuickAISetupDialog open={open} onClose={close} onSaved={() => setConfigured(true)} />

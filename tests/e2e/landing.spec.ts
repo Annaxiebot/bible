@@ -4,14 +4,16 @@
  * The bare root URL shows the landing; its two CTAs set the hash and route
  * to TV mode and to the app; a bookmarked hash bypasses it; type meets the
  * senior-friendly thresholds at phone and desktop widths; reduced motion
- * renders the same layout with all animation off.
+ * renders the same layout with all animation off. The sticky nav scrolls to
+ * its sections; the next-study block shows the real sample pack and opens
+ * it in TV mode; sign-up reveals the group QR.
  */
 import { test, expect, Page } from '@playwright/test';
 import {
   BRAND_EN, GROUP_CTA, PERSONAL_CTA, GROUP_TITLE_ZH, PERSONAL_TITLE_ZH, SITE_LINE,
-  SETUP_LINE, SETUP_DONE_LINE,
+  SETUP_LINE, SETUP_DONE_LINE, NAV_LINKS, NEXT_OPEN_CTA, NEXT_SIGNUP_CTA, PILLARS, HONEST_NUMBERS,
 } from '../../components/landing/landingStrings';
-import { SETUP_HASH } from '../../components/landing/landingRoute';
+import { SETUP_HASH, SAMPLE_PACK_ID } from '../../components/landing/landingRoute';
 import {
   SETUP_TITLE, SETUP_KEY_LABEL, SETUP_SAVE, SETUP_GET_KEY,
 } from '../../components/setup/setupStrings';
@@ -172,10 +174,17 @@ test.describe('Landing page', () => {
       await page.mouse.move(size.width / 2, size.height / 2);
       await page.mouse.wheel(0, 800);
       await expect.poll(() => root.evaluate(el => el.scrollTop)).toBeGreaterThan(0);
-      // Wheel only moves content if the root is the real scroll container.
+      // Wheel only moves content if the root is the real scroll container. Chromium animates
+      // wheel scrolling, so wait for each step to settle before re-checking, or the loop
+      // fires extra steps mid-animation and overshoots (the page is now long enough to show it).
       const leader = page.getByTestId('leader-line');
-      for (let i = 0; i < 6 && !(await leader.isVisible() && await leader.boundingBox().then(b => b!.y < size.height)); i++) {
-        await page.mouse.wheel(0, 800);
+      const scrollTop = () => root.evaluate(el => el.scrollTop);
+      const settled = async () => { const a = await scrollTop(); await page.waitForTimeout(100); return a === await scrollTop(); };
+      for (let i = 0; i < 8; i++) {
+        await expect.poll(settled).toBe(true);
+        const box = await leader.boundingBox();
+        if (box && box.y >= 0 && box.y + box.height <= size.height) break;
+        await page.mouse.wheel(0, 400);
       }
       await expect(leader).toBeInViewport();
     });
@@ -195,5 +204,60 @@ test.describe('Landing page', () => {
     await expect(page.getByTestId('landing-sky')).toHaveAttribute('data-theme', 'dawn');
     await page.goto('./');
     await expect(page.getByTestId('landing-sky')).toHaveAttribute('data-theme', 'dawn');
+  });
+
+  test('the sticky nav has three ≥48px buttons that scroll each section into view', async ({ page }) => {
+    await page.setViewportSize(PHONE);
+    await openLanding(page);
+    const nav = page.getByTestId('landing-nav');
+    await expect(nav.getByRole('button')).toHaveCount(3);
+    for (const link of NAV_LINKS) {
+      const button = page.getByTestId(`nav-${link.id}`);
+      expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(48);
+      await button.click();
+      await expect(page.locator(`#${link.id}`)).toBeInViewport();
+      await expect(nav).toBeInViewport();        // sticky: still on screen after scrolling
+      await expect(page).toHaveURL(/\/bible\/$/); // no hash: the landing stays
+    }
+  });
+
+  test('next-study shows the sample pack from public/packs and its CTA opens TV mode', async ({ page }) => {
+    await openLanding(page);
+    const pack = await (await page.request.get(`./packs/${SAMPLE_PACK_ID}.json`)).json();
+    const block = page.getByTestId('next-study-pack');
+    await expect(block).toContainText(pack.title);
+    await expect(block).toContainText(pack.passageRef);
+    await expect(block).toContainText(pack.date);
+    const cta = page.getByRole('link', { name: NEXT_OPEN_CTA });
+    await cta.scrollIntoViewIfNeeded();
+    expect((await cta.boundingBox())!.height).toBeGreaterThanOrEqual(MIN_CTA_HEIGHT);
+    await cta.click();
+    await expect(page).toHaveURL(new RegExp(`#/pack/${SAMPLE_PACK_ID}$`));
+    await expect(page.getByTestId('tv-presentation')).toBeVisible();
+  });
+
+  test('sign-up reveals the group QR image and the forms link', async ({ page }) => {
+    // The expected URL comes from the sample pack's qr section: packAssembly.test.ts pins
+    // SIGNUP_QR to it, and packAssembly cannot be imported here (its module graph opens IndexedDB).
+    const pack = await (await page.request.get(`./packs/${SAMPLE_PACK_ID}.json`)).json();
+    const signupUrl: string = pack.sections.find((s: { kind: string }) => s.kind === 'qr').url;
+    await openLanding(page);
+    await expect(page.getByTestId('next-study-signup')).toHaveCount(0);
+    await page.getByRole('button', { name: NEXT_SIGNUP_CTA }).click();
+    const qr = page.getByTestId('next-study-signup').getByAltText(`QR code for ${signupUrl}`);
+    await expect(qr).toBeVisible();
+    await expect(qr).toHaveJSProperty('naturalWidth', 640);
+    await expect(page.getByTestId('next-study-signup').getByRole('link')).toHaveAttribute('href', signupUrl);
+  });
+
+  test('principles and honest numbers render Chinese first with five pillars and four figures', async ({ page }) => {
+    await openLanding(page);
+    const pillars = page.getByTestId('pillars').getByRole('listitem');
+    await expect(pillars).toHaveCount(PILLARS.length);
+    await expect(pillars.first()).toContainText(PILLARS[0].zh);
+    const figures = page.getByTestId('honest-numbers').locator('dt');
+    await expect(figures).toHaveCount(HONEST_NUMBERS.length);
+    await expect(figures).toHaveText(HONEST_NUMBERS.map(f => f.value));
+    expect(await fontSizePx(page, '.ld-figure')).toBeGreaterThan(await fontSizePx(page, '.ld-card-title'));
   });
 });

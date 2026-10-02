@@ -17,6 +17,26 @@
 .ld-cta { font-size: clamp(1.25rem, 1.1rem + 0.5vw, 1.4rem); min-height: 3.5rem; }
 .ld-footer { font-size: 1rem; line-height: 1.6; }
 .ld-setup-line { min-height: 3rem; padding: 0.5rem 1rem; } /* ≥48px tap target */
+.ld-eyebrow { font-size: clamp(1rem, 0.9rem + 0.4vw, 1.125rem); letter-spacing: 0.12em; }
+.ld-next-title { font-size: clamp(1.75rem, 1.4rem + 1.4vw, 2.5rem); line-height: 1.3; }
+.ld-next-ref { font-size: clamp(1.375rem, 1.1rem + 1vw, 1.75rem); line-height: 1.4; }
+.ld-figure { font-size: clamp(2.5rem, 2rem + 2vw, 3.5rem); line-height: 1.1; }
+
+/* ---- sticky nav: three ≥48px tap targets, backdrop so it reads over the sky ---- */
+.ld-nav {
+  background: rgba(2, 6, 23, 0.82);
+  -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(30, 41, 59, 0.8);
+}
+.ld-nav-link {
+  display: inline-flex; flex-direction: column; align-items: center; gap: 0;
+  min-height: 3rem; padding: 0.5rem 0.75rem; line-height: 1.25; white-space: nowrap;
+  font-size: clamp(1.0625rem, 0.95rem + 0.5vw, 1.25rem);
+}
+/* phones stack 中文 over English per button; wider screens put them side by side */
+@media (min-width: 640px) { .ld-nav-link { flex-direction: row; gap: 0.35rem; } }
+/* targets stop below the sticky bar (smooth vs instant is decided in LandingNav.scrollToSection) */
+.ld-section, .ld-card { scroll-margin-top: 4rem; }
 
 /* ---- root: the viewport-sized scroll container (body is overflow:hidden app-wide) ---- */
 /* One source for the root's box: Landing.tsx sets no positioning classes. */
