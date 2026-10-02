@@ -121,3 +121,11 @@ describe('buildPackRequestBody', () => {
     expect(body.messages[1].content).toContain('约翰福音 3:22–36 · John 3:22–36');
   });
 });
+
+describe('pack prompt total size target', () => {
+  it('states one explicit total-size target so the model budgets the whole reply', async () => {
+    const mod = await import('../packPrompt');
+    expect(mod.PACK_LENGTH_LIMITS).toContain('2,500');
+    expect(mod.PACK_LENGTH_LIMITS).toContain('shorter is better');
+  });
+});
