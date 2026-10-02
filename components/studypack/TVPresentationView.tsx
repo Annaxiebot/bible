@@ -9,7 +9,7 @@
  */
 import { FIRST_SLIDE_HINT, FIRST_SLIDE_HINT_SHORT, ASK_AI_LABEL, TV_LOADING } from './tvHints';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { parseStudyPack, buildSlides, StudyPack, Slide } from './packTypes';
+import { parseStudyPack, buildSlides, StudyPack, Slide, PACK_SCHEMA_VERSION } from './packTypes';
 import { questionForSelection } from './askAI';
 import { useTVNavigation } from './useTVNavigation';
 import { useSelectToAsk } from './useSelectToAsk';
@@ -17,8 +17,8 @@ import TVSlide from './TVSlide';
 import AskAIOverlay from './AskAIOverlay';
 
 async function loadPack(packId: string): Promise<StudyPack> {
-  const url = `${import.meta.env.BASE_URL}packs/${packId}.json`;
-  const response = await fetch(url);
+  const url = `${import.meta.env.BASE_URL}packs/${packId}.json?schema=${PACK_SCHEMA_VERSION}`;
+  const response = await fetch(url, { cache: 'no-cache' });
   if (!response.ok) {
     throw new Error(`Failed to load study pack ${packId}: HTTP ${response.status}`);
   }
