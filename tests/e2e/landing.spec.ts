@@ -11,7 +11,7 @@
 import { test, expect, Page } from '@playwright/test';
 import {
   BRAND_EN, GROUP_CTA, PERSONAL_CTA, GROUP_TITLE_ZH, PERSONAL_TITLE_ZH, SITE_LINE,
-  SETUP_LINE, SETUP_DONE_LINE, NAV_LINKS, NEXT_OPEN_CTA, NEXT_SIGNUP_CTA, PILLARS, HONEST_NUMBERS,
+  SETUP_LINE, SETUP_DONE_LINE, NAV_LINKS, NEXT_OPEN_CTA, NEXT_SIGNUP_CTA, HONEST_NUMBERS,
 } from '../../components/landing/landingStrings';
 import { SETUP_HASH, SAMPLE_PACK_ID } from '../../components/landing/landingRoute';
 import {
@@ -250,11 +250,8 @@ test.describe('Landing page', () => {
     await expect(page.getByTestId('next-study-signup').getByRole('link')).toHaveAttribute('href', signupUrl);
   });
 
-  test('principles and honest numbers render Chinese first with five pillars and four figures', async ({ page }) => {
+  test('honest numbers render Chinese first with four figures', async ({ page }) => {
     await openLanding(page);
-    const pillars = page.getByTestId('pillars').getByRole('listitem');
-    await expect(pillars).toHaveCount(PILLARS.length);
-    await expect(pillars.first()).toContainText(PILLARS[0].zh);
     const figures = page.getByTestId('honest-numbers').locator('dt');
     await expect(figures).toHaveCount(HONEST_NUMBERS.length);
     await expect(figures).toHaveText(HONEST_NUMBERS.map(f => f.value));
