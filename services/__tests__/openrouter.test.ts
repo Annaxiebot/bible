@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import {
-  FREE_MODELS, PREMIUM_MODELS, DEFAULT_FREE_MODEL,
+  FREE_MODELS, PREMIUM_MODELS, DEFAULT_FREE_MODEL, FREE_ROUTER_MODEL,
   testApiKey, chatWithAI,
   fetchAvailableModels, clearModelCache,
   autoDetectBestFreeModel,
@@ -244,7 +244,7 @@ describe('openrouter', () => {
       });
 
       const result = await chatWithAI('Hello', []);
-      expect(result).toEqual({ text: 'AI response', model: 'free' });
+      expect(result).toEqual({ text: 'AI response', model: FREE_ROUTER_MODEL });
       expect(mockFetch).toHaveBeenCalledWith(
         'https://openrouter.ai/api/v1/chat/completions',
         expect.objectContaining({
@@ -358,7 +358,7 @@ describe('openrouter', () => {
       });
 
       const result = await chatWithAI('Hello', []);
-      expect(result).toEqual({ text: 'No response from AI', model: 'free' });
+      expect(result).toEqual({ text: 'No response from AI', model: FREE_ROUTER_MODEL });
     });
 
     it('throws on network failure', async () => {

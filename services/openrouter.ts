@@ -88,7 +88,7 @@ export const DEFAULT_FREE_MODEL = 'google/gemma-3-27b-it:free';
  * Special "free router" model that automatically picks the best available free model.
  * OpenRouter's routing system handles model availability dynamically.
  */
-export const FREE_ROUTER_MODEL = 'free';
+export const FREE_ROUTER_MODEL = 'openrouter/free'; // the id OpenRouter's /models lists (not bare "free")
 
 /**
  * OpenRouter free models (verified available as of 2026-03)
