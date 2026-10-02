@@ -85,10 +85,10 @@ export const NEXT_NONE_YET = '暂无 · none yet';
 export const NEXT_LOADING = '载入中 · loading';
 
 /* ---- 真实的数字 Honest numbers ---- */
-export const NUMBERS_EYEBROW = '真实的数字 · Honest numbers';
-export const NUMBERS_HEADING_ZH = '只说能证明的';
-export const NUMBERS_HEADING_EN = 'Only what we can prove';
-export const NUMBERS_DESC = '来自内置的圣经数据，每一个都可核验 · From the bundled Bible text; every figure is verifiable';
+export const NUMBERS_EYEBROW = '完整圣经 · The whole Bible';
+export const NUMBERS_HEADING_ZH = '随时可用';
+export const NUMBERS_HEADING_EN = 'Ready anywhere';
+export const NUMBERS_DESC = '和合本与 BSB 已内置，离线也能查经 · 和合本 and BSB are built in; study works offline';
 /**
  * 31,100: verses in the bundled 和合本 (public/bible-data/cuv, 1,189
  * chapters), produced by scripts/fetch-bible-data.mjs; BSB has 31,086.
