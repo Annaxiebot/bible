@@ -4,18 +4,20 @@
  * Thin hook over components/studypack/packSource (list/save/delete) plus
  * JSON import/export. Every save (generate, edit, import) stamps the pack
  * with the signed-in leader's uid (stampLeader) so its sign-ups are his,
- * then refreshes its pack_summaries row (the check-in sender's text).
- * Every storage failure lands in `error` as a bilingual line with the
- * underlying message appended (R5: nothing is swallowed).
+ * then refreshes its pack_summaries row (the check-in sender's text) and,
+ * signed in, schedules its push to the leader's account (packSync,
+ * ADR-0006); delete removes it there too. The list re-reads when a sync
+ * finishes. Every storage failure lands in `error` as a bilingual line
+ * with the underlying message appended (R5: nothing is swallowed); sync
+ * failures show on PackSyncLine.
  */
 import { useState, useEffect, useCallback } from 'react';
 import { StudyPack, parseStudyPack } from '../studypack/packTypes';
-import {
-  listLocalPacks, saveLocalPack, deleteLocalPack, isLocalPackId, LOCAL_PACK_PREFIX,
-} from '../studypack/packSource';
+import { listLocalPacks, saveLocalPack, isLocalPackId, LOCAL_PACK_PREFIX } from '../studypack/packSource';
 import { downloadFile } from '../../services/export/fileDownloader';
 import { authManager } from '../../services/supabase';
 import { stampLeader } from './packAssembly';
+import { stampUpdated, schedulePackPush, deletePackEverywhere, subscribePackSyncStatus } from './packSync';
 import { syncPackSummary } from '../signup/packSummary';
 import { NS_ERR_STORAGE, NS_ERR_IMPORT } from './newStudyStrings';
 
@@ -59,9 +61,11 @@ export function useLocalPacks(): LocalPacks {
   }, []);
 
   useEffect(() => { void refresh(); }, [refresh]);
+  // A finished sync may have pulled, replaced or dropped packs: re-read the store.
+  useEffect(() => subscribePackSyncStatus(s => { if (s.state === 'synced' || s.state === 'failed') void refresh(); }), [refresh]);
 
   const save = useCallback(async (pack: StudyPack) => {
-    const stamped = stampLeader(pack, authManager.getUserId());
+    const stamped = stampUpdated(stampLeader(pack, authManager.getUserId()));
     try {
       await saveLocalPack(stamped);
     } catch (err) {
@@ -69,13 +73,15 @@ export function useLocalPacks(): LocalPacks {
       throw err;
     }
     await refresh();
+    schedulePackPush(stamped);
     const summary = await syncPackSummary(stamped);
     if (summary.status === 'failed') setError(summary.message);  // refresh() cleared error; the sync verdict comes last
   }, [refresh]);
 
   const remove = useCallback(async (id: string) => {
     try {
-      await deleteLocalPack(id);
+      // A failed server delete is reported on PackSyncLine and keeps the local copy (packSync).
+      await deletePackEverywhere(id);
     } catch (err) {
       setError(describe(NS_ERR_STORAGE, err));
       return;

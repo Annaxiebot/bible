@@ -17,6 +17,8 @@ export interface LocalPackRecord {
   id: string;        // "local-<yyyy-mm-dd>-<book><ch>"
   pack: object;      // StudyPack JSON (parseStudyPack validates on read)
   savedAt: number;   // epoch ms
+  /** Epoch ms the server last held exactly this copy (packSync); absent = never synced or edited since (ADR-0006). */
+  syncedAt?: number;
 }
 
 /** Schema fragment merged into BibleAppSchema (added in DB v6). */
