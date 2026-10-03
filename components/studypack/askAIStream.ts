@@ -1,8 +1,9 @@
 /**
  * askAIStream.ts — SSE streaming transport for OpenRouter · 流式回答
  *
- * Hits the same chat/completions endpoint as services/openrouter.ts (key
- * and URL reused from there) with { stream: true }. Chunks arrive as
+ * Sends { stream: true } chat/completions bodies through services/aiTransport
+ * (own key → OpenRouter directly; signed in → the ai-proxy function, which
+ * passes OpenRouter's SSE through unchanged; neither → sign-in-needed). Chunks arrive as
  * "data: {json}" lines carrying choices[0].delta.content (and, for reasoning
  * models, delta.reasoning), the model that answered, finish_reason, and —
  * even on a 200 — an `error` object. Nothing is skipped silently: errors
@@ -10,10 +11,10 @@
  * Ask-AI orchestrator (askAIFallback.ts) can retry sensibly.
  */
 import { BIBLE_SCHOLAR_SYSTEM_PROMPT } from '../../services/systemPrompts';
-import { getApiKey, OPENROUTER_API_URL } from '../../services/openrouter';
+import { sendAIRequest, AIRole } from '../../services/aiTransport';
 import { StudyPack, Slide } from './packTypes';
 import { AskAIMessage, ASK_AI_MAX_TOKENS, buildAskAIPrompt } from './askAI';
-import { notConfiguredError, errorFromStatus, streamError } from './askAIErrors';
+import { signInNeededError, errorFromStatus, hostedErrorFromStatus, streamError, ErrorReply } from './askAIErrors';
 
 /** One parsed SSE data event, reduced to what the app acts on. */
 export interface SSEEvent {
@@ -121,10 +122,29 @@ function modelOf(body: string): string {
   return (JSON.parse(body) as { model?: string }).model ?? '';
 }
 
+/** Who is asking (the proxy's quota role) and the X-Title an own-key request carries (ASCII only). */
+export interface AIRequestMeta {
+  role: AIRole;
+  title?: string;
+}
+
+const DEFAULT_TITLE = 'Scripture Scholar TV';
+
+/** Send the body by the transport's route; a non-OK reply throws the mapped AskAIError. */
+async function openStream(body: string, signal: AbortSignal, meta: AIRequestMeta, requested: string): Promise<Response> {
+  const sent = await sendAIRequest(meta.role, body, signal, meta.title ?? DEFAULT_TITLE);
+  if (sent.kind === 'sign-in-needed') throw signInNeededError(requested);
+  const { response } = sent;
+  if (response.ok) return response;
+  const data: ErrorReply = await response.json().catch(() => ({}));
+  if (sent.kind === 'hosted') throw hostedErrorFromStatus(response.status, data, requested);
+  throw errorFromStatus(response.status, typeof data.error === 'object' ? data.error?.message ?? '' : '', requested);
+}
+
 /**
- * POST one chat/completions request body to OpenRouter and stream the
- * reply. `onDelta` receives each content delta; the outcome carries the
- * full text plus reasoning volume, served model and finish_reason.
+ * POST one chat/completions request body and stream the reply. `onDelta`
+ * receives each content delta; the outcome carries the full text plus
+ * reasoning volume, served model and finish_reason.
  * A user abort via `signal` resolves cleanly with whatever has arrived.
  * HTTP errors, stream `error` events and reader failures throw AskAIError.
  * Shared by the Ask-AI overlay and the pack generator (R3: one transport).
@@ -133,28 +153,12 @@ export async function streamChatCompletionDetailed(
   body: string,
   onDelta: (delta: string) => void,
   signal: AbortSignal,
-  title = 'Scripture Scholar TV',
+  meta: AIRequestMeta = { role: 'ask' },
   /** Every parsed event, before it is applied — liveness (timeout) and model reporting. */
   onEvent?: (event: SSEEvent) => void
 ): Promise<StreamOutcome> {
   const requested = modelOf(body);
-  const apiKey = getApiKey();
-  if (!apiKey) throw notConfiguredError(requested);
-  const response = await fetch(OPENROUTER_API_URL, {
-    method: 'POST',
-    signal,
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
-      'HTTP-Referer': window.location.origin,
-      'X-Title': title,
-    },
-    body,
-  });
-  if (!response.ok) {
-    const data: { error?: { message?: string } } = await response.json().catch(() => ({}));
-    throw errorFromStatus(response.status, data.error?.message ?? '', requested);
-  }
+  const response = await openStream(body, signal, meta, requested);
   const reader = response.body?.getReader();
   if (!reader) throw streamError('OpenRouter returned no response body', undefined, requested);
 

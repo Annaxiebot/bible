@@ -7,12 +7,14 @@
  * (requested, then the concrete id OpenRouter served). Failures land in
  * `error` with a kind the overlay maps to Retry / Set up AI buttons; `retry`
  * re-sends the last question against the same history. `configured` is
- * read once on mount and flipped by `markConfigured()` after the inline key
- * setup saves.
+ * the shared AI gate (components/setup/useAIAccess: own key OR signed in,
+ * live on auth changes); `markConfigured()` re-reads it after the inline
+ * form stored a key.
  */
 import { useState, useCallback, useRef } from 'react';
+import { useAIAccess } from '../setup/useAIAccess';
 import { StudyPack, Slide } from './packTypes';
-import { isAskAIConfigured, resolveAskAIModel, AskAIMessage } from './askAI';
+import { resolveAskAIModel, AskAIMessage } from './askAI';
 import { streamStudyAI } from './askAIFallback';
 import { AskAIErrorKind, asAskAIError } from './askAIErrors';
 
@@ -30,7 +32,7 @@ export interface AskAI {
   configured: boolean;
   /** Model in play: the resolved id while waiting, the served id once the stream names one. */
   model: string | null;
-  /** Call after a key has been stored (inline setup) so asking becomes possible. */
+  /** Call after the inline form stored a key so asking becomes possible. */
   markConfigured: () => void;
   ask: (question: string) => Promise<void>;
   /** Re-send the last question (after a failure). */
@@ -49,12 +51,13 @@ export function useAskAI(pack: StudyPack, slide: Slide | undefined): AskAI {
   const [streamingText, setStreamingText] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<AskAIFailure | null>(null);
-  const [configured, setConfigured] = useState(isAskAIConfigured);
+  const access = useAIAccess();
+  const configured = access.available;
   const [model, setModel] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const lastAskRef = useRef<LastAsk | null>(null);
 
-  const markConfigured = useCallback(() => setConfigured(isAskAIConfigured()), []);
+  const markConfigured = access.refresh;
 
   // Explicit cancel (overlay Escape/✕). NOT an unmount-cleanup effect:
   // StrictMode's simulated remount would abort the auto-sent stream and

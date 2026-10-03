@@ -27,7 +27,7 @@ import {
   LEADER_ZH, LEADER_EN, SITE_LINE, LOOP_LINE_ZH, LOOP_LINE_EN, SETUP_LINE, SETUP_DONE_LINE,
   NEW_STUDY_LINE, NEW_STUDY_SUB,
 } from './landingStrings';
-import { getApiKey } from '../../services/openrouter';
+import { useAIAccess } from '../setup/useAIAccess';
 import QuickAISetupDialog from '../setup/QuickAISetup';
 
 const LeaderLine: React.FC = () => (
@@ -78,7 +78,7 @@ const Footer: React.FC = () => (
 const Landing: React.FC<{ setupOpen?: boolean }> = ({ setupOpen = false }) => {
   const [theme] = useState(resolveSessionThemeFromWindow);
   const [open, setOpen] = useState(setupOpen);
-  const [configured, setConfigured] = useState(() => !!getApiKey());
+  const ai = useAIAccess();
   useEffect(() => { setOpen(setupOpen); }, [setupOpen]);
 
   const close = useCallback(() => {
@@ -94,14 +94,14 @@ const Landing: React.FC<{ setupOpen?: boolean }> = ({ setupOpen = false }) => {
       <div className="mx-auto max-w-4xl px-4 sm:px-6">
         <LandingHero theme={theme} />
         <LandingCards />
-        <SetupLine configured={configured} onOpen={() => setOpen(true)} />
+        <SetupLine configured={ai.available} onOpen={() => setOpen(true)} />
         <NewStudyLine />
         <LeaderLine />
         <LandingNextStudy packId={SAMPLE_PACK_ID} />
         <LandingNumbers />
         <Footer />
       </div>
-      <QuickAISetupDialog open={open} onClose={close} onSaved={() => setConfigured(true)} />
+      <QuickAISetupDialog open={open} onClose={close} onSaved={ai.refresh} />
     </div>
   );
 };

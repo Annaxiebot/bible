@@ -2,8 +2,8 @@
  * PhaseView.tsx — what the New-study page shows for its current phase · 阶段视图
  *
  * form → generating (streamed progress + Cancel) → failed (bilingual error +
- * Retry) → editor. The form is hidden until an OpenRouter key is configured
- * (NewStudyPage renders the quick setup above). State lives in NewStudyPage.
+ * Retry) → editor. The form is hidden until AI is available — signed in or
+ * an own key (NewStudyPage renders the AI form above). State lives in NewStudyPage.
  */
 import React from 'react';
 import { StudyPack } from '../studypack/packTypes';

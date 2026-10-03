@@ -1,11 +1,10 @@
 /**
  * askAI.ts — Ask-AI prompt building + config for TV presentation mode · 问AI适配层
  *
- * The provider is OpenRouter (same endpoint/key as services/openrouter.ts);
- * the streaming transport lives in askAIStream.ts. Swapping providers later
+ * The provider is OpenRouter (own key, or the site's ai-proxy — services/
+ * aiTransport); the streaming transport lives in askAIStream.ts. Swapping providers later
  * means changing only these two files.
  */
-import { getApiKey } from '../../services/openrouter';
 import { askAIModel, wireModelId } from '../../services/aiDefaults';
 import { StudyPack, Slide, packContentLanguage } from './packTypes';
 import { ASK_AI_ANSWER_CONTRACT, CONTENT_LANGUAGE_CONTRACTS, TRANSLATIONS } from './principles';
@@ -24,10 +23,6 @@ export const ASK_AI_MAX_TOKENS = 300;
 export interface AskAIMessage {
   role: 'user' | 'assistant';
   content: string;
-}
-
-export function isAskAIConfigured(): boolean {
-  return !!getApiKey();
 }
 
 /**

@@ -142,6 +142,6 @@ export const NS_INVALID_RECORDS = bilingualLine('无法读取的记录', 'Unread
 
 // ---- privacy ----
 export const NS_PRIVACY = bilingualLine(
-  '查经包只保存在这台设备的浏览器里；密钥与内容都不会上传到我们的服务器',
-  'Packs stay in this browser; neither the key nor the content is uploaded to our servers'
+  '查经包保存在这台设备的浏览器里；带领者登录后同步到你的账号（只有你能读取）',
+  'Packs are saved in this browser; once a leader signs in they sync to that account (only you can read them)'
 );

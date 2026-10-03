@@ -4,19 +4,25 @@
  * Every failure the overlay can show is an AskAIError with a `kind`; the
  * kind decides which buttons accompany the line (Set up AI / Retry) and
  * whether the transport may try a fallback model. Strings come from
- * tvHints.ts (R3); this module only assembles them.
+ * tvHints.ts (R3); this module only assembles them. Own-key replies map by
+ * OpenRouter status (errorFromStatus); hosted replies (services/aiTransport
+ * → ai-proxy) by the proxy's typed body first (hostedErrorFromStatus).
  */
 import { classifyOpenRouterStatus } from '../../services/openrouterStatus';
 import {
-  AI_NOT_CONFIGURED_MESSAGE, AI_CREDITS_MESSAGE, AI_INVALID_KEY_MESSAGE, AI_REQUEST_FAILED,
+  AI_SIGN_IN_NEEDED, AI_CREDITS_MESSAGE, AI_INVALID_KEY_MESSAGE, AI_REQUEST_FAILED,
   modelUnavailableLine, httpDetail, streamErrorLine, timeoutLine, withModel,
   AI_EMPTY, AI_BUDGET_SPENT, AI_FILTERED, AI_NETWORK_ERROR,
+  quotaLine, AI_CREDIT_USED_UP, AI_SERVICE_PAUSED,
 } from './tvHints';
 
 export type AskAIErrorKind =
-  | 'not-configured'
+  | 'sign-in-needed'
   | 'invalid-key'
   | 'no-credits'
+  | 'quota'
+  | 'credit-used-up'
+  | 'service-paused'
   | 'model-unavailable'
   | 'http-error'
   | 'stream-error'
@@ -40,9 +46,14 @@ export class AskAIError extends Error {
   }
 }
 
-/** Kinds whose line gets a "Set up AI" button (a stored key/model is the likely cause). */
+/** Kinds whose line gets a "Set up AI" button (sign in, or a stored key/model, is the way out). */
 export const SETUP_KINDS: ReadonlySet<AskAIErrorKind> = new Set<AskAIErrorKind>([
-  'not-configured', 'invalid-key', 'no-credits', 'model-unavailable', 'timeout', 'empty', 'budget',
+  'sign-in-needed', 'invalid-key', 'no-credits', 'model-unavailable', 'timeout', 'empty', 'budget',
+]);
+
+/** Hosted kinds whose line links to the AI service page's own-key option (the only such hint, ADR-0007). */
+export const OWN_KEY_LINK_KINDS: ReadonlySet<AskAIErrorKind> = new Set<AskAIErrorKind>([
+  'credit-used-up', 'service-paused',
 ]);
 
 /** Kinds whose line gets a "Retry" button (the same request may well succeed). */
@@ -55,8 +66,8 @@ export const FALLBACK_KINDS: ReadonlySet<AskAIErrorKind> = new Set<AskAIErrorKin
   'model-unavailable', 'http-error', 'stream-error',
 ]);
 
-export function notConfiguredError(model: string): AskAIError {
-  return new AskAIError('not-configured', AI_NOT_CONFIGURED_MESSAGE, model);
+export function signInNeededError(model: string): AskAIError {
+  return new AskAIError('sign-in-needed', AI_SIGN_IN_NEEDED, model);
 }
 
 /** A non-OK HTTP reply → the bilingual line for its status, always carrying status + API message. */
@@ -70,6 +81,30 @@ export function errorFromStatus(status: number, apiMessage: string, model: strin
     'http-error': AI_REQUEST_FAILED,
   }[kind];
   return new AskAIError(kind, `${base} · ${detail}`, model, status);
+}
+
+/** A non-OK reply's JSON: the proxy's own errors carry a string `error`, OpenRouter's an object. */
+export interface ErrorReply {
+  error?: string | { message?: string };
+  limit?: number;
+  detail?: string;
+}
+
+/**
+ * A non-OK reply from the hosted proxy. 401 (expired session) → sign in
+ * again; the proxy's typed 429 quota / 402 no-credit / 503 → their own
+ * lines (never a fallback attempt); anything else is OpenRouter's reply
+ * passed through → the own-key mapping.
+ */
+export function hostedErrorFromStatus(status: number, data: ErrorReply, model: string): AskAIError {
+  if (status === 401) return new AskAIError('sign-in-needed', AI_SIGN_IN_NEEDED, model, status);
+  const code = typeof data.error === 'string' ? data.error : null;
+  if (code === 'quota') return new AskAIError('quota', quotaLine(data.limit ?? 0), model, status);
+  if (code === 'no-credit') return new AskAIError('credit-used-up', AI_CREDIT_USED_UP, model, status);
+  if (status === 503) return new AskAIError('service-paused', `${AI_SERVICE_PAUSED} · ${httpDetail(status, code ?? '')}`, model, status);
+  if (code) return new AskAIError('http-error', `${AI_REQUEST_FAILED} · ${httpDetail(status, data.detail ?? code)}`, model, status);
+  const message = typeof data.error === 'object' ? data.error?.message ?? '' : '';
+  return errorFromStatus(status, message, model);
 }
 
 /** An `error` object OpenRouter sent inside a 200 stream. */

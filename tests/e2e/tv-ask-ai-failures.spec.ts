@@ -11,16 +11,16 @@ import { test, expect, Page } from '@playwright/test';
 import {
   AI_INVALID_KEY_MESSAGE, AI_TIMEOUT, AI_STREAM_ERROR, TV_RETRY, modelLine, thinkingLine,
 } from '../../components/studypack/tvHints';
-import { SETUP_TITLE } from '../../components/setup/setupStrings';
+import { SETUP_OPEN_BUTTON } from '../../components/setup/setupStrings';
 import { ASK_AI_MODEL } from '../../services/aiDefaults';
-import { openTV, injectApiKey, mockOpenRouterSequence, mockOpenRouterHang, setAskAITimeout, sseBody } from './helpers/tv';
+import { openTV, goToSlide, DEMO_SLIDE, injectApiKey, mockOpenRouterSequence, mockOpenRouterHang, setAskAITimeout, sseBody } from './helpers/tv';
 
 const E2E_TIMEOUT_MS = 1500;
 
 /** Go to the first discussion slide and open Ask AI (auto-sends the slide's question). */
 async function askOnDiscussionSlide(page: Page) {
   await openTV(page);
-  for (let i = 0; i < 8; i++) await page.keyboard.press('ArrowRight');
+  await goToSlide(page, DEMO_SLIDE.discussion);
   await expect(page.getByText(/讨论 Discussion · 1\/5/)).toBeVisible();
   await page.keyboard.press('a');
   await expect(page.getByText(/Q: 这一周，忧虑实际出现在哪里/)).toBeVisible();
@@ -34,7 +34,7 @@ test.describe('Ask AI failures on the TV', () => {
     const alert = page.getByRole('alert');
     await expect(alert).toContainText(AI_INVALID_KEY_MESSAGE);
     await expect(alert).toContainText('HTTP 401: User not found.');
-    await expect(alert.getByRole('button', { name: SETUP_TITLE })).toBeVisible();
+    await expect(alert.getByRole('button', { name: SETUP_OPEN_BUTTON })).toBeVisible();
     await expect(alert.getByRole('button', { name: TV_RETRY })).toHaveCount(0);
   });
 
@@ -48,7 +48,7 @@ test.describe('Ask AI failures on the TV', () => {
     await expect(alert).toContainText(AI_TIMEOUT, { timeout: E2E_TIMEOUT_MS * 4 });
     await expect(alert).toContainText(modelLine(ASK_AI_MODEL));
     await expect(alert.getByRole('button', { name: TV_RETRY })).toBeVisible();
-    await expect(alert.getByRole('button', { name: SETUP_TITLE })).toBeVisible();
+    await expect(alert.getByRole('button', { name: SETUP_OPEN_BUTTON })).toBeVisible();
     await expect(page.getByTestId('ask-thinking')).toHaveCount(0);
   });
 
