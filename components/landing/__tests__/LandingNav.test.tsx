@@ -1,8 +1,9 @@
 /**
- * LandingNav.test.tsx — sticky three-link nav · 页内导航测试
+ * LandingNav.test.tsx — sticky two-link nav + leader control · 页内导航测试
  *
- * Three buttons (never hash links: a hash would route away from the
- * landing), each scrolling its section into view. The full landing mounts
+ * Section buttons (never hash links: a hash would route away from the
+ * landing), each scrolling its section into view; the leader control is
+ * covered in LandingLeaderLink.test.tsx. The full landing mounts
  * so the targets exist.
  */
 import React from 'react';
@@ -10,7 +11,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, within, fireEvent, cleanup } from '@testing-library/react';
 import LandingNav from '../LandingNav';
 import Landing from '../Landing';
-import { NAV_LINKS, NAV_LABEL, NEXT_NONE_YET } from '../landingStrings';
+import { NAV_LINKS, NAV_LABEL, NEXT_NONE_YET, NAV_LEADER_SIGNIN } from '../landingStrings';
 
 describe('LandingNav', () => {
   beforeEach(() => {
@@ -22,16 +23,17 @@ describe('LandingNav', () => {
     vi.unstubAllGlobals();
   });
 
-  it('renders one button per NAV_LINKS entry, Chinese first, with no anchors', () => {
+  it('renders one button per NAV_LINKS entry, Chinese first, plus the leader sign-in button; no anchors signed out', () => {
     render(<LandingNav />);
     const nav = screen.getByRole('navigation', { name: NAV_LABEL });
     const buttons = within(nav).getAllByRole('button');
-    expect(buttons).toHaveLength(NAV_LINKS.length);
+    expect(buttons).toHaveLength(NAV_LINKS.length + 1);
     expect(NAV_LINKS).toHaveLength(2);
     expect(nav.querySelectorAll('a')).toHaveLength(0);
     NAV_LINKS.forEach((link, i) => {
       expect(buttons[i].textContent).toBe(`${link.zh}${link.en}`);
     });
+    expect(buttons[NAV_LINKS.length].textContent).toBe(`${NAV_LEADER_SIGNIN.zh}${NAV_LEADER_SIGNIN.en}`);
   });
 
   it('each link scrolls its section into view on the full landing', async () => {
