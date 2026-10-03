@@ -6,14 +6,14 @@
  */
 import { test, expect, Page } from '@playwright/test';
 import { VERSE_LOAD_ERROR } from '../../components/studypack/tvHints';
-import { openTV } from './helpers/tv';
+import { openTV, goToSlide, DEMO_SLIDE } from './helpers/tv';
 
 test.describe('Interactive cross-references (bundled Bible data)', () => {
-  // Slide order: 1 title, 2–4 scripture, 5 context, 6 original language, 7 cross-refs
-  async function openCrossRefsSlide(page: Page) {
+  // The five cross-references span two slides: Luke + Philippians on 1/2, 1 Peter on 2/2.
+  async function openCrossRefsSlide(page: Page, part: 1 | 2 = 1) {
     await openTV(page);
-    for (let i = 0; i < 7; i++) await page.keyboard.press('ArrowRight');
-    await expect(page.getByText(/交叉经文 Cross-references/)).toBeVisible();
+    await goToSlide(page, DEMO_SLIDE.crossRefs + part - 1);
+    await expect(page.getByText(new RegExp(`交叉经文 Cross-references · ${part}/2`))).toBeVisible();
   }
 
   test('hovering "Philippians 4:6–7" shows 和合本 text first, then BSB', async ({ page }) => {
@@ -50,7 +50,7 @@ test.describe('Interactive cross-references (bundled Bible data)', () => {
 
   test('a popup fetch failure shows the bilingual error line (no silent catch)', async ({ page }) => {
     await page.route('**/bible-data/**', route => route.fulfill({ status: 404, body: 'nope' }));
-    await openCrossRefsSlide(page);
+    await openCrossRefsSlide(page, 2);
     await page.getByTestId('verse-ref').filter({ hasText: '1 Peter 5:7' }).hover();
     await expect(page.getByRole('tooltip')).toContainText(VERSE_LOAD_ERROR);
   });
