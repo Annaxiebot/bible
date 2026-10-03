@@ -7,6 +7,7 @@
  * STORAGE_KEYS.FEEDBACK_FORM_DEFAULT_URL. Storage is injectable for tests.
  */
 import { STORAGE_KEYS } from '../../constants/storageKeys';
+import { noteLeaderSettingChanged } from '../../services/leaderSettingsKeys';
 import { isGoogleFormUrl } from '../studypack/feedbackForm';
 import { NS_ERR_FEEDBACK_FORM } from './newStudyStrings';
 
@@ -23,9 +24,10 @@ export function readDefaultFormUrl(store: KeyStore = window.localStorage): strin
   return store.getItem(STORAGE_KEYS.FEEDBACK_FORM_DEFAULT_URL) ?? '';
 }
 
-/** Remember (or forget, when the box is off or the link empty) the leader's default. */
+/** Remember (or forget, when the box is off or the link empty) the leader's default; the sync is told either way. */
 export function rememberDefaultFormUrl(url: string, useForAll: boolean, store: KeyStore = window.localStorage): void {
   const trimmed = url.trim();
   if (useForAll && trimmed) store.setItem(STORAGE_KEYS.FEEDBACK_FORM_DEFAULT_URL, trimmed);
   else store.removeItem(STORAGE_KEYS.FEEDBACK_FORM_DEFAULT_URL);
+  noteLeaderSettingChanged(STORAGE_KEYS.FEEDBACK_FORM_DEFAULT_URL);
 }
