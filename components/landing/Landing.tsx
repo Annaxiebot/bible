@@ -1,7 +1,7 @@
 /**
  * Landing.tsx — scripturetolife.org home page · 首页
  *
- * Minimalist, mobile-first, dark (slate-950/amber, matching TV mode), with
+ * Minimalist, mobile-first, dark (charcoal/muted gold tokens in styles/stlTheme.css, matching TV mode), with
  * large type for adults and seniors. Shown only at the bare root URL; the
  * two door-card CTAs set the hash that LandingGate routes on. Static
  * content except the next-study block's pack fetch. Strings live in landingStrings.ts (ADR-0003:
@@ -31,8 +31,8 @@ import { getApiKey } from '../../services/openrouter';
 import QuickAISetupDialog from '../setup/QuickAISetup';
 
 const LeaderLine: React.FC = () => (
-  <p className="ld-body mx-auto mt-12 max-w-2xl text-center text-slate-400" data-testid="leader-line">
-    <span className="block font-serif-sc text-slate-300">{LEADER_ZH}</span>
+  <p className="ld-body mx-auto mt-12 max-w-2xl text-center text-stl-text-2" data-testid="leader-line">
+    <span className="block font-serif-sc text-stl-text">{LEADER_ZH}</span>
     <span className="block">{LEADER_EN}</span>
   </p>
 );
@@ -43,7 +43,7 @@ const SetupLine: React.FC<{ configured: boolean; onOpen: () => void }> = ({ conf
       type="button"
       onClick={onOpen}
       data-testid="landing-setup-line"
-      className="ld-body ld-setup-line text-amber-300 underline underline-offset-4 hover:text-amber-200"
+      className="ld-body ld-setup-line text-stl-gold underline underline-offset-4 hover:text-stl-gold-hover"
     >
       {configured ? SETUP_DONE_LINE : SETUP_LINE}
     </button>
@@ -56,20 +56,20 @@ const NewStudyLine: React.FC = () => (
     <a
       href={NEW_STUDY_HASH}
       data-testid="landing-new-study-line"
-      className="ld-body ld-setup-line inline-block text-amber-300 underline underline-offset-4 hover:text-amber-200"
+      className="ld-body ld-setup-line inline-block text-stl-gold underline underline-offset-4 hover:text-stl-gold-hover"
     >
       {NEW_STUDY_LINE}
     </a>
-    <span className="ld-body block text-slate-400">{NEW_STUDY_SUB}</span>
+    <span className="ld-body block text-stl-text-2">{NEW_STUDY_SUB}</span>
   </p>
 );
 
 const Footer: React.FC = () => (
-  <footer className="ld-footer mt-16 border-t border-slate-800/80 pb-12 pt-8 text-center text-slate-400">
+  <footer className="ld-footer mt-16 border-t border-stl-border pb-12 pt-8 text-center text-stl-text-2">
     <p>{SITE_LINE}</p>
     <p className="mt-2">
       <span className="font-serif-sc">{LOOP_LINE_ZH}</span>
-      <span className="mx-2 text-slate-600">·</span>
+      <span className="mx-2 text-stl-text-3">·</span>
       <span>{LOOP_LINE_EN}</span>
     </p>
   </footer>
@@ -88,7 +88,7 @@ const Landing: React.FC<{ setupOpen?: boolean }> = ({ setupOpen = false }) => {
   }, []);
 
   return (
-    <div data-testid="landing-page" className="ld-root bg-slate-950 text-slate-100">
+    <div data-testid="landing-page" className="ld-root bg-stl-bg text-stl-text">
       <LandingSky theme={theme} />
       <LandingNav />
       <div className="mx-auto max-w-4xl px-4 sm:px-6">

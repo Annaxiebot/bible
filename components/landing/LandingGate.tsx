@@ -23,7 +23,7 @@ const SignupPage = lazy(() => import('../signup/SignupPage'));
 const LeaderPage = lazy(() => import('../leader/LeaderPage'));
 const CheckinPage = lazy(() => import('../checkin/CheckinPage'));
 
-const fallback = <div className="fixed inset-0 bg-slate-950" />;
+const fallback = <div className="fixed inset-0 bg-stl-bg" />;
 
 const LandingGate: React.FC<{ app: React.ReactElement }> = ({ app }) => {
   const [view, setView] = useState<RootView>(

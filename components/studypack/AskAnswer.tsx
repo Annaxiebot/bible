@@ -35,7 +35,7 @@ export function mdComponents(pack: StudyPack): Record<string, React.ComponentTyp
     <li className="ml-[2vw] list-disc">{linkifyChildren(children, pack)}</li>
   );
   const Strong: React.FC<MdProps> = ({ children }) => (
-    <strong className="text-amber-100">{linkifyChildren(children, pack)}</strong>
+    <strong className="text-stl-gold-hover">{linkifyChildren(children, pack)}</strong>
   );
   const Em: React.FC<MdProps> = ({ children }) => <em>{linkifyChildren(children, pack)}</em>;
   return {
@@ -52,7 +52,7 @@ const AskAnswer: React.FC<AskAnswerProps> = ({ text, pack }) => {
   const components = useMemo(() => mdComponents(pack), [pack]);
   return (
     <div
-      className="text-slate-100"
+      className="text-stl-text"
       data-testid="ask-answer"
       style={{ fontSize: answerFontSize(text), lineHeight: 1.45 }}
     >

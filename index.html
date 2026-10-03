@@ -13,6 +13,32 @@
     <link rel="apple-touch-icon" sizes="180x180" href="/bible/apple-touch-icon.png">
     <title>Scripture Scholar</title>
     <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <script>
+      // stl.* colours → the --stl-* tokens in styles/stlTheme.css (one source;
+      // stlTheme.test.ts fails if a token is defined there but missing here).
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              stl: {
+                bg: 'var(--stl-bg)',
+                surface: 'var(--stl-surface)',
+                'surface-2': 'var(--stl-surface-2)',
+                text: 'var(--stl-text)',
+                'text-2': 'var(--stl-text-2)',
+                'text-3': 'var(--stl-text-3)',
+                gold: 'var(--stl-gold)',
+                'gold-hover': 'var(--stl-gold-hover)',
+                'gold-dim': 'var(--stl-gold-dim)',
+                'gold-glow': 'var(--stl-gold-glow)',
+                border: 'var(--stl-border)',
+                glass: 'var(--stl-glass)',
+              },
+            },
+          },
+        },
+      };
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Noto+Serif+SC:wght@400;700&display=swap" rel="stylesheet">
@@ -41,13 +67,13 @@
         /* Verse popup: visible dark-theme scrollbar (long ranges scroll) */
         .tv-tooltip-scroll {
             scrollbar-width: thin;
-            scrollbar-color: #64748b #1e293b;
+            scrollbar-color: var(--stl-text-3) var(--stl-surface);
         }
         .tv-tooltip-scroll::-webkit-scrollbar {
             width: 8px;
         }
         .tv-tooltip-scroll::-webkit-scrollbar-thumb {
-            background: #64748b;
+            background: var(--stl-text-3);
             border-radius: 8px;
         }
         .prose {

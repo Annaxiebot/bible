@@ -35,12 +35,12 @@ const LoopDiagram: React.FC = () => (
   >
     {ARROWS.map((a, i) => (
       <g key={a.from}>
-        <path d={`M${a.from} ${NODE_Y}H${a.to}`} stroke="#334155" strokeWidth="3" strokeLinecap="round" />
-        <path d={`M${a.to - 12} ${NODE_Y - 9}L${a.to} ${NODE_Y}l-12 9`} stroke="#334155" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <path d={`M${a.from} ${NODE_Y}H${a.to}`} stroke="var(--stl-surface-2)" strokeWidth="3" strokeLinecap="round" />
+        <path d={`M${a.to - 12} ${NODE_Y - 9}L${a.to} ${NODE_Y}l-12 9`} stroke="var(--stl-surface-2)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
         <path
           d={`M${a.from} ${NODE_Y}H${a.to}`}
           className={`ld-arrow-glow ld-arrow-glow-${i + 1}`}
-          stroke="#fbbf24" strokeWidth="4" strokeLinecap="round"
+          stroke="var(--stl-gold)" strokeWidth="4" strokeLinecap="round"
         />
       </g>
     ))}
@@ -63,7 +63,7 @@ const LoopLabels: React.FC = () => (
     {LOOP_STEPS.map((step, i) => (
       <li key={step.zh} className={`ld-step-label ld-step-label-${i + 1}`}>
         <span className="ld-step-zh block font-serif-sc font-bold">{step.zh}</span>
-        <span className="ld-step-en block text-slate-400">{step.en}</span>
+        <span className="ld-step-en block text-stl-text-2">{step.en}</span>
       </li>
     ))}
   </ol>
@@ -84,7 +84,7 @@ const CaptionRef: React.FC<{ text: string }> = ({ text }) => {
 /** Tiny low-contrast corner caption naming the theme's verse, Chinese first. */
 const ThemeCaption: React.FC<{ theme: HeroTheme }> = ({ theme }) => (
   <p
-    className="absolute right-0 top-4 text-base text-slate-400 sm:top-6"
+    className="absolute right-0 top-4 text-base text-stl-text-2 sm:top-6"
     data-testid="theme-caption"
   >
     <span className="font-serif-sc"><CaptionRef text={theme.verseZh} /></span>
@@ -96,19 +96,19 @@ const ThemeCaption: React.FC<{ theme: HeroTheme }> = ({ theme }) => (
 const LandingHero: React.FC<{ theme: HeroTheme }> = ({ theme }) => (
   <header className="relative pt-14 pb-10 text-center sm:pt-20">
     <ThemeCaption theme={theme} />
-    <h1 className="ld-wordmark ld-fade ld-fade-1 font-bold tracking-tight text-slate-50">
+    <h1 className="ld-wordmark ld-fade ld-fade-1 font-bold tracking-tight text-stl-text">
       {BRAND_EN}
     </h1>
-    <p className="ld-wordmark-zh ld-fade ld-fade-2 mt-1 font-serif-sc text-amber-400">
+    <p className="ld-wordmark-zh ld-fade ld-fade-2 mt-1 font-serif-sc text-stl-gold">
       {BRAND_ZH}
     </p>
     <div className="ld-fade ld-fade-3 mt-10">
       <LoopDiagram />
       <LoopLabels />
     </div>
-    <p className="ld-body ld-fade ld-fade-4 mx-auto mt-8 max-w-xl text-slate-300">
+    <p className="ld-body ld-fade ld-fade-4 mx-auto mt-8 max-w-xl text-stl-text">
       <span className="block font-serif-sc">{HERO_SUB_ZH}</span>
-      <span className="block text-slate-400">{HERO_SUB_EN}</span>
+      <span className="block text-stl-text-2">{HERO_SUB_EN}</span>
     </p>
   </header>
 );

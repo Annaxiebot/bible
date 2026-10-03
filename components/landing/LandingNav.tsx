@@ -30,10 +30,10 @@ const LandingNav: React.FC = () => (
             type="button"
             onClick={() => scrollToSection(link.id)}
             data-testid={`nav-${link.id}`}
-            className="ld-nav-link rounded-xl text-slate-200 hover:text-amber-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-400"
+            className="ld-nav-link rounded-xl text-stl-text hover:text-stl-gold-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-stl-gold"
           >
             <span className="font-serif-sc">{link.zh}</span>
-            <span className="text-slate-400">{link.en}</span>
+            <span className="text-stl-text-2">{link.en}</span>
           </button>
         </li>
       ))}

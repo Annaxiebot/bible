@@ -21,12 +21,12 @@ const LandingSection: React.FC<LandingSectionProps> = ({
   id, eyebrow, headingZh, headingEn, description, children,
 }) => (
   <section id={id} data-testid={`section-${id}`} className="ld-section mt-20 text-center">
-    <p className="ld-eyebrow font-semibold uppercase tracking-widest text-amber-400">{eyebrow}</p>
-    <h2 className="ld-card-title mt-3 font-semibold text-slate-100">
+    <p className="ld-eyebrow font-semibold uppercase tracking-widest text-stl-gold">{eyebrow}</p>
+    <h2 className="ld-card-title mt-3 font-semibold text-stl-text">
       <span className="block font-serif-sc">{headingZh}</span>
-      <span className="block text-slate-300">{headingEn}</span>
+      <span className="block text-stl-text">{headingEn}</span>
     </h2>
-    <p className="ld-body mx-auto mt-3 max-w-2xl text-slate-400">{description}</p>
+    <p className="ld-body mx-auto mt-3 max-w-2xl text-stl-text-2">{description}</p>
     <div className="mt-8">{children}</div>
   </section>
 );

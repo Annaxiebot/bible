@@ -1,7 +1,7 @@
 /**
  * TVSlide.tsx — renders one StudyPack slide for the TV · 单页幻灯片
  *
- * Dark, high-contrast, very large type (vh-based so it scales with the TV).
+ * Dark (colour tokens: styles/stlTheme.css), very large type (vh-based so it scales with the TV).
  * Layout only; navigation lives in useTVNavigation / TVPresentationView.
  * When the pack is provided, verse references in body lines become
  * interactive popups (ADR-0003 §8). Bilingual text is Chinese-first (§1).
@@ -27,13 +27,13 @@ interface SlideProps {
 }
 
 const Heading: React.FC<{ text: string }> = ({ text }) => (
-  <h1 className="font-bold text-amber-300 mb-[4vh]" style={headingStyle}>{text}</h1>
+  <h1 className="font-bold text-stl-gold mb-[4vh]" style={headingStyle}>{text}</h1>
 );
 
 const BodyLines: React.FC<{ lines?: string[]; pack?: StudyPack }> = ({ lines, pack }) => (
   <div className="space-y-[2.5vh]">
     {(lines || []).map((line, i) => (
-      <p key={i} className="text-slate-100" style={bodyStyle}>
+      <p key={i} className="text-stl-text" style={bodyStyle}>
         {pack ? <RefLinkedText text={line} pack={pack} /> : line}
       </p>
     ))}
@@ -42,7 +42,7 @@ const BodyLines: React.FC<{ lines?: string[]; pack?: StudyPack }> = ({ lines, pa
 
 const TitleSlide: React.FC<SlideProps> = ({ slide }) => (
   <div className="flex flex-col items-center justify-center text-center h-full">
-    <h1 className="font-bold text-amber-300 mb-[5vh]" style={{ fontSize: 'max(22px, 9vh)', lineHeight: 1.2 }}>
+    <h1 className="font-bold text-stl-gold mb-[5vh]" style={{ fontSize: 'max(22px, 9vh)', lineHeight: 1.2 }}>
       {slide.heading}
     </h1>
     <BodyLines lines={slide.body} />
@@ -54,9 +54,9 @@ const ScriptureSlide: React.FC<SlideProps> = ({ slide, pack }) => (
   <div className="h-full flex flex-col">
     <Heading text={`${slide.heading} · ${slide.partIndex}/${slide.partTotal}`} />
     {slide.keyPhrase && (
-      <p className="text-white font-semibold mb-[3vh]" style={bodyStyle}>{slide.keyPhrase}</p>
+      <p className="text-stl-text font-semibold mb-[3vh]" style={bodyStyle}>{slide.keyPhrase}</p>
     )}
-    <div className="grid grid-cols-1 md:grid-cols-2 md:gap-[3vw] text-slate-400 mb-[1.5vh]" style={verseStyle}>
+    <div className="grid grid-cols-1 md:grid-cols-2 md:gap-[3vw] text-stl-text-2 mb-[1.5vh]" style={verseStyle}>
       <span className="hidden md:block">{bilingual(TRANSLATIONS.zh.label, 'CUV')}</span>
       <span className="hidden md:block">{pack?.enVersion ?? TRANSLATIONS.en.label}</span>
       <span className="md:hidden">{`${bilingual(TRANSLATIONS.zh.label, 'CUV')} · ${pack?.enVersion ?? TRANSLATIONS.en.label}`}</span>
@@ -64,11 +64,11 @@ const ScriptureSlide: React.FC<SlideProps> = ({ slide, pack }) => (
     <div className="overflow-y-auto flex-1 space-y-[2.5vh]">
       {(slide.verses || []).map(v => (
         <div key={v.num} className="grid grid-cols-1 gap-[0.5vh] md:grid-cols-2 md:gap-[3vw]">
-          <p className="text-slate-100" style={verseStyle}>
-            <span className="text-amber-400 mr-2">{v.num}</span>{v.cuv}
+          <p className="text-stl-text" style={verseStyle}>
+            <span className="text-stl-gold mr-2">{v.num}</span>{v.cuv}
           </p>
-          <p className="text-slate-100" style={verseStyle}>
-            <span className="text-amber-400 mr-2">{v.num}</span>{v.en}
+          <p className="text-stl-text" style={verseStyle}>
+            <span className="text-stl-gold mr-2">{v.num}</span>{v.en}
           </p>
         </div>
       ))}
@@ -80,7 +80,7 @@ const DiscussionSlide: React.FC<SlideProps> = ({ slide, pack }) => (
   <div className="h-full flex flex-col">
     <Heading text={`${slide.heading} · ${slide.questionNumber}/${slide.questionTotal}`} />
     <div className="flex-1 flex items-center">
-      <p className="text-white font-semibold" style={{ fontSize: TYPE_SCALE.question, lineHeight: 1.4 }}>
+      <p className="text-stl-text font-semibold" style={{ fontSize: TYPE_SCALE.question, lineHeight: 1.4 }}>
         {pack && slide.question ? <RefLinkedText text={slide.question} pack={pack} /> : slide.question}
       </p>
     </div>
@@ -93,11 +93,11 @@ const LifeMenuSlide: React.FC<SlideProps> = ({ slide, pack }) => (
     <table className="w-full border-collapse">
       <tbody>
         {(slide.rows || []).map((row, i) => (
-          <tr key={i} className="block border-b border-slate-700 md:table-row">
-            <td className="block pt-[1vh] text-amber-300 font-semibold md:table-cell md:py-[1vh] md:pr-[2vw] md:whitespace-nowrap md:align-top" style={lifeMenuStyle}>
+          <tr key={i} className="block border-b border-stl-border md:table-row">
+            <td className="block pt-[1vh] text-stl-gold font-semibold md:table-cell md:py-[1vh] md:pr-[2vw] md:whitespace-nowrap md:align-top" style={lifeMenuStyle}>
               {row.area}
             </td>
-            <td className="block pb-[1vh] text-slate-100 md:table-cell md:py-[1vh]" style={lifeMenuStyle}>
+            <td className="block pb-[1vh] text-stl-text md:table-cell md:py-[1vh]" style={lifeMenuStyle}>
               {pack ? <RefLinkedText text={row.practice} pack={pack} /> : row.practice}
             </td>
           </tr>
@@ -112,7 +112,7 @@ const NoSignup: React.FC<{ pack?: StudyPack }> = ({ pack }) => {
   if (pack && packSignupState(pack) === 'unclaimed') {
     return <UnclaimedSignIn packId={pack.id} lineStyle={bodyStyle} buttonStyle={bodyStyle} />;
   }
-  return <p data-testid="qr-demo" className="text-slate-300" style={bodyStyle}>{SU_DEMO_LINE}</p>;
+  return <p data-testid="qr-demo" className="text-stl-text" style={bodyStyle}>{SU_DEMO_LINE}</p>;
 };
 
 /**
@@ -127,7 +127,7 @@ const QrSlide: React.FC<SlideProps> = ({ slide, pack }) => (
     {slide.signupUrl ? (
       <>
         <SignupQr url={slide.signupUrl} size="54vh" className="mb-[3vh]" pack={pack} />
-        <p className="text-amber-300 font-semibold mb-[2vh] break-all" style={bodyStyle}>{slide.signupUrl}</p>
+        <p className="text-stl-gold font-semibold mb-[2vh] break-all" style={bodyStyle}>{slide.signupUrl}</p>
         <BodyLines lines={slide.body} />
       </>
     ) : (

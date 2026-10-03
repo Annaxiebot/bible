@@ -1,0 +1,32 @@
+/*
+ * stlTheme.css — the ONE colour token set for the dark scripturetolife views · 主题色
+ *
+ * Landing page (components/landing/*) and TV presentation mode
+ * (components/studypack/TV*, AskAI*, VerseTooltip) read these and nothing
+ * else: Tailwind classes `bg-stl-bg`, `text-stl-text-2`, `border-stl-border`…
+ * are mapped onto these variables in index.html (tailwind.config), and the
+ * landing CSS / theme keyframes use var(--stl-*) directly.
+ *
+ * Why: pure black with saturated amber + white was too contrasty for a
+ * living-room TV and for seniors' eyes. Warm charcoal, off-white body text
+ * and muted gold keep WCAG AA (body ≥ 4.5:1, large chrome ≥ 3:1) — pinned
+ * by components/studypack/__tests__/stlTheme.test.ts, which also fails if a
+ * token is added here but not mapped in index.html.
+ *
+ * Type sizes are NOT here (TYPE_SCALE in principles.ts, landing.css):
+ * this pass changes colours only.
+ */
+:root {
+  --stl-bg: #151a23;                       /* page background, warm charcoal */
+  --stl-surface: #1c2230;                  /* raised: cards, overlay panel, popup, input */
+  --stl-surface-2: #262d3b;                /* raised again: disabled fills, idle lines, SVG frames */
+  --stl-text: #e4e7ec;                     /* body text, off-white (never pure white) */
+  --stl-text-2: #aeb4bf;                   /* secondary text: English lines, labels */
+  --stl-text-3: #8a919c;                   /* muted chrome: slide counter, hints, notes */
+  --stl-gold: #d9bf7a;                     /* accent: headings, refs, CTA fill */
+  --stl-gold-hover: #e8d39a;               /* accent hover / emphasis on dark */
+  --stl-gold-dim: rgba(217, 191, 122, 0.16);   /* accent tint: hover backgrounds */
+  --stl-gold-glow: rgba(217, 191, 122, 0.4);   /* accent glow: shadows, dawn */
+  --stl-border: rgba(228, 231, 236, 0.12); /* hairlines on any surface */
+  --stl-glass: rgba(21, 26, 35, 0.88);     /* translucent bg: sticky nav, overlay backdrop */
+}
