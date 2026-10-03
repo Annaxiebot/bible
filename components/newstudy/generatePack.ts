@@ -3,7 +3,7 @@
  *
  * 1. Load the passage from the bundled Bible data (和合本 + BSB) — never from
  *    the model (ADR-0003 §4).
- * 2. Stream one strict-JSON completion from OpenRouter (same transport as the
+ * 2. Stream one strict-JSON completion (role 'pack'; same transport as the
  *    Ask-AI overlay, askAIStream.streamChatCompletionDetailed), reporting
  *    progress. A finish_reason of "length" gets ONE continuation turn (the
  *    partial text as the assistant message, PACK_CONTINUE_PROMPT as the user
@@ -18,7 +18,7 @@
 import { PackVerse, StudyPack } from '../studypack/packTypes';
 import { TRANSLATIONS } from '../studypack/principles';
 import { packGenerationModel } from '../../services/aiDefaults';
-import { streamChatCompletionDetailed, StreamOutcome } from '../studypack/askAIStream';
+import { streamChatCompletionDetailed, StreamOutcome, AIRequestMeta } from '../studypack/askAIStream';
 import { withModel } from '../studypack/tvHints';
 import { fetchBundledChapter } from '../../services/bibleDataSource';
 import {
@@ -35,8 +35,8 @@ export type ProgressReporter = (step: string, detail?: string) => void;
 
 /** OpenRouter finish_reason when the reply hit max_tokens. */
 export const FINISH_LENGTH = 'length';
-/** X-Title header (ASCII only). */
-const REQUEST_TITLE = 'Scripture to Life - New study';
+/** Quota role on the hosted proxy + X-Title header for an own key (ASCII only). */
+const PACK_REQUEST: AIRequestMeta = { role: 'pack', title: 'Scripture to Life - New study' };
 
 /** The requested verses from the bundled chapter files, both translations required. */
 export async function loadPassage(req: VerseRange): Promise<PackVerse[]> {
@@ -117,12 +117,12 @@ async function streamPackReply(
     received += delta.length;
     onProgress(NS_STEP_AI, NS_PROGRESS_CHARS.replace(/\{n\}/g, String(received)));
   };
-  const first = await streamChatCompletionDetailed(body, onDelta, signal, REQUEST_TITLE);
+  const first = await streamChatCompletionDetailed(body, onDelta, signal, PACK_REQUEST);
   // The transport resolves with partial text on abort; that is a cancel, not a half-pack.
   if (signal.aborted) throw cancelled();
   if (first.finishReason !== FINISH_LENGTH) return { text: first.text, outcome: first, received };
 
-  const second = await streamChatCompletionDetailed(buildContinuationBody(body, first.text), onDelta, signal, REQUEST_TITLE);
+  const second = await streamChatCompletionDetailed(buildContinuationBody(body, first.text), onDelta, signal, PACK_REQUEST);
   if (signal.aborted) throw cancelled();
   const outcome = { ...second, model: second.model ?? first.model };
   return { text: first.text + second.text, outcome, received };

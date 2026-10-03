@@ -16,7 +16,7 @@ import { HTTP_PAYMENT_REQUIRED, HTTP_UNAUTHORIZED, HTTP_NOT_FOUND } from '../../
 import { ASK_AI_RETRY_MAX_TOKENS } from '../askAIStream';
 import { streamStudyAI, ASK_AI_FIRST_TOKEN_TIMEOUT_MS } from '../askAIFallback';
 import {
-  AI_NOT_CONFIGURED_MESSAGE, AI_CREDITS_MESSAGE, AI_INVALID_KEY_MESSAGE, AI_REQUEST_FAILED,
+  AI_SIGN_IN_NEEDED, AI_CREDITS_MESSAGE, AI_INVALID_KEY_MESSAGE, AI_REQUEST_FAILED,
   AI_STREAM_ERROR, AI_BUDGET_SPENT, AI_FILTERED, AI_EMPTY, AI_TIMEOUT, modelUnavailableLine, modelLine,
 } from '../tvHints';
 import { TEST_PACK_PATH } from './fixtures';
@@ -116,11 +116,11 @@ describe('streamStudyAI — happy path', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('throws not-configured when no API key is stored, without fetching', async () => {
+  it('throws sign-in-needed when no API key is stored and nobody is signed in, without fetching', async () => {
     getItemMock.mockReturnValue(null);
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
-    await expect(ask()).rejects.toMatchObject({ kind: 'not-configured', message: AI_NOT_CONFIGURED_MESSAGE });
+    await expect(ask()).rejects.toMatchObject({ kind: 'sign-in-needed', message: AI_SIGN_IN_NEEDED });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

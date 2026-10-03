@@ -5,8 +5,10 @@
  * defaults; Test calls the existing OpenRouter validator (mocked — no second
  * validator) with the model Ask AI resolves and reports a typed outcome; the
  * field is masked until Show is pressed; the key never appears in the "get
- * a key" link. With a stored key the dialog opens in the saved state (last 4
- * only, Replace, the "模型 Models" rows — covered in ModelRows.test.tsx).
+ * a key" link. The own-key path sits behind a collapsed toggle (opened
+ * first here; the status states live in AIStatus.test.tsx). With a stored
+ * key the section opens in the saved state (last 4 only, Replace, the
+ * "模型 Models" rows — covered in ModelRows.test.tsx).
  * Strings are imported (R3).
  */
 import React from 'react';
@@ -19,7 +21,8 @@ import {
   SETUP_TITLE, SETUP_EXPLANATION, SETUP_KEY_LABEL, SETUP_SHOW_KEY, SETUP_HIDE_KEY,
   SETUP_GET_KEY, SETUP_TEST, SETUP_TEST_OK, SETUP_TEST_INVALID, SETUP_TEST_NO_CREDITS, SETUP_TEST_ERROR,
   SETUP_SAVE, SETUP_EMPTY_KEY, SETUP_CLOSE, SETUP_REPLACE, SETUP_MODEL_ASK, SETUP_MODELS_TITLE,
-  recommendedFor, savedKeyLine, maskApiKey,
+  recommendedFor, savedKeyLine, maskApiKey, SETUP_OWN_KEY_TOGGLE, SETUP_HOSTED_READY, SETUP_SIGN_IN_TO_USE_AI,
+  SETUP_OPEN_BUTTON,
 } from '../setupStrings';
 
 const testApiKeyMock = vi.fn();
@@ -49,11 +52,17 @@ beforeEach(() => {
 });
 
 const keyField = () => screen.getByLabelText(SETUP_KEY_LABEL) as HTMLInputElement;
+/** The own-key path is collapsed behind the low-emphasis toggle until opened (ADR-0007). */
+const openOwnKey = () => fireEvent.click(screen.getByRole('button', { name: SETUP_OWN_KEY_TOGGLE }));
+function renderOwnKey(onSaved: () => void) {
+  render(<QuickAISetupForm onSaved={onSaved} />);
+  openOwnKey();
+}
 const clickTest = () => fireEvent.click(screen.getByRole('button', { name: SETUP_TEST }));
 
-describe('QuickAISetupForm', () => {
+describe('QuickAISetupForm — own-key section opened (no key stored)', () => {
   it('renders title, explanation, masked field and the get-a-key link in a new tab', () => {
-    render(<QuickAISetupForm onSaved={vi.fn()} />);
+    renderOwnKey(vi.fn());
     expect(screen.getByRole('heading', { name: SETUP_TITLE })).toBeInTheDocument();
     expect(screen.getByText(SETUP_EXPLANATION)).toBeInTheDocument();
     expect(SETUP_EXPLANATION).toContain('低成本可靠模型');
@@ -65,7 +74,8 @@ describe('QuickAISetupForm', () => {
   });
 
   it('strings are Chinese first (ADR-0003)', () => {
-    for (const s of [SETUP_TITLE, SETUP_EXPLANATION, SETUP_GET_KEY, SETUP_TEST, SETUP_SAVE, SETUP_REPLACE,
+    expect(SETUP_TITLE).toBe('AI 服务 AI service');   // the Chinese half ("AI 服务") leads
+    for (const s of [SETUP_EXPLANATION, SETUP_OWN_KEY_TOGGLE, SETUP_HOSTED_READY, SETUP_SIGN_IN_TO_USE_AI, SETUP_OPEN_BUTTON, SETUP_GET_KEY, SETUP_TEST, SETUP_SAVE, SETUP_REPLACE,
       SETUP_MODELS_TITLE, SETUP_MODEL_ASK, recommendedFor(SETUP_MODEL_ASK), SETUP_TEST_OK, SETUP_TEST_INVALID, SETUP_TEST_NO_CREDITS, SETUP_TEST_ERROR,
       savedKeyLine('sk-or-…abcd')]) {
       expect(s).toMatch(/^[一-鿿]/);
@@ -73,7 +83,7 @@ describe('QuickAISetupForm', () => {
   });
 
   it('meets the senior-type floors: ≥18px text, ≥48px tap targets', () => {
-    render(<QuickAISetupForm onSaved={vi.fn()} />);
+    renderOwnKey(vi.fn());
     expect(SETUP_MIN_FONT_PX).toBeGreaterThanOrEqual(18);
     expect(SETUP_MIN_TAP_PX).toBeGreaterThanOrEqual(48);
     expect(keyField().style.fontSize).toBe(`${SETUP_MIN_FONT_PX}px`);
@@ -82,7 +92,7 @@ describe('QuickAISetupForm', () => {
   });
 
   it('Show/Hide toggles masking without changing the value', () => {
-    render(<QuickAISetupForm onSaved={vi.fn()} />);
+    renderOwnKey(vi.fn());
     fireEvent.change(keyField(), { target: { value: 'sk-or-secret' } });
     fireEvent.click(screen.getByRole('button', { name: SETUP_SHOW_KEY }));
     expect(keyField().type).toBe('text');
@@ -93,7 +103,7 @@ describe('QuickAISetupForm', () => {
 
   it('Save stores the key under the existing storage key, applies defaults, calls onSaved', () => {
     const onSaved = vi.fn();
-    render(<QuickAISetupForm onSaved={onSaved} />);
+    renderOwnKey(onSaved);
     fireEvent.change(keyField(), { target: { value: ' sk-or-abc ' } });
     fireEvent.click(screen.getByRole('button', { name: SETUP_SAVE }));
     expect(storage.dump()).toEqual({
@@ -106,7 +116,7 @@ describe('QuickAISetupForm', () => {
 
   it('Save with an empty field shows the bilingual error and stores nothing', () => {
     const onSaved = vi.fn();
-    render(<QuickAISetupForm onSaved={onSaved} />);
+    renderOwnKey(onSaved);
     fireEvent.click(screen.getByRole('button', { name: SETUP_SAVE }));
     expect(screen.getByRole('alert')).toHaveTextContent(SETUP_EMPTY_KEY);
     expect(storage.dump()).toEqual({});
@@ -114,7 +124,7 @@ describe('QuickAISetupForm', () => {
   });
 
   it('Test uses the existing OpenRouter validator with the model Ask AI resolves and reports success', async () => {
-    render(<QuickAISetupForm onSaved={vi.fn()} />);
+    renderOwnKey(vi.fn());
     fireEvent.change(keyField(), { target: { value: 'sk-or-abc' } });
     clickTest();
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(SETUP_TEST_OK));
@@ -129,7 +139,7 @@ describe('QuickAISetupForm', () => {
     [500, 'HTTP 500: Internal Server Error', `${SETUP_TEST_ERROR} · HTTP 500: Internal Server Error`],
   ])('Test maps a %i reply to its bilingual outcome with the status', async (status, error, expected) => {
     testApiKeyMock.mockResolvedValue({ success: false, status, error });
-    render(<QuickAISetupForm onSaved={vi.fn()} />);
+    renderOwnKey(vi.fn());
     fireEvent.change(keyField(), { target: { value: 'bad' } });
     clickTest();
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(expected));
@@ -137,7 +147,7 @@ describe('QuickAISetupForm', () => {
 
   it('Test reports a network failure (no status) as a test failure with the message', async () => {
     testApiKeyMock.mockResolvedValue({ success: false, error: 'Failed to fetch' });
-    render(<QuickAISetupForm onSaved={vi.fn()} />);
+    renderOwnKey(vi.fn());
     fireEvent.change(keyField(), { target: { value: 'k' } });
     clickTest();
     await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(`${SETUP_TEST_ERROR} · Failed to fetch`));
@@ -231,6 +241,7 @@ describe('QuickAISetupDialog', () => {
     expect(onClose).toHaveBeenCalledTimes(1);
     fireEvent.click(screen.getByRole('button', { name: SETUP_CLOSE }));
     expect(onClose).toHaveBeenCalledTimes(2);
+    openOwnKey();
     fireEvent.change(keyField(), { target: { value: 'sk-or-abc' } });
     fireEvent.click(screen.getByRole('button', { name: SETUP_SAVE }));
     expect(onSaved).toHaveBeenCalledTimes(1);

@@ -64,7 +64,7 @@ async function runAttempt(
       body,
       delta => { raw += delta; onText(stripSplitMarker(raw)); },
       inner.signal,
-      undefined,
+      { role: 'ask' },
       event => {
         if (event.content || event.reasoning) clearTimeout(timer); // any token: the model is alive
         if (event.model && event.model !== named) { named = event.model; onModel?.(event.model); }

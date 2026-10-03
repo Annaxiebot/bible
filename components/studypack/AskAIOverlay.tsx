@@ -8,14 +8,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StudyPack, Slide } from './packTypes';
 import { AskAIMessage } from './askAI';
-import { SETUP_KINDS, RETRY_KINDS } from './askAIErrors';
+import { SETUP_KINDS, RETRY_KINDS, OWN_KEY_LINK_KINDS } from './askAIErrors';
 import {
-  ASK_AI_LABEL, ASK_INPUT_PLACEHOLDER, ASK_SUBMIT_LABEL, TV_RETRY, thinkingLine, modelLine,
+  ASK_AI_LABEL, ASK_INPUT_PLACEHOLDER, ASK_SUBMIT_LABEL, TV_RETRY, thinkingLine, modelLine, AI_OWN_KEY_ON_STATUS_PAGE,
 } from './tvHints';
 import { useAskAI, AskAI, AskAIFailure } from './useAskAI';
 import AskAnswer from './AskAnswer';
 import { QuickAISetupForm } from '../setup/QuickAISetup';
-import { SETUP_TITLE } from '../setup/setupStrings';
+import { SETUP_OPEN_BUTTON } from '../setup/setupStrings';
+import { SETUP_HASH } from '../landing/landingRoute';
 
 // Answers render through AskAnswer (markdown + verse tooltips, font scaled
 // by length). Overflow scrolls inside Conversation (flex-1 overflow-y-auto)
@@ -28,7 +29,10 @@ const Message: React.FC<{ m: AskAIMessage; pack: StudyPack }> = ({ m, pack }) =>
     ? <p className="text-stl-text-2" style={questionStyle}>{`Q: ${m.content}`}</p>
     : <AskAnswer text={m.content} pack={pack} />;
 
-/** Error line; its kind decides which of Retry / Set up AI accompany it. */
+/**
+ * Error line; its kind decides which of Retry / Set up AI accompany it. Only
+ * the hosted no-credit / paused lines link to the AI page's own-key option.
+ */
 const ErrorLine: React.FC<{ error: AskAIFailure; onSetup: () => void; onRetry: () => void }> =
   ({ error, onSetup, onRetry }) => (
     <p className="text-red-400" style={questionStyle} role="alert">
@@ -40,8 +44,13 @@ const ErrorLine: React.FC<{ error: AskAIFailure; onSetup: () => void; onRetry: (
       )}
       {SETUP_KINDS.has(error.kind) && (
         <button type="button" onClick={onSetup} className={inlineButtonClass} style={questionStyle}>
-          {SETUP_TITLE}
+          {SETUP_OPEN_BUTTON}
         </button>
+      )}
+      {OWN_KEY_LINK_KINDS.has(error.kind) && (
+        <a href={SETUP_HASH} className="ml-3 text-stl-gold underline underline-offset-4" style={questionStyle}>
+          {AI_OWN_KEY_ON_STATUS_PAGE}
+        </a>
       )}
     </p>
   );
@@ -59,10 +68,11 @@ const Conversation: React.FC<{ ai: AskAI; pack: StudyPack }> = ({ ai, pack }) =>
   return (
     <div className="flex-1 overflow-y-auto space-y-[2vh]">
       {(!ai.configured || setupOpen) && (
-        // Unconfigured (or opened from a credits error): the one-field key
-        // setup, inline. Saving flips `configured`; a pending question sends.
+        // No AI yet (or opened from an error line): the AI form inline — the
+        // sign-in prompt, no key hints (ADR-0007). Signing in or a stored key
+        // flips `configured`; a pending question then sends.
         <div className="max-w-3xl">
-          <QuickAISetupForm onSaved={onSaved} onCancel={setupOpen ? () => setSetupOpen(false) : undefined} />
+          <QuickAISetupForm onSaved={onSaved} ownKeyOption={false} onCancel={setupOpen ? () => setSetupOpen(false) : undefined} />
         </div>
       )}
       {ai.messages.map((m, i) => <Message key={i} m={m} pack={pack} />)}
@@ -137,8 +147,8 @@ const AskAIOverlay: React.FC<AskAIOverlayProps> = ({ pack, slide, initialQuestio
   }, [ai, onClose]);
 
   // One-click smart open: submit the initial question immediately, once.
-  // While unconfigured the question stays pending; it is sent as soon as
-  // the inline setup stores a key (ai.configured flips to true).
+  // While AI is unavailable the question stays pending; it is sent as soon
+  // as the leader signs in or a key is stored (ai.configured flips to true).
   useEffect(() => {
     if (!initialQuestion || autoSentRef.current || !ai.configured) return;
     autoSentRef.current = true;

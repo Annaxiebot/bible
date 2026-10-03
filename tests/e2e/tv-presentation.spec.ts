@@ -2,52 +2,53 @@
  * tv-presentation.spec.ts — TV presentation mode + Ask AI overlay · 大屏模式端到端
  *
  * Navigation, slide content and the Ask AI overlay (configured, mocked at
- * the network level; unconfigured → inline key setup → auto-send). Cross-
+ * the network level; no key + signed out → the sign-in prompt). Cross-
  * references live in tv-cross-refs.spec.ts; 1080p fit and phone viewports
  * in tv-phone.spec.ts. Shared helpers: helpers/tv.ts.
  */
 import { test, expect } from '@playwright/test';
-import { STORAGE_KEYS } from '../../constants/storageKeys';
 import { FIRST_SLIDE_HINT, ASK_AI_LABEL } from '../../components/studypack/tvHints';
 import { LIFE_AREAS } from '../../components/studypack/principles';
 import { DEFAULT_AI_SETUP, wireModelId } from '../../services/aiDefaults';
-import { SETUP_TITLE, SETUP_KEY_LABEL, SETUP_SAVE } from '../../components/setup/setupStrings';
-import { openTV, injectApiKey, mockOpenRouterStream } from './helpers/tv';
+import { SETUP_TITLE, SETUP_SIGN_IN_TO_USE_AI, SETUP_OWN_KEY_TOGGLE } from '../../components/setup/setupStrings';
+import { openTV, injectApiKey, mockOpenRouterStream, DEMO_SLIDE, goToSlide } from './helpers/tv';
 import QRCode from 'qrcode';
 import { QR_SVG_OPTIONS, qrModulesPath } from '../../components/signup/signupRoute';
 import { SU_QR_BODY, SU_DEMO_LINE, SU_UNCLAIMED_LINE } from '../../components/signup/signupStrings';
 import { packHash } from '../../components/landing/landingRoute';
 import { routeOwnedSamplePack, expectedSignupUrl, seedLocalPack, fetchSamplePack } from './helpers/signup';
 
+const TOTAL = DEMO_SLIDE.total;
+
 test.describe('TV Presentation Mode', () => {
   test('loads the pack from the URL and shows the title slide', async ({ page }) => {
     await openTV(page);
-    await expect(page.getByText('1/17')).toBeVisible();
+    await expect(page.getByText(`1/${TOTAL}`)).toBeVisible();
     await expect(page.getByText(FIRST_SLIDE_HINT)).toBeVisible();
   });
 
-  test('advances through all 17 slides with the keyboard and clamps at the end', async ({ page }) => {
+  test(`advances through all ${DEMO_SLIDE.total} slides with the keyboard and clamps at the end`, async ({ page }) => {
     await openTV(page);
     await page.keyboard.press('ArrowRight');
-    await expect(page.getByText('2/17')).toBeVisible();
-    await expect(page.getByText(/经文 Scripture/)).toBeVisible();
+    await expect(page.getByText(`2/${TOTAL}`)).toBeVisible();
+    await expect(page.getByRole('heading', { name: /经文 Scripture/ })).toBeVisible();
 
-    for (let i = 0; i < 15; i++) await page.keyboard.press('ArrowRight');
-    await expect(page.getByText('17/17')).toBeVisible();
+    for (let i = 0; i < TOTAL - 2; i++) await page.keyboard.press('ArrowRight');
+    await expect(page.getByText(`${TOTAL}/${TOTAL}`)).toBeVisible();
     await expect(page.getByText(/闭环 Closing/)).toBeVisible();
 
     await page.keyboard.press('ArrowRight'); // clamped
-    await expect(page.getByText('17/17')).toBeVisible();
+    await expect(page.getByText(`${TOTAL}/${TOTAL}`)).toBeVisible();
 
     await page.keyboard.press('ArrowLeft');
-    await expect(page.getByText('16/17')).toBeVisible();
+    await expect(page.getByText(`${TOTAL - 1}/${TOTAL}`)).toBeVisible();
   });
 
-  test('scripture renders the embedded bilingual passage across four slides', async ({ page }) => {
+  test('scripture renders the embedded bilingual passage across five slides', async ({ page }) => {
     await openTV(page);
     await page.keyboard.press('ArrowRight');
-    // Part 1/4 = vv.25-26, real verse text, CUV + BSB — no IndexedDB cache involved
-    await expect(page.getByText(/经文 Scripture.*· 1\/4/)).toBeVisible();
+    // Part 1/5 = v.25 under the key phrase, real verse text, CUV + BSB — no IndexedDB cache involved
+    await expect(page.getByText(/经文 Scripture.*· 1\/5/)).toBeVisible();
     await expect(page.getByText(/不要为生命忧虑吃甚么/)).toBeVisible();
     // Column headers: 和合本 first, then the pack's English version label (BSB)
     await expect(page.getByText('和合本 CUV', { exact: true })).toBeVisible();
@@ -56,19 +57,20 @@ test.describe('TV Presentation Mode', () => {
 
     await page.keyboard.press('ArrowRight');
     await page.keyboard.press('ArrowRight');
-    await expect(page.getByText(/经文 Scripture.*· 3\/4/)).toBeVisible();
+    await expect(page.getByText(/经文 Scripture.*· 3\/5/)).toBeVisible();
     await expect(page.getByText(/所罗门极荣华/)).toBeVisible();
     await expect(page.getByText(/Solomon in all his glory/)).toBeVisible();
 
     await page.keyboard.press('ArrowRight');
-    await expect(page.getByText(/经文 Scripture.*· 4\/4/)).toBeVisible();
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByText(/经文 Scripture.*· 5\/5/)).toBeVisible();
     await expect(page.getByText(/你们要先求他的国和他的义/)).toBeVisible();
     await expect(page.getByText(/seek first the kingdom of God/)).toBeVisible();
   });
 
   test('each discussion question is its own slide', async ({ page }) => {
     await openTV(page);
-    for (let i = 0; i < 8; i++) await page.keyboard.press('ArrowRight');
+    await goToSlide(page, DEMO_SLIDE.discussion);
     await expect(page.getByText(/讨论 Discussion · 1\/5/)).toBeVisible();
     await expect(page.getByText(/Where does anxiety actually show up/)).toBeVisible();
     await page.keyboard.press('ArrowRight');
@@ -80,9 +82,9 @@ test.describe('TV Presentation Mode', () => {
     const box = (await page.getByTestId('tv-presentation').boundingBox())!;
     await page.mouse.click(box.x + box.width * 0.9, box.y + box.height / 2);
     await page.mouse.click(box.x + box.width * 0.1, box.y + box.height / 2);
-    await expect(page.getByText('1/17')).toBeVisible(); // unchanged
+    await expect(page.getByText(`1/${TOTAL}`)).toBeVisible(); // unchanged
     await page.keyboard.press('ArrowRight');
-    await expect(page.getByText('2/17')).toBeVisible(); // keyboard still works
+    await expect(page.getByText(`2/${TOTAL}`)).toBeVisible(); // keyboard still works
   });
 
   test('Escape exits back to the normal app', async ({ page }) => {
@@ -93,7 +95,7 @@ test.describe('TV Presentation Mode', () => {
 
   test('the QR slide of the demo sample pack shows the bilingual no-sign-up line, no QR', async ({ page }) => {
     await openTV(page);
-    for (let i = 0; i < 15; i++) await page.keyboard.press('ArrowRight');
+    await goToSlide(page, DEMO_SLIDE.qr);
     await expect(page.getByText('签到 Sign up')).toBeVisible();
     await expect(page.getByTestId('qr-demo')).toHaveText(SU_DEMO_LINE);
     await expect(page.getByTestId('signup-qr')).toHaveCount(0);
@@ -104,8 +106,8 @@ test.describe('TV Presentation Mode', () => {
     await seedLocalPack(page, { ...sample, id: 'local-2026-10-02-matt6' });
     await page.goto(packHash('local-2026-10-02-matt6'));
     await expect(page.getByTestId('tv-presentation')).toBeVisible();
-    await expect(page.getByText('1/17')).toBeVisible();
-    for (let i = 0; i < 15; i++) await page.keyboard.press('ArrowRight');
+    await expect(page.getByText(`1/${TOTAL}`)).toBeVisible();
+    await goToSlide(page, DEMO_SLIDE.qr);
     await expect(page.getByText('签到 Sign up')).toBeVisible();
     await expect(page.getByTestId('qr-unclaimed')).toContainText(SU_UNCLAIMED_LINE);
     await expect(page.getByTestId('qr-demo')).toHaveCount(0);
@@ -117,7 +119,7 @@ test.describe('TV Presentation Mode', () => {
   test('an owned pack\'s QR slide draws its sign-up QR, prints its URL, and the instruction', async ({ page }) => {
     await routeOwnedSamplePack(page);
     await openTV(page);
-    for (let i = 0; i < 15; i++) await page.keyboard.press('ArrowRight');
+    await goToSlide(page, DEMO_SLIDE.qr);
     await expect(page.getByText('签到 Sign up')).toBeVisible();
     const expectedUrl = expectedSignupUrl(page);
     const qr = page.getByTestId('signup-qr');
@@ -130,13 +132,15 @@ test.describe('TV Presentation Mode', () => {
     await expect(page.getByTestId('qr-demo')).toHaveCount(0);
   });
 
-  test('the life menu slide shows all 7 areas', async ({ page }) => {
+  test('the life menu shows all 7 areas over two slides (3 + 4), in order', async ({ page }) => {
     await openTV(page);
-    for (let i = 0; i < 13; i++) await page.keyboard.press('ArrowRight');
-    await expect(page.getByText(/生活应用 Life Menu/)).toBeVisible();
-    for (const area of LIFE_AREAS) {
-      await expect(page.getByText(area)).toBeVisible();
-    }
+    await goToSlide(page, DEMO_SLIDE.lifeMenu);
+    await expect(page.getByText(/生活应用 Life Menu · 1\/2/)).toBeVisible();
+    for (const area of LIFE_AREAS.slice(0, 3)) await expect(page.getByText(area)).toBeVisible();
+    await expect(page.getByText(LIFE_AREAS[3])).toHaveCount(0);
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByText(/生活应用 Life Menu · 2\/2/)).toBeVisible();
+    for (const area of LIFE_AREAS.slice(3)) await expect(page.getByText(area)).toBeVisible();
   });
 });
 
@@ -144,7 +148,7 @@ test.describe('Ask AI overlay', () => {
   test('"a" opens the overlay; typing a question does not flip slides', async ({ page }) => {
     await openTV(page);
     await page.keyboard.press('ArrowRight');
-    await expect(page.getByText('2/17')).toBeVisible();
+    await expect(page.getByText(`2/${TOTAL}`)).toBeVisible();
 
     await page.keyboard.press('a');
     await expect(page.getByTestId('ask-ai-overlay')).toBeVisible();
@@ -153,7 +157,7 @@ test.describe('Ask AI overlay', () => {
     await page.keyboard.type('what about a bird');
     await page.keyboard.press('ArrowRight');
     await page.keyboard.press(' ');
-    await expect(page.getByText('2/17')).toBeVisible();
+    await expect(page.getByText(`2/${TOTAL}`)).toBeVisible();
     await expect(page.getByTestId('ask-ai-overlay')).toHaveCount(1);
   });
 
@@ -165,7 +169,7 @@ test.describe('Ask AI overlay', () => {
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('ask-ai-overlay')).toHaveCount(0);
     await expect(page.getByTestId('tv-presentation')).toBeVisible();
-    await expect(page.getByText('1/17')).toBeVisible(); // slide position kept
+    await expect(page.getByText(`1/${TOTAL}`)).toBeVisible(); // slide position kept
 
     await page.keyboard.press('Escape');
     await expect(page.getByTestId('tv-presentation')).toHaveCount(0);
@@ -175,7 +179,7 @@ test.describe('Ask AI overlay', () => {
     await openTV(page);
     await page.getByRole('button', { name: ASK_AI_LABEL }).click();
     await expect(page.getByTestId('ask-ai-overlay')).toBeVisible();
-    await expect(page.getByText('1/17')).toBeVisible();
+    await expect(page.getByText(`1/${TOTAL}`)).toBeVisible();
     await page.getByLabel(/Close Ask AI/).click();
     await expect(page.getByTestId('ask-ai-overlay')).toHaveCount(0);
   });
@@ -186,7 +190,7 @@ test.describe('Ask AI overlay', () => {
     // Only a key injected (no provider/model chosen): the request must carry the free router.
     await mockOpenRouterStream(page, ['Anxiety follows ', 'the treasure (v.25).'], wireModelId(DEFAULT_AI_SETUP.model));
     await openTV(page);
-    for (let i = 0; i < 8; i++) await page.keyboard.press('ArrowRight');
+    await goToSlide(page, DEMO_SLIDE.discussion);
     await expect(page.getByText(/讨论 Discussion · 1\/5/)).toBeVisible();
 
     await page.keyboard.press('a');
@@ -204,7 +208,7 @@ test.describe('Ask AI overlay', () => {
     // and one out-of-pack ref (v.24 — resolved from the bundled data).
     await mockOpenRouterStream(page, ['**Trust** the Father ', '(v.26), unlike v.24.']);
     await openTV(page);
-    for (let i = 0; i < 8; i++) await page.keyboard.press('ArrowRight');
+    await goToSlide(page, DEMO_SLIDE.discussion);
     await page.keyboard.press('a');
 
     // Markdown: **Trust** renders as <strong>
@@ -223,35 +227,19 @@ test.describe('Ask AI overlay', () => {
     await expect(page.getByRole('tooltip')).toContainText('No one can serve two masters'); // then BSB
   });
 
-  test('without a key: the overlay shows the inline setup; Save sends the pending question', async ({ page }) => {
-    // Fresh browser context has no OpenRouter key: the real unconfigured path.
-    // The key is typed into the masked field (never a URL); the chat call is mocked.
-    await mockOpenRouterStream(page, ['Anxiety follows ', 'the treasure (v.25).'], wireModelId(DEFAULT_AI_SETUP.model));
+  test('without a key, signed out: the overlay shows the sign-in prompt — no key hints, nothing sent', async ({ page }) => {
+    // Fresh browser context: no OpenRouter key and no session (ADR-0007). The signed-in
+    // hosted path lives in hosted-ai.spec.ts; the own-key path is on the AI service page.
     await openTV(page);
-    for (let i = 0; i < 8; i++) await page.keyboard.press('ArrowRight');
+    await goToSlide(page, DEMO_SLIDE.discussion);
     await page.keyboard.press('a');
     const setup = page.getByTestId('quick-ai-setup');
     await expect(setup).toBeVisible();
     await expect(setup.getByRole('heading', { name: SETUP_TITLE })).toBeVisible();
+    await expect(setup.getByText(SETUP_SIGN_IN_TO_USE_AI)).toBeVisible();
+    await expect(setup.getByRole('button', { name: SETUP_OWN_KEY_TOGGLE })).toHaveCount(0);
+    await expect(page.getByTestId('ask-ai-overlay')).not.toContainText(/OpenRouter|密钥/);
     await expect(page.getByLabel(/Ask AI question/)).toBeDisabled();
-    await expect(page.getByText(/Q: 这一周/)).toHaveCount(0); // nothing sent yet
-
-    const field = setup.getByLabel(SETUP_KEY_LABEL);
-    await expect(field).toHaveAttribute('type', 'password');
-    await field.fill('sk-or-e2e-key');
-    await setup.getByRole('button', { name: SETUP_SAVE }).click();
-
-    // Stored under the existing key + defaults applied; the key never reached the URL
-    const stored = await page.evaluate(([k, p, m]) => [
-      localStorage.getItem(k), localStorage.getItem(p), localStorage.getItem(m),
-    ], [STORAGE_KEYS.OPENROUTER_API_KEY, STORAGE_KEYS.AI_PROVIDER, STORAGE_KEYS.AI_MODEL]);
-    expect(stored).toEqual(['sk-or-e2e-key', DEFAULT_AI_SETUP.provider, DEFAULT_AI_SETUP.model]);
-    expect(page.url()).not.toContain('sk-or-e2e-key');
-
-    // The pending discussion question auto-sends and the mocked answer renders
-    await expect(setup).toHaveCount(0);
-    await expect(page.getByText(/Q: 这一周，忧虑实际出现在哪里/)).toBeVisible();
-    await expect(page.getByText('Anxiety follows the treasure (v.25).')).toBeVisible();
-    await expect(page.getByLabel(/Ask AI question/)).toBeEnabled();
+    await expect(page.getByText(/Q: 这一周/)).toHaveCount(0); // nothing sent
   });
 });

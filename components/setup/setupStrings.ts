@@ -7,13 +7,41 @@
  * (invalid key, model unavailable, "模型 Model:") come from tvHints.ts.
  */
 import { bilingual, bilingualLine } from '../studypack/principles';
-import { AI_INVALID_KEY_MESSAGE } from '../studypack/tvHints';
+import { AI_INVALID_KEY_MESSAGE, AI_SIGN_IN_NEEDED } from '../studypack/tvHints';
+import type { AIRole } from '../../supabase/functions/ai-proxy/policy';
 
 /** ADR-0003 §15 floors: inputs/buttons ≥ 20px type, ≥ 48px tap targets (shared by setup, new study, sign-up; e2e asserts them). */
 export const SETUP_MIN_FONT_PX = 20;
 export const SETUP_MIN_TAP_PX = 48;
 
-export const SETUP_TITLE = bilingual('设置AI', 'Set up AI');
+/** The AI page / dialog title: a status page since hosted AI (ADR-0007); the route stays #/setup. */
+export const SETUP_TITLE = bilingual('AI 服务', 'AI service');
+
+/** The button on an Ask-AI error line that opens the AI form (sign in, or fix a stored key/model). */
+export const SETUP_OPEN_BUTTON = bilingual('设置AI', 'Set up AI');
+
+// ---- Status (primary content, ADR-0007) · AI 状态 ---------------------------
+
+/** Signed in, no own key: the site's AI answers. */
+export const SETUP_HOSTED_READY = bilingualLine('已登录 · AI 已就绪（由本站提供）', 'Signed in · AI ready (provided by this site)');
+/** Signed out, no own key: the prompt above the Google button (never "or paste a key"). */
+export const SETUP_SIGN_IN_TO_USE_AI = AI_SIGN_IN_NEEDED;
+
+/** Usage labels, Chinese only after the bilingual "本月 This month:" prefix. */
+export const SETUP_USAGE_PREFIX = bilingual('本月', 'This month');
+export const USAGE_ROLE_LABEL: Readonly<Record<AIRole, string>> = {
+  ask: '提问', pack: '查经包', adjust: '调整', sharing: '分享',
+};
+export interface UsageEntry { role: AIRole; count: number; limit: number }
+/** "本月 This month: 提问 12/300 · 查经包 1/10" */
+export function usageLine(entries: readonly UsageEntry[]): string {
+  return `${SETUP_USAGE_PREFIX}: ${entries.map(e => `${USAGE_ROLE_LABEL[e.role]} ${e.count}/${e.limit}`).join(' · ')}`;
+}
+/** Prefix of the red line when the usage read failed; the server message follows. */
+export const SETUP_USAGE_FAILED = bilingualLine('无法读取本月用量', "could not read this month's usage");
+
+/** The low-emphasis toggle at the bottom of the AI page: the only way into the own-key path. */
+export const SETUP_OWN_KEY_TOGGLE = bilingualLine('高级：使用自己的 OpenRouter 密钥', 'Advanced: use your own OpenRouter key');
 
 export const SETUP_EXPLANATION =
   '粘贴 OpenRouter 密钥即可，默认使用低成本可靠模型（约一分钱十次提问）· ' +

@@ -49,9 +49,27 @@ export function thinkingLine(modelId: string): string {
 /** Retry button after a recoverable failure. */
 export const TV_RETRY = bilingual('重试', 'Retry');
 
-export const AI_NOT_CONFIGURED_MESSAGE =
-  '未配置AI — 请在应用设置中填写 OpenRouter API 密钥。 ' +
-  'AI not configured — set your OpenRouter API key in app Settings.';
+// ---- Hosted AI (ADR-0007): no own key, the site's proxy answers · 本站AI ----
+
+/** No own key and not signed in: signing in is all it takes (never "or paste a key"). Rendered with the AI button. */
+export const AI_SIGN_IN_NEEDED = bilingualLine('登录即可使用AI', 'Sign in to use AI');
+
+/** Proxy 429 { error: 'quota' }: this leader's monthly allowance for the role is spent. */
+export function quotaLine(limit: number): string {
+  return bilingualLine(`本月AI次数已用完（${limit}次）`, `this month's AI limit is reached (${limit})`);
+}
+
+/** Proxy 402 { error: 'no-credit' }: the site's OpenRouter credit is spent (a hard cap). */
+export const AI_CREDIT_USED_UP = bilingualLine('AI 额度已用完，请联系管理员', 'AI credit used up, contact the admin');
+
+/** Proxy 503 (kill switch, key missing or rejected): the site's AI is off for now. */
+export const AI_SERVICE_PAUSED = bilingualLine('本站AI暂停服务，请稍后再试', "the site's AI is paused — try again later");
+
+/**
+ * The ONLY own-key hint outside the AI service page (owner decision): added,
+ * as a link to that page, after AI_CREDIT_USED_UP and AI_SERVICE_PAUSED.
+ */
+export const AI_OWN_KEY_ON_STATUS_PAGE = bilingualLine('或在 AI 服务页使用自己的密钥', 'or use your own key on the AI service page');
 
 /** OpenRouter 402: the chosen model needs credits. Rendered with a Set up AI button. */
 export const AI_CREDITS_MESSAGE =

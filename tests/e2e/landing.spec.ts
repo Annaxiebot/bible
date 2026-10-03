@@ -19,7 +19,7 @@ import { SETUP_HASH, SAMPLE_PACK_ID } from '../../components/landing/landingRout
 import { signupHash } from '../../components/signup/signupRoute';
 import { SU_DEMO_LINE } from '../../components/signup/signupStrings';
 import { routeOwnedSamplePack, expectedSignupUrl } from './helpers/signup';
-import { SETUP_TITLE, SETUP_KEY_LABEL, SETUP_SAVE, SETUP_GET_KEY } from '../../components/setup/setupStrings';
+import { SETUP_TITLE, SETUP_KEY_LABEL, SETUP_SAVE, SETUP_GET_KEY, SETUP_OWN_KEY_TOGGLE } from '../../components/setup/setupStrings';
 import { OPENROUTER_KEYS_URL } from '../../services/aiDefaults';
 import { STORAGE_KEYS } from '../../constants/storageKeys';
 
@@ -78,6 +78,8 @@ test.describe('Landing page', () => {
     await line.click();
     const dialog = page.getByRole('dialog', { name: SETUP_TITLE });
     await expect(dialog).toBeVisible();
+    // Own key is the hidden, advanced path of the AI service page (ADR-0007): open its toggle first.
+    await dialog.getByRole('button', { name: SETUP_OWN_KEY_TOGGLE }).click();
     expect(await fontSizePx(page, '[data-testid="quick-ai-setup"] input')).toBeGreaterThanOrEqual(18);
     await expect(dialog.getByRole('link', { name: new RegExp(SETUP_GET_KEY) }))
       .toHaveAttribute('href', OPENROUTER_KEYS_URL);
@@ -213,7 +215,7 @@ test.describe('Landing page', () => {
     await page.setViewportSize(PHONE);
     await openLanding(page);
     const nav = page.getByTestId('landing-nav');
-    await expect(nav.getByRole('button')).toHaveCount(NAV_LINKS.length);
+    await expect(nav.getByRole('button')).toHaveCount(NAV_LINKS.length + 1);  // + the leader sign-in (leader-home.spec)
     for (const link of NAV_LINKS) {
       const button = page.getByTestId(`nav-${link.id}`);
       expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(48);

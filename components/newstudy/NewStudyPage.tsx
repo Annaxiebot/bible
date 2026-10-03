@@ -2,9 +2,10 @@
  * NewStudyPage.tsx — "新建查经 New study" (#/new, #/new/<packId>) · 新建查经页
  *
  * Owns the phase state (PhaseView renders it) and "我的查经包 My packs".
- * With no OpenRouter key the quick setup form renders inline first (reused
- * from components/setup). Packs stay in this browser's IndexedDB; the key
- * never leaves localStorage; nothing is logged.
+ * AI gate (ADR-0007, components/setup/useAIAccess): a signed-in leader or
+ * an own OpenRouter key → the form; neither → the AI form renders inline
+ * first (sign-in prompt, own-key option below). The key never leaves
+ * localStorage; nothing is logged.
  *
  * A pack is never lost: the editor's pack is auto-saved (useAutoSave) the
  * moment generation completes and after every edit; the URL follows it
@@ -13,10 +14,10 @@
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import { StudyPack } from '../studypack/packTypes';
-import { getLocalPack, LOCAL_PACK_NOT_FOUND } from '../studypack/packSource';
+import { findLeaderPack, LOCAL_PACK_NOT_FOUND } from '../studypack/packSource';
 import { rememberTvReturn } from '../studypack/tvReturn';
-import { getApiKey } from '../../services/openrouter';
 import { QuickAISetupForm } from '../setup/QuickAISetup';
+import { useAIAccess } from '../setup/useAIAccess';
 import { NEW_STUDY_HASH, newStudyHash, getNewStudyPackIdFromHash, packHash } from '../landing/landingRoute';
 import PhaseView, { Phase } from './PhaseView';
 import PackList from './PackList';
@@ -29,7 +30,8 @@ import { textStyle, controlStyle, quietButtonClass, pageTitleStyle } from './new
 
 /**
  * Keep the editor in step with the hash: "#/new/<id>" opens that stored
- * pack (reload, browser back/forward, the Edit link); a bare "#/new" while
+ * pack — this browser first, then the signed-in leader's account (ADR-0006) —
+ * (reload, browser back/forward, the Edit link); a bare "#/new" while
  * editing closes the editor. A missing or unreadable pack is a visible error.
  */
 function useEditorRoute(
@@ -41,7 +43,7 @@ function useEditorRoute(
       const id = getNewStudyPackIdFromHash(window.location.hash);
       if (id === currentId) return;
       if (!id) { close(); return; }
-      getLocalPack(id)
+      findLeaderPack(id)
         .then(pack => { if (!cancelled) (pack ? open(pack) : onError(LOCAL_PACK_NOT_FOUND)); })
         .catch((err: unknown) => { if (!cancelled) onError(`${NS_ERR_STORAGE}: ${err instanceof Error ? err.message : String(err)}`); });
     };
@@ -52,7 +54,8 @@ function useEditorRoute(
 }
 
 const NewStudyPage: React.FC = () => {
-  const [configured, setConfigured] = useState(() => !!getApiKey());
+  const access = useAIAccess();
+  const configured = access.available;
   const [phase, setPhaseRaw] = useState<Phase>({ kind: 'form' });
   const [routeError, setRouteError] = useState<string | null>(null);
   const packs = useLocalPacks();
@@ -106,7 +109,7 @@ const NewStudyPage: React.FC = () => {
         </header>
         {!configured && (
           <div className="rounded-2xl border border-slate-700 bg-slate-900 p-6">
-            <QuickAISetupForm onSaved={() => setConfigured(true)} />
+            <QuickAISetupForm onSaved={access.refresh} ownKeyOption={false} />
           </div>
         )}
         {routeError && <p role="alert" className="text-red-300" style={textStyle}>{routeError}</p>}

@@ -47,10 +47,10 @@ export type PointIcon =
   | (typeof GROUP_POINTS)[number]['icon']
   | (typeof PERSONAL_POINTS)[number]['icon'];
 
-/** One-line AI setup entry under the two cards; opens the quick key dialog. */
-export const SETUP_LINE = '一分钟设置 AI：粘贴密钥即可 · 1-minute AI setup';
-/** Same line once a key is stored (still opens the dialog to change it). */
-export const SETUP_DONE_LINE = 'AI 已设置 · AI is set up';
+/** One-line AI entry under the two cards; opens the AI service dialog (hosted AI: sign in, no key — ADR-0007). */
+export const SETUP_LINE = 'AI 服务：带领者登录即可使用 · AI service: sign in as a leader';
+/** Same line once AI is available (signed in, or an own key stored); still opens the status dialog. */
+export const SETUP_DONE_LINE = 'AI 已就绪 · AI ready';
 
 /** Third door, one line: the leader generates a pack from a passage (#/new). */
 export const NEW_STUDY_LINE = '新建查经 New study';
@@ -70,6 +70,8 @@ export const NAV_LINKS = [
 ] as const;
 export type NavSectionId = (typeof NAV_LINKS)[number]['id'];
 export const NAV_LABEL = '页内导航 Page sections';
+/** The nav's one context-aware leader control: signed out it starts Google sign-in; signed in it shows the leader's name → #/leader. */
+export const NAV_LEADER_SIGNIN = { zh: '带领者登录', en: 'Leader sign-in' } as const;
 
 /* ---- 下次查经 Next study ---- */
 export const NEXT_EYEBROW = '下次查经 · Next study';

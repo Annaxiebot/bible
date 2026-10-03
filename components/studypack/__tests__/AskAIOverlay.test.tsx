@@ -5,8 +5,7 @@ import React from 'react';
 import { STORAGE_KEYS } from '../../../constants/storageKeys';
 import { TEST_PACK_PATH } from './fixtures';
 import { parseStudyPack, buildSlides, StudyPack, Slide } from '../packTypes';
-import { DEFAULT_AI_SETUP } from '../../../services/aiDefaults';
-import { SETUP_TITLE, SETUP_KEY_LABEL, SETUP_SAVE, SETUP_CANCEL } from '../../setup/setupStrings';
+import { SETUP_TITLE, SETUP_OPEN_BUTTON, SETUP_CANCEL, SETUP_SIGN_IN_TO_USE_AI, SETUP_OWN_KEY_TOGGLE } from '../../setup/setupStrings';
 import { ASK_AI_MODEL } from '../../../services/aiDefaults';
 import { AI_CREDITS_MESSAGE, AI_EMPTY, TV_RETRY, thinkingLine, modelLine } from '../tvHints';
 import { AskAIError, emptyError, timeoutError } from '../askAIErrors';
@@ -59,33 +58,15 @@ beforeEach(() => {
 });
 
 describe('AskAIOverlay (streaming)', () => {
-  it('shows the inline key setup and disables input when unconfigured', () => {
+  it('no key, signed out: the inline sign-in prompt (no key hints) and the input disabled', () => {
     renderOverlay();
     expect(screen.getByTestId('quick-ai-setup')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: SETUP_TITLE })).toBeInTheDocument();
+    expect(screen.getByText(SETUP_SIGN_IN_TO_USE_AI)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: SETUP_OWN_KEY_TOGGLE })).toBeNull();
+    expect(screen.getByTestId('ask-ai-overlay').textContent).not.toMatch(/OpenRouter|密钥/);
     expect(screen.getByLabelText(/Ask AI question/)).toBeDisabled();
     expect(streamStudyAIMock).not.toHaveBeenCalled();
-  });
-
-  it('unconfigured → paste key → Save: the pending question auto-sends immediately', async () => {
-    renderOverlay(vi.fn(), 'Where does anxiety show up?');
-    expect(streamStudyAIMock).not.toHaveBeenCalled();
-    // Saving stores the key; the overlay re-reads configuration from storage.
-    setItemMock.mockImplementation((key: string, value: string) => {
-      if (key === STORAGE_KEYS.OPENROUTER_API_KEY) {
-        getItemMock.mockImplementation((k: string) => (k === key ? value : null));
-      }
-    });
-    fireEvent.change(screen.getByLabelText(SETUP_KEY_LABEL), { target: { value: 'sk-or-abc' } });
-    fireEvent.click(screen.getByRole('button', { name: SETUP_SAVE }));
-    expect(setItemMock).toHaveBeenCalledWith(STORAGE_KEYS.OPENROUTER_API_KEY, 'sk-or-abc');
-    expect(setItemMock).toHaveBeenCalledWith(STORAGE_KEYS.AI_PROVIDER, DEFAULT_AI_SETUP.provider);
-    await waitFor(() => expect(streamStudyAIMock).toHaveBeenCalledTimes(1));
-    expect(streamStudyAIMock.mock.calls[0][3]).toBe('Where does anxiety show up?');
-    expect(screen.queryByTestId('quick-ai-setup')).toBeNull();
-    await waitFor(() =>
-      expect(screen.getByTestId('ask-answer')).toHaveTextContent('Answer (v.25).'));
-    await waitFor(() => expect(screen.getByLabelText(/Ask AI question/)).toBeEnabled());
   });
 
   it('renders the answer incrementally as deltas arrive, input disabled until done', async () => {
@@ -147,7 +128,7 @@ describe('AskAIOverlay (streaming)', () => {
     await waitFor(() => expect(screen.getByLabelText(/Ask AI question/)).toBeEnabled());
   });
 
-  it('does not auto-send when the provider is unconfigured', () => {
+  it('does not auto-send when AI is unavailable (no key, signed out)', () => {
     renderOverlay(vi.fn(), 'auto question');
     expect(streamStudyAIMock).not.toHaveBeenCalled();
   });
@@ -199,7 +180,7 @@ describe('AskAIOverlay (streaming)', () => {
       expect(screen.getByRole('alert')).toHaveTextContent('OpenRouter API error: 429');
     });
     expect(screen.getByRole('button', { name: TV_RETRY })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: SETUP_TITLE })).toBeNull();
+    expect(screen.queryByRole('button', { name: SETUP_OPEN_BUTTON })).toBeNull();
   });
 
   it('a credits (402) error shows the bilingual line with a Set up AI button that opens the inline form', async () => {
@@ -209,7 +190,7 @@ describe('AskAIOverlay (streaming)', () => {
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(AI_CREDITS_MESSAGE));
     expect(screen.getByRole('alert')).toHaveTextContent('HTTP 402');
     expect(screen.queryByTestId('quick-ai-setup')).toBeNull();
-    fireEvent.click(screen.getByRole('button', { name: SETUP_TITLE }));
+    fireEvent.click(screen.getByRole('button', { name: SETUP_OPEN_BUTTON }));
     expect(screen.getByTestId('quick-ai-setup')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: SETUP_CANCEL }));
     expect(screen.queryByTestId('quick-ai-setup')).toBeNull();
@@ -221,7 +202,7 @@ describe('AskAIOverlay (streaming)', () => {
     renderOverlay(vi.fn(), 'auto question');
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(modelLine(ASK_AI_MODEL)));
     expect(screen.getByRole('button', { name: TV_RETRY })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: SETUP_TITLE })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: SETUP_OPEN_BUTTON })).toBeInTheDocument();
   });
 
   it('an empty answer is an error; Retry re-sends the same question without duplicating it', async () => {

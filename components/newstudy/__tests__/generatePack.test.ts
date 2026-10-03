@@ -21,6 +21,7 @@ import {
 } from '../newStudyStrings';
 
 const BIBLE_DATA = path.resolve(__dirname, '../../../public/bible-data');
+const HOSTED_PATH = '/functions/v1/ai-proxy';
 const SERVED_MODEL = 'anthropic/claude-sonnet-4.5';
 
 /** One scripted OpenRouter reply: content deltas, then the final chunk with finish_reason (OpenRouter's shape). */
@@ -44,7 +45,7 @@ function stubFetch(replies: string[] | Reply[], bundledOk = true) {
   const scripted: Reply[] = replies.length && typeof replies[0] === 'string' ? [{ chunks: replies as string[] }] : replies as Reply[];
   let call = 0;
   const fetchMock = vi.fn(async (input: string, _init?: RequestInit) => {
-    if (input === OPENROUTER_API_URL) {
+    if (input === OPENROUTER_API_URL || input.endsWith(HOSTED_PATH)) {
       const reply = scripted[Math.min(call++, scripted.length - 1)] ?? { chunks: [] };
       return { ok: true, status: 200, body: sseBody(reply) } as unknown as Response;
     }
@@ -182,6 +183,23 @@ describe('generateStudyPack', () => {
       await expect(generateStudyPack(JOHN3_REQUEST, () => {}, new AbortController().signal))
         .rejects.toThrow(`${NS_ERR_NO_JSON} · ${modelLine(SERVED_MODEL)}`);
     });
+  });
+
+  it('no own key, signed in (dev seam): the request goes to the ai-proxy function with role "pack"', async () => {
+    (window.localStorage.getItem as ReturnType<typeof vi.fn>).mockReset().mockReturnValue(null);
+    const seams = window as Window & { __LEADER_E2E__?: unknown; __SUPABASE_E2E__?: unknown };
+    seams.__LEADER_E2E__ = { uid: 'e2e-uid' };
+    seams.__SUPABASE_E2E__ = { url: 'http://localhost:3000/e2e-supabase', anonKey: 'e2e-anon' };
+    try {
+      const fetchMock = stubFetch([{ chunks: chunked(JOHN3_REPLY_JSON), finish: 'stop', model: SERVED_MODEL }]);
+      await generateStudyPack(JOHN3_REQUEST, () => {}, new AbortController().signal);
+      const hosted = fetchMock.mock.calls.filter(c => c[0].endsWith(HOSTED_PATH));
+      expect(hosted).toHaveLength(1);
+      expect(JSON.parse(hosted[0][1]!.body as string).role).toBe('pack');
+    } finally {
+      delete seams.__LEADER_E2E__;
+      delete seams.__SUPABASE_E2E__;
+    }
   });
 
   it('surfaces a cancel as an AbortError, not as a failure', async () => {
