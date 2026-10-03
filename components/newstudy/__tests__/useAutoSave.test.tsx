@@ -15,7 +15,7 @@ import { JOHN3_GENERATED, JOHN3_REQUEST } from './fixtures';
 import type { StudyPack } from '../../studypack/packTypes';
 
 const verses = Array.from({ length: 15 }, (_, i) => ({ num: 22 + i, cuv: `第${22 + i}节`, en: `verse ${22 + i}` }));
-const pack = assemblePack(JOHN3_REQUEST, verses, validateGenerated(JOHN3_GENERATED));
+const pack = assemblePack(JOHN3_REQUEST, verses, validateGenerated(JOHN3_GENERATED, JOHN3_REQUEST.contentLanguage));
 const edited = (title: string): StudyPack => ({ ...pack, title });
 
 describe('useAutoSave', () => {

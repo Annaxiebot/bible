@@ -26,7 +26,7 @@ function bundledChapter(bookId: string, chapter: number, translation: string) {
 }
 
 const verses = Array.from({ length: 15 }, (_, i) => ({ num: 22 + i, cuv: `第${22 + i}节`, en: `verse ${22 + i}` }));
-const original = assemblePack(JOHN3_REQUEST, verses, validateGenerated(JOHN3_GENERATED));
+const original = assemblePack(JOHN3_REQUEST, verses, validateGenerated(JOHN3_GENERATED, JOHN3_REQUEST.contentLanguage));
 
 const Host: React.FC<{ onChange: (p: StudyPack) => void }> = ({ onChange }) => {
   const [pack, setPack] = useState(original);

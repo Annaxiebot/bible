@@ -16,6 +16,9 @@ import NewStudyForm, { validateRequest, DEFAULT_REQUEST } from '../NewStudyForm'
 import { STORAGE_KEYS } from '../../../constants/storageKeys';
 import { readDefaultFormUrl, rememberDefaultFormUrl, validateFeedbackFormUrl } from '../feedbackFormDefault';
 import { MAX_VERSES_IN_A_CHAPTER } from '../useVerseCount';
+import { readDefaultContentLanguage, rememberContentLanguage } from '../contentLanguageDefault';
+import { NS_CONTENT_LANGUAGE_OPTIONS } from '../newStudyStrings';
+import { CONTENT_LANGUAGES, DEFAULT_CONTENT_LANGUAGE } from '../../studypack/principles';
 
 /** Verse counts the mocked bundled data reports; anything else is 30. */
 const VERSE_COUNTS: Record<string, number> = { 'MAT/6': 34, 'JHN/1': 51, 'JHN/3': 36 };
@@ -170,5 +173,50 @@ describe('validateRequest', () => {
     expect(readDefaultFormUrl(store as unknown as Storage)).toBe(FORM);
     rememberDefaultFormUrl(FORM, false, store as unknown as Storage);
     expect(readDefaultFormUrl(store as unknown as Storage)).toBe('');
+  });
+});
+
+describe('内容语言 Content language', () => {
+  const storage = () => window.localStorage as unknown as { getItem: ReturnType<typeof vi.fn>; setItem: ReturnType<typeof vi.fn> };
+
+  it('defaults to Chinese with English keywords, lists the three modes Chinese-first in order, large type', async () => {
+    storage().getItem.mockReset().mockReturnValue(null);
+    render(<NewStudyForm busy={false} onGenerate={() => {}} />);
+    await versesReady();
+    const select = screen.getByTestId('ns-content-language');
+    expect(DEFAULT_CONTENT_LANGUAGE).toBe('zh-keywords');
+    expect(select).toHaveValue(DEFAULT_CONTENT_LANGUAGE);
+    expect(values('ns-content-language')).toEqual([...CONTENT_LANGUAGES]);
+    expect(options('ns-content-language').map(o => o.textContent)).toEqual(CONTENT_LANGUAGES.map(m => NS_CONTENT_LANGUAGE_OPTIONS[m]));
+    expect(NS_CONTENT_LANGUAGE_OPTIONS['zh-keywords']).toMatch(/^中文为主，关键词英文 Chinese, English keywords$/);
+    expect(select).toHaveStyle({ minHeight: '48px' });
+  });
+
+  it('carries the chosen mode on the request and remembers it under STORAGE_KEYS.CONTENT_LANGUAGE_DEFAULT', async () => {
+    storage().getItem.mockReset().mockReturnValue(null);
+    storage().setItem.mockReset();
+    const onGenerate = vi.fn();
+    render(<NewStudyForm busy={false} onGenerate={onGenerate} />);
+    await versesReady();
+    select('ns-content-language', 'en-keywords');
+    fireEvent.click(screen.getByTestId('ns-generate'));
+    expect(onGenerate.mock.calls[0][0]).toMatchObject({ contentLanguage: 'en-keywords' });
+    expect(storage().setItem).toHaveBeenCalledWith(STORAGE_KEYS.CONTENT_LANGUAGE_DEFAULT, 'en-keywords');
+  });
+
+  it('opens on the remembered mode next time; an unknown stored value falls back to the default', async () => {
+    storage().getItem.mockReset().mockImplementation((k: string) => (k === STORAGE_KEYS.CONTENT_LANGUAGE_DEFAULT ? 'bilingual' : null));
+    expect(readDefaultContentLanguage()).toBe('bilingual');
+    render(<NewStudyForm busy={false} onGenerate={() => {}} />);
+    await versesReady();
+    expect(screen.getByTestId('ns-content-language')).toHaveValue('bilingual');
+
+    const mem = new Map<string, string>();
+    const store = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => { mem.set(k, v); } };
+    expect(readDefaultContentLanguage(store)).toBe(DEFAULT_CONTENT_LANGUAGE);
+    rememberContentLanguage('en-keywords', store);
+    expect(readDefaultContentLanguage(store)).toBe('en-keywords');
+    mem.set(STORAGE_KEYS.CONTENT_LANGUAGE_DEFAULT, 'klingon');
+    expect(readDefaultContentLanguage(store)).toBe(DEFAULT_CONTENT_LANGUAGE);
   });
 });

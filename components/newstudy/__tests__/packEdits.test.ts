@@ -9,7 +9,7 @@ import { JOHN3_GENERATED, JOHN3_REQUEST } from './fixtures';
 import { NS_ERR_FEEDBACK_FORM } from '../newStudyStrings';
 
 const verses = Array.from({ length: 15 }, (_, i) => ({ num: 22 + i, cuv: `第${22 + i}节`, en: `verse ${22 + i}` }));
-const pack = assemblePack(JOHN3_REQUEST, verses, validateGenerated(JOHN3_GENERATED));
+const pack = assemblePack(JOHN3_REQUEST, verses, validateGenerated(JOHN3_GENERATED, JOHN3_REQUEST.contentLanguage));
 const FORM = 'https://docs.google.com/forms/d/e/x/viewform';
 
 describe('withFeedbackForm', () => {
@@ -27,7 +27,7 @@ describe('withFeedbackForm', () => {
 
   it('a half-typed link blocks Save with the bilingual reason; assemblePack carries a pasted link', () => {
     expect(validateEdited(withFeedbackForm(pack, 'https://docs.goo', { name: '', practice: '' }))).toBe(NS_ERR_FEEDBACK_FORM);
-    const pasted = assemblePack({ ...JOHN3_REQUEST, feedbackFormUrl: FORM }, verses, validateGenerated(JOHN3_GENERATED));
+    const pasted = assemblePack({ ...JOHN3_REQUEST, feedbackFormUrl: FORM }, verses, validateGenerated(JOHN3_GENERATED, JOHN3_REQUEST.contentLanguage));
     expect(pasted.feedbackFormUrl).toBe(FORM);
     expect(pack.feedbackFormUrl).toBeUndefined();
   });

@@ -11,7 +11,7 @@
  * Save is the explicit confirmation, Preview flushes and opens TV mode.
  */
 import React, { useRef, useState } from 'react';
-import { StudyPack, SectionKind } from '../studypack/packTypes';
+import { StudyPack, SectionKind, packContentLanguage } from '../studypack/packTypes';
 import SectionEditor from './SectionEditor';
 import SectionToolbar from './SectionToolbar';
 import ScriptureRangeEditor from './ScriptureRangeEditor';
@@ -24,7 +24,7 @@ import FeedbackFormField from './FeedbackFormField';
 import type { AutoSaveStatus } from './useAutoSave';
 import type { FormNotice, FeedbackFormState } from './useFeedbackForm';
 import {
-  NS_EDIT_TITLE, NS_EDIT_HINT, NS_PACK_TITLE, NS_SAVE, NS_SAVED, NS_AUTOSAVED, NS_SAVING, NS_PREVIEW, NS_BACK,
+  NS_EDIT_TITLE, NS_EDIT_HINTS, NS_PACK_TITLE, NS_SAVE, NS_SAVED, NS_AUTOSAVED, NS_SAVING, NS_PREVIEW, NS_BACK,
 } from './newStudyStrings';
 import {
   textStyle, controlStyle, headingStyle, inputClass, primaryButtonClass, secondaryButtonClass,
@@ -121,7 +121,7 @@ const NewStudyEditor: React.FC<Props> = ({ pack, onChange, onSave, onPreview, on
   return (
     <div data-testid="new-study-editor" className="flex flex-col gap-6">
       <h2 className="font-bold text-amber-300" style={headingStyle}>{NS_EDIT_TITLE}</h2>
-      <p className="text-slate-400" style={textStyle}>{NS_EDIT_HINT}</p>
+      <p className="text-slate-400" style={textStyle}>{NS_EDIT_HINTS[packContentLanguage(pack)]}</p>
       <label className={labelClass} style={textStyle}>
         <span>{NS_PACK_TITLE}</span>
         <input type="text" value={titleHeading} aria-label={NS_PACK_TITLE} data-testid="ns-title"

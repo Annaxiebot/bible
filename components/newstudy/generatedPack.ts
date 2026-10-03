@@ -3,12 +3,14 @@
  *
  * extractJsonObject: tolerant of prose or ```json fences around the object;
  * fails (never guesses) when the object is truncated. validateGenerated:
- * every field the prompt asked for must be present and bilingual; cross-
- * references are checked against the canonical book table and invalid ones
- * dropped; the life menu must cover exactly the seven LIFE_AREAS. Any
+ * every field the prompt asked for must be present with the halves the
+ * content language requires (bilingual: both; zh-keywords: "zh", "en"
+ * optional; en-keywords: the mirror; title and keyPhrase always both);
+ * cross-references are checked against the canonical book table and invalid
+ * ones dropped; the life menu must cover exactly the seven LIFE_AREAS. Any
  * failure throws a bilingual error — a half-pack is never returned.
  */
-import { LIFE_AREAS } from '../studypack/principles';
+import { LIFE_AREAS, ContentLanguage } from '../studypack/principles';
 import { findVerseRefs, VerseRef } from '../studypack/verseRefs';
 import { getBookById } from '../../services/bibleBookData';
 import {
@@ -48,27 +50,42 @@ export function extractJsonObject(text: string): Record<string, unknown> {
   return parsed as Record<string, unknown>;
 }
 
-function isBilingual(v: unknown): v is Bilingual {
+type Half = keyof Bilingual;
+const BOTH_HALVES: readonly Half[] = ['zh', 'en'];
+
+/** Which halves a model-drafted item must carry in a mode (title and keyPhrase always use BOTH_HALVES). */
+function requiredHalves(mode: ContentLanguage): readonly Half[] {
+  if (mode === 'zh-keywords') return ['zh'];
+  if (mode === 'en-keywords') return ['en'];
+  return BOTH_HALVES;
+}
+
+function filled(v: unknown): v is string {
+  return typeof v === 'string' && v.trim().length > 0;
+}
+
+/** An object whose required halves are non-empty strings; the other half, when present, must be a string. */
+function hasHalves(v: unknown, halves: readonly Half[]): v is Partial<Bilingual> {
   const b = v as Partial<Bilingual>;
-  return typeof b === 'object' && b !== null &&
-    typeof b.zh === 'string' && b.zh.trim().length > 0 &&
-    typeof b.en === 'string' && b.en.trim().length > 0;
+  if (typeof b !== 'object' || b === null) return false;
+  return BOTH_HALVES.every(h => (halves.includes(h) ? filled(b[h]) : b[h] === undefined || typeof b[h] === 'string'));
 }
 
-function trimBilingual(b: Bilingual): Bilingual {
-  return { zh: b.zh.trim(), en: b.en.trim() };
+/** Trimmed halves; a half the mode did not ask for is '' (assembly never shows it). */
+function trimHalves(b: Partial<Bilingual>): Bilingual {
+  return { zh: (b.zh ?? '').trim(), en: (b.en ?? '').trim() };
 }
 
-function bilingualList(v: unknown, min: number, what: string): Bilingual[] {
-  if (!Array.isArray(v) || v.length < min || !v.every(isBilingual)) {
+function itemList(v: unknown, halves: readonly Half[], min: number, what: string): Bilingual[] {
+  if (!Array.isArray(v) || v.length < min || !v.every(item => hasHalves(item, halves))) {
     throw new Error(`${NS_ERR_INVALID} (${what})`);
   }
-  return v.map(trimBilingual);
+  return v.map(trimHalves);
 }
 
-function one(v: unknown, what: string): Bilingual {
-  if (!isBilingual(v)) throw new Error(`${NS_ERR_INVALID} (${what})`);
-  return trimBilingual(v);
+function one(v: unknown, halves: readonly Half[], what: string): Bilingual {
+  if (!hasHalves(v, halves)) throw new Error(`${NS_ERR_INVALID} (${what})`);
+  return trimHalves(v);
 }
 
 /** A "Book C:V[-V]" string → VerseRef when the book is in the canonical table and the chapter exists. */
@@ -81,13 +98,13 @@ export function parseCrossRef(ref: unknown): VerseRef | null {
   return found;
 }
 
-function crossRefs(v: unknown): CrossRef[] {
+function crossRefs(v: unknown, halves: readonly Half[]): CrossRef[] {
   if (!Array.isArray(v)) throw new Error(`${NS_ERR_INVALID} (crossRefs)`);
   const out: CrossRef[] = [];
   for (const item of v) {
-    if (!isBilingual(item)) continue;
+    if (!hasHalves(item, halves)) continue;
     const ref = parseCrossRef((item as { ref?: unknown }).ref);
-    if (ref) out.push({ ...trimBilingual(item), ref });
+    if (ref) out.push({ ...trimHalves(item), ref });
   }
   if (out.length === 0) throw new Error(NS_ERR_NO_CROSS_REFS);
   return out;
@@ -105,12 +122,12 @@ function canonicalArea(label: unknown): string | null {
 }
 
 /** Exactly the seven areas, reordered canonically; a missing area is an error. */
-function lifeMenu(v: unknown): LifeItem[] {
+function lifeMenu(v: unknown, halves: readonly Half[]): LifeItem[] {
   if (!Array.isArray(v)) throw new Error(`${NS_ERR_INVALID} (lifeMenu)`);
   const byArea = new Map<string, Bilingual>();
   for (const item of v) {
     const area = canonicalArea((item as { area?: unknown }).area);
-    if (area && isBilingual(item) && !byArea.has(area)) byArea.set(area, trimBilingual(item));
+    if (area && hasHalves(item, halves) && !byArea.has(area)) byArea.set(area, trimHalves(item));
   }
   const out: LifeItem[] = [];
   for (const area of LIFE_AREAS) {
@@ -122,7 +139,7 @@ function lifeMenu(v: unknown): LifeItem[] {
 }
 
 function keyPhrase(v: unknown): GeneratedContent['keyPhrase'] {
-  const phrase = one(v, 'keyPhrase');
+  const phrase = one(v, BOTH_HALVES, 'keyPhrase');
   const verse = (v as { verse?: unknown }).verse;
   if (typeof verse !== 'number' || !Number.isInteger(verse) || verse < 1) {
     throw new Error(`${NS_ERR_INVALID} (keyPhrase.verse)`);
@@ -130,23 +147,28 @@ function keyPhrase(v: unknown): GeneratedContent['keyPhrase'] {
   return { ...phrase, verse };
 }
 
-/** Validate the parsed reply. Throws a bilingual error on the first problem. */
-export function validateGenerated(raw: Record<string, unknown>): GeneratedContent {
+/**
+ * Validate the parsed reply for the pack's content language. Throws a
+ * bilingual error on the first problem; the structural checks (counts,
+ * seven areas, valid references) are the same in every mode.
+ */
+export function validateGenerated(raw: Record<string, unknown>, mode: ContentLanguage): GeneratedContent {
+  const halves = requiredHalves(mode);
   const reflection = raw.reflection as Record<string, unknown> | undefined;
   if (typeof reflection !== 'object' || reflection === null) throw new Error(`${NS_ERR_INVALID} (reflection)`);
   return {
-    title: one(raw.title, 'title'),
+    title: one(raw.title, BOTH_HALVES, 'title'),
     keyPhrase: keyPhrase(raw.keyPhrase),
-    context: bilingualList(raw.context, 1, 'context'),
-    originalLanguage: bilingualList(raw.originalLanguage, 1, 'originalLanguage'),
-    crossRefs: crossRefs(raw.crossRefs),
-    discussion: bilingualList(raw.discussion, 1, 'discussion'),
-    lifeMenu: lifeMenu(raw.lifeMenu),
+    context: itemList(raw.context, halves, 1, 'context'),
+    originalLanguage: itemList(raw.originalLanguage, halves, 1, 'originalLanguage'),
+    crossRefs: crossRefs(raw.crossRefs, halves),
+    discussion: itemList(raw.discussion, halves, 1, 'discussion'),
+    lifeMenu: lifeMenu(raw.lifeMenu, halves),
     reflection: {
-      tue: one(reflection.tue, 'reflection.tue'),
-      thu: one(reflection.thu, 'reflection.thu'),
-      weekend: one(reflection.weekend, 'reflection.weekend'),
+      tue: one(reflection.tue, halves, 'reflection.tue'),
+      thu: one(reflection.thu, halves, 'reflection.thu'),
+      weekend: one(reflection.weekend, halves, 'reflection.weekend'),
     },
-    closing: one(raw.closing, 'closing'),
+    closing: one(raw.closing, halves, 'closing'),
   };
 }

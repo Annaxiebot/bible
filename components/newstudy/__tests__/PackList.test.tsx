@@ -15,7 +15,7 @@ import { fireEvent } from '@testing-library/react';
 import type { LocalPacks } from '../useLocalPacks';
 
 const verses = Array.from({ length: 15 }, (_, i) => ({ num: 22 + i, cuv: `第${22 + i}节`, en: `verse ${22 + i}` }));
-const pack = assemblePack(JOHN3_REQUEST, verses, validateGenerated(JOHN3_GENERATED));
+const pack = assemblePack(JOHN3_REQUEST, verses, validateGenerated(JOHN3_GENERATED, JOHN3_REQUEST.contentLanguage));
 
 const packs: LocalPacks = {
   packs: [pack], invalid: [], error: null,

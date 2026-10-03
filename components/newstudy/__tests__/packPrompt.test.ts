@@ -5,13 +5,15 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
-  buildPackPrompt, GENERATED_SHAPE, PACK_MAX_TOKENS, PACK_TEMPERATURE, PACK_SYSTEM_PROMPT,
+  buildPackPrompt, GENERATED_SHAPE, generatedShape, PACK_MAX_TOKENS, PACK_TEMPERATURE, PACK_SYSTEM_PROMPT,
   PACK_COMPACT_JSON_RULE, PACK_LENGTH_LIMITS, PACK_CONTINUE_PROMPT,
 } from '../packPrompt';
 import { buildPackRequestBody, buildContinuationBody } from '../generatePack';
 import { BILINGUAL_SEPARATOR } from '../../studypack/principles';
-import { JOHN3_REQUEST } from './fixtures';
-import { PACK_CONTENT_CONTRACT, ASK_AI_ANSWER_CONTRACT, LIFE_AREAS, TRANSLATIONS } from '../../studypack/principles';
+import { JOHN3_REQUEST, JOHN3_REQUEST_ZH } from './fixtures';
+import {
+  PACK_CONTENT_CONTRACT, ASK_AI_ANSWER_CONTRACT, LIFE_AREAS, TRANSLATIONS, CONTENT_LANGUAGE_CONTRACTS, CONTENT_LANGUAGES,
+} from '../../studypack/principles';
 import { PACK_GENERATION_MODEL } from '../../../services/aiDefaults';
 
 const verses = [
@@ -20,7 +22,7 @@ const verses = [
 ];
 
 describe('buildPackPrompt', () => {
-  const prompt = buildPackPrompt({ passageRef: '约翰福音 3:22–23 · John 3:22–23', verses });
+  const prompt = buildPackPrompt({ passageRef: '约翰福音 3:22–23 · John 3:22–23', verses, contentLanguage: 'bilingual' });
 
   it('embeds every verse in both languages, numbered', () => {
     for (const v of verses) {
@@ -52,7 +54,7 @@ describe('buildPackPrompt', () => {
   });
 
   it('keeps a leader-supplied lesson title', () => {
-    expect(buildPackPrompt({ passageRef: 'x', verses, lessonTitle: '祂必兴旺' })).toContain('"祂必兴旺"');
+    expect(buildPackPrompt({ passageRef: 'x', verses, lessonTitle: '祂必兴旺', contentLanguage: 'bilingual' })).toContain('"祂必兴旺"');
   });
 
   it('demands compact single-line JSON: no indentation, no fences, no commentary', () => {
@@ -122,10 +124,61 @@ describe('buildPackRequestBody', () => {
   });
 });
 
-describe('pack prompt total size target', () => {
-  it('states one explicit total-size target so the model budgets the whole reply', async () => {
-    const mod = await import('../packPrompt');
-    expect(mod.PACK_LENGTH_LIMITS).toContain('2,500');
-    expect(mod.PACK_LENGTH_LIMITS).toContain('shorter is better');
+describe('content language contracts in the prompt (CONTENT_LANGUAGE_CONTRACTS, ADR-0003 §1 note)', () => {
+  const promptFor = (mode: (typeof CONTENT_LANGUAGES)[number]) =>
+    buildPackPrompt({ passageRef: 'x', verses, contentLanguage: mode });
+
+  it('each mode injects its own line rule and total-size target, and exactly one of them', () => {
+    for (const mode of CONTENT_LANGUAGES) {
+      const prompt = promptFor(mode);
+      const contract = CONTENT_LANGUAGE_CONTRACTS[mode];
+      expect(prompt).toContain(contract.lineRule);
+      expect(prompt).toContain(contract.totalTarget);
+      expect(contract.totalTarget).toContain('shorter is better');
+      for (const other of CONTENT_LANGUAGES.filter(m => m !== mode)) {
+        expect(prompt).not.toContain(CONTENT_LANGUAGE_CONTRACTS[other].lineRule);
+        expect(prompt).not.toContain(CONTENT_LANGUAGE_CONTRACTS[other].totalTarget);
+      }
+    }
+  });
+
+  it('scales the total: zh-keywords ≈ 1,600 Chinese characters, bilingual 2,500, en-keywords ≈ 900 English words', () => {
+    expect(CONTENT_LANGUAGE_CONTRACTS['zh-keywords'].totalTarget).toContain('1,600');
+    expect(CONTENT_LANGUAGE_CONTRACTS.bilingual.totalTarget).toContain('2,500');
+    expect(CONTENT_LANGUAGE_CONTRACTS['en-keywords'].totalTarget).toMatch(/900 English words/);
+  });
+
+  it('zh-keywords: Chinese lines with the English term once in parentheses, no sentence translations, no "en" field; en-keywords mirrors it', () => {
+    const zh = CONTENT_LANGUAGE_CONTRACTS['zh-keywords'].lineRule;
+    expect(zh).toContain('忧虑（anxiety）');
+    expect(zh).toMatch(/Do NOT translate sentences into English/);
+    expect(zh).toMatch(/do NOT add an "en" field/);
+    expect(zh).toMatch(/title and keyPhrase, which carry both/);
+    const en = CONTENT_LANGUAGE_CONTRACTS['en-keywords'].lineRule;
+    expect(en).toContain('anxiety (忧虑)');
+    expect(en).toMatch(/do NOT add a "zh" field/);
+    expect(CONTENT_LANGUAGE_CONTRACTS.bilingual.lineRule).toContain('中文 · English');
+  });
+
+  it('the JSON shape per mode carries only that mode\'s halves on drafted items; title and keyPhrase keep both', () => {
+    const zhShape = generatedShape('zh-keywords');
+    const enShape = generatedShape('en-keywords');
+    expect(promptFor('zh-keywords')).toContain(zhShape);
+    expect(promptFor('bilingual')).toContain(GENERATED_SHAPE);
+    for (const shape of [zhShape, enShape]) expect(() => JSON.parse(shape)).not.toThrow();
+    const zhParsed = JSON.parse(zhShape) as { context: object[]; closing: object; title: object; lifeMenu: object[] };
+    expect(zhParsed.context[0]).toEqual({ zh: '…' });
+    expect(zhParsed.closing).not.toHaveProperty('en');
+    expect(zhParsed.lifeMenu[0]).toEqual({ area: '健康 Health', zh: '具体操练' });
+    expect(zhParsed.title).toHaveProperty('en');
+    const enParsed = JSON.parse(enShape) as { context: object[]; keyPhrase: object };
+    expect(enParsed.context[0]).toEqual({ en: '…' });
+    expect(enParsed.keyPhrase).toHaveProperty('zh');
+  });
+
+  it('the request body carries the request\'s mode', () => {
+    const body = JSON.parse(buildPackRequestBody(JOHN3_REQUEST_ZH, verses)) as { messages: Array<{ content: string }> };
+    expect(body.messages[1].content).toContain(CONTENT_LANGUAGE_CONTRACTS['zh-keywords'].lineRule);
+    expect(body.messages[1].content).not.toContain(CONTENT_LANGUAGE_CONTRACTS.bilingual.lineRule);
   });
 });

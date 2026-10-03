@@ -9,7 +9,13 @@ import { LIFE_AREAS } from '../../studypack/principles';
 import {
   NS_ERR_NO_JSON, NS_ERR_INVALID, NS_ERR_NO_CROSS_REFS, NS_ERR_LIFE_AREAS,
 } from '../newStudyStrings';
-import { JOHN3_GENERATED, JOHN3_REPLY_JSON, JOHN3_VALID_CROSS_REF_COUNT } from './fixtures';
+import {
+  JOHN3_GENERATED, JOHN3_REPLY_JSON, JOHN3_VALID_CROSS_REF_COUNT, JOHN3_REQUEST,
+  JOHN3_GENERATED_ZH, JOHN3_REPLY_JSON_ZH, JOHN3_REQUEST_ZH, JOHN3_KEYWORD_ZH,
+} from './fixtures';
+
+const BILINGUAL = JOHN3_REQUEST.contentLanguage;
+const ZH = JOHN3_REQUEST_ZH.contentLanguage;
 
 describe('extractJsonObject', () => {
   it('parses a bare JSON object', () => {
@@ -50,7 +56,7 @@ describe('parseCrossRef', () => {
 
 describe('validateGenerated', () => {
   it('accepts the fixture, dropping the invalid cross-references and reordering the life menu', () => {
-    const content = validateGenerated(JOHN3_GENERATED);
+    const content = validateGenerated(JOHN3_GENERATED, BILINGUAL);
     expect(content.crossRefs).toHaveLength(JOHN3_VALID_CROSS_REF_COUNT);
     expect(content.crossRefs.map(c => c.ref.bookId)).toEqual(['JHN', 'MAT', 'PHP']);
     expect(content.lifeMenu.map(l => l.area)).toEqual([...LIFE_AREAS]);
@@ -61,18 +67,53 @@ describe('validateGenerated', () => {
 
   it('fails when every cross-reference is invalid', () => {
     const bad = { ...JOHN3_GENERATED, crossRefs: [{ ref: 'Narnia 1:1', zh: 'x', en: 'y' }] };
-    expect(() => validateGenerated(bad)).toThrow(NS_ERR_NO_CROSS_REFS);
+    expect(() => validateGenerated(bad, BILINGUAL)).toThrow(NS_ERR_NO_CROSS_REFS);
   });
 
   it('fails when a life area is missing', () => {
     const bad = { ...JOHN3_GENERATED, lifeMenu: JOHN3_GENERATED.lifeMenu.slice(1) };
-    expect(() => validateGenerated(bad)).toThrow(NS_ERR_LIFE_AREAS);
+    expect(() => validateGenerated(bad, BILINGUAL)).toThrow(NS_ERR_LIFE_AREAS);
   });
 
   it('fails on a missing or monolingual field', () => {
-    expect(() => validateGenerated({ ...JOHN3_GENERATED, closing: { zh: '只有中文' } })).toThrow(NS_ERR_INVALID);
+    expect(() => validateGenerated({ ...JOHN3_GENERATED, closing: { zh: '只有中文' } }, BILINGUAL)).toThrow(NS_ERR_INVALID);
     const { reflection: _dropped, ...noReflection } = JOHN3_GENERATED;
-    expect(() => validateGenerated(noReflection)).toThrow(NS_ERR_INVALID);
-    expect(() => validateGenerated({ ...JOHN3_GENERATED, keyPhrase: { zh: 'a', en: 'b' } })).toThrow(NS_ERR_INVALID);
+    expect(() => validateGenerated(noReflection, BILINGUAL)).toThrow(NS_ERR_INVALID);
+    expect(() => validateGenerated({ ...JOHN3_GENERATED, keyPhrase: { zh: 'a', en: 'b' } }, BILINGUAL)).toThrow(NS_ERR_INVALID);
+  });
+});
+
+describe('validateGenerated — content language zh-keywords', () => {
+  it('accepts a Chinese-only reply (no "en" halves) whose keywords carry the English in parentheses', () => {
+    const content = validateGenerated(extractJsonObject(JOHN3_REPLY_JSON_ZH), ZH);
+    expect(content.context[0].zh).toContain(JOHN3_KEYWORD_ZH);
+    expect(content.context.every(c => c.en === '')).toBe(true);
+    expect(content.discussion).toHaveLength(5);
+    expect(content.crossRefs).toHaveLength(JOHN3_VALID_CROSS_REF_COUNT);
+    expect(content.lifeMenu.map(l => l.area)).toEqual([...LIFE_AREAS]);
+    expect(content.closing.en).toBe('');
+    // Title and keyPhrase stay bilingual in every mode (they sit in fixed bilingual headings).
+    expect(content.title).toEqual(JOHN3_GENERATED.title);
+    expect(content.keyPhrase.verse).toBe(30);
+  });
+
+  it('the same Chinese-only reply is rejected in bilingual mode, and a bilingual reply is accepted in zh-keywords mode', () => {
+    expect(() => validateGenerated(JOHN3_GENERATED_ZH, BILINGUAL)).toThrow(NS_ERR_INVALID);
+    expect(validateGenerated(JOHN3_GENERATED, ZH).context[0].en).toContain('baptism');
+  });
+
+  it('en-keywords is the mirror: English-only items pass, Chinese-only fail', () => {
+    const enOnly = { ...JOHN3_GENERATED, closing: { en: 'Where did decrease (衰微) collide with real life?' } };
+    expect(validateGenerated(enOnly, 'en-keywords').closing).toEqual({ zh: '', en: 'Where did decrease (衰微) collide with real life?' });
+    expect(() => validateGenerated(enOnly, ZH)).toThrow(NS_ERR_INVALID);
+    expect(() => validateGenerated({ ...JOHN3_GENERATED_ZH, context: [{ zh: '' }] }, ZH)).toThrow(NS_ERR_INVALID);
+  });
+
+  it('still rejects wrong counts, a missing life area, all-invalid refs and a title without both halves', () => {
+    expect(() => validateGenerated({ ...JOHN3_GENERATED_ZH, context: [] }, ZH)).toThrow(NS_ERR_INVALID);
+    expect(() => validateGenerated({ ...JOHN3_GENERATED_ZH, lifeMenu: JOHN3_GENERATED_ZH.lifeMenu.slice(1) }, ZH)).toThrow(NS_ERR_LIFE_AREAS);
+    expect(() => validateGenerated({ ...JOHN3_GENERATED_ZH, crossRefs: [{ ref: 'Narnia 1:1', zh: 'x' }] }, ZH)).toThrow(NS_ERR_NO_CROSS_REFS);
+    expect(() => validateGenerated({ ...JOHN3_GENERATED_ZH, title: { zh: '只有中文' } }, ZH)).toThrow(NS_ERR_INVALID);
+    expect(() => validateGenerated({ ...JOHN3_GENERATED_ZH, crossRefs: [{ ref: 'John 99:1', zh: 'x' }] }, ZH)).toThrow(NS_ERR_NO_CROSS_REFS);
   });
 });

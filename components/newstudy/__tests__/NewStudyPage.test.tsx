@@ -39,7 +39,7 @@ vi.mock('../../../services/bibleDataSource', () => ({
 }));
 
 const verses = Array.from({ length: 15 }, (_, i) => ({ num: 22 + i, cuv: `第${22 + i}节`, en: `verse ${22 + i}` }));
-const generatedPack = () => assemblePack(JOHN3_REQUEST, verses, validateGenerated(JOHN3_GENERATED));
+const generatedPack = () => assemblePack(JOHN3_REQUEST, verses, validateGenerated(JOHN3_GENERATED, JOHN3_REQUEST.contentLanguage));
 
 function withKey(key: string | null) {
   (window.localStorage.getItem as ReturnType<typeof vi.fn>).mockReset()

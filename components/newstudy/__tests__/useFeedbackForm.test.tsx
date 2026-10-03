@@ -38,7 +38,7 @@ vi.mock('../../../services/googleForms', () => ({
 }));
 
 const verses = Array.from({ length: 15 }, (_, i) => ({ num: 22 + i, cuv: `第${22 + i}节`, en: `verse ${22 + i}` }));
-const pack = assemblePack(JOHN3_REQUEST, verses, validateGenerated(JOHN3_GENERATED));
+const pack = assemblePack(JOHN3_REQUEST, verses, validateGenerated(JOHN3_GENERATED, JOHN3_REQUEST.contentLanguage));
 const FORM = 'https://docs.google.com/forms/d/e/x/viewform';
 
 /** The setup's sessionStorage is a vi.fn mock; give it a real backing map per test. */

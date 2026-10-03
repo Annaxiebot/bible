@@ -9,7 +9,7 @@
  * §7); the QR itself is drawn per pack from its id (signupRoute).
  */
 import { StudyPack, PackSection, PackVerse, parseStudyPack } from '../studypack/packTypes';
-import { bilingual, bilingualLine, TRANSLATIONS } from '../studypack/principles';
+import { bilingual, bilingualLine, contentLine, ContentLanguage, TRANSLATIONS } from '../studypack/principles';
 import { bilingualRefLabel } from '../studypack/refLabel';
 import { makeLocalPackId } from '../studypack/packSource';
 import { getBookById } from '../../services/bibleBookData';
@@ -30,6 +30,8 @@ export interface StudyRequest extends VerseRange {
   date: string; // ISO yyyy-mm-dd
   /** Optional Google Form pasted by the leader (ADR-0004 §9); overrides the auto-created one. */
   feedbackFormUrl?: string;
+  /** How much English the model-drafted lines carry (ADR-0003 §1 note). */
+  contentLanguage: ContentLanguage;
 }
 
 /** Section headings, as the sample pack writes them (Chinese first). */
@@ -94,12 +96,12 @@ function keyPhraseLine(gen: GeneratedContent): string {
   return `${gen.keyPhrase.zh} ${gen.keyPhrase.en} (v.${gen.keyPhrase.verse})`;
 }
 
-function reflectionLines(gen: GeneratedContent): string[] {
+function reflectionLines(mode: ContentLanguage, gen: GeneratedContent): string[] {
   const r = gen.reflection;
   return [
-    bilingualLine(REFLECTION_PREFIX.tue.zh + r.tue.zh, REFLECTION_PREFIX.tue.en + r.tue.en),
-    bilingualLine(REFLECTION_PREFIX.thu.zh + r.thu.zh, REFLECTION_PREFIX.thu.en + r.thu.en),
-    bilingualLine(REFLECTION_PREFIX.weekend.zh + r.weekend.zh, REFLECTION_PREFIX.weekend.en + r.weekend.en),
+    contentLine(mode, REFLECTION_PREFIX.tue.zh + r.tue.zh, REFLECTION_PREFIX.tue.en + r.tue.en),
+    contentLine(mode, REFLECTION_PREFIX.thu.zh + r.thu.zh, REFLECTION_PREFIX.thu.en + r.thu.en),
+    contentLine(mode, REFLECTION_PREFIX.weekend.zh + r.weekend.zh, REFLECTION_PREFIX.weekend.en + r.weekend.en),
     PRIVACY_LINE,
   ];
 }
@@ -113,11 +115,16 @@ export function stampLeader(pack: StudyPack, leaderId: string | null): StudyPack
   return leaderId ? { ...pack, leaderId } : pack;
 }
 
-/** Build and validate the pack. Throws (parseStudyPack) if anything is malformed. */
+/**
+ * Build and validate the pack. Throws (parseStudyPack) if anything is malformed.
+ * Model-drafted lines follow req.contentLanguage (contentLine); headings,
+ * verses and the app-owned lines stay bilingual in every mode.
+ */
 export function assemblePack(req: StudyRequest, verses: PackVerse[], gen: GeneratedContent): StudyPack {
   const label = passageLabel(req);
   const heading = titleHeading(req, gen);
-  const lines = (items: { zh: string; en: string }[]) => items.map(i => bilingualLine(i.zh, i.en));
+  const mode = req.contentLanguage;
+  const lines = (items: { zh: string; en: string }[]) => items.map(i => contentLine(mode, i.zh, i.en));
   const sections: PackSection[] = [
     { kind: 'title', heading, body: [label.ref, `${GROUP_LINE} · ${req.date}`] },
     scriptureSection(req, verses, keyPhraseLine(gen)),
@@ -126,20 +133,20 @@ export function assemblePack(req: StudyRequest, verses: PackVerse[], gen: Genera
     {
       kind: 'crossRefs',
       heading: SECTION_HEADINGS.crossRefs,
-      body: gen.crossRefs.map(c => `${bilingualRefLabel(c.ref)} — ${bilingualLine(c.zh, c.en)}`),
+      body: gen.crossRefs.map(c => `${bilingualRefLabel(c.ref)} — ${contentLine(mode, c.zh, c.en)}`),
     },
     { kind: 'discussion', heading: SECTION_HEADINGS.discussion, questions: lines(gen.discussion) },
     {
       kind: 'lifeMenu',
       heading: SECTION_HEADINGS.lifeMenu,
-      rows: gen.lifeMenu.map(l => ({ area: l.area, practice: bilingualLine(l.zh, l.en) })),
+      rows: gen.lifeMenu.map(l => ({ area: l.area, practice: contentLine(mode, l.zh, l.en) })),
     },
-    { kind: 'reflection', heading: SECTION_HEADINGS.reflection, body: reflectionLines(gen) },
+    { kind: 'reflection', heading: SECTION_HEADINGS.reflection, body: reflectionLines(mode, gen) },
     { kind: 'qr', heading: SECTION_HEADINGS.qr, body: [SU_QR_BODY] },
     {
       kind: 'closing',
       heading: SECTION_HEADINGS.closing,
-      body: [CLOSING_LEAD, bilingualLine(`「${gen.closing.zh}」`, `“${gen.closing.en}”`)],
+      body: [CLOSING_LEAD, contentLine(mode, `「${gen.closing.zh}」`, `“${gen.closing.en}”`)],
     },
   ];
   return parseStudyPack({
@@ -148,6 +155,7 @@ export function assemblePack(req: StudyRequest, verses: PackVerse[], gen: Genera
     date: req.date,
     passageRef: label.ref,
     enVersion: TRANSLATIONS.en.label,
+    contentLanguage: mode,
     ...(req.feedbackFormUrl ? { feedbackFormUrl: req.feedbackFormUrl } : {}),
     sections,
   });

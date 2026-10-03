@@ -12,12 +12,14 @@ import { parseStudyPack, buildSlides } from '../../studypack/packTypes';
 import { LIFE_AREAS, TRANSLATIONS, BILINGUAL_SEPARATOR } from '../../studypack/principles';
 import { isLocalPackId } from '../../studypack/packSource';
 import { TEST_PACK_PATH } from '../../studypack/__tests__/fixtures';
-import { JOHN3_GENERATED, JOHN3_REQUEST } from './fixtures';
+import {
+  JOHN3_GENERATED, JOHN3_REQUEST, JOHN3_GENERATED_ZH, JOHN3_REQUEST_ZH, JOHN3_KEYWORD_ZH, JOHN3_KEYWORD_DECREASE_ZH,
+} from './fixtures';
 
 const verses = Array.from({ length: 15 }, (_, i) => ({
   num: 22 + i, cuv: `第${22 + i}节`, en: `verse ${22 + i}`,
 }));
-const pack = assemblePack(JOHN3_REQUEST, verses, validateGenerated(JOHN3_GENERATED));
+const pack = assemblePack(JOHN3_REQUEST, verses, validateGenerated(JOHN3_GENERATED, JOHN3_REQUEST.contentLanguage));
 
 describe('stampLeader', () => {
   it('sets leaderId for a signed-in leader and leaves a signed-out save untouched (demo pack)', () => {
@@ -111,11 +113,56 @@ describe('assemblePack', () => {
   });
 
   it('lesson number and title go into the title slide', () => {
-    const numbered = assemblePack({ ...JOHN3_REQUEST, lessonNumber: 8 }, verses, validateGenerated(JOHN3_GENERATED));
+    const numbered = assemblePack({ ...JOHN3_REQUEST, lessonNumber: 8 }, verses, validateGenerated(JOHN3_GENERATED, JOHN3_REQUEST.contentLanguage));
     expect(numbered.sections[0].heading).toMatch(/^第8课 祂必兴旺/);
   });
 
   it('renders as 18 slides for 15 verses (1 + 5 scripture + 5 questions + 7 sections)', () => {
     expect(buildSlides(pack)).toHaveLength(18);
+  });
+});
+
+describe('assemblePack — content language', () => {
+  const zhPack = assemblePack(JOHN3_REQUEST_ZH, verses, validateGenerated(JOHN3_GENERATED_ZH, JOHN3_REQUEST_ZH.contentLanguage));
+  const byKind = (p: typeof zhPack, kind: string) => p.sections.find(s => s.kind === kind)!;
+
+  it('stamps the pack with its mode; the bilingual pack keeps "中文 · English" lines', () => {
+    expect(pack.contentLanguage).toBe('bilingual');
+    expect(zhPack.contentLanguage).toBe('zh-keywords');
+    expect(() => parseStudyPack(zhPack)).not.toThrow();
+    expect(byKind(pack, 'context').body![0]).toContain(BILINGUAL_SEPARATOR);
+  });
+
+  it('zh-keywords: drafted lines are Chinese with the English keyword in parentheses, no " · English" half; headings and verses unchanged', () => {
+    const context = byKind(zhPack, 'context').body!;
+    expect(context[0]).toBe(`约翰的门徒为${JOHN3_KEYWORD_ZH}的事起了争论`);
+    const drafted = [
+      ...context, ...byKind(zhPack, 'originalLanguage').body!, ...byKind(zhPack, 'discussion').questions!,
+      ...byKind(zhPack, 'lifeMenu').rows!.map(r => r.practice), ...byKind(zhPack, 'reflection').body!.slice(0, 3),
+      byKind(zhPack, 'closing').body![1],
+    ];
+    for (const line of drafted) expect(line).not.toContain(BILINGUAL_SEPARATOR);
+    expect(drafted.some(line => line.includes('baptism') && !line.includes(JOHN3_KEYWORD_ZH))).toBe(false);
+    expect(byKind(zhPack, 'lifeMenu').rows![0].practice).toContain(JOHN3_KEYWORD_DECREASE_ZH);
+    expect(byKind(zhPack, 'discussion').questions![3]).toContain(JOHN3_KEYWORD_DECREASE_ZH);
+    expect(byKind(zhPack, 'reflection').body![0]).toBe('周二跟进：操练做了吗？');
+    expect(byKind(zhPack, 'closing').body![1]).toBe(`「这周${JOHN3_KEYWORD_DECREASE_ZH}在哪里与真实生活相撞？」`);
+    // Cross-reference labels, section headings, the title and the verses stay bilingual.
+    expect(byKind(zhPack, 'crossRefs').body![0]).toMatch(/^.+ — 约翰早已说过自己不配$/);
+    expect(zhPack.sections.map(s => s.heading)).toEqual(pack.sections.map(s => s.heading));
+    expect(byKind(zhPack, 'scripture').verses).toEqual(verses);
+    expect(byKind(zhPack, 'reflection').body![3]).toBe(PRIVACY_LINE);
+    // The TV slides carry the same lines (no layout change needed).
+    const slides = buildSlides(zhPack);
+    expect(slides.find(s => s.kind === 'lifeMenu')!.rows![0].practice).toContain(JOHN3_KEYWORD_DECREASE_ZH);
+    expect(slides.filter(s => s.kind === 'discussion')[3].question).toContain(JOHN3_KEYWORD_DECREASE_ZH);
+  });
+
+  it('en-keywords is the mirror: English lines only', () => {
+    const enReq = { ...JOHN3_REQUEST, contentLanguage: 'en-keywords' as const };
+    const enPack = assemblePack(enReq, verses, validateGenerated(JOHN3_GENERATED, enReq.contentLanguage));
+    expect(enPack.contentLanguage).toBe('en-keywords');
+    expect(byKind(enPack, 'context').body![0]).toBe(JOHN3_GENERATED.context[0].en);
+    expect(byKind(enPack, 'reflection').body![0]).toBe('Tuesday check-in: Did the practice happen?');
   });
 });

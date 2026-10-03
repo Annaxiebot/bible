@@ -29,7 +29,7 @@ const syncMock = vi.fn();
 vi.mock('../../signup/packSummary', () => ({ syncPackSummary: (pack: unknown) => syncMock(pack) }));
 
 const verses = Array.from({ length: 15 }, (_, i) => ({ num: 22 + i, cuv: `第${22 + i}节`, en: `verse ${22 + i}` }));
-const base = assemblePack(JOHN3_REQUEST, verses, validateGenerated(JOHN3_GENERATED));
+const base = assemblePack(JOHN3_REQUEST, verses, validateGenerated(JOHN3_GENERATED, JOHN3_REQUEST.contentLanguage));
 const unclaimed = { ...base, id: 'local-2026-10-02-jhn3' };
 const owned = { ...base, id: 'local-2026-10-09-mat6', leaderId: 'uid-other' };
 

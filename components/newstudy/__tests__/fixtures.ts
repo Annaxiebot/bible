@@ -5,9 +5,13 @@
 import { LIFE_AREAS } from '../../studypack/principles';
 import { StudyRequest } from '../packAssembly';
 
+/** The bilingual request: JOHN3_GENERATED below is a "中文 · English" reply. */
 export const JOHN3_REQUEST: StudyRequest = {
-  bookId: 'JHN', chapter: 3, verseFrom: 22, verseTo: 36, date: '2026-10-02',
+  bookId: 'JHN', chapter: 3, verseFrom: 22, verseTo: 36, date: '2026-10-02', contentLanguage: 'bilingual',
 };
+
+/** The same passage drafted Chinese-first with English keywords (JOHN3_GENERATED_ZH). */
+export const JOHN3_REQUEST_ZH: StudyRequest = { ...JOHN3_REQUEST, contentLanguage: 'zh-keywords' };
 
 const bi = (zh: string, en: string) => ({ zh, en });
 
@@ -59,3 +63,40 @@ export const JOHN3_GENERATED = {
 export const JOHN3_VALID_CROSS_REF_COUNT = 3;
 
 export const JOHN3_REPLY_JSON = JSON.stringify(JOHN3_GENERATED);
+
+/** One English keyword as a zh-keywords line writes it: Chinese term, then the English once in full-width parentheses. */
+export const JOHN3_KEYWORD_ZH = '施洗（baptism）';
+export const JOHN3_KEYWORD_DECREASE_ZH = '「衰微」（decrease）';
+
+type ZhOnly = { zh: string };
+const zhOnly = ({ zh }: { zh: string }): ZhOnly => ({ zh });
+const zhList = (items: { zh: string }[]) => items.map(zhOnly);
+
+/**
+ * What a well-behaved model returns in zh-keywords mode: the same pack with
+ * no "en" half on the drafted items (title and keyPhrase keep both) and the
+ * key terms followed once by the English in parentheses.
+ */
+export const JOHN3_GENERATED_ZH = {
+  title: JOHN3_GENERATED.title,
+  keyPhrase: JOHN3_GENERATED.keyPhrase,
+  context: [{ zh: `约翰的门徒为${JOHN3_KEYWORD_ZH}的事起了争论` }, ...zhList(JOHN3_GENERATED.context.slice(1))],
+  originalLanguage: zhList(JOHN3_GENERATED.originalLanguage),
+  crossRefs: JOHN3_GENERATED.crossRefs.map(c => ({ ref: c.ref, zh: c.zh })),
+  discussion: [
+    ...zhList(JOHN3_GENERATED.discussion.slice(0, 3)),
+    { zh: `在你的生活里，${JOHN3_KEYWORD_DECREASE_ZH}意味着什么？` },
+    zhOnly(JOHN3_GENERATED.discussion[4]),
+  ],
+  lifeMenu: JOHN3_GENERATED.lifeMenu.map((l, i) => ({
+    area: l.area, zh: i === 1 ? `一周三次散步时默想第30节的${JOHN3_KEYWORD_DECREASE_ZH}` : l.zh,
+  })),
+  reflection: {
+    tue: zhOnly(JOHN3_GENERATED.reflection.tue),
+    thu: zhOnly(JOHN3_GENERATED.reflection.thu),
+    weekend: zhOnly(JOHN3_GENERATED.reflection.weekend),
+  },
+  closing: { zh: `这周${JOHN3_KEYWORD_DECREASE_ZH}在哪里与真实生活相撞？` },
+};
+
+export const JOHN3_REPLY_JSON_ZH = JSON.stringify(JOHN3_GENERATED_ZH);
