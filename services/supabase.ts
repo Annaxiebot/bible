@@ -8,7 +8,7 @@
 
 import { createClient, User, Session, AuthError } from '@supabase/supabase-js';
 import { rememberAuthReturn, takeAuthReturn } from './authReturnHash';
-import { GOOGLE_SIGN_IN_SCOPES, GOOGLE_SIGN_IN_QUERY } from './googleForms';
+import { googleSignInOptions } from './googleForms';
 
 // Get configuration from environment variables
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
@@ -159,7 +159,8 @@ class AuthManager {
     return () => this.listeners.delete(listener);
   }
 
-  async signInWithGoogle(): Promise<{ error: AuthError | null }> {
+  /** Identity-only by default; `withForms` is the explicit "连接 Google 表单" opt-in (googleForms.ts). */
+  async signInWithGoogle(options: { withForms?: boolean } = {}): Promise<{ error: AuthError | null }> {
     if (!supabase) {
       return { error: new Error('Supabase not configured') as unknown as AuthError };
     }
@@ -168,8 +169,7 @@ class AuthManager {
       provider: 'google',
       options: {
         redirectTo: window.location.origin + window.location.pathname,
-        scopes: GOOGLE_SIGN_IN_SCOPES,
-        queryParams: GOOGLE_SIGN_IN_QUERY,
+        ...googleSignInOptions(options.withForms === true),
       }
     });
     return { error };
