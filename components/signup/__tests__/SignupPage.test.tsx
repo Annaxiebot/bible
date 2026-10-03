@@ -28,7 +28,7 @@ import {
   SU_THANKS, SU_NEXT, SU_NEXT_NO_CHECKINS, SU_ERR_PACK, SU_ERR_NOT_CONFIGURED, SU_DEMO_LINE, SU_UNCLAIMED_LINE,
   SU_SIGN_IN_GOOGLE, SU_PRACTICE_TITLE, SU_NEXT_STEP, commitmentLine,
 } from '../signupStrings';
-import { SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../../setup/QuickAISetup';
+import { SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../../setup/setupStrings';
 
 const singleMock = vi.fn();
 const insertMock = vi.fn((_payload: unknown) => ({ select: () => ({ single: singleMock }) }));

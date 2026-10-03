@@ -18,11 +18,8 @@ import {
   SETUP_TITLE, SETUP_EXPLANATION, SETUP_KEY_LABEL, SETUP_KEY_PLACEHOLDER,
   SETUP_SHOW_KEY, SETUP_HIDE_KEY, SETUP_GET_KEY, SETUP_TEST, SETUP_TESTING,
   SETUP_SAVE, SETUP_CANCEL, SETUP_CLOSE, SETUP_REPLACE, savedKeyLine,
+  SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX,
 } from './setupStrings';
-
-/** ADR-0003 §15 floors: inputs/buttons ≥ 18px type, ≥ 48px tap targets. */
-export const SETUP_MIN_FONT_PX = 20;
-export const SETUP_MIN_TAP_PX = 48;
 
 const textStyle: React.CSSProperties = { fontSize: SETUP_MIN_FONT_PX, lineHeight: 1.5 };
 const controlStyle: React.CSSProperties = { ...textStyle, minHeight: SETUP_MIN_TAP_PX };

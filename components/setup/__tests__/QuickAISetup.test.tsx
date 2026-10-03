@@ -28,7 +28,8 @@ vi.mock('../../../services/openrouter', async (importOriginal) => ({
   testApiKey: (...args: unknown[]) => testApiKeyMock(...args),
 }));
 
-import { QuickAISetupForm, QuickAISetupDialog, SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../QuickAISetup';
+import { QuickAISetupForm, QuickAISetupDialog } from '../QuickAISetup';
+import { SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../setupStrings';
 
 function makeStorage(initial: Record<string, string> = {}) {
   const store: Record<string, string> = { ...initial };
