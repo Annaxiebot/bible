@@ -55,6 +55,18 @@ export function recommendedFor(rowLabel: string): string {
   return bilingualLine(SETUP_MODEL_RECOMMENDED, rowLabel);
 }
 
+// ---- Sync line (under the Models block) · 同步设置 --------------------------
+// The sign-in button label is SU_SIGN_IN_GOOGLE / SU_SIGNING_IN (signupStrings, R3).
+
+export const SETUP_SYNC_SIGNED_OUT = bilingual('登录以在各设备同步设置', 'Sign in to sync settings across devices');
+/** "已登录 Signed in · 设置已同步 settings synced" — the email follows on the same line. */
+export const SETUP_SYNC_SIGNED_IN = bilingualLine(bilingual('已登录', 'Signed in'), bilingual('设置已同步', 'settings synced'));
+export const SETUP_SIGN_OUT = bilingual('退出登录', 'Sign out');
+/** Prefix of the red line when a pull/push failed; the server message follows. */
+export const SETUP_SYNC_FAILED = bilingualLine('设置同步失败', 'settings sync failed');
+/** Prefix of the red line when sign-out failed; the auth message follows. */
+export const SETUP_SIGN_OUT_FAILED = bilingualLine('退出登录失败', 'sign-out failed');
+
 // ---- Test outcomes · 测试结果 ----------------------------------------------
 
 export const SETUP_TEST = bilingual('测试', 'Test');
