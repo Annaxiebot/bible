@@ -6,22 +6,13 @@
  * means changing only these two files.
  */
 import { getApiKey } from '../../services/openrouter';
-import { STORAGE_KEYS } from '../../constants/storageKeys';
-import { DEFAULT_AI_SETUP, wireModelId } from '../../services/aiDefaults';
+import { askAIModel, wireModelId } from '../../services/aiDefaults';
 import { StudyPack, Slide, packContentLanguage } from './packTypes';
 import { ASK_AI_ANSWER_CONTRACT, CONTENT_LANGUAGE_CONTRACTS, TRANSLATIONS } from './principles';
 
-/**
- * The OpenRouter model the overlay sends: the model chosen in AI settings
- * when the stored provider is OpenRouter (same keys AIProviderSettings and
- * aiDefaults use), otherwise the free-models router. A new visitor who only
- * pasted a key therefore gets free models (ADR goal: one paste, it works).
- */
+/** The OpenRouter wire id the overlay sends: the configurable Ask-AI choice (services/aiDefaults askAIModel) mapped from any router alias. */
 export function resolveAskAIModel(): string {
-  const provider = localStorage.getItem(STORAGE_KEYS.AI_PROVIDER);
-  const model = localStorage.getItem(STORAGE_KEYS.AI_MODEL);
-  const chosen = provider === DEFAULT_AI_SETUP.provider && model ? model : DEFAULT_AI_SETUP.model;
-  return wireModelId(chosen);
+  return wireModelId(askAIModel());
 }
 
 /**

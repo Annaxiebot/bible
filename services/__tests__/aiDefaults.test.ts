@@ -12,6 +12,8 @@ import {
   DEFAULT_AI_SETUP, FREE_MODELS_ROUTER_ID, OPENROUTER_KEYS_URL, ASK_AI_MODEL, PACK_GENERATION_MODEL,
   ASK_AI_FALLBACK_MODELS, wireModelId,
   applyDefaultAISetup, applyRecommendedModel, hasChosenProvider, initialModelChoice, saveOpenRouterKey,
+  askAIModel, setAskAIModel, packGenerationModel, setPackGenerationModel,
+  askAIFallbackModels, setAskAIFallbackModels, parseModelList,
 } from '../aiDefaults';
 import { getCurrentProvider, getCurrentModel } from '../aiProvider';
 import { FREE_ROUTER_MODEL } from '../openrouter';
@@ -92,6 +94,60 @@ describe('applyRecommendedModel (the one-tap switch in the saved-key dialog)', (
     applyRecommendedModel();
     expect(getCurrentProvider()).toBe(DEFAULT_AI_SETUP.provider);
     expect(getCurrentModel()).toBe(ASK_AI_MODEL);
+  });
+});
+
+describe('configurable model roles (#/setup rows): stored and valid wins, else the constant', () => {
+  it('askAIModel: constant when nothing is stored, when the provider is not OpenRouter, or the stored id is blank', () => {
+    expect(askAIModel()).toBe(ASK_AI_MODEL);
+    storage.setItem(STORAGE_KEYS.AI_PROVIDER, 'gemini');
+    storage.setItem(STORAGE_KEYS.AI_MODEL, 'gemini-3-pro-preview');
+    expect(askAIModel()).toBe(ASK_AI_MODEL);
+    storage.setItem(STORAGE_KEYS.AI_PROVIDER, 'openrouter');
+    storage.setItem(STORAGE_KEYS.AI_MODEL, '   ');
+    expect(askAIModel()).toBe(ASK_AI_MODEL);
+  });
+
+  it('askAIModel: the stored OpenRouter choice (app-side alias kept; callers map it to the wire id)', () => {
+    storage.setItem(STORAGE_KEYS.AI_PROVIDER, 'openrouter');
+    storage.setItem(STORAGE_KEYS.AI_MODEL, FREE_MODELS_ROUTER_ID);
+    expect(askAIModel()).toBe(FREE_MODELS_ROUTER_ID);
+  });
+
+  it('setAskAIModel writes provider + trimmed model so the choice is effective; "" clears back to the default', () => {
+    setAskAIModel('  openai/gpt-4o-mini ');
+    expect(storage.dump()).toEqual({ [STORAGE_KEYS.AI_PROVIDER]: 'openrouter', [STORAGE_KEYS.AI_MODEL]: 'openai/gpt-4o-mini' });
+    expect(askAIModel()).toBe('openai/gpt-4o-mini');
+    setAskAIModel('');
+    expect(storage.dump()).toEqual({ [STORAGE_KEYS.AI_PROVIDER]: 'openrouter' });
+    expect(askAIModel()).toBe(ASK_AI_MODEL);
+  });
+
+  it('packGenerationModel: constant when absent or blank, the trimmed stored id otherwise', () => {
+    expect(packGenerationModel()).toBe(PACK_GENERATION_MODEL);
+    storage.setItem(STORAGE_KEYS.AI_PACK_MODEL, ' ');
+    expect(packGenerationModel()).toBe(PACK_GENERATION_MODEL);
+    setPackGenerationModel(' deepseek/deepseek-chat-v3-0324 ');
+    expect(storage.getItem(STORAGE_KEYS.AI_PACK_MODEL)).toBe('deepseek/deepseek-chat-v3-0324');
+    expect(packGenerationModel()).toBe('deepseek/deepseek-chat-v3-0324');
+    setPackGenerationModel('');
+    expect(storage.getItem(STORAGE_KEYS.AI_PACK_MODEL)).toBeNull();
+  });
+
+  it('parseModelList splits on commas, trims, and drops empties', () => {
+    expect(parseModelList(' a/b ,, c/d ,')).toEqual(['a/b', 'c/d']);
+    expect(parseModelList(' , ')).toEqual([]);
+  });
+
+  it('askAIFallbackModels: constant list when absent, blank, or commas only; parsed stored list otherwise', () => {
+    expect(askAIFallbackModels()).toBe(ASK_AI_FALLBACK_MODELS);
+    storage.setItem(STORAGE_KEYS.AI_FALLBACK_MODELS, ' , ,');
+    expect(askAIFallbackModels()).toBe(ASK_AI_FALLBACK_MODELS);
+    setAskAIFallbackModels(' x/one ,y/two,, ');
+    expect(storage.getItem(STORAGE_KEYS.AI_FALLBACK_MODELS)).toBe('x/one, y/two');
+    expect(askAIFallbackModels()).toEqual(['x/one', 'y/two']);
+    setAskAIFallbackModels(',');
+    expect(storage.getItem(STORAGE_KEYS.AI_FALLBACK_MODELS)).toBeNull();
   });
 });
 

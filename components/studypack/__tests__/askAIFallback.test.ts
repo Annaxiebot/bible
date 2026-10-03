@@ -245,6 +245,13 @@ describe('streamStudyAI — reasoning models and empty streams', () => {
     expect(body(1).model).toBe(ASK_AI_FALLBACK_MODELS[0]);
   });
 
+  it('uses the fallback list chosen on #/setup (comma-separated) instead of the default list', async () => {
+    configureKey({ [STORAGE_KEYS.AI_FALLBACK_MODELS]: ' x/one , y/two ' });
+    const { body } = stubFetch(sseResponse([finish('stop'), DONE]), sseResponse([content('ok', 'x/one'), DONE]));
+    await expect(ask()).resolves.toEqual({ text: 'ok', model: 'x/one' });
+    expect(body(1).model).toBe('x/one');
+  });
+
   it('the fallback skips the model that just failed when it is itself on the list', async () => {
     configureKey({ [STORAGE_KEYS.AI_PROVIDER]: 'openrouter', [STORAGE_KEYS.AI_MODEL]: ASK_AI_FALLBACK_MODELS[0] });
     const { body } = stubFetch(sseResponse([finish('stop'), DONE]), sseResponse([content('ok'), DONE]));

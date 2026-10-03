@@ -5,12 +5,13 @@
  *   1. the resolved model as configured;
  *   2. if that stream ended with reasoning but no content (or finish_reason
  *      "length"), the same model with reasoning turned off and a larger cap;
- *   3. once, the first ASK_AI_FALLBACK_MODELS entry that differs from the
+ *   3. once, the first fallback entry (services/aiDefaults askAIFallbackModels:
+ *      the #/setup choice, else ASK_AI_FALLBACK_MODELS) that differs from the
  *      model that failed — after an empty answer, a model/HTTP/stream error.
  * Each attempt aborts if no token arrives within the first-token budget.
  * Invalid key, no credits, a content filter and a user cancel never retry.
  */
-import { ASK_AI_FALLBACK_MODELS } from '../../services/aiDefaults';
+import { askAIFallbackModels } from '../../services/aiDefaults';
 import { StudyPack, Slide } from './packTypes';
 import { AskAIMessage, resolveAskAIModel, stripSplitMarker } from './askAI';
 import { buildRequestBody, streamChatCompletionDetailed, StreamOutcome } from './askAIStream';
@@ -82,7 +83,7 @@ async function runAttempt(
 
 /** The first fallback id that is none of the models already tried; undefined when exhausted. */
 export function nextFallbackModel(tried: ReadonlySet<string>): string | undefined {
-  return ASK_AI_FALLBACK_MODELS.find(id => !tried.has(id));
+  return askAIFallbackModels().find(id => !tried.has(id));
 }
 
 /**
