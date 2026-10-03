@@ -3,13 +3,14 @@
  *
  * fetch is stubbed: the create and batchUpdate request bodies are pinned,
  * the responder link is extracted, 401/403 become typed failures (API not
- * enabled told apart from a missing scope), and the sign-in scope/query
- * constants carry the Forms scope + offline/consent.
+ * enabled told apart from a missing scope), and the sign-in options: the
+ * ordinary sign-in is identity-only; the Forms scope + offline/consent come
+ * only with the explicit opt-in.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import {
   createFeedbackForm, formTitle, formItems, batchUpdateBody, failureFor, FORMS_API_BASE, GOOGLE_FORMS_SCOPE,
-  GOOGLE_SIGN_IN_SCOPES, GOOGLE_SIGN_IN_QUERY, OTHER_OPTION,
+  GOOGLE_SIGN_IN_SCOPES, GOOGLE_FORMS_SIGN_IN_SCOPES, GOOGLE_FORMS_SIGN_IN_QUERY, googleSignInOptions, OTHER_OPTION,
 } from '../googleForms';
 import { LIFE_AREAS } from '../../components/studypack/principles';
 
@@ -31,10 +32,15 @@ function stubFetch(replies: Reply[]) {
 describe('googleForms', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it('sign-in asks for the Forms scope with offline access + consent', () => {
-    expect(GOOGLE_SIGN_IN_SCOPES.split(' ')).toContain(GOOGLE_FORMS_SCOPE);
-    expect(GOOGLE_SIGN_IN_SCOPES).toContain('openid email profile');
-    expect(GOOGLE_SIGN_IN_QUERY).toEqual({ access_type: 'offline', prompt: 'consent' });
+  it('the ordinary sign-in is identity-only (no sensitive scope, no consent prompt); the opt-in adds Forms + offline/consent', () => {
+    expect(GOOGLE_SIGN_IN_SCOPES).toBe('openid email profile');
+    expect(googleSignInOptions(false)).toEqual({ scopes: 'openid email profile' });
+    expect(JSON.stringify(googleSignInOptions(false))).not.toMatch(/forms\.body|consent|offline/);
+    expect(GOOGLE_FORMS_SIGN_IN_SCOPES.split(' ')).toEqual(['openid', 'email', 'profile', GOOGLE_FORMS_SCOPE]);
+    expect(GOOGLE_FORMS_SIGN_IN_QUERY).toEqual({ access_type: 'offline', prompt: 'consent' });
+    expect(googleSignInOptions(true)).toEqual({
+      scopes: GOOGLE_FORMS_SIGN_IN_SCOPES, queryParams: { access_type: 'offline', prompt: 'consent' },
+    });
   });
 
   it('creates the form (title) then adds the five items with the bearer token; returns the responder link', async () => {

@@ -1,24 +1,42 @@
 /**
- * googleForms.ts — create a feedback form in the leader's own Google account · 自动建表单
+ * googleForms.ts — create a feedback form in the leader's own Google account · 连接 Google 表单（可选）
  *
- * By default every pack gets its own Google Form (ADR-0004 §9): the Google
- * sign-in requests the forms.body scope, the session's provider_token is
- * used here only (in memory, never logged, never sent to our backend), and
- * two Forms API calls build the form: forms.create (title), then
- * forms.batchUpdate (five items). The responder link is stored on the pack.
+ * Google Forms is an explicit opt-in (ADR-0004 §9): the built-in check-in
+ * page (#/checkin/<id>, Supabase) is the default and needs no setup. The
+ * ordinary Google sign-in asks for identity only (GOOGLE_SIGN_IN_SCOPES —
+ * no sensitive scope, so no Google app verification). Only "连接 Google 表单
+ * Connect Google Forms" re-runs the sign-in with GOOGLE_FORMS_SIGN_IN_SCOPES
+ * + offline/consent so the session carries provider_token; that token is
+ * used here only (in memory, never logged, never sent to our backend) for
+ * two Forms API calls: forms.create (title), then forms.batchUpdate (five
+ * items). The responder link is stored on the pack.
  * Prefill ids: the Forms API returns hexadecimal questionIds, but the
  * entry.<id> used by prefilled links is not documented as derivable from
- * them, so auto-created forms are linked plain; a leader who wants prefill
+ * them, so created forms are linked plain; a leader who wants prefill
  * copies the ids from "Get pre-filled link" into the editor's fields.
- * Failures are typed (FormFailure), never thrown: the caller falls back to
- * the built-in check-in page and names the cause.
+ * Failures are typed (FormFailure), never thrown: the caller keeps the
+ * built-in check-in page and names the cause.
  * Setup steps for the owner: docs/guides/google-forms-setup.md.
  */
 
+/** Ordinary sign-in (AuthPanel, leader page, sign-up claim): identity only. */
+export const GOOGLE_SIGN_IN_SCOPES = 'openid email profile';
 export const GOOGLE_FORMS_SCOPE = 'https://www.googleapis.com/auth/forms.body';
-/** The sign-in scopes: identity + Forms; offline + consent so provider_token (and its refresh token) come back. */
-export const GOOGLE_SIGN_IN_SCOPES = `openid email profile ${GOOGLE_FORMS_SCOPE}`;
-export const GOOGLE_SIGN_IN_QUERY = { access_type: 'offline', prompt: 'consent' } as const;
+/** Opt-in sign-in: identity + Forms; offline + consent so provider_token (and its refresh token) come back. */
+export const GOOGLE_FORMS_SIGN_IN_SCOPES = `${GOOGLE_SIGN_IN_SCOPES} ${GOOGLE_FORMS_SCOPE}`;
+export const GOOGLE_FORMS_SIGN_IN_QUERY = { access_type: 'offline', prompt: 'consent' } as const;
+
+export interface GoogleSignInOptions {
+  scopes: string;
+  queryParams?: Record<string, string>;
+}
+
+/** What authManager.signInWithGoogle passes to the OAuth call: the Forms scope and consent prompt only on opt-in. */
+export function googleSignInOptions(withForms: boolean): GoogleSignInOptions {
+  return withForms
+    ? { scopes: GOOGLE_FORMS_SIGN_IN_SCOPES, queryParams: { ...GOOGLE_FORMS_SIGN_IN_QUERY } }
+    : { scopes: GOOGLE_SIGN_IN_SCOPES };
+}
 
 export const FORMS_API_BASE = 'https://forms.googleapis.com/v1/forms';
 
