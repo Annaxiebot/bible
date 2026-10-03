@@ -7,6 +7,7 @@
  */
 import { expect, Page } from '@playwright/test';
 import { NEW_STUDY_HASH } from '../../../components/landing/landingRoute';
+import type { ContentLanguage } from '../../../components/studypack/principles';
 
 export const PACK_ID = 'local-2026-10-02-jhn3';
 
@@ -15,8 +16,14 @@ export async function openNewStudy(page: Page) {
   await expect(page.getByTestId('new-study-page')).toBeVisible();
 }
 
-/** John 3 from the dropdowns: 36 verse options come from the real bundled chapter; To defaults to 36. */
-export async function fillJohn3(page: Page) {
+/**
+ * John 3 from the dropdowns: 36 verse options come from the real bundled
+ * chapter; To defaults to 36. The content language is picked explicitly
+ * (the mocked replies are bilingual unless a spec says otherwise); null
+ * leaves the form's own default in place.
+ */
+export async function fillJohn3(page: Page, contentLanguage: ContentLanguage | null = 'bilingual') {
+  if (contentLanguage) await page.getByTestId('ns-content-language').selectOption(contentLanguage);
   await page.getByTestId('ns-book').selectOption('JHN');
   await page.getByTestId('ns-chapter').selectOption('3');
   await expect(page.getByTestId('ns-verse-to').locator('option')).toHaveCount(36);

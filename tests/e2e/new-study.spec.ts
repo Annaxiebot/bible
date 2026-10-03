@@ -9,7 +9,8 @@
  * 和合本|BSB verses and 18 slides, and Escape returns to the editor;
  * reloading #/new/<id> restores it; Export downloads the pack JSON. No
  * live AI call is made. The feedback-form tests live in
- * new-study-feedback.spec.ts; shared steps in helpers/newStudy.ts.
+ * new-study-feedback.spec.ts, the content-language flow in
+ * new-study-language.spec.ts; shared steps in helpers/newStudy.ts.
  */
 import { test, expect } from '@playwright/test';
 import { NEW_STUDY_LINE } from '../../components/landing/landingStrings';
@@ -17,11 +18,12 @@ import { SETUP_TITLE } from '../../components/setup/setupStrings';
 import {
   NS_TITLE, NS_BOOK, NS_GENERATE, NS_EDIT_TITLE, NS_SAVE, NS_SAVED, NS_AUTOSAVED, NS_PREVIEW, NS_EXPORT, NS_MY_PACKS, NS_EDIT,
   NS_SCRIPTURE_NOTE, NS_RETRY, NS_ERR_NO_JSON, NS_RANGE_UPDATED, NS_SECTION_REMOVE_CONFIRM,
+  NS_CONTENT_LANGUAGE, NS_CONTENT_LANGUAGE_OPTIONS,
 } from '../../components/newstudy/newStudyStrings';
 import { newStudyHash } from '../../components/landing/landingRoute';
 import { PACK_CONTINUE_PROMPT } from '../../components/newstudy/packPrompt';
 import { JOHN3_REPLY_JSON } from '../../components/newstudy/__tests__/fixtures';
-import { LIFE_AREAS } from '../../components/studypack/principles';
+import { LIFE_AREAS, DEFAULT_CONTENT_LANGUAGE } from '../../components/studypack/principles';
 import { injectApiKey, mockOpenRouterStream, mockOpenRouterSequence, sseBody, OPENROUTER_CHAT_URL } from './helpers/tv';
 import { PACK_ID, openNewStudy, fillJohn3, chunked } from './helpers/newStudy';
 
@@ -54,6 +56,16 @@ test.describe('New study', () => {
     await expect(page.getByTestId('ns-verse-to').locator('option')).toHaveCount(34);
     await expect(page.getByTestId('ns-verse-from')).toHaveValue('25');
     await expect(page.getByTestId('ns-verse-to')).toHaveValue('34');
+    // 内容语言 Content language: a large native select, defaulting to 中文为主 (Chinese with English keywords).
+    await expect(form.getByText(NS_CONTENT_LANGUAGE)).toBeVisible();
+    const language = page.getByTestId('ns-content-language');
+    await expect(language).toHaveJSProperty('tagName', 'SELECT');
+    await expect(language).toHaveValue(DEFAULT_CONTENT_LANGUAGE);
+    await expect(language.locator('option').first()).toHaveText(NS_CONTENT_LANGUAGE_OPTIONS['zh-keywords']);
+    await expect(language.locator('option').first()).toHaveText(/^中文为主/);
+    await expect(language.locator('option')).toHaveCount(3);
+    expect((await language.boundingBox())!.height).toBeGreaterThanOrEqual(48);
+    expect(await language.evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(20);
     await expect(page.getByText(NS_MY_PACKS)).toBeVisible();
   });
 
