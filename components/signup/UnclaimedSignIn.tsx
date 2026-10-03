@@ -4,12 +4,14 @@
  * One shared block for the TV qr slide and #/signup when a LOCAL pack has
  * no leader yet (packSource.packSignupState === 'unclaimed'): the bilingual
  * line plus a Google sign-in button that reuses the app's auth flow
- * (authManager.signInWithGoogle — the same call AuthPanel makes). Signing
- * in claims every local pack in this browser (claimLocalPacks) and returns
- * to the same hash (authReturnHash); a claim failure renders under the line.
+ * (useGoogleSignIn → authManager.signInWithGoogle, the same call AuthPanel
+ * makes). Signing in claims every local pack in this browser
+ * (claimLocalPacks) and returns to the same hash (authReturnHash); a claim
+ * failure renders under the line.
  */
-import React, { useState } from 'react';
-import { authManager, isSupabaseConfigured } from '../../services/supabase';
+import React from 'react';
+import { isSupabaseConfigured } from '../../services/supabase';
+import { useGoogleSignIn } from './useGoogleSignIn';
 import { useLocalPackClaim } from '../newstudy/claimLocalPacks';
 import { SU_UNCLAIMED_LINE, SU_SIGN_IN_GOOGLE, SU_SIGNING_IN, SU_ERR_NOT_CONFIGURED } from './signupStrings';
 
@@ -23,17 +25,8 @@ interface Props {
 const buttonClass = 'rounded-xl bg-amber-500 px-8 py-3 font-semibold text-slate-950 hover:bg-amber-400 disabled:opacity-60';
 
 const UnclaimedSignIn: React.FC<Props> = ({ packId, lineStyle, buttonStyle }) => {
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { signIn, busy, error } = useGoogleSignIn();
   const claim = useLocalPackClaim(packId);
-
-  const signIn = async () => {
-    setError(null);
-    setBusy(true);
-    const { error: authError } = await authManager.signInWithGoogle();
-    setBusy(false);
-    if (authError) setError(authError.message);
-  };
 
   const shownError = error ?? claim.failure;
   return (
