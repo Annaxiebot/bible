@@ -252,14 +252,16 @@ GRANT EXECUTE ON FUNCTION public.checkin_context(UUID) TO anon, authenticated;
 --      supabase secrets set DRY_RUN=1                        # keep 1 until a dry run looks right in checkin_sends
 --      supabase secrets set CHECKIN_FROM='Scripture to Life <checkins@scripturetolife.org>'   # optional; email From
 --      supabase secrets set CHECKIN_REPLY_TO='...@agentmail.to'                                # optional; email Reply-To
---    SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are injected automatically.
+--      supabase secrets set CHECKIN_CRON_SECRET=<long random>    # trusted-caller header for pg_cron / owner shell
+--    SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are injected automatically
+--    (the function uses them only for its own DB client, never to trust a caller).
 -- 3. Verify the sending domain in Resend (DNS: SPF + DKIM) so mail from
 --    checkins@scripturetolife.org is not rejected. The FROM address is
 --    CHECKIN_FROM when set, else the constant CHECKIN_FROM_EMAIL in
 --    supabase/functions/send-checkins/templates.ts; replies go to
 --    CHECKIN_REPLY_TO when set (no Reply-To header otherwise). SMS ignores both.
 -- 4. Extensions (dashboard → Database → Extensions): pg_cron, pg_net.
--- 5. Store the service-role key for pg_net (Vault), then schedule. pg_cron
+-- 5. Store the anon key and CHECKIN_CRON_SECRET for pg_net (Vault), then schedule. pg_cron
 --    runs in UTC; America/Los_Angeles 09:00 is 16:00 UTC in PST and 17:00 in
 --    PDT. Two cron lines per kind cover both; the body carries
 --    "scheduled": true, which makes the function send only during the 09:00
@@ -267,19 +269,21 @@ GRANT EXECUTE ON FUNCTION public.checkin_context(UUID) TO anon, authenticated;
 --
 -- CREATE EXTENSION IF NOT EXISTS pg_cron;
 -- CREATE EXTENSION IF NOT EXISTS pg_net;
--- SELECT vault.create_secret('<service-role-key>', 'service_role_key');
+-- SELECT vault.create_secret('<anon-key>', 'anon_key');                  -- passes the functions gateway
+-- SELECT vault.create_secret('<CHECKIN_CRON_SECRET>', 'checkin_cron_secret');   -- what the function trusts
 -- SELECT vault.create_secret('https://<project-ref>.supabase.co', 'project_url');
 --
 -- CREATE OR REPLACE FUNCTION public.call_send_checkins(kind TEXT) RETURNS BIGINT
 -- LANGUAGE plpgsql SECURITY DEFINER AS $$
 -- DECLARE
 --   url TEXT := (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'project_url');
---   key TEXT := (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'service_role_key');
+--   key TEXT := (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'anon_key');
+--   secret TEXT := (SELECT decrypted_secret FROM vault.decrypted_secrets WHERE name = 'checkin_cron_secret');
 --   current_pack TEXT := '2026-10-02-matt6';   -- update when the group moves to a new pack
 -- BEGIN
 --   RETURN net.http_post(
 --     url := url || '/functions/v1/send-checkins',
---     headers := jsonb_build_object('Content-Type', 'application/json', 'Authorization', 'Bearer ' || key),
+--     headers := jsonb_build_object('Content-Type', 'application/json', 'Authorization', 'Bearer ' || key, 'x-checkin-secret', secret),
 --     body := jsonb_build_object('pack_id', current_pack, 'kind', kind, 'scheduled', true)
 --   );
 -- END $$;

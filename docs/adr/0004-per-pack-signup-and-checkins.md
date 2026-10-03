@@ -39,7 +39,7 @@ hand. Supabase was already in the stack (auth, sync, `ai-chat` edge function).
    reflection lines (tue/thu/weekend = lines 0/1/2), emails through Resend,
    SMS through Twilio behind `CHECKIN_SMS_ENABLED`, writes one `checkin_sends`
    row per attempt. It verifies the pack ↔ leader pairing from the rows
-   (`verifyLeader`); only the service role may address the member list; any
+   (`verifyLeader`); only a trusted caller (header `x-checkin-secret` = secret `CHECKIN_CRON_SECRET`; pg_cron or the owner) may address the member list; any
    other caller must be the owner (JWT uid = `leaderId`) and is forced into a
    dry run to its own `test_to`. pg_cron fires two UTC lines per kind
    (PST/PDT) and the function sends only in the 09:00 LA hour.
@@ -142,7 +142,8 @@ hand. Supabase was already in the stack (auth, sync, `ai-chat` edge function).
     Resend's `reply_to`, e.g. an agent mailbox) are read in `index.ts` and
     passed to the pure `senders.emailConfig`/`sendEmail`. Secrets list:
     `RESEND_API_KEY`, `CHECKIN_FROM`, `CHECKIN_REPLY_TO`, `CHECKIN_SMS_ENABLED`,
-    `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM`, `DRY_RUN`
+    `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM`, `DRY_RUN`,
+    `CHECKIN_CRON_SECRET` (the trusted-caller header value, see §6)
     (runbook: `database/signups-schema.sql`). SMS is unaffected.
 
 ### Consequences (addendum)

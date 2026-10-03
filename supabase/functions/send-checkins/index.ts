@@ -11,11 +11,12 @@
  * - The pack's text comes from its pack_summaries row (written by the owner's
  *   browser), else the public pack JSON on scripturetolife.org (packSource.ts).
  *   Nothing in the request body supplies message content.
- * - Only the service role may send to the sign-up list. Any other caller
- *   must be the pack's owning leader (JWT uid = pack.leaderId) and is forced
- *   into a dry run addressed to `test_to`. The leader_id of every row must
- *   match the pack's leaderId (verifyLeader); nothing client-supplied is
- *   trusted for ownership.
+ * - Only a trusted caller (header x-checkin-secret = secret CHECKIN_CRON_SECRET;
+ *   see trust.ts for why the service-role key is not used) may send to the
+ *   sign-up list. Any other caller must be the pack's owning leader (JWT uid
+ *   = pack.leaderId) and is forced into a dry run addressed to `test_to`.
+ *   The leader_id of every row must match the pack's leaderId (verifyLeader);
+ *   nothing client-supplied is trusted for ownership.
  * - 'welcome' is the one anonymous path: the member's browser passes the
  *   signup id it just received; the row must exist and be younger than
  *   WELCOME_WINDOW_MS (recipients.welcomeAllowed). One email, to that row.
@@ -35,6 +36,7 @@ import {
   selectRecipients, testRecipientRow, verifyLeader, memberContext, welcomeAllowed, Recipient, SignupRow,
 } from './recipients.ts';
 import { emailConfig, sendEmail, sendSms, TwilioConfig } from './senders.ts';
+import { isTrustedCaller, CRON_SECRET_HEADER } from './trust.ts';
 
 /** Must equal components/studypack/packTypes.ts PACK_SCHEMA_VERSION (pinned by checkins.test.ts). */
 export const PACK_SCHEMA_VERSION = 2;
@@ -67,10 +69,8 @@ function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: JSON_HEADERS });
 }
 
-function isServiceRole(request: Request): boolean {
-  const auth = request.headers.get('Authorization') ?? '';
-  const key = env('SUPABASE_SERVICE_ROLE_KEY');
-  return key.length > 0 && auth === `Bearer ${key}`;
+function trustedRequest(request: Request): boolean {
+  return isTrustedCaller(request.headers.get(CRON_SECRET_HEADER), env('CHECKIN_CRON_SECRET'));
 }
 
 function serviceClient(): SupabaseClient {
@@ -201,7 +201,7 @@ async function handle(request: Request): Promise<Response> {
   const kind = resolveKind(body, now);
   if (!kind) return jsonResponse(200, { skipped: 'no check-in today', now: now.toISOString() });
 
-  const trusted = isServiceRole(request);
+  const trusted = trustedRequest(request);
   const testTo = typeof body.test_to === 'string' && body.test_to.includes('@') ? body.test_to : null;
   if (!trusted && !testTo) return jsonResponse(403, { error: 'Leaders may only send a test to their own email (test_to)' });
   const dryRun = !trusted || env('DRY_RUN') === '1' || testTo !== null;
