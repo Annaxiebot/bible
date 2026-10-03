@@ -3,7 +3,8 @@
  *
  * One paste, one Save: the key is stored under the existing storage key and
  * the shared defaults (OpenRouter + free-models router) are applied, so a
- * new visitor never visits the advanced settings. Two shapes of the same
+ * new visitor never visits the advanced settings. With a key stored, the
+ * three model roles are editable in place (ModelRows). Two shapes of the same
  * form: `QuickAISetupForm` renders inline (the TV Ask-AI overlay),
  * `QuickAISetupDialog` wraps it in a modal (landing page, #/setup).
  * Large type for seniors (ADR-0003 §15): text ≥ 18px, tap targets ≥ 48px.
@@ -11,12 +12,12 @@
  */
 import React, { useEffect, useRef } from 'react';
 import { OPENROUTER_KEYS_URL } from '../../services/aiDefaults';
-import { modelLine } from '../studypack/tvHints';
 import { useQuickAISetup, TestStatus, QuickAISetup } from './useQuickAISetup';
+import { ModelRows } from './ModelRows';
 import {
   SETUP_TITLE, SETUP_EXPLANATION, SETUP_KEY_LABEL, SETUP_KEY_PLACEHOLDER,
   SETUP_SHOW_KEY, SETUP_HIDE_KEY, SETUP_GET_KEY, SETUP_TEST, SETUP_TESTING,
-  SETUP_SAVE, SETUP_CANCEL, SETUP_CLOSE, SETUP_REPLACE, SETUP_USE_RECOMMENDED, savedKeyLine,
+  SETUP_SAVE, SETUP_CANCEL, SETUP_CLOSE, SETUP_REPLACE, savedKeyLine,
 } from './setupStrings';
 
 /** ADR-0003 §15 floors: inputs/buttons ≥ 18px type, ≥ 48px tap targets. */
@@ -39,23 +40,19 @@ const TestResult: React.FC<{ test: TestStatus }> = ({ test }) => {
 const secondaryButtonClass = 'rounded-lg border border-slate-600 px-4 text-slate-300 hover:text-slate-100';
 
 /**
- * Saved state: masked key (last 4 only) + the model Ask AI will send,
- * Replace to reveal the field, one-tap switch to the recommended model.
+ * Saved state: masked key (last 4 only), Replace to reveal the field, and
+ * the "模型 Models" rows (Ask AI / pack generation / fallbacks, each with a
+ * Recommended reset) that store on every change.
  */
 const SavedKeyPanel: React.FC<{ s: QuickAISetup }> = ({ s }) => (
   <div data-testid="saved-state" className="flex flex-col gap-3">
     <p data-testid="saved-key" className="text-emerald-300" style={textStyle}>{savedKeyLine(s.maskedKey ?? '')}</p>
-    <p data-testid="saved-model" className="text-slate-400" style={textStyle}>{modelLine(s.model)}</p>
     <div className="flex flex-wrap gap-3">
       <button type="button" onClick={s.startReplace} className={secondaryButtonClass} style={controlStyle}>
         {SETUP_REPLACE}
       </button>
-      {s.recommendedAvailable && (
-        <button type="button" onClick={s.useRecommended} className={secondaryButtonClass} style={controlStyle}>
-          {SETUP_USE_RECOMMENDED}
-        </button>
-      )}
     </div>
+    <ModelRows textStyle={textStyle} controlStyle={controlStyle} onChanged={s.refreshModel} />
   </div>
 );
 

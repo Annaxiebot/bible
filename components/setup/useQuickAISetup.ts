@@ -6,14 +6,15 @@
  * empty field; Replace reveals the field. Test reuses the existing validator
  * (services/openrouter testApiKey) against the typed key, or the STORED key
  * when the field is empty, with the model Ask AI resolves — so a wrong
- * stored model is visible. Save stores the key under the existing storage
+ * stored model is visible. The "模型 Models" rows (ModelRows) store their
+ * own changes and call refreshModel. Save stores the key under the existing storage
  * key and applies the shared defaults (services/aiDefaults). The key never
  * leaves component state except into localStorage — never logged, never in
  * a URL; only its last 4 characters are ever displayed.
  */
 import { useState, useCallback } from 'react';
 import { testApiKey, getApiKey, ApiKeyTestResult } from '../../services/openrouter';
-import { saveOpenRouterKey, applyRecommendedModel, DEFAULT_AI_SETUP } from '../../services/aiDefaults';
+import { saveOpenRouterKey } from '../../services/aiDefaults';
 import { classifyOpenRouterStatus } from '../../services/openrouterStatus';
 import { resolveAskAIModel } from '../studypack/askAI';
 import { httpDetail, modelUnavailableLine } from '../studypack/tvHints';
@@ -46,9 +47,8 @@ export interface QuickAISetup {
   startReplace: () => void;
   /** The model Ask AI will send (wire id). */
   model: string;
-  /** True when `model` differs from the recommended default (the one-tap switch is offered). */
-  recommendedAvailable: boolean;
-  useRecommended: () => void;
+  /** Re-read the Ask-AI model after the "模型 Models" rows stored a change (ModelRows onChanged). */
+  refreshModel: () => void;
 }
 
 /** Map the validator's result to the bilingual outcome line (status-typed, never a bare boolean). */
@@ -87,8 +87,7 @@ export function useQuickAISetup(): QuickAISetup {
   const toggleShown = useCallback(() => setShown(s => !s), []);
   const startReplace = useCallback(() => setReplacing(true), []);
 
-  const useRecommended = useCallback(() => {
-    applyRecommendedModel();
+  const refreshModel = useCallback(() => {
     setModel(resolveAskAIModel());
     setTest({ kind: 'idle' });
   }, []);
@@ -124,7 +123,6 @@ export function useQuickAISetup(): QuickAISetup {
     showingSaved: savedKey !== null && !replacing,
     startReplace,
     model,
-    recommendedAvailable: model !== DEFAULT_AI_SETUP.model,
-    useRecommended,
+    refreshModel,
   };
 }
