@@ -71,8 +71,9 @@ ALTER TABLE study_signups ADD COLUMN IF NOT EXISTS practice_note TEXT;
 -- this small row (title, passage, the three reflection lines, the closing
 -- question) whenever it opens #/leader/<id>, shows the pack's QR, or saves
 -- the pack. The edge function reads it with the service role to word the
--- check-ins. PRIVACY BOUNDARY: verses, context, discussion questions and
--- the life menu never leave the browser; nothing here is readable by anon.
+-- check-ins. Nothing here is readable by anon. Full packs live owner-only in
+-- study_packs; the sign-up page's public fields come from public_signup_pack
+-- (database/signup-pack-schema.sql, ADR-0006 §9).
 CREATE TABLE IF NOT EXISTS pack_summaries (
   pack_id TEXT PRIMARY KEY,
   leader_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,

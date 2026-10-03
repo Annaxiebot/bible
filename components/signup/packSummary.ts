@@ -5,8 +5,9 @@
  * edge function cannot read them. The owning leader's client upserts a
  * small summary row — title, passage, the three reflection lines, the
  * closing question, the optional feedback form — into pack_summaries (RLS:
- * leader_id = auth.uid()). That is the privacy boundary: the full pack
- * (verses, context, questions, life menu) never leaves the browser. One
+ * leader_id = auth.uid()). The full pack is stored owner-only in
+ * study_packs (ADR-0006); anon sees only this row's check-in wording via
+ * the function and the sign-up projection public_signup_pack (ADR-0006 §9). One
  * helper, called from the leader page, the QR (TV slide + landing), the
  * editor save and the sign-in claim.
  */

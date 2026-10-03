@@ -10,7 +10,7 @@ import { Page } from '@playwright/test';
 import { SAMPLE_PACK_ID } from '../../../components/landing/landingRoute';
 import { signupUrl } from '../../../components/signup/signupRoute';
 import {
-  SIGNUPS_TABLE, SignupInsert, CHECKIN_CONTEXT_FN, SHARE_ANSWER_FN, SEND_CHECKINS_FUNCTION,
+  SIGNUPS_TABLE, SignupInsert, CHECKIN_CONTEXT_FN, SHARE_ANSWER_FN, SEND_CHECKINS_FUNCTION, SIGNUP_PACK_FN,
 } from '../../../components/signup/signupSchema';
 
 export const E2E_LEADER_ID = '00000000-0000-4000-8000-00000000e2e1';
@@ -67,6 +67,19 @@ export async function mockBackend(page: Page, insertReply: { status: number; bod
     return route.fulfill({ status: 200, headers: json, body: JSON.stringify('answer-id') });
   });
   return { bodies: () => bodies, welcomes: () => welcomes, shares: () => shares };
+}
+
+/**
+ * Answer public_signup_pack (the member phone's fallback for a leader pack it
+ * does not hold) with `projection`; returns the request bodies seen.
+ */
+export async function mockSignupPackRpc(page: Page, projection: Record<string, unknown> | null): Promise<() => unknown[]> {
+  const calls: unknown[] = [];
+  await page.route(`**${E2E_SUPABASE_PATH}/rest/v1/rpc/${SIGNUP_PACK_FN}**`, route => {
+    calls.push(route.request().postDataJSON());
+    return route.fulfill({ status: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(projection) });
+  });
+  return () => calls;
 }
 
 /**
