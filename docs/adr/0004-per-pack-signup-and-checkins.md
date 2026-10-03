@@ -97,28 +97,41 @@ hand. Supabase was already in the stack (auth, sync, `ai-chat` edge function).
    every leaderless local pack with the uid and syncs its summary; pages
    re-read the pack on the claim event, so the QR appears without a reload.
    `packSource.packSignupState` is the single decision helper.
-9. **Feedback form (default: auto-created).** Every pack gets its own Google
-   Form, created in the leader's own Google account — the same identity as
-   the Google sign-in, which now requests `forms.body` with offline access +
-   consent so the session carries `provider_token` (kept in the browser
-   session only; never logged, never sent to our backend). The form has five
-   items (name; practice as a choice from the pack's seven practices +
-   Other; what I did; what changed in me; OK to share). Its responder link
-   is stored as `StudyPack.feedbackFormUrl` and in `pack_summaries`
-   (`feedback_form_url`, `feedback_form_entries`), so every check-in link
-   (welcome, scheduled sends) points at the form instead of `#/checkin`.
-   Pasting an existing form link (generation form, with "用于我所有的查经 ·
-   Use for all my studies" as the leader's default; or the editor's per-pack
-   field) overrides auto-creation; the built-in check-in page is the
-   fallback when creation fails (typed failures: no token / permission not
-   granted / Forms API not enabled / API error — each a bilingual notice,
-   never a throw). Prefill: `?usp=pp_url&entry.<id>=<value>` with the ids the
-   leader pastes; the API's hexadecimal questionIds are not documented as
-   convertible to entry ids, so auto-created forms are linked plain. Owner
-   setup: `docs/guides/google-forms-setup.md`. Creating forms through the
-   API in the leader's account was chosen over a shared form because the
-   responses then live with the leader; reading responses back via the API
-   (another scope) is a possible later step, not now.
+9. **Feedback vehicle: the built-in check-in page by default; Google Forms
+   is an explicit opt-in.** (Amended 2026-10-02, owner decision: Supabase is
+   the single backend. The first cut of this section auto-created a Google
+   Form per pack and had the ordinary sign-in request `forms.body`; that is
+   withdrawn.) A pack with no `feedbackFormUrl` uses `#/checkin/<signupId>`
+   for every check-in link (welcome, scheduled sends) — silently, with no
+   notice, because it is the default, not a fallback. The ordinary Google
+   sign-in (AuthPanel, leader page, sign-up claim) requests identity only
+   (`openid email profile`, `googleForms.GOOGLE_SIGN_IN_SCOPES`): no
+   sensitive scope, so no Google app verification and no Testing-mode
+   test-user list for leaders who never use Forms. The Forms scope with
+   offline access + consent is requested only by
+   `authManager.signInWithGoogle({ withForms: true })`, whose single caller
+   is the editor's "连接 Google 表单（可选）Connect Google Forms (optional)"
+   button (`useFeedbackForm.connect`; a source-scan test pins the single
+   caller). Connect creates the form in the leader's own Google account
+   (five items: name; practice as a choice from the pack's seven practices
+   + Other; what I did; what changed in me; OK to share) with the session's
+   `provider_token` (browser session only; never logged, never sent to our
+   backend); without a token it remembers the pack id, re-runs the sign-in
+   with the Forms scope, returns to the same editor and creates the form
+   then. The responder link is stored as `StudyPack.feedbackFormUrl` and in
+   `pack_summaries` (`feedback_form_url`, `feedback_form_entries`). Pasting
+   an existing form link (generation form, with "用于我所有的查经 · Use for
+   all my studies" as the leader's default; or the editor's per-pack field)
+   needs no Google permission. Typed failures of the opt-in (permission not
+   granted / Forms API not enabled / API error / network) are a bilingual
+   notice naming the cause; the pack keeps the built-in page; never a
+   throw. Prefill: `?usp=pp_url&entry.<id>=<value>` with the ids the leader
+   pastes; the API's hexadecimal questionIds are not documented as
+   convertible to entry ids, so created forms are linked plain. Owner setup
+   (only if a leader opts in): `docs/guides/google-forms-setup.md`. Landing
+   and setup copy do not promise Google Forms. Reading responses back via
+   the API (another sensitive scope) is not planned; the built-in page
+   already shows shared answers on the leader page.
 10. **A pack is never lost.** The editor auto-saves (first sight at once,
     edits after 500 ms, flush on Back/Preview/unmount; `useAutoSave`), the
     URL follows the pack (`#/new/<packId>`, reload restores), and TV mode
