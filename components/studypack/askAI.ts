@@ -8,8 +8,8 @@
 import { getApiKey } from '../../services/openrouter';
 import { STORAGE_KEYS } from '../../constants/storageKeys';
 import { DEFAULT_AI_SETUP, wireModelId } from '../../services/aiDefaults';
-import { StudyPack, Slide } from './packTypes';
-import { ASK_AI_ANSWER_CONTRACT, TRANSLATIONS } from './principles';
+import { StudyPack, Slide, packContentLanguage } from './packTypes';
+import { ASK_AI_ANSWER_CONTRACT, CONTENT_LANGUAGE_CONTRACTS, TRANSLATIONS } from './principles';
 
 /**
  * The OpenRouter model the overlay sends: the model chosen in AI settings
@@ -77,8 +77,10 @@ export function questionForSelection(selected: string): string {
 
 /**
  * Prompt for one overlay question. The passage (full bilingual text from the
- * pack), the current slide, and the answer contract are rebuilt every turn;
- * the conversation so far travels in the `history` parameter.
+ * pack), the current slide, the answer contract and the pack's content-
+ * language rule (a zh-keywords pack is answered in Chinese with English
+ * keywords by default) are rebuilt every turn; the conversation so far
+ * travels in the `history` parameter.
  */
 export function buildAskAIPrompt(pack: StudyPack, slide: Slide, question: string): string {
   return [
@@ -86,6 +88,7 @@ export function buildAskAIPrompt(pack: StudyPack, slide: Slide, question: string
     `FULL PASSAGE (${TRANSLATIONS.zh.label} / ${pack.enVersion}):\n${formatPassage(pack)}`,
     `CURRENT SLIDE:\n${formatSlide(slide)}`,
     ASK_AI_ANSWER_CONTRACT,
+    CONTENT_LANGUAGE_CONTRACTS[packContentLanguage(pack)].askAIRule,
     `QUESTION: ${question}`,
   ].join('\n\n');
 }

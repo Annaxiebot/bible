@@ -12,6 +12,7 @@ import { DEFAULT_AI_SETUP, ASK_AI_MODEL, FREE_MODELS_ROUTER_ID, wireModelId } fr
 import { FREE_ROUTER_MODEL } from '../../../services/openrouter';
 import { createSSEParser, SSEEvent } from '../askAIStream';
 import { TEST_PACK_PATH } from './fixtures';
+import { CONTENT_LANGUAGE_CONTRACTS, CONTENT_LANGUAGES } from '../principles';
 
 function loadPack(): { pack: StudyPack; slide: Slide } {
   const pack = parseStudyPack(JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8')));
@@ -65,6 +66,21 @@ describe('buildAskAIPrompt', () => {
     expect(prompt).toContain('language of the question');
     expect(prompt).toContain('citing the verse');
     expect(prompt).toContain('QUESTION: Why birds?');
+  });
+
+  it('carries the pack\'s content language: a legacy pack answers in the question\'s language, a zh-keywords pack in Chinese with English keywords', () => {
+    const { pack, slide } = loadPack();
+    const legacy = buildAskAIPrompt(pack, slide, 'q');
+    expect(legacy).toContain(CONTENT_LANGUAGE_CONTRACTS.bilingual.askAIRule);
+    expect(legacy).not.toContain(CONTENT_LANGUAGE_CONTRACTS['zh-keywords'].askAIRule);
+    for (const mode of CONTENT_LANGUAGES) {
+      const prompt = buildAskAIPrompt({ ...pack, contentLanguage: mode }, slide, 'q');
+      expect(prompt).toContain(CONTENT_LANGUAGE_CONTRACTS[mode].askAIRule);
+      expect(prompt.indexOf(CONTENT_LANGUAGE_CONTRACTS[mode].askAIRule)).toBeLessThan(prompt.indexOf('QUESTION: q'));
+    }
+    expect(CONTENT_LANGUAGE_CONTRACTS['zh-keywords'].askAIRule).toMatch(/answer in Simplified Chinese/);
+    expect(CONTENT_LANGUAGE_CONTRACTS['zh-keywords'].askAIRule).toContain('忧虑（anxiety）');
+    expect(CONTENT_LANGUAGE_CONTRACTS['en-keywords'].askAIRule).toMatch(/answer in English/);
   });
 
   it('includes every scripture section of a pack with TWO scripture sections', () => {
