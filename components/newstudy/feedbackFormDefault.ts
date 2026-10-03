@@ -12,7 +12,7 @@ import { NS_ERR_FEEDBACK_FORM } from './newStudyStrings';
 
 type KeyStore = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
-/** Empty is fine (auto-create or the built-in page); anything else must be a Google Form URL. */
+/** Empty is fine (the built-in check-in page is the default); anything else must be a Google Form URL. */
 export function validateFeedbackFormUrl(url: string): string | null {
   const trimmed = url.trim();
   if (!trimmed) return null;

@@ -9,8 +9,12 @@
 import { Page } from '@playwright/test';
 import { SAMPLE_PACK_ID } from '../../../components/landing/landingRoute';
 import { signupUrl } from '../../../components/signup/signupRoute';
+import {
+  SIGNUPS_TABLE, SignupInsert, CHECKIN_CONTEXT_FN, SHARE_ANSWER_FN, SEND_CHECKINS_FUNCTION,
+} from '../../../components/signup/signupSchema';
 
 export const E2E_LEADER_ID = '00000000-0000-4000-8000-00000000e2e1';
+export const E2E_SIGNUP_ID = '7d4e8b2a-1c3f-4a5b-9e6d-0f1a2b3c4d5e';
 
 /** Serve the sample pack as if a leader owned it (leaderId injected into the real JSON). */
 export async function routeOwnedSamplePack(page: Page) {
@@ -30,6 +34,39 @@ export async function injectSupabaseOverride(page: Page) {
   await page.addInitScript(([path, key]) => {
     (window as Window & { __SUPABASE_E2E__?: unknown }).__SUPABASE_E2E__ = { url: `${location.origin}${path}`, anonKey: key };
   }, [E2E_SUPABASE_PATH, E2E_ANON_KEY] as const);
+}
+
+export interface BackendMocks { bodies: () => SignupInsert[]; welcomes: () => unknown[]; shares: () => unknown[] }
+export const OK_INSERT = { status: 201, body: JSON.stringify({ id: E2E_SIGNUP_ID }) };
+
+/** Route PostgREST insert, the welcome function call, and the two check-in RPCs under the fake base. */
+export async function mockBackend(page: Page, insertReply: { status: number; body: string } = OK_INSERT): Promise<BackendMocks> {
+  const bodies: SignupInsert[] = [];
+  const welcomes: unknown[] = [];
+  const shares: unknown[] = [];
+  const json = { 'Content-Type': 'application/json' };
+  await injectSupabaseOverride(page);
+  await page.route(`**${E2E_SUPABASE_PATH}/rest/v1/${SIGNUPS_TABLE}**`, route => {
+    bodies.push(route.request().postDataJSON() as SignupInsert);
+    return route.fulfill({ status: insertReply.status, headers: json, body: insertReply.body });
+  });
+  await page.route(`**${E2E_SUPABASE_PATH}/functions/v1/${SEND_CHECKINS_FUNCTION}**`, route => {
+    welcomes.push(route.request().postDataJSON());
+    return route.fulfill({ status: 200, headers: json, body: JSON.stringify({ attempted: 1, results: [{ status: 'sent' }] }) });
+  });
+  await page.route(`**${E2E_SUPABASE_PATH}/rest/v1/rpc/${CHECKIN_CONTEXT_FN}**`, route => route.fulfill({
+    status: 200, headers: json,
+    body: JSON.stringify([{
+      pack_id: SAMPLE_PACK_ID, pack_title: '不要忧虑 Do Not Be Anxious', name: '小明', practice_area: '健康 Health',
+      practice_text: '固定的睡前程序 · Fixed wind-down', practice_note: null,
+      reflection_lines: ['周二跟进：做了吗？ · Tue: did it happen?', '周四 · Thu', '周末 · Weekend'], feedback_form_url: null,
+    }]),
+  }));
+  await page.route(`**${E2E_SUPABASE_PATH}/rest/v1/rpc/${SHARE_ANSWER_FN}**`, route => {
+    shares.push(route.request().postDataJSON());
+    return route.fulfill({ status: 200, headers: json, body: JSON.stringify('answer-id') });
+  });
+  return { bodies: () => bodies, welcomes: () => welcomes, shares: () => shares };
 }
 
 /**

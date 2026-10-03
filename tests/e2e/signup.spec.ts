@@ -17,7 +17,6 @@ import { test, expect, Page } from '@playwright/test';
 import { SAMPLE_PACK_ID } from '../../components/landing/landingRoute';
 import { signupHash } from '../../components/signup/signupRoute';
 import { checkinHash } from '../../components/checkin/checkinRoute';
-import { SIGNUPS_TABLE, SignupInsert, CHECKIN_CONTEXT_FN, SHARE_ANSWER_FN, SEND_CHECKINS_FUNCTION } from '../../components/signup/signupSchema';
 import {
   SU_TITLE, SU_NAME, SU_EMAIL, SU_PHONE, SU_CONSENT, SU_SUBMIT, SU_ERR_NAME, SU_ERR_SUBMIT, SU_THANKS, SU_NEXT,
   SU_DEMO_LINE, SU_UNCLAIMED_LINE, SU_SIGN_IN_GOOGLE, SU_PRACTICE_TITLE, SU_ERR_PRACTICE, SU_NEXT_STEP, commitmentLine,
@@ -27,45 +26,12 @@ import {
 } from '../../components/checkin/checkinStrings';
 import { SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../../components/setup/QuickAISetup';
 import {
-  routeOwnedSamplePack, E2E_LEADER_ID, E2E_SUPABASE_PATH, injectSupabaseOverride, seedLocalPack, fetchSamplePack,
+  routeOwnedSamplePack, E2E_LEADER_ID, E2E_SIGNUP_ID as SIGNUP_ID, E2E_SUPABASE_PATH, seedLocalPack, fetchSamplePack, mockBackend,
+  OK_INSERT as okInsert, BackendMocks as Mocks,
 } from './helpers/signup';
 
-const SIGNUP_ID = '7d4e8b2a-1c3f-4a5b-9e6d-0f1a2b3c4d5e';
 const LOCAL_ID = 'local-2026-10-02-matt6';
 const FORM = 'https://docs.google.com/forms/d/e/1FAIpQLSd_e2e/viewform';
-
-interface Mocks { bodies: () => SignupInsert[]; welcomes: () => unknown[]; shares: () => unknown[] }
-
-/** Route PostgREST insert, the welcome function call, and the two check-in RPCs under the fake base. */
-async function mockBackend(page: Page, insertReply: { status: number; body: string }): Promise<Mocks> {
-  const bodies: SignupInsert[] = [];
-  const welcomes: unknown[] = [];
-  const shares: unknown[] = [];
-  await injectSupabaseOverride(page);
-  await page.route(`**${E2E_SUPABASE_PATH}/rest/v1/${SIGNUPS_TABLE}**`, route => {
-    bodies.push(route.request().postDataJSON() as SignupInsert);
-    return route.fulfill({ status: insertReply.status, headers: { 'Content-Type': 'application/json' }, body: insertReply.body });
-  });
-  await page.route(`**${E2E_SUPABASE_PATH}/functions/v1/${SEND_CHECKINS_FUNCTION}**`, route => {
-    welcomes.push(route.request().postDataJSON());
-    return route.fulfill({ status: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ attempted: 1, results: [{ status: 'sent' }] }) });
-  });
-  await page.route(`**${E2E_SUPABASE_PATH}/rest/v1/rpc/${CHECKIN_CONTEXT_FN}**`, route => route.fulfill({
-    status: 200, headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify([{
-      pack_id: SAMPLE_PACK_ID, pack_title: '不要忧虑 Do Not Be Anxious', name: '小明', practice_area: '健康 Health',
-      practice_text: '固定的睡前程序 · Fixed wind-down', practice_note: null,
-      reflection_lines: ['周二跟进：做了吗？ · Tue: did it happen?', '周四 · Thu', '周末 · Weekend'], feedback_form_url: null,
-    }]),
-  }));
-  await page.route(`**${E2E_SUPABASE_PATH}/rest/v1/rpc/${SHARE_ANSWER_FN}**`, route => {
-    shares.push(route.request().postDataJSON());
-    return route.fulfill({ status: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify('answer-id') });
-  });
-  return { bodies: () => bodies, welcomes: () => welcomes, shares: () => shares };
-}
-
-const okInsert = { status: 201, body: JSON.stringify({ id: SIGNUP_ID }) };
 
 async function openSignup(page: Page, reply = okInsert, owned = true): Promise<Mocks> {
   if (owned) await routeOwnedSamplePack(page);

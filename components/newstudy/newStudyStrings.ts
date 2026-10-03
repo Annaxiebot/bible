@@ -70,21 +70,25 @@ export const NS_SAVED = bilingual('已保存', 'Saved');
 /** Quiet auto-save indicator: the pack is stored without the leader pressing anything. */
 export const NS_AUTOSAVED = bilingual('已自动保存', 'Saved');
 export const NS_SAVING = bilingual('保存中…', 'Saving…');
-/** Optional Google Form for feedback; when set, check-in links point there instead of #/checkin. */
-export const NS_FEEDBACK_FORM = bilingual('反馈表（可选）', 'Google Form for feedback (optional)');
+/** Optional Google Form for feedback; when set, check-in links point there instead of the built-in #/checkin page. */
+export const NS_FEEDBACK_FORM = bilingual('Google 表单链接（可选）', 'Google Form link (optional)');
 export const NS_FEEDBACK_FORM_HINT = bilingualLine(
-  '留空则用内置的跟进页；填表单链接后，提醒里的链接会指向该表单',
-  'Leave empty to use the built-in check-in page; with a form link, check-ins link to that form'
+  '默认用内置的跟进页，无需设置；想用 Google 表单，可点「连接」或粘贴已有表单链接',
+  'The built-in check-in page is the default and needs no setup; to use Google Forms, tap Connect or paste an existing form link'
 );
 export const NS_ERR_FEEDBACK_FORM = bilingualLine(
   '反馈表链接必须是 Google 表单地址（https://docs.google.com/forms/…）',
   'The feedback form link must be a Google Form URL (https://docs.google.com/forms/…)'
 );
-// ---- auto-created feedback form (services/googleForms, ADR-0004 §9) ----
+// ---- Google Forms opt-in (services/googleForms, ADR-0004 §9) ----
+export const NS_FORM_CONNECT = bilingual('连接 Google 表单（可选）', 'Connect Google Forms (optional)');
+export const NS_FORM_CONNECTING = bilingualLine('正在跳转 Google 授权…', 'Redirecting to Google for permission…');
 export const NS_FORM_CREATED = bilingual('已创建反馈表', 'Feedback form created');
 export const NS_FORM_CREATING = bilingual('正在创建反馈表…', 'Creating the feedback form…');
-export const NS_FORM_FALLBACK = bilingualLine('将使用内置的跟进页', 'The built-in check-in page will be used');
-export const NS_FORM_NO_TOKEN = bilingualLine('未获得 Google 表单权限 — 请重新登录', 'Google Forms permission not granted — sign in again');
+export const NS_FORM_KEEP_BUILTIN = bilingualLine('仍用内置的跟进页', 'The built-in check-in page stays in use');
+export const NS_FORM_NO_TOKEN = bilingualLine(
+  '未获得 Google 表单权限 — 请再点一次「连接」并允许访问', 'Google Forms permission not granted — tap Connect again and allow access'
+);
 export const NS_FORM_NO_PERMISSION = NS_FORM_NO_TOKEN;
 export const NS_FORM_API_DISABLED = bilingualLine('表单 API 未启用', 'Forms API not enabled');
 export const NS_FORM_FAILED = bilingualLine('创建反馈表失败', 'Could not create the feedback form');
