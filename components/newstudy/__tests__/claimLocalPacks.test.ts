@@ -20,6 +20,7 @@ import { SU_CLAIM_FAILED } from '../../signup/signupStrings';
 type Listener = (state: { user: { id: string } | null }) => void;
 let listener: Listener | null = null;
 vi.mock('../../../services/supabase', () => ({
+  supabase: null,  // the pack sync that follows the claim is a no-op here (packSync.test.ts)
   authManager: {
     getUserId: () => null,
     subscribe: (l: Listener) => { listener = l; return () => { listener = null; }; },

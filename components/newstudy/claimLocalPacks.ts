@@ -9,6 +9,9 @@
  * once by LandingGate); pages that show a pack listen for the claim event
  * (useLocalPackClaim) and re-read it, so the QR appears without a reload.
  * Failures are carried on the event and rendered by those pages (R5).
+ * Once the claim settles, the pack sync merges this browser with the
+ * leader's account (packSync.syncPacksOnSignIn, ADR-0006) — claim first, so
+ * the just-claimed packs are pushed; a sign-out drops pending pushes.
  */
 import { useEffect, useState } from 'react';
 import { authManager } from '../../services/supabase';
@@ -16,6 +19,7 @@ import { listLocalPacks, saveLocalPack } from '../studypack/packSource';
 import { syncPackSummary } from '../signup/packSummary';
 import { SU_CLAIM_FAILED } from '../signup/signupStrings';
 import { stampLeader } from './packAssembly';
+import { syncPacksOnSignIn, resetPackSync } from './packSync';
 
 export const LOCAL_PACKS_CLAIMED_EVENT = 'local-packs-claimed';
 
@@ -59,13 +63,15 @@ export function installClaimOnSignIn(): () => void {
   return authManager.subscribe(state => {
     const uid = state.user?.id ?? null;
     if (!uid || uid === claimedFor) {
-      if (!uid) claimedFor = null;
+      if (!uid) { claimedFor = null; resetPackSync(); }
       return;
     }
     claimedFor = uid;
     claimLocalPacks(uid)
       .then(announce)
-      .catch((err: unknown) => announce({ claimed: [], failures: [`${SU_CLAIM_FAILED}: ${describe(err)}`] }));
+      .catch((err: unknown) => announce({ claimed: [], failures: [`${SU_CLAIM_FAILED}: ${describe(err)}`] }))
+      // syncPacksOnSignIn never rejects: its failures land on the PackSyncLine status.
+      .then(() => syncPacksOnSignIn());
   });
 }
 

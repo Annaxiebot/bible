@@ -24,6 +24,7 @@
  * in its own session.
  */
 import { supabase, authManager, type AuthState } from './supabase';
+import { signedInUid } from './sessionUid';
 import {
   LEADER_SYNCED_KEYS, type LeaderSyncedKey, setLeaderSettingListener, noteLeaderSettingChanged,
 } from './leaderSettingsKeys';
@@ -72,12 +73,6 @@ function applyServerSettings(settings: Record<string, unknown>): void {
 /** True when the browser holds a synced key the server row does not. */
 function localHasMore(server: Record<string, unknown>): boolean {
   return Object.keys(readLocalLeaderSettings()).some(key => !(key in server));
-}
-
-/** The leader's uid when Supabase is configured and a session exists; null otherwise (→ no-op). */
-function signedInUid(): string | null {
-  if (!supabase) return null;
-  return authManager.getState().isAuthenticated ? authManager.getUserId() : null;
 }
 
 const fail = (step: LeaderSettingsFailure['step'], message: string): LeaderSettingsResult =>

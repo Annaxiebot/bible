@@ -3,11 +3,12 @@
  *
  * Edit (the editor at #/new/<id>), export JSON (download), sign-ups (the
  * leader list at #/leader/<id>), delete (with a bilingual confirm), import
- * JSON (file picker). Storage errors render inline.
+ * JSON (file picker). Storage errors and the account sync line render inline.
  */
 import React, { useRef } from 'react';
 import { StudyPack } from '../studypack/packTypes';
 import { LocalPacks } from './useLocalPacks';
+import { PackSyncLine } from './PackSyncLine';
 import { leaderHash } from '../leader/leaderRoute';
 import { newStudyHash } from '../landing/landingRoute';
 import {
@@ -67,6 +68,7 @@ const PackList: React.FC<Props> = ({ packs, onOpen }) => {
         />
       </div>
       {packs.error && <p role="alert" className="text-red-300" style={textStyle}>{packs.error}</p>}
+      <PackSyncLine />
       {packs.invalid.length > 0 && (
         <p role="alert" className="text-red-300" style={textStyle}>{NS_INVALID_RECORDS}: {packs.invalid.join(', ')}</p>
       )}
