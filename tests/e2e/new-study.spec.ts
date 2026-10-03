@@ -8,45 +8,22 @@
  * #/new/<id>; Save then Preview opens TV mode from IndexedDB showing
  * 和合本|BSB verses and 18 slides, and Escape returns to the editor;
  * reloading #/new/<id> restores it; Export downloads the pack JSON. No
- * live AI call is made.
+ * live AI call is made. The feedback-form tests live in
+ * new-study-feedback.spec.ts; shared steps in helpers/newStudy.ts.
  */
-import { test, expect, Page } from '@playwright/test';
-import { NEW_STUDY_HASH } from '../../components/landing/landingRoute';
+import { test, expect } from '@playwright/test';
 import { NEW_STUDY_LINE } from '../../components/landing/landingStrings';
 import { SETUP_TITLE } from '../../components/setup/setupStrings';
 import {
   NS_TITLE, NS_BOOK, NS_GENERATE, NS_EDIT_TITLE, NS_SAVE, NS_SAVED, NS_AUTOSAVED, NS_PREVIEW, NS_EXPORT, NS_MY_PACKS, NS_EDIT,
-  NS_SCRIPTURE_NOTE, NS_RETRY, NS_ERR_NO_JSON, NS_RANGE_UPDATED, NS_SECTION_REMOVE_CONFIRM, NS_ERR_FEEDBACK_FORM,
+  NS_SCRIPTURE_NOTE, NS_RETRY, NS_ERR_NO_JSON, NS_RANGE_UPDATED, NS_SECTION_REMOVE_CONFIRM,
 } from '../../components/newstudy/newStudyStrings';
 import { newStudyHash } from '../../components/landing/landingRoute';
-import { STORAGE_KEYS } from '../../constants/storageKeys';
 import { PACK_CONTINUE_PROMPT } from '../../components/newstudy/packPrompt';
 import { JOHN3_REPLY_JSON } from '../../components/newstudy/__tests__/fixtures';
 import { LIFE_AREAS } from '../../components/studypack/principles';
 import { injectApiKey, mockOpenRouterStream, mockOpenRouterSequence, sseBody, OPENROUTER_CHAT_URL } from './helpers/tv';
-
-const PACK_ID = 'local-2026-10-02-jhn3';
-
-async function openNewStudy(page: Page) {
-  await page.goto(`./${NEW_STUDY_HASH}`);
-  await expect(page.getByTestId('new-study-page')).toBeVisible();
-}
-
-/** John 3 from the dropdowns: 36 verse options come from the real bundled chapter; To defaults to 36. */
-async function fillJohn3(page: Page) {
-  await page.getByTestId('ns-book').selectOption('JHN');
-  await page.getByTestId('ns-chapter').selectOption('3');
-  await expect(page.getByTestId('ns-verse-to').locator('option')).toHaveCount(36);
-  await expect(page.getByTestId('ns-verse-to')).toHaveValue('36');
-  await page.getByTestId('ns-verse-from').selectOption('22');
-  await page.getByTestId('ns-date').fill('2026-10-02');
-}
-
-function chunked(text: string, size = 200): string[] {
-  const out: string[] = [];
-  for (let i = 0; i < text.length; i += size) out.push(text.slice(i, i + size));
-  return out;
-}
+import { PACK_ID, openNewStudy, fillJohn3, chunked } from './helpers/newStudy';
 
 test.describe('New study', () => {
   test('the landing has the New study line; #/new renders the Chinese-first form with senior-friendly type', async ({ page }) => {
@@ -250,36 +227,6 @@ test.describe('New study', () => {
     await expect(page).toHaveURL(new RegExp(`${newStudyHash(PACK_ID)}$`));
     await openNewStudy(page);
     await expect(page.getByTestId('pack-row').first()).toContainText('祂必兴旺，我必衰微');
-  });
-
-  test('a Google Form link on the generation form is validated, remembered as the default, and carried into the pack', async ({ page }) => {
-    await injectApiKey(page);
-    await mockOpenRouterStream(page, chunked(JOHN3_REPLY_JSON));
-    await openNewStudy(page);
-    await fillJohn3(page);
-    await page.getByTestId('ns-feedback-link').fill('https://example.com/not-a-form');
-    await page.getByRole('button', { name: NS_GENERATE }).click();
-    await expect(page.getByRole('alert')).toHaveText(NS_ERR_FEEDBACK_FORM);
-    const FORM = 'https://docs.google.com/forms/d/e/1FAIpQLSd_e2e/viewform';
-    await page.getByTestId('ns-feedback-link').fill(FORM);
-    await page.getByTestId('ns-feedback-default').check();
-    await page.getByRole('button', { name: NS_GENERATE }).click();
-    await expect(page.getByText(NS_EDIT_TITLE)).toBeVisible();
-    await expect(page.getByTestId('ns-feedback-url')).toHaveValue(FORM);
-    expect(await page.evaluate(k => localStorage.getItem(k), STORAGE_KEYS.FEEDBACK_FORM_DEFAULT_URL)).toBe(FORM);
-    // The stored pack carries the link; a fresh generation form is pre-filled with the default.
-    await expect.poll(() => page.evaluate(async (id) => new Promise<string | undefined>((resolve, reject) => {
-      const open = indexedDB.open('BibleApp');
-      open.onerror = () => reject(open.error);
-      open.onsuccess = () => {
-        const get = open.result.transaction('studypacks').objectStore('studypacks').get(id);
-        get.onsuccess = () => { open.result.close(); resolve((get.result?.pack as { feedbackFormUrl?: string } | undefined)?.feedbackFormUrl); };
-        get.onerror = () => reject(get.error);
-      };
-    }), PACK_ID)).toBe(FORM);
-    await openNewStudy(page);
-    await expect(page.getByTestId('ns-feedback-link')).toHaveValue(FORM);
-    await expect(page.getByTestId('ns-feedback-default')).toBeChecked();
   });
 
   test('a truncated model reply shows the bilingual error with Retry — never a half-pack', async ({ page }) => {
