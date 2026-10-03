@@ -50,3 +50,15 @@ export const LD_TEST_OK = bilingualLine(
 export const LD_TEST_FAILED = bilingualLine('测试提醒失败', 'Test check-in failed');
 export const LD_TEST_NO_EMAIL = bilingualLine('你的账号没有邮箱', 'Your account has no email address');
 export const LD_BACK = bilingual('返回', 'Back');
+
+// ---- leader home "#/leader" (ADR-0006) ----
+export const LH_TITLE = bilingual('我的查经包', 'My study packs');
+export const LH_SIGNIN = bilingualLine('带领者请登录，在任何设备上看到你所有的查经包', 'Leaders, sign in to see all your study packs on any device');
+export const LH_LOADING = bilingualLine('读取查经包中', 'Loading your packs');
+export const LH_PRESENT = bilingual('放映', 'Present');
+export const LH_RESPONSES = bilingual('报名与反馈', 'Sign-ups & responses');
+export const LH_QR = bilingual('报名二维码', 'Sign-up QR');
+export const LH_ERR_COUNTS = bilingualLine('读取报名与分享人数失败', 'Could not load the sign-up and sharing counts');
+export function packCountsLine(signups: number, answers: number): string {
+  return bilingualLine(`报名 ${signups} 人，分享 ${answers} 条`, `${signups} signed up, ${answers} shared`);
+}

@@ -4,8 +4,8 @@
  * Wraps StudyPackGate (which already splits "#/pack/<id>" TV mode from the
  * app) and adds branches in front: a bare root URL renders the lazy-loaded
  * Landing page; "#/setup" renders it with the AI setup dialog open; "#/new"
- * (and "#/new/<id>") the New study page; "#/signup/<id>", "#/leader/<id>"
- * and "#/checkin/<signupId>" their pages. Keeps the touch-point in
+ * (and "#/new/<id>") the New study page; "#/signup/<id>", "#/leader" (home),
+ * "#/leader/<id>" and "#/checkin/<signupId>" their pages. Keeps the touch-point in
  * index.tsx to a single wrapper line, same pattern as StudyPackGate. Also
  * the one place the sign-in claim hook is installed (claimLocalPacks).
  */
@@ -21,6 +21,7 @@ const Landing = lazy(() => import('./Landing'));
 const NewStudyPage = lazy(() => import('../newstudy/NewStudyPage'));
 const SignupPage = lazy(() => import('../signup/SignupPage'));
 const LeaderPage = lazy(() => import('../leader/LeaderPage'));
+const LeaderHome = lazy(() => import('../leader/LeaderHome'));
 const CheckinPage = lazy(() => import('../checkin/CheckinPage'));
 
 const fallback = <div className="fixed inset-0 bg-stl-bg" />;
@@ -48,6 +49,9 @@ const LandingGate: React.FC<{ app: React.ReactElement }> = ({ app }) => {
   if (view === 'leader') {
     const packId = getLeaderPackIdFromHash(window.location.hash)!;
     return <Suspense fallback={fallback}><LeaderPage packId={packId} /></Suspense>;
+  }
+  if (view === 'leaderHome') {
+    return <Suspense fallback={fallback}><LeaderHome /></Suspense>;
   }
   if (view === 'checkin') {
     const route = getCheckinFromHash(window.location.hash)!;

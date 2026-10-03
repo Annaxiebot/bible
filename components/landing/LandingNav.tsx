@@ -2,7 +2,9 @@
  * LandingNav.tsx — sticky two-link top nav · 页内导航
  *
  * Two large tap targets (≥48px) that scroll to the group card, the
- * personal card. They are buttons, not hash
+ * personal card, plus one context-aware leader control (LandingLeaderLink:
+ * "带领者登录 Leader sign-in" signed out, the leader's name → #/leader signed
+ * in). The section links are buttons, not hash
  * links: any hash other than the bare root routes away from the landing
  * (landingRoute.ts), so navigation stays in-page via scrollIntoView. The
  * scroll is smooth unless the user prefers reduced motion (decided here, in
@@ -12,6 +14,7 @@
  */
 import React from 'react';
 import { NAV_LINKS, NAV_LABEL, NavSectionId } from './landingStrings';
+import LandingLeaderLink from './LandingLeaderLink';
 
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
 
@@ -37,6 +40,7 @@ const LandingNav: React.FC = () => (
           </button>
         </li>
       ))}
+      <li><LandingLeaderLink /></li>
     </ul>
   </nav>
 );
