@@ -12,6 +12,7 @@ import { SETUP_HASH } from '../../components/landing/landingRoute';
 import {
   SETUP_TITLE, SETUP_KEY_LABEL, SETUP_TEST, SETUP_TEST_OK, SETUP_TEST_NO_CREDITS,
   SETUP_REPLACE, SETUP_MODEL_ASK, SETUP_MODEL_PACK, SETUP_MODEL_FALLBACKS, recommendedFor, savedKeyLine, maskApiKey,
+  SETUP_SYNC_SIGNED_OUT,
 } from '../../components/setup/setupStrings';
 import { ASK_AI_MODEL, PACK_GENERATION_MODEL, ASK_AI_FALLBACK_MODELS } from '../../services/aiDefaults';
 import { STORAGE_KEYS } from '../../constants/storageKeys';
@@ -40,6 +41,12 @@ test.describe('Quick AI setup — saved state', () => {
     await dialog.getByRole('button', { name: recommendedFor(SETUP_MODEL_PACK) }).click();
     await expect(dialog.getByRole('textbox', { name: SETUP_MODEL_PACK })).toHaveValue(PACK_GENERATION_MODEL);
     expect(await page.evaluate(k => localStorage.getItem(k), STORAGE_KEYS.AI_PACK_MODEL)).toBe(PACK_GENERATION_MODEL);
+
+    // Signed out: the sync line sits under the Models block (ADR-0005); nothing was signed in by the models edit
+    const syncLine = dialog.getByTestId('sync-line');
+    await expect(syncLine).toHaveText(new RegExp(SETUP_SYNC_SIGNED_OUT));
+    await expect(dialog.getByTestId('sync-signed-in')).toHaveCount(0);
+    expect(await dialog.getByTestId('model-rows').boundingBox().then(b => b!.y)).toBeLessThan((await syncLine.boundingBox())!.y);
 
     // Test with nothing typed: the stored key goes on the wire, against the Ask-AI model
     await dialog.getByRole('button', { name: SETUP_TEST }).click();

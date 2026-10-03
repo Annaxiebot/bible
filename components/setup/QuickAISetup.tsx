@@ -14,6 +14,7 @@ import React, { useEffect, useRef } from 'react';
 import { OPENROUTER_KEYS_URL } from '../../services/aiDefaults';
 import { useQuickAISetup, TestStatus, QuickAISetup } from './useQuickAISetup';
 import { ModelRows } from './ModelRows';
+import { SyncLine } from './SyncLine';
 import {
   SETUP_TITLE, SETUP_EXPLANATION, SETUP_KEY_LABEL, SETUP_KEY_PLACEHOLDER,
   SETUP_SHOW_KEY, SETUP_HIDE_KEY, SETUP_GET_KEY, SETUP_TEST, SETUP_TESTING,
@@ -39,7 +40,8 @@ const secondaryButtonClass = 'rounded-lg border border-slate-600 px-4 text-slate
 /**
  * Saved state: masked key (last 4 only), Replace to reveal the field, and
  * the "模型 Models" rows (Ask AI / pack generation / fallbacks, each with a
- * Recommended reset) that store on every change.
+ * Recommended reset) that store on every change, then the sync line
+ * (sign in to carry these settings across devices — SyncLine).
  */
 const SavedKeyPanel: React.FC<{ s: QuickAISetup }> = ({ s }) => (
   <div data-testid="saved-state" className="flex flex-col gap-3">
@@ -50,6 +52,7 @@ const SavedKeyPanel: React.FC<{ s: QuickAISetup }> = ({ s }) => (
       </button>
     </div>
     <ModelRows textStyle={textStyle} controlStyle={controlStyle} onChanged={s.refreshModel} />
+    <SyncLine textStyle={textStyle} controlStyle={controlStyle} />
   </div>
 );
 
@@ -181,7 +184,7 @@ export const QuickAISetupDialog: React.FC<QuickAISetupDialogProps> = ({ open, on
       onClick={onClose}
     >
       <div
-        className="relative w-full max-w-xl rounded-2xl border border-slate-700 bg-slate-900 p-6 sm:p-8"
+        className="relative max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-2xl border border-slate-700 bg-slate-900 p-6 sm:p-8"
         onClick={e => e.stopPropagation()}
       >
         <button
