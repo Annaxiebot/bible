@@ -24,7 +24,7 @@ import {
 import {
   CK_TITLE, CK_KEEP_PRIVATE, CK_SHARE, CK_KEPT, CK_SHARED, CK_KIND_LABEL,
 } from '../../components/checkin/checkinStrings';
-import { SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../../components/setup/QuickAISetup';
+import { SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../../components/setup/setupStrings';
 import {
   routeOwnedSamplePack, E2E_LEADER_ID, E2E_SIGNUP_ID as SIGNUP_ID, E2E_SUPABASE_PATH, seedLocalPack, fetchSamplePack, mockBackend,
   OK_INSERT as okInsert, BackendMocks as Mocks,

@@ -5,7 +5,7 @@
  * text ≥ 20px, tap targets ≥ 48px. One source for the three components.
  */
 import React from 'react';
-import { SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../setup/QuickAISetup';
+import { SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../setup/setupStrings';
 
 export const textStyle: React.CSSProperties = { fontSize: SETUP_MIN_FONT_PX, lineHeight: 1.5 };
 export const controlStyle: React.CSSProperties = { ...textStyle, minHeight: SETUP_MIN_TAP_PX };

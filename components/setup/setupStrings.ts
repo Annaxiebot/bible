@@ -9,6 +9,10 @@
 import { bilingual, bilingualLine } from '../studypack/principles';
 import { AI_INVALID_KEY_MESSAGE } from '../studypack/tvHints';
 
+/** ADR-0003 §15 floors: inputs/buttons ≥ 20px type, ≥ 48px tap targets (shared by setup, new study, sign-up; e2e asserts them). */
+export const SETUP_MIN_FONT_PX = 20;
+export const SETUP_MIN_TAP_PX = 48;
+
 export const SETUP_TITLE = bilingual('设置AI', 'Set up AI');
 
 export const SETUP_EXPLANATION =

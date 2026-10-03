@@ -14,7 +14,7 @@ import { STORAGE_KEYS } from '../../../constants/storageKeys';
 import { ASK_AI_MODEL, PACK_GENERATION_MODEL, ASK_AI_FALLBACK_MODELS } from '../../../services/aiDefaults';
 import { SETUP_MODEL_ASK, SETUP_MODEL_PACK, SETUP_MODEL_FALLBACKS, SETUP_MODELS_TITLE, recommendedFor } from '../setupStrings';
 import { ModelRows } from '../ModelRows';
-import { SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../QuickAISetup';
+import { SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../setupStrings';
 
 function makeStorage(initial: Record<string, string> = {}) {
   const store: Record<string, string> = { ...initial };
