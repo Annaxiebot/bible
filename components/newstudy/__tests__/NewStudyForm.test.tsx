@@ -7,7 +7,8 @@
  * chapter arrives; validateRequest stays the single source of range rules.
  */
 import React from 'react';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
+import { setLeaderSettingListener } from '../../../services/leaderSettingsKeys';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { getBookById } from '../../../services/bibleBookData';
 import { TV_LOADING } from '../../studypack/tvHints';
@@ -218,5 +219,23 @@ describe('内容语言 Content language', () => {
     expect(readDefaultContentLanguage(store)).toBe('en-keywords');
     mem.set(STORAGE_KEYS.CONTENT_LANGUAGE_DEFAULT, 'klingon');
     expect(readDefaultContentLanguage(store)).toBe(DEFAULT_CONTENT_LANGUAGE);
+  });
+});
+
+describe('the two remembered defaults tell the leader-settings sync (ADR-0005)', () => {
+  const noted = vi.fn();
+  beforeEach(() => { noted.mockReset(); setLeaderSettingListener(noted); });
+  afterEach(() => setLeaderSettingListener(null));
+
+  it('rememberDefaultFormUrl notes its key on remember and on forget; rememberContentLanguage notes its key', () => {
+    const FORM = 'https://docs.google.com/forms/d/e/abc/viewform';
+    const mem = new Map<string, string>();
+    const store = { getItem: (k: string) => mem.get(k) ?? null, setItem: (k: string, v: string) => { mem.set(k, v); }, removeItem: (k: string) => { mem.delete(k); } };
+    rememberDefaultFormUrl(FORM, true, store as unknown as Storage);
+    rememberDefaultFormUrl(FORM, false, store as unknown as Storage);
+    rememberContentLanguage('bilingual', store);
+    expect(noted.mock.calls.map(c => c[0])).toEqual([
+      STORAGE_KEYS.FEEDBACK_FORM_DEFAULT_URL, STORAGE_KEYS.FEEDBACK_FORM_DEFAULT_URL, STORAGE_KEYS.CONTENT_LANGUAGE_DEFAULT,
+    ]);
   });
 });

@@ -6,7 +6,7 @@
  * overwritten. Uses a real in-memory storage stub (the global setup's
  * localStorage is a bare vi.fn mock).
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { STORAGE_KEYS } from '../../constants/storageKeys';
 import {
   DEFAULT_AI_SETUP, FREE_MODELS_ROUTER_ID, OPENROUTER_KEYS_URL, ASK_AI_MODEL, PACK_GENERATION_MODEL,
@@ -17,6 +17,7 @@ import {
 } from '../aiDefaults';
 import { getCurrentProvider, getCurrentModel } from '../aiProvider';
 import { FREE_ROUTER_MODEL } from '../openrouter';
+import { setLeaderSettingListener } from '../leaderSettingsKeys';
 
 function makeStorage(initial: Record<string, string> = {}) {
   const store = { ...initial };
@@ -184,5 +185,27 @@ describe('saveOpenRouterKey', () => {
   it('rejects an empty key instead of storing it', () => {
     expect(() => saveOpenRouterKey('   ')).toThrow(/empty/);
     expect(storage.getItem(STORAGE_KEYS.OPENROUTER_API_KEY)).toBeNull();
+  });
+});
+
+describe('setters tell the leader-settings sync (ADR-0005)', () => {
+  const noted = vi.fn();
+  beforeEach(() => { noted.mockReset(); setLeaderSettingListener(noted); });
+  afterEach(() => setLeaderSettingListener(null));
+
+  it('each model-role setter notes its own key, on a write and on a clear', () => {
+    setAskAIModel('openai/gpt-4o');
+    setPackGenerationModel('x/y');
+    setAskAIFallbackModels('a, b');
+    setAskAIFallbackModels('');
+    expect(noted.mock.calls.map(c => c[0])).toEqual([
+      STORAGE_KEYS.AI_MODEL, STORAGE_KEYS.AI_PACK_MODEL, STORAGE_KEYS.AI_FALLBACK_MODELS, STORAGE_KEYS.AI_FALLBACK_MODELS,
+    ]);
+  });
+
+  it('the key save and the first-run defaults note nothing (the API key and provider never sync)', () => {
+    saveOpenRouterKey('sk-or-abc');
+    applyDefaultAISetup();
+    expect(noted).not.toHaveBeenCalled();
   });
 });

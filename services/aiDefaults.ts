@@ -15,6 +15,7 @@
  */
 import { STORAGE_KEYS } from '../constants/storageKeys';
 import { FREE_ROUTER_MODEL } from './openrouter';
+import { noteLeaderSettingChanged } from './leaderSettingsKeys';
 
 /**
  * OpenRouter model id that routes to the best available free model. The
@@ -87,11 +88,16 @@ function storedText(key: string): string | null {
   return trimmed || null;
 }
 
-/** Store a trimmed choice; an empty value clears the key so the default applies again. */
+/**
+ * Store a trimmed choice; an empty value clears the key so the default
+ * applies again. Either way the leader-settings sync is told (a signed-in
+ * leader's change reaches their other devices; signed out it is a no-op).
+ */
 function writeChoice(key: string, value: string): void {
   const trimmed = value.trim();
   if (trimmed) localStorage.setItem(key, trimmed);
   else localStorage.removeItem(key);
+  noteLeaderSettingChanged(key);
 }
 
 /**
