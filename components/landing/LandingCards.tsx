@@ -3,7 +3,7 @@
  *
  * Group study → sample pack (TV mode); personal study → the app. Each card
  * has an illustration, icon bullets and a ≥56px CTA. Hover/focus lift and
- * amber glow live in landing.css.
+ * gold glow live in landing.css.
  */
 import React from 'react';
 import { APP_HASH, SAMPLE_PACK_HASH } from './landingRoute';
@@ -39,20 +39,20 @@ const DoorCard: React.FC<DoorCardProps> = ({
   <section
     id={id}
     data-testid={testId}
-    className="ld-card flex flex-col rounded-3xl border border-slate-800 bg-slate-900/60 p-6 sm:p-7"
+    className="ld-card flex flex-col rounded-3xl border border-stl-border bg-stl-surface p-6 sm:p-7"
   >
     <div className="flex justify-center">{art}</div>
-    <h2 className="ld-card-title mt-4 font-semibold text-slate-100">
-      <span className="font-serif-sc text-amber-400">{titleZh}</span>{' '}
-      <span className="text-slate-100">{titleEn}</span>
+    <h2 className="ld-card-title mt-4 font-semibold text-stl-text">
+      <span className="font-serif-sc text-stl-gold">{titleZh}</span>{' '}
+      <span className="text-stl-text">{titleEn}</span>
     </h2>
     <ul className="mt-5 flex-1 space-y-4">
       {points.map(point => (
         <li key={point.en} className="flex gap-3">
-          <span className="mt-1 shrink-0 text-amber-400/90"><PointIconGlyph name={point.icon} /></span>
+          <span className="mt-1 shrink-0 text-stl-gold"><PointIconGlyph name={point.icon} /></span>
           <span className="ld-body">
-            <span className="block font-serif-sc text-slate-100">{point.zh}</span>
-            <span className="block text-slate-400">{point.en}</span>
+            <span className="block font-serif-sc text-stl-text">{point.zh}</span>
+            <span className="block text-stl-text-2">{point.en}</span>
           </span>
         </li>
       ))}
@@ -60,7 +60,7 @@ const DoorCard: React.FC<DoorCardProps> = ({
     <a
       href={ctaHash}
       className="ld-cta mt-7 flex items-center justify-center gap-2 rounded-2xl
-        bg-amber-500 px-6 font-semibold text-slate-950 hover:bg-amber-400"
+        bg-stl-gold px-6 font-semibold text-stl-bg hover:bg-stl-gold-hover"
     >
       <span>{ctaLabel}</span>
       <ArrowIcon />

@@ -10,9 +10,9 @@
   to { transform: translateY(22px); }
 }
 .ld-dawn {
-  /* never brighter than ~15% amber over slate-950 */
+  /* never brighter than the gold glow token over the charcoal bg */
   background: radial-gradient(
-    ellipse 90% 55% at 50% 100%, rgba(245, 158, 11, 0.15), rgba(245, 158, 11, 0.05) 45%, transparent 75%
+    ellipse 90% 55% at 50% 100%, var(--stl-gold-glow), var(--stl-gold-dim) 45%, transparent 75%
   );
   transform-origin: 50% 100%;
   animation: ld-dawn-rise 36s ease-in-out infinite alternate;

@@ -21,11 +21,11 @@ import { SETUP_TITLE } from '../setup/setupStrings';
 // by length). Overflow scrolls inside Conversation (flex-1 overflow-y-auto)
 // so the input/controls never leave the screen.
 const questionStyle: React.CSSProperties = { fontSize: '2.5vh', lineHeight: 1.4 };
-const inlineButtonClass = 'ml-3 rounded-lg border border-amber-400 px-4 py-1 text-amber-300';
+const inlineButtonClass = 'ml-3 rounded-lg border border-stl-gold px-4 py-1 text-stl-gold';
 
 const Message: React.FC<{ m: AskAIMessage; pack: StudyPack }> = ({ m, pack }) =>
   m.role === 'user'
-    ? <p className="text-slate-400" style={questionStyle}>{`Q: ${m.content}`}</p>
+    ? <p className="text-stl-text-2" style={questionStyle}>{`Q: ${m.content}`}</p>
     : <AskAnswer text={m.content} pack={pack} />;
 
 /** Error line; its kind decides which of Retry / Set up AI accompany it. */
@@ -72,12 +72,12 @@ const Conversation: React.FC<{ ai: AskAI; pack: StudyPack }> = ({ ai, pack }) =>
         </div>
       )}
       {ai.loading && ai.streamingText === null && (
-        <p className="text-slate-500" style={questionStyle} data-testid="ask-thinking">
+        <p className="text-stl-text-3" style={questionStyle} data-testid="ask-thinking">
           {thinkingLine(ai.model ?? '')}
         </p>
       )}
       {!ai.loading && ai.model && ai.messages.some(m => m.role === 'assistant') && (
-        <p className="text-slate-500" style={questionStyle} data-testid="ask-model">{modelLine(ai.model)}</p>
+        <p className="text-stl-text-3" style={questionStyle} data-testid="ask-model">{modelLine(ai.model)}</p>
       )}
       {ai.error && (
         <ErrorLine error={ai.error} onSetup={() => setSetupOpen(true)} onRetry={() => { void ai.retry(); }} />
@@ -105,13 +105,13 @@ const QuestionForm: React.FC<{ ai: AskAI }> = ({ ai }) => {
         disabled={!ai.configured || ai.loading}
         placeholder={ASK_INPUT_PLACEHOLDER}
         aria-label="问一问 Ask AI question"
-        className="flex-1 bg-slate-800 text-slate-100 rounded-lg px-4 border border-slate-600 focus:outline-none focus:border-amber-400"
+        className="flex-1 bg-stl-surface text-stl-text rounded-lg px-4 border border-stl-border focus:outline-none focus:border-stl-gold"
         style={questionStyle}
       />
       <button
         type="submit"
         disabled={!ai.configured || ai.loading || draft.trim().length === 0}
-        className="bg-amber-500 disabled:bg-slate-700 text-slate-950 disabled:text-slate-500 font-semibold rounded-lg px-6"
+        className="bg-stl-gold disabled:bg-stl-surface-2 text-stl-bg disabled:text-stl-text-3 font-semibold rounded-lg px-6"
         style={questionStyle}
       >
         {ASK_SUBMIT_LABEL}
@@ -159,18 +159,18 @@ const AskAIOverlay: React.FC<AskAIOverlayProps> = ({ pack, slide, initialQuestio
   return (
     <div
       // select-text: the TV root is select-none (for swipes); answers must be selectable and copyable.
-      className="absolute inset-0 bg-slate-950/90 flex items-center justify-center cursor-default select-text"
+      className="absolute inset-0 bg-stl-glass flex items-center justify-center cursor-default select-text"
       data-testid="ask-ai-overlay"
       onClick={e => e.stopPropagation()}
       onTouchStart={e => e.stopPropagation()}
       onTouchEnd={e => e.stopPropagation()}
     >
-      <div className="bg-slate-900 border border-slate-700 rounded-xl w-[80vw] h-[80vh] p-[3vh] flex flex-col">
+      <div className="bg-stl-surface border border-stl-border rounded-xl w-[80vw] h-[80vh] p-[3vh] flex flex-col">
         <div className="flex items-center justify-between mb-[2vh]">
-          <h2 className="text-amber-300 font-bold" style={{ fontSize: '3.5vh' }}>{ASK_AI_LABEL}</h2>
+          <h2 className="text-stl-gold font-bold" style={{ fontSize: '3.5vh' }}>{ASK_AI_LABEL}</h2>
           <button
             onClick={close}
-            className="text-slate-400 hover:text-slate-100 px-3 py-1"
+            className="text-stl-text-2 hover:text-stl-text px-3 py-1"
             style={{ fontSize: '3vh' }}
             aria-label="关闭问一问 Close Ask AI"
           >

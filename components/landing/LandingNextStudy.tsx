@@ -52,31 +52,31 @@ const PackSummary: React.FC<{ state: PackState }> = ({ state }) => {
     const { title, passageRef, date } = state.pack;
     return (
       <div data-testid="next-study-pack">
-        <p className="ld-next-title font-serif-sc font-semibold text-slate-50">{title}</p>
-        <p className="ld-next-ref mt-2 text-amber-300">{passageRef}</p>
-        <p className="ld-body mt-1 text-slate-400">{date}</p>
+        <p className="ld-next-title font-serif-sc font-semibold text-stl-text">{title}</p>
+        <p className="ld-next-ref mt-2 text-stl-gold">{passageRef}</p>
+        <p className="ld-body mt-1 text-stl-text-2">{date}</p>
       </div>
     );
   }
   const line = state.status === 'loading' ? NEXT_LOADING : NEXT_NONE_YET;
-  return <p className="ld-next-ref text-slate-400" data-testid="next-study-empty">{line}</p>;
+  return <p className="ld-next-ref text-stl-text-2" data-testid="next-study-empty">{line}</p>;
 };
 
 /** QR + link for an owned pack; the demo line when the pack has no leader (or is not loaded). */
 const SignupPanel: React.FC<{ state: PackState }> = ({ state }) => {
   const pack = state.status === 'ready' ? state.pack : null;
   return (
-    <div data-testid="next-study-signup" className="mx-auto mt-6 max-w-sm rounded-3xl border border-slate-800 bg-slate-900/60 p-5">
+    <div data-testid="next-study-signup" className="mx-auto mt-6 max-w-sm rounded-3xl border border-stl-border bg-stl-surface p-5">
       {pack?.leaderId ? (
         <>
           <SignupQr url={currentSignupUrl(pack.id)} size="16rem" className="mx-auto" pack={pack} />
-          <p className="ld-body mt-4 font-serif-sc text-slate-100">{SU_QR_BODY}</p>
-          <a href={signupHash(pack.id)} className="ld-body ld-setup-line inline-block text-amber-300 underline underline-offset-4 hover:text-amber-200">
+          <p className="ld-body mt-4 font-serif-sc text-stl-text">{SU_QR_BODY}</p>
+          <a href={signupHash(pack.id)} className="ld-body ld-setup-line inline-block text-stl-gold underline underline-offset-4 hover:text-stl-gold-hover">
             {NEXT_SIGNUP_LINK}
           </a>
         </>
       ) : (
-        <p data-testid="next-study-demo" className="ld-body font-serif-sc text-slate-300">{SU_DEMO_LINE}</p>
+        <p data-testid="next-study-demo" className="ld-body font-serif-sc text-stl-text">{SU_DEMO_LINE}</p>
       )}
     </div>
   );
@@ -98,7 +98,7 @@ const LandingNextStudy: React.FC<{ packId: string }> = ({ packId }) => {
         <a
           href={packHash(packId)}
           data-testid="next-study-open"
-          className="ld-cta flex flex-1 items-center justify-center gap-2 rounded-2xl bg-amber-500 px-6 font-semibold text-slate-950 hover:bg-amber-400"
+          className="ld-cta flex flex-1 items-center justify-center gap-2 rounded-2xl bg-stl-gold px-6 font-semibold text-stl-bg hover:bg-stl-gold-hover"
         >
           <span>{NEXT_OPEN_CTA}</span>
           <ArrowIcon />
@@ -108,7 +108,7 @@ const LandingNextStudy: React.FC<{ packId: string }> = ({ packId }) => {
           onClick={() => setSignupOpen(open => !open)}
           aria-expanded={signupOpen}
           data-testid="next-study-signup-toggle"
-          className="ld-cta flex flex-1 items-center justify-center rounded-2xl border border-amber-400/70 px-6 font-semibold text-amber-300 hover:bg-amber-400/10"
+          className="ld-cta flex flex-1 items-center justify-center rounded-2xl border border-stl-gold px-6 font-semibold text-stl-gold hover:bg-stl-gold-dim"
         >
           {signupOpen ? NEXT_SIGNUP_CLOSE : NEXT_SIGNUP_CTA}
         </button>

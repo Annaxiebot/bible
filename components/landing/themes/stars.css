@@ -1,7 +1,7 @@
 /* stars.css — Psalm 147:4, he counts the stars and names each one · 數點星宿 */
 .ld-stars { width: 100%; height: 100%; }
 .ld-star {
-  fill: #cbd5e1; opacity: 0.3;
+  fill: var(--stl-text-2); opacity: 0.3;
   transform-box: fill-box; transform-origin: center;
   animation: ld-star-breathe var(--ld-dur) ease-in-out var(--ld-delay) infinite alternate;
 }
@@ -15,9 +15,9 @@
     ld-star-name 40s ease-in-out var(--ld-name-delay) infinite;
 }
 @keyframes ld-star-name {
-  0%, 2% { fill: #cbd5e1; transform: scale(1); }
-  5%, 8% { fill: #fbbf24; transform: scale(1.9); }
-  12%, 100% { fill: #cbd5e1; transform: scale(1); }
+  0%, 2% { fill: var(--stl-text-2); transform: scale(1); }
+  5%, 8% { fill: var(--stl-gold); transform: scale(1.9); }
+  12%, 100% { fill: var(--stl-text-2); transform: scale(1); }
 }
 @media (prefers-reduced-motion: reduce) {
   .ld-star, .ld-star-named { animation: none; }

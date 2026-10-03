@@ -76,17 +76,17 @@ const TVChrome: React.FC<TVChromeProps> = ({ slideCount, index, onAskAI }) => {
   const compact = useCompactViewport();
   return (
   <>
-    <div className="absolute bottom-[2vh] right-[3vw] text-slate-500" style={{ fontSize: '2.5vh' }}>
+    <div className="absolute bottom-[2vh] right-[3vw] text-stl-text-3" style={{ fontSize: '2.5vh' }}>
       {index + 1}/{slideCount}
     </div>
     {index === 0 && (
-      <div className="absolute bottom-[2vh] left-[3vw] text-slate-500" style={{ fontSize: '2vh' }}>
+      <div className="absolute bottom-[2vh] left-[3vw] text-stl-text-3" style={{ fontSize: '2vh' }}>
         {compact ? FIRST_SLIDE_HINT_SHORT : FIRST_SLIDE_HINT}
       </div>
     )}
     <button
       onClick={(e) => { e.stopPropagation(); onAskAI(); }}
-      className="absolute bottom-[2vh] left-1/2 -translate-x-1/2 text-slate-500 hover:text-amber-300 border border-slate-700 rounded-full px-4 py-1"
+      className="absolute bottom-[2vh] left-1/2 -translate-x-1/2 text-stl-text-3 hover:text-stl-gold-hover border border-stl-border rounded-full px-4 py-1"
       style={{ fontSize: '2.2vh' }}
       aria-label={ASK_AI_LABEL}
     >
@@ -142,7 +142,7 @@ const TVPresentationView: React.FC<TVPresentationViewProps> = ({ packId, onExit 
 
   return (
     <div
-      className="fixed inset-0 bg-slate-950 text-slate-100 select-none overflow-hidden"
+      className="fixed inset-0 bg-stl-bg text-stl-text select-none overflow-hidden"
       data-testid="tv-presentation"
       onTouchStart={nav.onTouchStart}
       onTouchEnd={nav.onTouchEnd}
@@ -155,7 +155,7 @@ const TVPresentationView: React.FC<TVPresentationViewProps> = ({ packId, onExit 
           <p className="text-red-400" style={{ fontSize: '4vh' }} role="alert">{error}</p>
         )}
         {!error && !slide && (
-          <p className="text-slate-400" style={{ fontSize: '4vh' }}>{TV_LOADING}</p>
+          <p className="text-stl-text-2" style={{ fontSize: '4vh' }}>{TV_LOADING}</p>
         )}
         {slide && pack && <TVSlide slide={slide} pack={pack} />}
       </div>
@@ -165,7 +165,7 @@ const TVPresentationView: React.FC<TVPresentationViewProps> = ({ packId, onExit 
       )}
       <button
         onClick={(e) => { e.stopPropagation(); onExit(); }}
-        className="absolute top-[2vh] right-[2vw] text-slate-600 hover:text-slate-300 px-3 py-1"
+        className="absolute top-[2vh] right-[2vw] text-stl-text-3 hover:text-stl-text px-3 py-1"
         style={{ fontSize: '2.5vh' }}
         aria-label="退出演示 Exit presentation"
       >

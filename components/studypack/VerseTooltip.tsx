@@ -56,15 +56,15 @@ const PopupBody: React.FC<{ state: LoadState }> = ({ state }) => {
     return <span className="block text-red-300" style={tooltipTextStyle} role="alert">{VERSE_LOAD_ERROR}</span>;
   }
   if (state.status !== 'ready') {
-    return <span className="block text-slate-400" style={tooltipTextStyle}>{TV_LOADING}</span>;
+    return <span className="block text-stl-text-2" style={tooltipTextStyle}>{TV_LOADING}</span>;
   }
   return (
     <>
       {state.verses.map(v => (
-        <span key={v.num} className="block mb-[1vh] text-slate-100" style={tooltipTextStyle}>
-          <span className="text-amber-400 mr-2">{v.num}</span>
+        <span key={v.num} className="block mb-[1vh] text-stl-text" style={tooltipTextStyle}>
+          <span className="text-stl-gold mr-2">{v.num}</span>
           {v.cuv}
-          <span className="block text-slate-300">{v.en}</span>
+          <span className="block text-stl-text">{v.en}</span>
         </span>
       ))}
     </>
@@ -117,7 +117,7 @@ const VerseTooltip: React.FC<VerseTooltipProps> = ({ label, title = label, verse
   return (
     <span
       ref={anchorRef}
-      className="relative inline-block text-amber-300 underline decoration-dotted cursor-help"
+      className="relative inline-block text-stl-gold underline decoration-dotted cursor-help"
       data-testid="verse-ref"
       onMouseEnter={show}
       onMouseLeave={scheduleHide}
@@ -131,7 +131,7 @@ const VerseTooltip: React.FC<VerseTooltipProps> = ({ label, title = label, verse
           onMouseEnter={cancelHide}
           onMouseLeave={scheduleHide}
           onClick={e => e.stopPropagation()}
-          className="fixed overflow-y-auto tv-tooltip-scroll bg-slate-800 border border-slate-600 rounded-lg p-[1.5vh] shadow-xl block cursor-default"
+          className="fixed overflow-y-auto tv-tooltip-scroll bg-stl-surface border border-stl-border rounded-lg p-[1.5vh] shadow-xl block cursor-default"
           style={{
             left: placement.left,
             top: placement.top,
@@ -141,7 +141,7 @@ const VerseTooltip: React.FC<VerseTooltipProps> = ({ label, title = label, verse
             zIndex: 9999,
           }}
         >
-          <span className="block text-amber-400 font-semibold mb-[1vh]" style={tooltipTextStyle} data-testid="verse-tooltip-title">
+          <span className="block text-stl-gold font-semibold mb-[1vh]" style={tooltipTextStyle} data-testid="verse-tooltip-title">
             {title}
           </span>
           <PopupBody state={state} />

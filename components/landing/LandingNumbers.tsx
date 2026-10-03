@@ -21,13 +21,13 @@ const LandingNumbers: React.FC = () => (
   >
     <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4" data-testid="honest-numbers">
       {HONEST_NUMBERS.map(figure => (
-        <div key={figure.en} className="rounded-3xl border border-slate-800 bg-slate-900/60 p-5">
-          <dt className="ld-figure font-bold text-amber-400">{figure.value}</dt>
+        <div key={figure.en} className="rounded-3xl border border-stl-border bg-stl-surface p-5">
+          <dt className="ld-figure font-bold text-stl-gold">{figure.value}</dt>
           <dd className="ld-body mt-1">
-            <span className="block font-serif-sc text-slate-100">{figure.zh}</span>
-            <span className="block text-slate-400">{figure.en}</span>
+            <span className="block font-serif-sc text-stl-text">{figure.zh}</span>
+            <span className="block text-stl-text-2">{figure.en}</span>
             {'note' in figure && (
-              <span className="ld-footer mt-2 block text-slate-500">{figure.note}</span>
+              <span className="ld-footer mt-2 block text-stl-text-3">{figure.note}</span>
             )}
           </dd>
         </div>
