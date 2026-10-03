@@ -1,0 +1,1 @@
+import{r}from"./vendor-react-niBt23Ev.js";import{b1 as a}from"./index-BFI634ss.js";function c(){const[n,s]=r.useState(!1),[o,t]=r.useState(null);return{signIn:r.useCallback(async()=>{t(null),s(!0);const{error:e}=await a.signInWithGoogle();s(!1),e&&t(e.message)},[]),busy:n,error:o}}export{c as u};
