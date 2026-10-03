@@ -6,18 +6,20 @@
  * validator) with the model Ask AI resolves and reports a typed outcome; the
  * field is masked until Show is pressed; the key never appears in the "get
  * a key" link. With a stored key the dialog opens in the saved state (last 4
- * only, model line, Replace, Use recommended model). Strings are imported (R3).
+ * only, Replace, the "模型 Models" rows — covered in ModelRows.test.tsx).
+ * Strings are imported (R3).
  */
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { STORAGE_KEYS } from '../../../constants/storageKeys';
 import { DEFAULT_AI_SETUP, ASK_AI_MODEL, OPENROUTER_KEYS_URL } from '../../../services/aiDefaults';
-import { modelLine, modelUnavailableLine } from '../../studypack/tvHints';
+import { modelUnavailableLine } from '../../studypack/tvHints';
 import {
   SETUP_TITLE, SETUP_EXPLANATION, SETUP_KEY_LABEL, SETUP_SHOW_KEY, SETUP_HIDE_KEY,
   SETUP_GET_KEY, SETUP_TEST, SETUP_TEST_OK, SETUP_TEST_INVALID, SETUP_TEST_NO_CREDITS, SETUP_TEST_ERROR,
-  SETUP_SAVE, SETUP_EMPTY_KEY, SETUP_CLOSE, SETUP_REPLACE, SETUP_USE_RECOMMENDED, savedKeyLine, maskApiKey,
+  SETUP_SAVE, SETUP_EMPTY_KEY, SETUP_CLOSE, SETUP_REPLACE, SETUP_MODEL_ASK, SETUP_MODELS_TITLE,
+  recommendedFor, savedKeyLine, maskApiKey,
 } from '../setupStrings';
 
 const testApiKeyMock = vi.fn();
@@ -63,7 +65,7 @@ describe('QuickAISetupForm', () => {
 
   it('strings are Chinese first (ADR-0003)', () => {
     for (const s of [SETUP_TITLE, SETUP_EXPLANATION, SETUP_GET_KEY, SETUP_TEST, SETUP_SAVE, SETUP_REPLACE,
-      SETUP_USE_RECOMMENDED, SETUP_TEST_OK, SETUP_TEST_INVALID, SETUP_TEST_NO_CREDITS, SETUP_TEST_ERROR,
+      SETUP_MODELS_TITLE, SETUP_MODEL_ASK, recommendedFor(SETUP_MODEL_ASK), SETUP_TEST_OK, SETUP_TEST_INVALID, SETUP_TEST_NO_CREDITS, SETUP_TEST_ERROR,
       savedKeyLine('sk-or-…abcd')]) {
       expect(s).toMatch(/^[一-鿿]/);
     }
@@ -152,12 +154,12 @@ describe('QuickAISetupForm — saved state (a key is already stored)', () => {
     vi.stubGlobal('localStorage', storage);
   });
 
-  it('shows the masked key (last 4 only), the model Ask AI will use, and no input or Save', () => {
+  it('shows the masked key (last 4 only), the model rows with the Ask-AI choice, and no key input or Save', () => {
     render(<QuickAISetupForm onSaved={vi.fn()} />);
     expect(maskApiKey(STORED)).toBe('sk-or-…cdef');
     expect(screen.getByTestId('saved-key')).toHaveTextContent(savedKeyLine('sk-or-…cdef'));
     expect(screen.getByTestId('saved-key').textContent).not.toContain(STORED);
-    expect(screen.getByTestId('saved-model')).toHaveTextContent(modelLine('openrouter/free'));
+    expect((screen.getByLabelText(SETUP_MODEL_ASK) as HTMLInputElement).value).toBe('openrouter/auto:free');
     expect(screen.queryByLabelText(SETUP_KEY_LABEL)).toBeNull();
     expect(screen.queryByRole('button', { name: SETUP_SAVE })).toBeNull();
   });
@@ -188,13 +190,15 @@ describe('QuickAISetupForm — saved state (a key is already stored)', () => {
     await waitFor(() => expect(testApiKeyMock).toHaveBeenLastCalledWith('sk-or-new', 'openrouter/free'));
   });
 
-  it('Use recommended model writes the recommended default over the stored model and updates the line', () => {
+  it('the Ask-AI row\'s Recommended writes the default over the stored model; Test then uses it', async () => {
     render(<QuickAISetupForm onSaved={vi.fn()} />);
-    fireEvent.click(screen.getByRole('button', { name: SETUP_USE_RECOMMENDED }));
+    fireEvent.click(screen.getByRole('button', { name: recommendedFor(SETUP_MODEL_ASK) }));
     expect(storage.dump()[STORAGE_KEYS.AI_MODEL]).toBe(DEFAULT_AI_SETUP.model);
     expect(storage.dump()[STORAGE_KEYS.AI_PROVIDER]).toBe(DEFAULT_AI_SETUP.provider);
-    expect(screen.getByTestId('saved-model')).toHaveTextContent(modelLine(ASK_AI_MODEL));
-    expect(screen.queryByRole('button', { name: SETUP_USE_RECOMMENDED })).toBeNull(); // already recommended
+    expect((screen.getByLabelText(SETUP_MODEL_ASK) as HTMLInputElement).value).toBe(ASK_AI_MODEL);
+    expect(screen.getByRole('button', { name: recommendedFor(SETUP_MODEL_ASK) })).toBeDisabled(); // already recommended
+    clickTest();
+    await waitFor(() => expect(testApiKeyMock).toHaveBeenCalledWith(STORED, ASK_AI_MODEL));
   });
 
   it('Replace → paste → Save stores the new key and returns to the saved state with its last 4', () => {

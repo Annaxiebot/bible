@@ -7,7 +7,8 @@
  * renders the same layout with all animation off. The sticky nav scrolls to
  * its sections; the next-study block shows the real sample pack and opens
  * it in TV mode; sign-up shows the demo line for the sample pack and the
- * per-pack QR + #/signup link for an owned pack.
+ * per-pack QR + #/signup link for an owned pack. The saved-key state of the
+ * setup dialog (model rows) lives in quick-ai-setup.spec.ts.
  */
 import { test, expect, Page } from '@playwright/test';
 import {
@@ -18,14 +19,9 @@ import { SETUP_HASH, SAMPLE_PACK_ID } from '../../components/landing/landingRout
 import { signupHash } from '../../components/signup/signupRoute';
 import { SU_DEMO_LINE } from '../../components/signup/signupStrings';
 import { routeOwnedSamplePack, expectedSignupUrl } from './helpers/signup';
-import {
-  SETUP_TITLE, SETUP_KEY_LABEL, SETUP_SAVE, SETUP_GET_KEY, SETUP_TEST, SETUP_TEST_OK, SETUP_TEST_NO_CREDITS,
-  SETUP_REPLACE, savedKeyLine, maskApiKey,
-} from '../../components/setup/setupStrings';
-import { modelLine } from '../../components/studypack/tvHints';
-import { OPENROUTER_KEYS_URL, ASK_AI_MODEL } from '../../services/aiDefaults';
+import { SETUP_TITLE, SETUP_KEY_LABEL, SETUP_SAVE, SETUP_GET_KEY } from '../../components/setup/setupStrings';
+import { OPENROUTER_KEYS_URL } from '../../services/aiDefaults';
 import { STORAGE_KEYS } from '../../constants/storageKeys';
-import { injectApiKey, E2E_API_KEY, mockOpenRouterSequence } from './helpers/tv';
 
 const PHONE = { width: 375, height: 812 };
 const DESKTOP = { width: 1280, height: 800 };
@@ -101,35 +97,6 @@ test.describe('Landing page', () => {
     await expect(page.getByRole('dialog')).toHaveCount(0);
     await expect(page.getByTestId('landing-page')).toBeVisible();
     await expect(page).not.toHaveURL(/#\/setup/);
-  });
-
-  test('#/setup with a stored key opens in the saved state: last 4 only, model line, Test uses the stored key', async ({ page }) => {
-    await injectApiKey(page);
-    const mock = await mockOpenRouterSequence(page, [
-      { json: { model: ASK_AI_MODEL, choices: [{ message: { content: 'ok' } }] } },
-      { status: 402, message: 'Insufficient credits' },
-    ]);
-    await page.goto(`./${SETUP_HASH}`);
-    const dialog = page.getByRole('dialog', { name: SETUP_TITLE });
-    await expect(dialog.getByTestId('saved-key')).toHaveText(savedKeyLine(maskApiKey(E2E_API_KEY)));
-    expect(await dialog.getByTestId('saved-key').textContent()).not.toContain(E2E_API_KEY);
-    await expect(dialog.getByTestId('saved-model')).toHaveText(modelLine(ASK_AI_MODEL));
-    await expect(dialog.getByLabel(SETUP_KEY_LABEL)).toHaveCount(0);
-
-    // Test with nothing typed: the stored key goes on the wire, against the Ask-AI model
-    await dialog.getByRole('button', { name: SETUP_TEST }).click();
-    await expect(dialog.getByRole('status')).toHaveText(SETUP_TEST_OK);
-    expect(mock.bodies()[0].model).toBe(ASK_AI_MODEL);
-    // A 402 is reported as the credits outcome with the status
-    await dialog.getByRole('button', { name: SETUP_TEST }).click();
-    await expect(dialog.getByRole('status')).toHaveText(`${SETUP_TEST_NO_CREDITS} · HTTP 402: Insufficient credits`);
-
-    // Replace reveals the empty masked field
-    await dialog.getByRole('button', { name: SETUP_REPLACE }).click();
-    const field = dialog.getByLabel(SETUP_KEY_LABEL);
-    await expect(field).toHaveValue('');
-    await expect(field).toHaveAttribute('type', 'password');
-    expect(page.url()).not.toContain(E2E_API_KEY);
   });
 
   for (const [name, size, minBody] of [

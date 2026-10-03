@@ -37,7 +37,19 @@ export function savedKeyLine(maskedKey: string): string {
 }
 
 export const SETUP_REPLACE = bilingual('更换', 'Replace');
-export const SETUP_USE_RECOMMENDED = bilingual('使用推荐模型', 'Use recommended model');
+
+// ---- Models block (saved state): three configurable roles · 模型 ----------
+
+export const SETUP_MODELS_TITLE = bilingual('模型', 'Models');
+export const SETUP_MODEL_ASK = bilingual('问一问', 'Ask AI');
+export const SETUP_MODEL_PACK = bilingual('新建查经', 'Pack generation');
+export const SETUP_MODEL_FALLBACKS = bilingual('备用', 'Fallbacks');
+/** Per-row reset to the shipped default (services/aiDefaults constants). */
+export const SETUP_MODEL_RECOMMENDED = bilingual('推荐', 'Recommended');
+/** Accessible name of a row's reset button: "推荐 Recommended · 问一问 Ask AI". */
+export function recommendedFor(rowLabel: string): string {
+  return bilingualLine(SETUP_MODEL_RECOMMENDED, rowLabel);
+}
 
 // ---- Test outcomes · 测试结果 ----------------------------------------------
 
