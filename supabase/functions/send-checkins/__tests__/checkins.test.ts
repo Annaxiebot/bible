@@ -18,7 +18,7 @@ import {
   selectRecipients, testRecipientRow, verifyLeader, memberContext, welcomeAllowed, WELCOME_WINDOW_MS, SignupRow,
 } from '../recipients.ts';
 import { checkinHash } from '../../../../components/checkin/checkinRoute';
-import { sendEmail, sendSms, RESEND_EMAILS_URL, twilioMessagesUrl } from '../senders.ts';
+import { sendEmail, sendSms, emailConfig, resendBody, RESEND_EMAILS_URL, twilioMessagesUrl, EmailConfig } from '../senders.ts';
 import { loadCheckinPack, packFromSummary, PackSummaryRow } from '../packSource.ts';
 import { PACK_SCHEMA_VERSION as APP_SCHEMA_VERSION } from '../../../../components/studypack/packTypes';
 import { TEST_PACK_PATH } from '../../../../components/studypack/__tests__/fixtures';
@@ -245,19 +245,41 @@ describe('senders', () => {
   afterEach(() => vi.unstubAllGlobals());
   const message = { subject: 'S', text: 'T' };
 
-  it('sendEmail posts to Resend with the FROM constant and resolves on 200', async () => {
+  const email: EmailConfig = { apiKey: 're_key', from: CHECKIN_FROM_EMAIL, replyTo: null };
+  const REPLY_TO = 'Study Agent <agent@agentmail.to>';
+
+  it('emailConfig: the CHECKIN_FROM / CHECKIN_REPLY_TO secrets win; blank or unset fall back to the constant / no reply-to', () => {
+    const lookup = (vars: Record<string, string>) => (name: string) => vars[name] ?? '';
+    expect(emailConfig(lookup({ RESEND_API_KEY: 'k' }))).toEqual({ apiKey: 'k', from: CHECKIN_FROM_EMAIL, replyTo: null });
+    expect(emailConfig(lookup({ RESEND_API_KEY: 'k', CHECKIN_FROM: '  ', CHECKIN_REPLY_TO: '' })))
+      .toEqual({ apiKey: 'k', from: CHECKIN_FROM_EMAIL, replyTo: null });
+    expect(emailConfig(lookup({ RESEND_API_KEY: 'k', CHECKIN_FROM: 'Me <me@x.org> ', CHECKIN_REPLY_TO: ` ${REPLY_TO}` })))
+      .toEqual({ apiKey: 'k', from: 'Me <me@x.org>', replyTo: REPLY_TO });
+  });
+
+  it('resendBody carries reply_to only when configured (Resend\'s field name is reply_to)', () => {
+    expect(resendBody(email, 'a@x.org', message)).toEqual({ from: CHECKIN_FROM_EMAIL, to: ['a@x.org'], subject: 'S', text: 'T' });
+    expect(resendBody({ ...email, from: 'Me <me@x.org>', replyTo: REPLY_TO }, 'a@x.org', message))
+      .toEqual({ from: 'Me <me@x.org>', to: ['a@x.org'], subject: 'S', text: 'T', reply_to: REPLY_TO });
+  });
+
+  it('sendEmail posts the configured from (env over constant) and reply_to to Resend; resolves on 200', async () => {
     const fetchMock = vi.fn(async () => ({ ok: true, status: 200, text: async () => '' }));
     vi.stubGlobal('fetch', fetchMock);
-    await sendEmail('re_key', 'a@x.org', message);
+    await sendEmail(email, 'a@x.org', message);
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe(RESEND_EMAILS_URL);
     expect((init.headers as Record<string, string>).Authorization).toBe('Bearer re_key');
     expect(JSON.parse(init.body as string)).toEqual({ from: CHECKIN_FROM_EMAIL, to: ['a@x.org'], subject: 'S', text: 'T' });
+    expect(JSON.parse(init.body as string)).not.toHaveProperty('reply_to');
+    await sendEmail(emailConfig(name => ({ RESEND_API_KEY: 're_key', CHECKIN_FROM: 'Me <me@x.org>', CHECKIN_REPLY_TO: REPLY_TO })[name] ?? ''), 'b@x.org', message);
+    const [, second] = fetchMock.mock.calls[1] as unknown as [string, RequestInit];
+    expect(JSON.parse(second.body as string)).toEqual({ from: 'Me <me@x.org>', to: ['b@x.org'], subject: 'S', text: 'T', reply_to: REPLY_TO });
   });
 
   it('sendEmail throws with the provider text on a non-OK status', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 422, text: async () => 'domain not verified' })));
-    await expect(sendEmail('k', 'a@x.org', message)).rejects.toThrow('Resend HTTP 422: domain not verified');
+    await expect(sendEmail(email, 'a@x.org', message)).rejects.toThrow('Resend HTTP 422: domain not verified');
   });
 
   it('sendSms posts form-encoded to the account Messages URL with basic auth; throws on failure', async () => {

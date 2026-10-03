@@ -21,6 +21,8 @@
  *   WELCOME_WINDOW_MS (recipients.welcomeAllowed). One email, to that row.
  * - DRY_RUN=1 logs instead of sending. Every attempt — sent, dry-run or
  *   failed — writes one checkin_sends row.
+ * - Email headers come from secrets: CHECKIN_FROM (default CHECKIN_FROM_EMAIL)
+ *   and CHECKIN_REPLY_TO (optional; senders.emailConfig). SMS is unaffected.
  *
  * Deno-only imports stay in this file; the helpers are plain TS under vitest.
  */
@@ -32,7 +34,7 @@ import { loadCheckinPack, PACK_SUMMARIES_TABLE, SUMMARY_COLUMNS, PackSummaryRow 
 import {
   selectRecipients, testRecipientRow, verifyLeader, memberContext, welcomeAllowed, Recipient, SignupRow,
 } from './recipients.ts';
-import { sendEmail, sendSms, TwilioConfig } from './senders.ts';
+import { emailConfig, sendEmail, sendSms, TwilioConfig } from './senders.ts';
 
 /** Must equal components/studypack/packTypes.ts PACK_SCHEMA_VERSION (pinned by checkins.test.ts). */
 export const PACK_SCHEMA_VERSION = 2;
@@ -116,7 +118,7 @@ async function deliver(recipient: Recipient, kind: MessageKind, pack: CheckinPac
     return { ...base, status: 'dry-run' };
   }
   try {
-    if (recipient.channel === 'email') await sendEmail(env('RESEND_API_KEY'), recipient.to, message);
+    if (recipient.channel === 'email') await sendEmail(emailConfig(env), recipient.to, message);
     else await sendSms(twilioConfig(), recipient.to, message);
     return { ...base, status: 'sent' };
   } catch (err) {
