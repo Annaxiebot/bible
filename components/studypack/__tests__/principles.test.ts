@@ -12,6 +12,13 @@ import {
   LIFE_AREAS,
   ASK_AI_ANSWER_CONTRACT,
   TYPE_SCALE,
+  CONTENT_LANGUAGES,
+  CONTENT_LANGUAGE_CONTRACTS,
+  DEFAULT_CONTENT_LANGUAGE,
+  LEGACY_CONTENT_LANGUAGE,
+  isContentLanguage,
+  contentLine,
+  PACK_CONTENT_CONTRACT,
 } from '../principles';
 
 describe('bilingual()', () => {
@@ -47,6 +54,36 @@ describe('ASK_AI_ANSWER_CONTRACT', () => {
     expect(ASK_AI_ANSWER_CONTRACT).toContain('language of the question');
     expect(ASK_AI_ANSWER_CONTRACT).toContain('Chinese answer with');
     expect(ASK_AI_ANSWER_CONTRACT).toContain('key terms also in English');
+  });
+});
+
+describe('content language (ADR-0003 §1 note)', () => {
+  it('has three modes, Chinese first; new packs default to Chinese with English keywords, legacy packs read as bilingual', () => {
+    expect(CONTENT_LANGUAGES).toEqual(['zh-keywords', 'bilingual', 'en-keywords']);
+    expect(DEFAULT_CONTENT_LANGUAGE).toBe('zh-keywords');
+    expect(LEGACY_CONTENT_LANGUAGE).toBe('bilingual');
+    expect(isContentLanguage('bilingual')).toBe(true);
+    expect(isContentLanguage('klingon')).toBe(false);
+    expect(isContentLanguage(null)).toBe(false);
+  });
+
+  it('CONTENT_LANGUAGE_CONTRACTS is the single map of the three format contracts, each with a line rule, total target and Ask-AI rule', () => {
+    expect(Object.keys(CONTENT_LANGUAGE_CONTRACTS).sort()).toEqual([...CONTENT_LANGUAGES].sort());
+    for (const mode of CONTENT_LANGUAGES) {
+      const c = CONTENT_LANGUAGE_CONTRACTS[mode];
+      expect(c.lineRule).toMatch(/^CONTENT LANGUAGE:/);
+      expect(c.askAIRule).toMatch(/^CONTENT LANGUAGE:/);
+      expect(c.totalTarget.length).toBeGreaterThan(20);
+    }
+    // The shared contract no longer demands two halves — the mode's rule does.
+    expect(PACK_CONTENT_CONTRACT).not.toMatch(/every bilingual item has/);
+    expect(PACK_CONTENT_CONTRACT).toMatch(/Chinese is shown first, English second/);
+  });
+
+  it('contentLine shows the mode\'s half: zh only, "中文 · English", or en only', () => {
+    expect(contentLine('zh-keywords', '忧虑（anxiety）', 'anxiety')).toBe('忧虑（anxiety）');
+    expect(contentLine('bilingual', '忧虑', 'anxiety')).toBe('忧虑 · anxiety');
+    expect(contentLine('en-keywords', '忧虑', 'anxiety (忧虑)')).toBe('anxiety (忧虑)');
   });
 });
 

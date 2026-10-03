@@ -24,6 +24,33 @@ export function bilingualLine(zh: string, en: string): string {
   return `${zh}${BILINGUAL_SEPARATOR}${en}`;
 }
 
+/**
+ * How much English a pack's generated lines carry (ADR-0003 §1 note). The
+ * fixed headings, the verses (和合本 + BSB) and the app-owned lines stay
+ * bilingual in every mode; only the model-drafted lines change.
+ */
+export type ContentLanguage = 'zh-keywords' | 'bilingual' | 'en-keywords';
+
+/** The three modes in UI order (Chinese first). */
+export const CONTENT_LANGUAGES: readonly ContentLanguage[] = ['zh-keywords', 'bilingual', 'en-keywords'];
+
+/** What a new pack gets unless the leader picks otherwise. */
+export const DEFAULT_CONTENT_LANGUAGE: ContentLanguage = 'zh-keywords';
+
+/** Packs written before the field existed: their lines are "中文 · English", so they render unchanged. */
+export const LEGACY_CONTENT_LANGUAGE: ContentLanguage = 'bilingual';
+
+export function isContentLanguage(value: unknown): value is ContentLanguage {
+  return CONTENT_LANGUAGES.includes(value as ContentLanguage);
+}
+
+/** One pack line from the model's halves: the mode decides which half (or both) is shown. */
+export function contentLine(mode: ContentLanguage, zh: string, en: string): string {
+  if (mode === 'zh-keywords') return zh;
+  if (mode === 'en-keywords') return en;
+  return bilingualLine(zh, en);
+}
+
 /** Translations the app displays and bundles (ADR-0003 §2–4). */
 export const TRANSLATIONS = {
   zh: { id: 'cuv', label: '和合本' },  // Simplified 简体 for display
@@ -71,8 +98,9 @@ export const TYPE_SCALE = {
  * never requested from the model — it comes from the bundled Bible data (§4).
  */
 export const PACK_CONTENT_CONTRACT = [
-  'CONTENT RULES: every bilingual item has a Chinese half (简体 Simplified) and',
-  'an English half; Chinese is shown first, English second. Ground every point',
+  'CONTENT RULES: Chinese is 简体 Simplified; where both languages appear,',
+  'Chinese is shown first, English second (the CONTENT LANGUAGE rules below',
+  'say which halves each line carries). Ground every point',
   'in the passage given below and cite verses as v.N or vv.N–M. Keep three',
   'kinds of claims separate: what Scripture says, what behavior it may lead',
   'to, and any scientific/health claim (never present the last two as biblical',
@@ -81,6 +109,57 @@ export const PACK_CONTENT_CONTRACT = [
   'Reflection prompts are private by default. Do not invent scripture text',
   'and do not quote verses at length — the app embeds the passage itself.',
 ].join('\n');
+
+/**
+ * Per-mode format contracts for the model-drafted lines (ADR-0003 §1 note).
+ * `lineRule` goes into every generation prompt, `totalTarget` scales the
+ * whole-reply size to the mode, `askAIRule` tells the TV overlay which
+ * language a pack of that mode is answered in. Title and keyPhrase carry
+ * both halves in every mode (they sit in fixed bilingual headings).
+ */
+export interface ContentLanguageContract {
+  lineRule: string;
+  totalTarget: string;
+  askAIRule: string;
+}
+
+const KEYWORD_EXAMPLE_ZH = '忧虑（anxiety）';
+const KEYWORD_EXAMPLE_EN = 'anxiety (忧虑)';
+
+export const CONTENT_LANGUAGE_CONTRACTS: Record<ContentLanguage, ContentLanguageContract> = {
+  'zh-keywords': {
+    lineRule: [
+      'CONTENT LANGUAGE: Chinese with English keywords. Every line is Simplified',
+      'Chinese in the "zh" field; the first time a key theological or biblical term',
+      `appears, follow it once with the English term in parentheses, e.g. ${KEYWORD_EXAMPLE_ZH}.`,
+      'Do NOT translate sentences into English and do NOT add an "en" field — the only',
+      'exceptions are title and keyPhrase, which carry both "zh" and "en".',
+    ].join('\n'),
+    totalTarget: '总量 Total: 整个 JSON 不超过约 1,600 个中文字，宁短勿长 · Keep the whole reply under ~1,600 Chinese characters; shorter is better.',
+    askAIRule: 'CONTENT LANGUAGE: this pack is Chinese with English keywords — by default answer in Simplified Chinese ' +
+      `with each key term once in English in parentheses, e.g. ${KEYWORD_EXAMPLE_ZH}, whatever language the question is in.`,
+  },
+  bilingual: {
+    lineRule: [
+      'CONTENT LANGUAGE: bilingual. Every item has a Chinese half ("zh", Simplified) and an',
+      'English half ("en") saying the same thing; the app shows them as "中文 · English".',
+    ].join('\n'),
+    totalTarget: '总量 Total: 整个 JSON 不超过约 2,500 个中文字（含英文），宁短勿长 · Keep the whole reply under ~2,500 Chinese characters including the English; shorter is better.',
+    askAIRule: 'CONTENT LANGUAGE: this pack is bilingual (中文 · English) — answer in the language of the question.',
+  },
+  'en-keywords': {
+    lineRule: [
+      'CONTENT LANGUAGE: English with Chinese keywords. Every line is English in the',
+      '"en" field; the first time a key theological or biblical term appears, follow it',
+      `once with the Simplified Chinese term in parentheses, e.g. ${KEYWORD_EXAMPLE_EN}.`,
+      'Do NOT translate sentences into Chinese and do NOT add a "zh" field — the only',
+      'exceptions are title and keyPhrase, which carry both "zh" and "en".',
+    ].join('\n'),
+    totalTarget: 'Total: keep the whole reply under ~900 English words; shorter is better.',
+    askAIRule: 'CONTENT LANGUAGE: this pack is English with Chinese keywords — by default answer in English ' +
+      `with each key term once in Simplified Chinese in parentheses, e.g. ${KEYWORD_EXAMPLE_EN}, whatever language the question is in.`,
+  },
+};
 
 export const ASK_AI_ANSWER_CONTRACT = [
   'ANSWER RULES (override any other format rules): answer in at most 2 short',
