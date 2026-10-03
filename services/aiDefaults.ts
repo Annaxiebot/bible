@@ -77,14 +77,73 @@ export function applyDefaultAISetup(): void {
   localStorage.setItem(STORAGE_KEYS.AI_MODEL, DEFAULT_AI_SETUP.model);
 }
 
+// ---- Configurable model roles (#/setup "模型 Models" rows) · 可配置模型 ----------
+// The three constants above are DEFAULTS; the browser's stored choice wins
+// when present and valid. Every caller reads through these readers (R3).
+
+/** Stored value when non-empty after trimming, else null. */
+function storedText(key: string): string | null {
+  const trimmed = (localStorage.getItem(key) ?? '').trim();
+  return trimmed || null;
+}
+
+/** Store a trimmed choice; an empty value clears the key so the default applies again. */
+function writeChoice(key: string, value: string): void {
+  const trimmed = value.trim();
+  if (trimmed) localStorage.setItem(key, trimmed);
+  else localStorage.removeItem(key);
+}
+
 /**
- * The one deliberate overwrite: the "Use recommended model" tap in the
- * saved-key dialog state writes provider + recommended model over whatever
- * was stored (e.g. an older free-router choice).
+ * Ask AI model (app-side id; callers on the wire apply wireModelId): the
+ * model chosen in AI settings when the stored provider is OpenRouter (same
+ * keys AIProviderSettings uses), otherwise the constant. A visitor who only
+ * pasted a key therefore gets the recommended model (one paste, it works).
+ */
+export function askAIModel(): string {
+  const provider = localStorage.getItem(STORAGE_KEYS.AI_PROVIDER);
+  const stored = storedText(STORAGE_KEYS.AI_MODEL);
+  return provider === DEFAULT_AI_SETUP.provider && stored ? stored : ASK_AI_MODEL;
+}
+
+/** Writes provider + model so the choice is effective for Ask AI; "" clears back to the default. */
+export function setAskAIModel(modelId: string): void {
+  localStorage.setItem(STORAGE_KEYS.AI_PROVIDER, DEFAULT_AI_SETUP.provider);
+  writeChoice(STORAGE_KEYS.AI_MODEL, modelId);
+}
+
+/**
+ * The one deliberate overwrite: the Ask-AI row's "推荐 Recommended" tap in
+ * the saved-key dialog state writes provider + recommended model over
+ * whatever was stored (e.g. an older free-router choice). Ask AI only; the
+ * pack and fallback rows have their own reset.
  */
 export function applyRecommendedModel(): void {
-  localStorage.setItem(STORAGE_KEYS.AI_PROVIDER, DEFAULT_AI_SETUP.provider);
-  localStorage.setItem(STORAGE_KEYS.AI_MODEL, DEFAULT_AI_SETUP.model);
+  setAskAIModel(ASK_AI_MODEL);
+}
+
+export function packGenerationModel(): string {
+  return storedText(STORAGE_KEYS.AI_PACK_MODEL) ?? PACK_GENERATION_MODEL;
+}
+
+export function setPackGenerationModel(modelId: string): void {
+  writeChoice(STORAGE_KEYS.AI_PACK_MODEL, modelId);
+}
+
+/** "a, b,,c " → ["a", "b", "c"]: the fallback row's comma-separated text as ids. */
+export function parseModelList(raw: string): string[] {
+  return raw.split(',').map(id => id.trim()).filter(Boolean);
+}
+
+/** Stored comma-separated fallback ids when at least one is non-empty, else the constant list. */
+export function askAIFallbackModels(): readonly string[] {
+  const parsed = parseModelList(storedText(STORAGE_KEYS.AI_FALLBACK_MODELS) ?? '');
+  return parsed.length ? parsed : ASK_AI_FALLBACK_MODELS;
+}
+
+/** Stores the ids normalised ("a, b"); a list with no ids clears back to the default. */
+export function setAskAIFallbackModels(raw: string): void {
+  writeChoice(STORAGE_KEYS.AI_FALLBACK_MODELS, parseModelList(raw).join(', '));
 }
 
 /**

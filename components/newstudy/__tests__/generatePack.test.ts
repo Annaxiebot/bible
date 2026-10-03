@@ -116,6 +116,15 @@ describe('generateStudyPack', () => {
     expect(JSON.parse(init.body as string).model).toBe(PACK_GENERATION_MODEL); // not the Ask-AI model
   });
 
+  it('sends the pack model chosen on #/setup instead of the default when one is stored', async () => {
+    (window.localStorage.getItem as ReturnType<typeof vi.fn>).mockImplementation((k: string) =>
+      ({ [STORAGE_KEYS.OPENROUTER_API_KEY]: 'unit-test-key', [STORAGE_KEYS.AI_PACK_MODEL]: 'deepseek/deepseek-chat-v3-0324' })[k] ?? null);
+    const fetchMock = stubFetch(chunked(`\`\`\`json\n${JOHN3_REPLY_JSON}\n\`\`\``));
+    await generateStudyPack(JOHN3_REQUEST, () => {}, new AbortController().signal);
+    const init = fetchMock.mock.calls.find(c => c[0] === OPENROUTER_API_URL)![1] as RequestInit;
+    expect(JSON.parse(init.body as string).model).toBe('deepseek/deepseek-chat-v3-0324');
+  });
+
   it('fails with the bilingual JSON error on a truncated reply (no half-pack)', async () => {
     stubFetch(chunked(JOHN3_REPLY_JSON.slice(0, 500)));
     await expect(generateStudyPack(JOHN3_REQUEST, () => {}, new AbortController().signal))
