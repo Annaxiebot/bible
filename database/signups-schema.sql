@@ -250,10 +250,14 @@ GRANT EXECUTE ON FUNCTION public.checkin_context(UUID) TO anon, authenticated;
 --      supabase secrets set CHECKIN_SMS_ENABLED=0            # flip to 1 after Twilio toll-free verification
 --      supabase secrets set TWILIO_ACCOUNT_SID=AC... TWILIO_AUTH_TOKEN=... TWILIO_FROM=+1...
 --      supabase secrets set DRY_RUN=1                        # keep 1 until a dry run looks right in checkin_sends
+--      supabase secrets set CHECKIN_FROM='Scripture to Life <checkins@scripturetolife.org>'   # optional; email From
+--      supabase secrets set CHECKIN_REPLY_TO='...@agentmail.to'                                # optional; email Reply-To
 --    SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are injected automatically.
 -- 3. Verify the sending domain in Resend (DNS: SPF + DKIM) so mail from
---    checkins@scripturetolife.org is not rejected. The FROM address is the
---    constant CHECKIN_FROM_EMAIL in supabase/functions/send-checkins/templates.ts.
+--    checkins@scripturetolife.org is not rejected. The FROM address is
+--    CHECKIN_FROM when set, else the constant CHECKIN_FROM_EMAIL in
+--    supabase/functions/send-checkins/templates.ts; replies go to
+--    CHECKIN_REPLY_TO when set (no Reply-To header otherwise). SMS ignores both.
 -- 4. Extensions (dashboard → Database → Extensions): pg_cron, pg_net.
 -- 5. Store the service-role key for pg_net (Vault), then schedule. pg_cron
 --    runs in UTC; America/Los_Angeles 09:00 is 16:00 UTC in PST and 17:00 in

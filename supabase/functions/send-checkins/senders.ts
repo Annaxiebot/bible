@@ -25,12 +25,37 @@ async function failureText(response: Response): Promise<string> {
   return `HTTP ${response.status}: ${body.slice(0, 500)}`;
 }
 
+export interface EmailConfig {
+  apiKey: string;
+  /** Resend `from`; CHECKIN_FROM_EMAIL unless CHECKIN_FROM overrides it. */
+  from: string;
+  /** Resend `reply_to`; omitted from the request when null (CHECKIN_REPLY_TO unset). */
+  replyTo: string | null;
+}
+
+/**
+ * Email settings from the environment (index.ts passes Deno.env; tests pass a
+ * map). Blank or missing values fall back: FROM → the constant, REPLY_TO → none.
+ */
+export function emailConfig(env: (name: string) => string): EmailConfig {
+  const from = env('CHECKIN_FROM').trim();
+  const replyTo = env('CHECKIN_REPLY_TO').trim();
+  return { apiKey: env('RESEND_API_KEY'), from: from || CHECKIN_FROM_EMAIL, replyTo: replyTo || null };
+}
+
+/** The Resend request body; `reply_to` is present only when configured. */
+export function resendBody(config: EmailConfig, to: string, message: CheckinMessage): Record<string, unknown> {
+  const body: Record<string, unknown> = { from: config.from, to: [to], subject: message.subject, text: message.text };
+  if (config.replyTo) body.reply_to = config.replyTo;
+  return body;
+}
+
 /** Send one email through Resend. Throws on a non-OK response. */
-export async function sendEmail(apiKey: string, to: string, message: CheckinMessage): Promise<void> {
+export async function sendEmail(config: EmailConfig, to: string, message: CheckinMessage): Promise<void> {
   const response = await fetch(RESEND_EMAILS_URL, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: CHECKIN_FROM_EMAIL, to: [to], subject: message.subject, text: message.text }),
+    headers: { Authorization: `Bearer ${config.apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(resendBody(config, to, message)),
   });
   if (!response.ok) throw new Error(`Resend ${await failureText(response)}`);
 }

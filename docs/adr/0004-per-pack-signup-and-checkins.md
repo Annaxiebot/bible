@@ -137,6 +137,13 @@ hand. Supabase was already in the stack (auth, sync, `ai-chat` edge function).
     URL follows the pack (`#/new/<packId>`, reload restores), and TV mode
     opened from the editor exits back to it (`tvReturn`, keyed by pack id;
     a pack opened directly still exits to the app).
+11. **Email headers are secrets, not code.** `CHECKIN_FROM` (default: the
+    `CHECKIN_FROM_EMAIL` constant) and `CHECKIN_REPLY_TO` (optional; sets
+    Resend's `reply_to`, e.g. an agent mailbox) are read in `index.ts` and
+    passed to the pure `senders.emailConfig`/`sendEmail`. Secrets list:
+    `RESEND_API_KEY`, `CHECKIN_FROM`, `CHECKIN_REPLY_TO`, `CHECKIN_SMS_ENABLED`,
+    `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM`, `DRY_RUN`
+    (runbook: `database/signups-schema.sql`). SMS is unaffected.
 
 ### Consequences (addendum)
 
