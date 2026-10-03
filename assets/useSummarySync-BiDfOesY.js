@@ -1,0 +1,1 @@
+import{r as e}from"./vendor-react-niBt23Ev.js";import{b2 as i}from"./index-SHLiVlOv.js";function c(t){const[o,f]=e.useState({status:"skipped"}),r=e.useRef(t);r.current=t;const d=t==null?void 0:t.id,s=t==null?void 0:t.leaderId;return e.useEffect(()=>{const n=r.current;if(!n||!s)return;let u=!1;return i(n).then(m=>{u||f(m)}),()=>{u=!0}},[d,s]),o}export{c as u};
