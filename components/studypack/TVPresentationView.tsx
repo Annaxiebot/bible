@@ -71,22 +71,46 @@ interface TVChromeProps {
   onAskAI: () => void;
 }
 
-/** Counter, first-slide hints, and Ask AI button (exit stays in the view so it also shows on load/error). */
+/** Accessible name of the progress bar (one use; 中文 first). */
+const PROGRESS_LABEL = '进度 Progress';
+
+/** A thin, quiet bar along the bottom edge: how far through the study the group is. */
+const TVProgress: React.FC<{ slideCount: number; index: number }> = ({ slideCount, index }) => (
+  <div
+    data-testid="tv-progress"
+    role="progressbar"
+    aria-label={PROGRESS_LABEL}
+    aria-valuemin={1}
+    aria-valuemax={slideCount}
+    aria-valuenow={index + 1}
+    className="absolute left-0 right-0 bottom-0 bg-stl-surface-2"
+    style={{ height: 'max(3px, 0.5vh)' }}
+  >
+    <div
+      className="h-full bg-stl-gold transition-[width] duration-300 motion-reduce:transition-none"
+      style={{ width: `${((index + 1) / slideCount) * 100}%`, opacity: 0.55 }}
+    />
+  </div>
+);
+
+/** Counter, progress bar, first-slide hints, and Ask AI button (exit stays in the view so it also shows on load/error). */
 const TVChrome: React.FC<TVChromeProps> = ({ slideCount, index, onAskAI }) => {
   const compact = useCompactViewport();
   return (
   <>
-    <div className="absolute bottom-[2vh] right-[3vw] text-stl-text-3" style={{ fontSize: '2.5vh' }}>
+    <TVProgress slideCount={slideCount} index={index} />
+    <div data-testid="tv-counter" className="absolute bottom-[2.5vh] right-[3vw] text-stl-text-3" style={{ fontSize: '2.5vh' }}>
       {index + 1}/{slideCount}
     </div>
     {index === 0 && (
-      <div className="absolute bottom-[2vh] left-[3vw] text-stl-text-3" style={{ fontSize: '2vh' }}>
+      // A line of its own above the pill: at 1280×720 the full hint ran under the Ask AI pill.
+      <div data-testid="tv-hint" className="absolute bottom-[7.5vh] inset-x-[3vw] text-center text-stl-text-3" style={{ fontSize: '2vh' }}>
         {compact ? FIRST_SLIDE_HINT_SHORT : FIRST_SLIDE_HINT}
       </div>
     )}
     <button
       onClick={(e) => { e.stopPropagation(); onAskAI(); }}
-      className="absolute bottom-[2vh] left-1/2 -translate-x-1/2 text-stl-text-3 hover:text-stl-gold-hover border border-stl-border rounded-full px-4 py-1"
+      className="absolute bottom-[2.5vh] left-1/2 -translate-x-1/2 text-stl-text-3 hover:text-stl-gold-hover border border-stl-border rounded-full px-4 py-1"
       style={{ fontSize: '2.2vh' }}
       aria-label={ASK_AI_LABEL}
     >
@@ -149,8 +173,10 @@ const TVPresentationView: React.FC<TVPresentationViewProps> = ({ packId, onExit 
     >
       {/* select-text re-enables selection inside the slide so a selected
           phrase can be sent to Ask AI (the root is select-none for swipes).
-          Clicks never navigate — arrow keys / swipe only. */}
-      <div ref={contentRef} className="h-full w-full px-[6vw] py-[6vh] select-text overflow-y-auto">
+          Clicks never navigate — arrow keys / swipe only. The bottom padding
+          (10vh) keeps slide text clear of the counter, Ask AI pill and
+          progress bar; slideFit.ts budgets text for exactly this frame. */}
+      <div ref={contentRef} className="h-full w-full px-[6vw] pt-[6vh] pb-[10vh] select-text overflow-y-auto">
         {error && (
           <p className="text-red-400" style={{ fontSize: '4vh' }} role="alert">{error}</p>
         )}

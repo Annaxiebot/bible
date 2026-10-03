@@ -16,6 +16,30 @@ export async function openTV(page: Page) {
   await expect(page.getByText('不要忧虑 Do Not Be Anxious')).toBeVisible();
 }
 
+/**
+ * 1-based slide numbers of the sample pack (2026-10-02-matt6), pinned in
+ * packTypes.test.ts. One copy, so a change to how much text a slide carries
+ * (slideFit.ts) is updated here once, not in every spec.
+ */
+export const DEMO_SLIDE = {
+  total: 23,
+  scripture: 2,        // 2–6: scripture 1/5–5/5
+  context: 7,          // 7–8
+  originalLanguage: 9, // 9–10
+  crossRefs: 11,       // 11–12
+  discussion: 13,      // 13–17: one per question
+  lifeMenu: 18,        // 18–19
+  reflection: 20,      // 20–21
+  qr: 22,
+  closing: 23,
+} as const;
+
+/** From the title slide, press ArrowRight until slide `n` (1-based) is shown. */
+export async function goToSlide(page: Page, n: number) {
+  for (let i = 1; i < n; i++) await page.keyboard.press('ArrowRight');
+  await expect(page.getByTestId('tv-counter')).toHaveText(`${n}/${DEMO_SLIDE.total}`);
+}
+
 /** The key every spec injects; never a real one. Its last 4 characters are what the saved state shows. */
 export const E2E_API_KEY = 'e2e-test-key';
 

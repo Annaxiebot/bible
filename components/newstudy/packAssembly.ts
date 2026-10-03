@@ -11,6 +11,7 @@
 import { StudyPack, PackSection, PackVerse, parseStudyPack } from '../studypack/packTypes';
 import { bilingual, bilingualLine, contentLine, ContentLanguage, TRANSLATIONS } from '../studypack/principles';
 import { bilingualRefLabel } from '../studypack/refLabel';
+import { HEADING_DETAIL_SEPARATOR } from '../studypack/slideText';
 import { makeLocalPackId } from '../studypack/packSource';
 import { getBookById } from '../../services/bibleBookData';
 import { GeneratedContent } from './generatedPack';
@@ -86,7 +87,7 @@ export function scriptureSection(req: VerseRange, verses: PackVerse[], keyPhrase
   const enBook = label.en.split(' ').slice(0, -1).join(' ');
   return {
     kind: 'scripture',
-    heading: `${SECTION_HEADINGS.scripture} — ${label.zh} ${enBook}`,
+    heading: `${SECTION_HEADINGS.scripture}${HEADING_DETAIL_SEPARATOR}${label.zh} ${enBook}`,
     keyPhrase,
     verses,
   };

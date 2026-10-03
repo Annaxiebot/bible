@@ -8,7 +8,11 @@ import {
   packContentLanguage,
   StudyPack,
   PackVerse,
+  MAX_VERSES_PER_SLIDE,
 } from '../packTypes';
+import {
+  MAX_BODY_LINES_PER_SLIDE, MAX_LIFE_MENU_ROWS_PER_SLIDE, VERSE_LINE_EMS, estimateBodyLines,
+} from '../slideFit';
 import { CONTENT_LANGUAGES, LEGACY_CONTENT_LANGUAGE } from '../principles';
 import { TEST_PACK_PATH } from './fixtures';
 import { currentSignupUrl } from '../../signup/signupRoute';
@@ -128,7 +132,8 @@ describe('chunkVerses', () => {
   const mk = (n: number): PackVerse[] =>
     Array.from({ length: n }, (_, i) => ({ num: i + 1, cuv: `c${i}`, en: `e${i}` }));
 
-  it('splits 10 verses into 2/2/3/3 (the Matt 6:25-34 case, cap 3)', () => {
+  it('splits 10 short verses into 2/2/3/3 (at most MAX_VERSES_PER_SLIDE each)', () => {
+    expect(MAX_VERSES_PER_SLIDE).toBe(3);
     expect(chunkVerses(mk(10)).map(c => c.length)).toEqual([2, 2, 3, 3]);
   });
 
@@ -143,31 +148,81 @@ describe('chunkVerses', () => {
     const flat = chunkVerses(mk(10)).flat();
     expect(flat.map(v => v.num)).toEqual(Array.from({ length: 10 }, (_, i) => i + 1));
   });
+
+  it('long verses split sooner: no part passes MAX_VERSE_ROWS_PER_SLIDE estimated rows', () => {
+    const long = (num: number): PackVerse => ({ num, cuv: '字'.repeat(VERSE_LINE_EMS * 4), en: 'e' });
+    const parts = chunkVerses([long(1), long(2), long(3)]);
+    expect(parts.map(p => p.length)).toEqual([1, 2]);
+  });
+
+  it('the key phrase takes room from part 1 only', () => {
+    const rows3 = (num: number): PackVerse => ({ num, cuv: '字'.repeat(VERSE_LINE_EMS * 3), en: 'e' });
+    const verses = [rows3(1), rows3(2), rows3(3)];
+    expect(chunkVerses(verses).map(p => p.length)).toEqual([3]);
+    expect(chunkVerses(verses, '「不要忧虑」 “Do not worry” (v.1)').map(p => p.length)).toEqual([1, 2]);
+  });
 });
 
 describe('buildSlides', () => {
-  it('splits scripture into parts with indicators, keyPhrase only on part 1', () => {
+  const DEMO_SLIDE_COUNT = 23;
+
+  it('splits scripture into parts that fit, keyPhrase on part 1, emphasis on every part', () => {
     const slides = buildSlides(loadRealPack());
     const scripture = slides.filter(s => s.kind === 'scripture');
-    expect(scripture).toHaveLength(4);
     expect(scripture.map(s => s.verses!.map(v => v.num))).toEqual([
-      [25, 26], [27, 28], [29, 30, 31], [32, 33, 34],
+      [25], [26, 27], [28, 29], [30, 31], [32, 33, 34],
     ]);
-    expect(scripture.map(s => s.partIndex)).toEqual([1, 2, 3, 4]);
-    expect(scripture.every(s => s.partTotal === 4)).toBe(true);
+    expect(scripture.map(s => s.partIndex)).toEqual([1, 2, 3, 4, 5]);
+    expect(scripture.every(s => s.partTotal === 5)).toBe(true);
     expect(scripture[0].keyPhrase).toContain('不要为生命忧虑');
     expect(scripture[1].keyPhrase).toBeUndefined();
+    expect(scripture.every(s => s.emphasis === scripture[0].keyPhrase)).toBe(true);
   });
 
-  it('expands discussion questions into one slide each (17 total)', () => {
+  it(`pins the demo pack at ${DEMO_SLIDE_COUNT} slides; discussion is one slide per question`, () => {
     const slides = buildSlides(loadRealPack());
-    expect(slides).toHaveLength(17);
+    expect(slides).toHaveLength(DEMO_SLIDE_COUNT);
     const discussion = slides.filter(s => s.kind === 'discussion');
     expect(discussion).toHaveLength(5);
     expect(discussion[0].questionNumber).toBe(1);
     expect(discussion[4].questionNumber).toBe(5);
     expect(discussion.every(s => s.questionTotal === 5)).toBe(true);
+    expect(discussion.every(s => s.partTotal === undefined)).toBe(true);
     expect(discussion[2].question).toContain('pulled apart, divided');
+  });
+
+  it('caps body text per slide and numbers continuation slides', () => {
+    const slides = buildSlides(loadRealPack());
+    for (const s of slides.filter(x => x.body && x.kind !== 'title')) {
+      const rows = s.body!.reduce((sum, line) => sum + estimateBodyLines(line), 0);
+      expect(rows, s.heading).toBeLessThanOrEqual(MAX_BODY_LINES_PER_SLIDE);
+    }
+    const context = slides.filter(s => s.kind === 'context');
+    expect(context.map(s => [s.partIndex, s.partTotal])).toEqual([[1, 2], [2, 2]]);
+    expect(context.every(s => s.heading === '背景 Context')).toBe(true);
+    // a section that fits keeps one slide with no counter
+    const closing = slides.filter(s => s.kind === 'closing');
+    expect(closing).toHaveLength(1);
+    expect(closing[0].partTotal).toBeUndefined();
+  });
+
+  it('loses no content: each section\'s continuation slides concatenate back to its body / rows', () => {
+    const pack = loadRealPack();
+    const slides = buildSlides(pack);
+    for (const section of pack.sections) {
+      const own = slides.filter(s => s.kind === section.kind);
+      if (section.body && section.kind !== 'qr') expect(own.flatMap(s => s.body ?? [])).toEqual(section.body);
+      if (section.rows) expect(own.flatMap(s => s.rows ?? [])).toEqual(section.rows);
+      if (section.verses) expect(own.flatMap(s => s.verses ?? [])).toEqual(section.verses);
+    }
+  });
+
+  it('splits the 7-row life menu over two slides (it overflows 1280×720 on one)', () => {
+    const slides = buildSlides(loadRealPack());
+    const lifeMenu = slides.filter(s => s.kind === 'lifeMenu');
+    expect(lifeMenu.map(s => s.rows!.length)).toEqual([3, 4]);
+    expect(lifeMenu.every(s => s.rows!.length <= MAX_LIFE_MENU_ROWS_PER_SLIDE)).toBe(true);
+    expect(lifeMenu.map(s => s.partIndex)).toEqual([1, 2]);
   });
 
   it('carries the qr section through to a slide between reflection and closing', () => {
@@ -175,7 +230,8 @@ describe('buildSlides', () => {
     expect(demo.leaderId).toBeUndefined();  // the committed sample pack is demo-only (ADR-0004)
     const demoSlides = buildSlides(demo);
     const qrIndex = demoSlides.findIndex(s => s.kind === 'qr');
-    expect(qrIndex).toBe(15); // second to last, before closing
+    expect(qrIndex).toBe(DEMO_SLIDE_COUNT - 2); // second to last, before closing
+    expect(demoSlides[qrIndex - 1].kind).toBe('reflection');
     expect(demoSlides[qrIndex].signupUrl).toBeUndefined();
     expect(demoSlides[qrIndex].heading).toBe('签到 Sign up');
     expect(demoSlides[qrIndex + 1].kind).toBe('closing');
@@ -183,13 +239,6 @@ describe('buildSlides', () => {
     const ownedQr = buildSlides(owned)[qrIndex];
     expect(ownedQr.signupUrl).toBe(currentSignupUrl(owned.id));
     expect(ownedQr.signupUrl).toMatch(/#\/signup\/2026-10-02-matt6$/);
-  });
-
-  it('keeps lifeMenu rows on a single slide', () => {
-    const slides = buildSlides(loadRealPack());
-    const lifeMenu = slides.filter(s => s.kind === 'lifeMenu');
-    expect(lifeMenu).toHaveLength(1);
-    expect(lifeMenu[0].rows).toHaveLength(7);
   });
 });
 

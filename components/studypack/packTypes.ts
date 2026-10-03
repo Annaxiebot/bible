@@ -3,12 +3,17 @@
  *
  * A StudyPack is a JSON file under public/packs/<id>.json rendered as
  * full-screen slides for Friday small-group study. One section per slide,
- * except `discussion`, where each question gets its own slide.
+ * except `discussion` (one slide per question) and sections too long for
+ * one screen (continuation slides, see buildSlides).
  */
 
 import { currentSignupUrl } from '../signup/signupRoute';
 import { isGoogleFormUrl, isFormEntryId } from './feedbackForm';
 import { ContentLanguage, CONTENT_LANGUAGES, isContentLanguage, LEGACY_CONTENT_LANGUAGE } from './principles';
+import {
+  chunkBalanced, chunkBody, estimateLines, KEY_PHRASE_RESERVE_ROWS,
+  MAX_LIFE_MENU_ROWS_PER_SLIDE, MAX_VERSE_ROWS_PER_SLIDE, VERSE_LINE_EMS,
+} from './slideFit';
 
 export type SectionKind =
   | 'title'
@@ -78,6 +83,7 @@ export interface StudyPack {
   feedbackFormUrl?: string;              // when set, check-in links point at this Google Form instead of #/checkin
   feedbackFormEntries?: FeedbackFormEntries;
   contentLanguage?: ContentLanguage;     // how much English the generated lines carry; absent = legacy "中文 · English"
+  updatedAt?: string;  // ISO time of the leader's last save (packSync newer-wins, ADR-0006); absent on older packs
   sections: PackSection[];
 }
 
@@ -88,7 +94,8 @@ export function packContentLanguage(pack: Pick<StudyPack, 'contentLanguage'>): C
 
 /**
  * One rendered slide. Discussion sections expand to one slide per question;
- * scripture sections split into parts of at most MAX_VERSES_PER_SLIDE verses.
+ * scripture sections split into parts of at most MAX_VERSES_PER_SLIDE verses;
+ * long body and life-menu sections continue on further slides.
  */
 export interface Slide {
   kind: SectionKind;
@@ -100,8 +107,9 @@ export interface Slide {
   questionNumber?: number;
   questionTotal?: number;
   verses?: PackVerse[];
-  partIndex?: number;  // scripture only — 1-based part number
-  partTotal?: number;  // scripture only — total scripture parts
+  partIndex?: number;  // 1-based part of a section split across slides (scripture always; others when > 1)
+  partTotal?: number;  // how many slides the section was split into
+  emphasis?: string;   // scripture only — the section's keyPhrase, highlighted where it occurs in the verses
   headingZh?: string;
   signupUrl?: string;  // qr only — this deployment's sign-up URL (what the QR encodes); absent on demo packs
 }
@@ -119,7 +127,7 @@ function isPackVerses(value: unknown): value is PackVerse[] {
   );
 }
 
-function isLifeMenuRows(value: unknown): value is LifeMenuRow[] {
+export function isLifeMenuRows(value: unknown): value is LifeMenuRow[] {
   return Array.isArray(value) && value.every(v =>
     typeof v === 'object' && v !== null &&
     typeof (v as LifeMenuRow).area === 'string' &&
@@ -173,6 +181,9 @@ export function parseStudyPack(raw: unknown): StudyPack {
   if (p.leaderId !== undefined && (typeof p.leaderId !== 'string' || p.leaderId.length === 0)) {
     throw new Error('StudyPack leaderId must be a non-empty string when present');
   }
+  if (p.updatedAt !== undefined && (typeof p.updatedAt !== 'string' || Number.isNaN(Date.parse(p.updatedAt)))) {
+    throw new Error('StudyPack updatedAt must be an ISO date string when present');
+  }
   if (p.contentLanguage !== undefined && !isContentLanguage(p.contentLanguage)) {
     throw new Error(`StudyPack contentLanguage must be one of ${CONTENT_LANGUAGES.join(' | ')}, got: ${String(p.contentLanguage)}`);
   }
@@ -199,71 +210,77 @@ function parseFeedbackForm(p: Partial<StudyPack>): void {
 }
 
 /**
- * Most verses shown on one scripture slide. With the senior-readable type
- * scale (TYPE_SCALE.verse) four bilingual rows overflow a 16:9 1080p slide
- * — the e2e fit check proved it — so the cap is 3.
+ * Most verses shown on one scripture slide, however short: three bilingual
+ * rows is as much as a group reads together from one screen. Long verses
+ * split sooner, by estimated rows (MAX_VERSE_ROWS_PER_SLIDE, slideFit.ts).
  */
 export const MAX_VERSES_PER_SLIDE = 3;
 
-/**
- * Split a passage into near-even chunks of at most MAX_VERSES_PER_SLIDE.
- * 10 verses → [3, 3, 4]: later chunks absorb the remainder.
- */
-export function chunkVerses(verses: PackVerse[]): PackVerse[][] {
-  const parts = Math.ceil(verses.length / MAX_VERSES_PER_SLIDE);
-  const base = Math.floor(verses.length / parts);
-  const extra = verses.length % parts;
-  const chunks: PackVerse[][] = [];
-  let start = 0;
-  for (let i = 0; i < parts; i++) {
-    const size = base + (i >= parts - extra ? 1 : 0);
-    chunks.push(verses.slice(start, start + size));
-    start += size;
-  }
-  return chunks;
+/** A verse's height in rows: the taller of its 和合本 and English columns. */
+function verseRows(verse: PackVerse): number {
+  return Math.max(estimateLines(verse.cuv, VERSE_LINE_EMS), estimateLines(verse.en, VERSE_LINE_EMS));
 }
 
 /**
- * Flatten sections into slides: one per section, one per discussion question,
- * one per scripture verse chunk. The qr slide carries the pack's sign-up URL
- * (derived from its id, never stored in the JSON) only when the pack has an
- * owning leader; a demo pack gets no sign-up.
+ * Split a passage into balanced parts that fit one slide each (10 short
+ * verses → [2, 2, 3, 3]). The key phrase, shown above part 1, takes room
+ * from that part.
+ */
+export function chunkVerses(verses: PackVerse[], keyPhrase?: string): PackVerse[][] {
+  return chunkBalanced(verses, verseRows, {
+    maxCost: MAX_VERSE_ROWS_PER_SLIDE,
+    maxItems: MAX_VERSES_PER_SLIDE,
+    firstReserve: keyPhrase ? KEY_PHRASE_RESERVE_ROWS : 0,
+  });
+}
+
+/** One slide per chunk; a split section shows "· 2/3" after its heading (partIndex/partTotal). */
+function partSlides<T>(chunks: T[][], make: (chunk: T[]) => Slide): Slide[] {
+  return chunks.map((chunk, i) => ({
+    ...make(chunk),
+    ...(chunks.length > 1 ? { partIndex: i + 1, partTotal: chunks.length } : {}),
+  }));
+}
+
+function sectionSlides(pack: StudyPack, section: PackSection): Slide[] {
+  const { kind, heading, body, rows, headingZh } = section;
+  if (kind === 'discussion' && section.questions) {
+    const questions = section.questions;
+    return questions.map((question, i) => ({
+      kind, heading, question, questionNumber: i + 1, questionTotal: questions.length,
+    }));
+  }
+  if (kind === 'scripture' && section.verses) {
+    const chunks = chunkVerses(section.verses, section.keyPhrase);
+    return chunks.map((verses, i) => ({
+      kind, heading, verses, emphasis: section.keyPhrase,
+      keyPhrase: i === 0 ? section.keyPhrase : undefined,
+      partIndex: i + 1, partTotal: chunks.length,
+    }));
+  }
+  if (kind === 'qr') {
+    const signupUrl = pack.leaderId ? currentSignupUrl(pack.id) : undefined;
+    return [{ kind, heading, body, headingZh, signupUrl }];
+  }
+  if (kind === 'lifeMenu' && rows) {
+    const menuChunks = chunkBalanced(rows, () => 1, { maxCost: MAX_LIFE_MENU_ROWS_PER_SLIDE });
+    return partSlides(menuChunks, chunk => ({ kind, heading, rows: chunk }));
+  }
+  if (body && kind !== 'title') {
+    return partSlides(chunkBody(body), chunk => ({ kind, heading, body: chunk, headingZh }));
+  }
+  return [{ kind, heading, body, rows, keyPhrase: section.keyPhrase, headingZh }];
+}
+
+/**
+ * Flatten sections into slides: one per discussion question, one per
+ * scripture verse chunk, and body / life-menu sections split into
+ * continuation slides that fit the screen (slideFit.ts). The qr slide
+ * carries the pack's sign-up URL (derived from its id, never stored in the
+ * JSON) only when the pack has an owning leader; a demo pack gets no sign-up.
  */
 export function buildSlides(pack: StudyPack): Slide[] {
-  const slides: Slide[] = [];
-  for (const section of pack.sections) {
-    if (section.kind === 'discussion' && section.questions) {
-      section.questions.forEach((question, i) => {
-        slides.push({
-          kind: 'discussion',
-          heading: section.heading,
-          question,
-          questionNumber: i + 1,
-          questionTotal: section.questions!.length,
-        });
-      });
-    } else if (section.kind === 'scripture' && section.verses) {
-      const chunks = chunkVerses(section.verses);
-      chunks.forEach((verses, i) => {
-        slides.push({
-          kind: 'scripture',
-          heading: section.heading,
-          keyPhrase: i === 0 ? section.keyPhrase : undefined,
-          verses,
-          partIndex: i + 1,
-          partTotal: chunks.length,
-        });
-      });
-    } else if (section.kind === 'qr') {
-      const { kind, heading, body, headingZh } = section;
-      const signupUrl = pack.leaderId ? currentSignupUrl(pack.id) : undefined;
-      slides.push({ kind, heading, body, headingZh, signupUrl });
-    } else {
-      const { kind, heading, body, rows, keyPhrase, headingZh } = section;
-      slides.push({ kind, heading, body, rows, keyPhrase, headingZh });
-    }
-  }
-  return slides;
+  return pack.sections.flatMap(section => sectionSlides(pack, section));
 }
 
 /** TV mode route: "#/pack/<id>" → pack id, anything else → null. */
