@@ -5,9 +5,11 @@ import {
   buildSlides,
   chunkVerses,
   getPackIdFromHash,
+  packContentLanguage,
   StudyPack,
   PackVerse,
 } from '../packTypes';
+import { CONTENT_LANGUAGES, LEGACY_CONTENT_LANGUAGE } from '../principles';
 import { TEST_PACK_PATH } from './fixtures';
 import { currentSignupUrl } from '../../signup/signupRoute';
 
@@ -80,6 +82,19 @@ describe('parseStudyPack', () => {
     const scripture = pack.sections.find((s: { kind: string }) => s.kind === 'scripture');
     delete scripture.verses;
     expect(() => parseStudyPack(pack)).toThrow('verses[]');
+  });
+
+  it('contentLanguage is optional (legacy packs read as bilingual) and must be a known mode when present', () => {
+    const pack = loadRealPack();
+    expect(pack.contentLanguage).toBeUndefined();
+    expect(packContentLanguage(pack)).toBe(LEGACY_CONTENT_LANGUAGE);
+    expect(LEGACY_CONTENT_LANGUAGE).toBe('bilingual');
+    for (const mode of CONTENT_LANGUAGES) {
+      expect(parseStudyPack({ ...pack, contentLanguage: mode }).contentLanguage).toBe(mode);
+      expect(packContentLanguage({ contentLanguage: mode })).toBe(mode);
+    }
+    expect(() => parseStudyPack({ ...pack, contentLanguage: 'klingon' })).toThrow('contentLanguage');
+    expect(() => parseStudyPack({ ...pack, contentLanguage: 1 })).toThrow('contentLanguage');
   });
 
   it('leaderId is optional but must be a non-empty string when present', () => {

@@ -8,6 +8,7 @@
 
 import { currentSignupUrl } from '../signup/signupRoute';
 import { isGoogleFormUrl, isFormEntryId } from './feedbackForm';
+import { ContentLanguage, CONTENT_LANGUAGES, isContentLanguage, LEGACY_CONTENT_LANGUAGE } from './principles';
 
 export type SectionKind =
   | 'title'
@@ -76,7 +77,13 @@ export interface StudyPack {
   leaderId?: string;   // Supabase auth uid of the owning leader; absent = demo pack, no sign-up
   feedbackFormUrl?: string;              // when set, check-in links point at this Google Form instead of #/checkin
   feedbackFormEntries?: FeedbackFormEntries;
+  contentLanguage?: ContentLanguage;     // how much English the generated lines carry; absent = legacy "中文 · English"
   sections: PackSection[];
+}
+
+/** The pack's content language; packs written before the field existed are bilingual. */
+export function packContentLanguage(pack: Pick<StudyPack, 'contentLanguage'>): ContentLanguage {
+  return pack.contentLanguage ?? LEGACY_CONTENT_LANGUAGE;
 }
 
 /**
@@ -165,6 +172,9 @@ export function parseStudyPack(raw: unknown): StudyPack {
   }
   if (p.leaderId !== undefined && (typeof p.leaderId !== 'string' || p.leaderId.length === 0)) {
     throw new Error('StudyPack leaderId must be a non-empty string when present');
+  }
+  if (p.contentLanguage !== undefined && !isContentLanguage(p.contentLanguage)) {
+    throw new Error(`StudyPack contentLanguage must be one of ${CONTENT_LANGUAGES.join(' | ')}, got: ${String(p.contentLanguage)}`);
   }
   parseFeedbackForm(p);
   const sections = p.sections.map(parseSection);
