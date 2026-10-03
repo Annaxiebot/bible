@@ -28,7 +28,9 @@ hand. Supabase was already in the stack (auth, sync, `ai-chat` edge function).
    leader page, shows the QR, or saves the pack (`packSummary.ts`, one
    helper). The edge function reads that row with the service role and falls
    back to the public pack JSON only for committed packs. Verses, context,
-   questions and the life menu never leave the browser.
+   questions and the life menu never leave the browser. (Superseded by
+   ADR-0006: full packs sync owner-only to study_packs, and §9 there makes
+   the title, passage and life menu public for the sign-up page.)
 4. **The QR is drawn in the browser from the pack id**
    (`signupRoute.currentSignupUrl` → `SignupQr`, the `qrcode` package, SVG).
    The pack JSON stores no image or URL; `buildSlides` attaches `signupUrl`

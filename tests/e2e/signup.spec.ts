@@ -11,7 +11,9 @@
  * the welcome email, and the thank-you restates the commitment with the
  * personal check-in link; a rejected insert is surfaced. #/checkin/<uuid>
  * renders practice + question and the two buttons; Keep private never
- * touches the network; Share calls the RPC. No live Supabase.
+ * touches the network; Share calls the RPC. A signed-out member phone with
+ * an empty IndexedDB loads a leader's local- pack through the mocked
+ * public_signup_pack RPC and its insert carries that leader. No live Supabase.
  */
 import { test, expect, Page } from '@playwright/test';
 import { SAMPLE_PACK_ID } from '../../components/landing/landingRoute';
@@ -20,6 +22,7 @@ import { checkinHash } from '../../components/checkin/checkinRoute';
 import {
   SU_TITLE, SU_NAME, SU_EMAIL, SU_PHONE, SU_CONSENT, SU_SUBMIT, SU_ERR_NAME, SU_ERR_SUBMIT, SU_THANKS, SU_NEXT,
   SU_DEMO_LINE, SU_UNCLAIMED_LINE, SU_SIGN_IN_GOOGLE, SU_PRACTICE_TITLE, SU_ERR_PRACTICE, SU_NEXT_STEP, commitmentLine,
+  SU_ERR_PACK, SU_PACK_ASK_LEADER,
 } from '../../components/signup/signupStrings';
 import {
   CK_TITLE, CK_KEEP_PRIVATE, CK_SHARE, CK_KEPT, CK_SHARED, CK_KIND_LABEL,
@@ -27,7 +30,7 @@ import {
 import { SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../../components/setup/setupStrings';
 import {
   routeOwnedSamplePack, E2E_LEADER_ID, E2E_SIGNUP_ID as SIGNUP_ID, E2E_SUPABASE_PATH, seedLocalPack, fetchSamplePack, mockBackend,
-  OK_INSERT as okInsert, BackendMocks as Mocks,
+  OK_INSERT as okInsert, BackendMocks as Mocks, mockSignupPackRpc,
 } from './helpers/signup';
 
 const LOCAL_ID = 'local-2026-10-02-matt6';
@@ -139,6 +142,37 @@ test.describe('Sign-up page', () => {
     expect(params.get('entry.1')).toBe('小明');
     expect(params.get('entry.2')).toBe(mocks.bodies()[0].practice_text);
     expect(params.get('usp')).toBe('pp_url');
+  });
+
+  test('a signed-out member phone with an empty IndexedDB loads a leader pack from public_signup_pack and signs up under its leader', async ({ page }) => {
+    const sample = await fetchSamplePack(page);
+    const lifeMenu = (sample.sections as { kind: string; rows?: unknown[] }[]).find(s => s.kind === 'lifeMenu')!.rows!;
+    const { bodies } = await mockBackend(page, okInsert);
+    const rpcCalls = await mockSignupPackRpc(page, {
+      id: LOCAL_ID, title: sample.title, passageRef: sample.passageRef, leaderId: E2E_LEADER_ID,
+      lifeMenu, feedbackFormUrl: null, feedbackFormEntries: null,
+    });
+    await page.goto(`./${signupHash(LOCAL_ID)}`);
+    await expect(page.getByTestId('signup-pack')).toContainText(String(sample.title));
+    await expect(page.getByTestId('su-practice')).toHaveCount(7);
+    // Dev StrictMode runs the load effect twice; every call asks for this pack only.
+    expect(rpcCalls().length).toBeGreaterThan(0);
+    for (const call of rpcCalls()) expect(call).toEqual({ p_pack_id: LOCAL_ID });
+    await choosePractice(page);
+    await page.getByTestId('su-name').fill('小明');
+    await page.getByTestId('su-email').fill('ming@example.org');
+    await page.getByRole('button', { name: SU_SUBMIT }).click();
+    await expect(page.getByTestId('signup-thanks')).toContainText(SU_THANKS);
+    expect(bodies()).toHaveLength(1);
+    expect(bodies()[0]).toMatchObject({ pack_id: LOCAL_ID, leader_id: E2E_LEADER_ID, pack_title: sample.title });
+  });
+
+  test('a leader pack the server does not have shows the not-found line with "ask your leader", no form', async ({ page }) => {
+    await mockBackend(page, okInsert);
+    await mockSignupPackRpc(page, null);
+    await page.goto(`./${signupHash(LOCAL_ID)}`);
+    await expect(page.getByRole('alert')).toContainText(`${SU_ERR_PACK}: ${SU_PACK_ASK_LEADER}`);
+    await expect(page.getByTestId('signup-form')).toHaveCount(0);
   });
 
   test('a rejected insert is surfaced with the server message; the form stays', async ({ page }) => {

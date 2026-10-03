@@ -30,6 +30,10 @@ export const SU_ERR_PHONE = bilingualLine('手机号格式不对', 'That phone n
 export const SU_ERR_NOT_CONFIGURED = bilingualLine('报名服务未配置', 'The sign-up service is not configured');
 export const SU_ERR_SUBMIT = bilingualLine('提交失败', 'Submission failed');
 export const SU_ERR_PACK = bilingualLine('找不到这个查经包', 'This study pack could not be found');
+/** Detail after SU_ERR_PACK when neither this phone nor the public projection has the pack (a member cannot fix it by signing in). */
+export const SU_PACK_ASK_LEADER = bilingualLine('请向带领者要新的二维码', 'Ask your leader for a new QR code');
+/** Detail after SU_ERR_PACK when the projection answered with something that is not a sign-up pack. */
+export const SU_PACK_INVALID = bilingualLine('查经包数据不完整', 'The study pack data is incomplete');
 export const SU_PACK_LOADING = bilingualLine('载入中', 'loading');
 
 // ---- after submit ----

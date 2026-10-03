@@ -2,8 +2,10 @@
  * SignupPage.tsx — "#/signup/<packId>" · 报名页
  *
  * The page a member lands on after scanning the TV QR. Loads the pack
- * through the same seam TV mode uses (packSource.loadPack: public packs and
- * this device's local- packs), shows its title + passage, then the two-step
+ * through signupPack.loadSignupPack (TV mode's packSource first; for a
+ * leader pack this phone does not hold, the anon public_signup_pack
+ * projection — title, passage, leader, life menu, form link only), shows
+ * its title + passage, then the two-step
  * form (commitment, then contact) — only for a pack with an owning leader.
  * An unclaimed local pack shows the sign-in block (the leader's own device);
  * a public demo pack shows the bilingual "no sign-up" line. Each row
@@ -14,8 +16,8 @@
  * visible state, never a silent catch.
  */
 import React, { useEffect, useState } from 'react';
-import { loadPack, packSignupState } from '../studypack/packSource';
-import type { StudyPack } from '../studypack/packTypes';
+import { packSignupState } from '../studypack/packSource';
+import { loadSignupPack, SignupPack } from './signupPack';
 import { useLocalPackClaim } from '../newstudy/claimLocalPacks';
 import SignupForm from './SignupForm';
 import UnclaimedSignIn from './UnclaimedSignIn';
@@ -33,7 +35,7 @@ import { textStyle, headingStyle, pageTitleStyle, controlStyle } from '../newstu
 
 type PackState =
   | { status: 'loading' }
-  | { status: 'ready'; pack: StudyPack }
+  | { status: 'ready'; pack: SignupPack }
   | { status: 'failed'; message: string };
 
 /** Load the pack once (again after a sign-in claims it); a failure is a rendered state carrying the message. */
@@ -43,7 +45,7 @@ function usePack(packId: string): PackState {
   useEffect(() => {
     let cancelled = false;
     setState({ status: 'loading' });
-    loadPack(packId)
+    loadSignupPack(packId)
       .then(pack => { if (!cancelled) setState({ status: 'ready', pack }); })
       .catch((err: unknown) => {
         if (!cancelled) setState({ status: 'failed', message: err instanceof Error ? err.message : String(err) });
@@ -97,8 +99,7 @@ const Body: React.FC<{ state: PackState; done: SignupDone | null; onSubmit: (f: 
     const signup = packSignupState(state.pack);
     if (signup === 'unclaimed') return <UnclaimedSignIn packId={state.pack.id} lineStyle={textStyle} buttonStyle={controlStyle} />;
     if (signup === 'demo') return <p data-testid="signup-demo" className="text-slate-300" style={textStyle}>{SU_DEMO_LINE}</p>;
-    const rows = state.pack.sections.find(s => s.kind === 'lifeMenu')?.rows ?? [];
-    return done ? <Thanks done={done} /> : <SignupForm rows={rows} onSubmit={onSubmit} />;
+    return done ? <Thanks done={done} /> : <SignupForm rows={state.pack.lifeMenu} onSubmit={onSubmit} />;
   };
 
 const SignupPage: React.FC<{ packId: string }> = ({ packId }) => {
