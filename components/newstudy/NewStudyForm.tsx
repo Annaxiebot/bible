@@ -12,11 +12,13 @@ import { BIBLE_BOOKS, getBookById } from '../../services/bibleBookData';
 import { StudyRequest } from './packAssembly';
 import {
   NS_BOOK, NS_LESSON_TITLE, NS_LESSON_NUMBER, NS_DATE, NS_GENERATE, NS_GENERATING, NS_ERR_RANGE, NS_ERR_CHAPTER,
-  NS_FEEDBACK_FORM_LINK, NS_FEEDBACK_FORM_DEFAULT,
+  NS_FEEDBACK_FORM_LINK, NS_FEEDBACK_FORM_DEFAULT, NS_CONTENT_LANGUAGE, NS_CONTENT_LANGUAGE_OPTIONS,
 } from './newStudyStrings';
 import { textStyle, controlStyle, inputClass, primaryButtonClass, labelClass } from './newStudyStyles';
 import { useVerseRange, RangeSelects } from './verseRangeFields';
 import { validateFeedbackFormUrl, readDefaultFormUrl, rememberDefaultFormUrl } from './feedbackFormDefault';
+import { readDefaultContentLanguage, rememberContentLanguage } from './contentLanguageDefault';
+import { CONTENT_LANGUAGES, DEFAULT_CONTENT_LANGUAGE, isContentLanguage } from '../studypack/principles';
 
 /** Local ISO date (yyyy-mm-dd) for the date field's default. */
 export function todayIso(): string {
@@ -26,7 +28,7 @@ export function todayIso(): string {
 }
 
 export const DEFAULT_REQUEST: StudyRequest = {
-  bookId: 'MAT', chapter: 6, verseFrom: 25, verseTo: 34, date: '',
+  bookId: 'MAT', chapter: 6, verseFrom: 25, verseTo: 34, date: '', contentLanguage: DEFAULT_CONTENT_LANGUAGE,
 };
 
 /** Pure validation so the unit tests pin the rules without rendering. */
@@ -54,6 +56,18 @@ const FeedbackLinkFields: React.FC<{
       <span>{NS_FEEDBACK_FORM_DEFAULT}</span>
     </label>
   </>
+);
+
+/** "内容语言 Content language": the three modes in UI order, Chinese-first labels, large type (≥48px). */
+const ContentLanguageField: React.FC<{ req: StudyRequest; update: (patch: Partial<StudyRequest>) => void }> = ({ req, update }) => (
+  <label className={labelClass} style={textStyle}>
+    <span>{NS_CONTENT_LANGUAGE}</span>
+    <select value={req.contentLanguage} aria-label={NS_CONTENT_LANGUAGE} data-testid="ns-content-language"
+      onChange={e => { if (isContentLanguage(e.target.value)) update({ contentLanguage: e.target.value }); }}
+      className={inputClass} style={controlStyle}>
+      {CONTENT_LANGUAGES.map(mode => <option key={mode} value={mode}>{NS_CONTENT_LANGUAGE_OPTIONS[mode]}</option>)}
+    </select>
+  </label>
 );
 
 interface Props {
@@ -89,7 +103,10 @@ const LessonFields: React.FC<{ req: StudyRequest; update: (patch: Partial<StudyR
 const NewStudyForm: React.FC<Props> = ({ busy, onGenerate }) => {
   const [req, setReq] = useState<StudyRequest>(() => {
     const feedbackFormUrl = readDefaultFormUrl();
-    return { ...DEFAULT_REQUEST, date: todayIso(), ...(feedbackFormUrl ? { feedbackFormUrl } : {}) };
+    return {
+      ...DEFAULT_REQUEST, date: todayIso(), contentLanguage: readDefaultContentLanguage(),
+      ...(feedbackFormUrl ? { feedbackFormUrl } : {}),
+    };
   });
   const [useForAll, setUseForAll] = useState(() => readDefaultFormUrl() !== '');
   const [error, setError] = useState<string | null>(null);
@@ -102,6 +119,7 @@ const NewStudyForm: React.FC<Props> = ({ busy, onGenerate }) => {
     if (problem) { setError(problem); return; }
     const feedbackFormUrl = req.feedbackFormUrl?.trim() || undefined;
     rememberDefaultFormUrl(feedbackFormUrl ?? '', useForAll);
+    rememberContentLanguage(req.contentLanguage);
     onGenerate({ ...req, lessonTitle: req.lessonTitle?.trim() || undefined, feedbackFormUrl });
   };
 
@@ -118,6 +136,7 @@ const NewStudyForm: React.FC<Props> = ({ busy, onGenerate }) => {
         </select>
       </label>
       <RangeSelects value={req} control={range} prefix="ns" />
+      <ContentLanguageField req={req} update={update} />
       <LessonFields req={req} update={update} />
       <FeedbackLinkFields url={req.feedbackFormUrl ?? ''} useForAll={useForAll}
         onUrl={url => update({ feedbackFormUrl: url })} onUseForAll={setUseForAll} />

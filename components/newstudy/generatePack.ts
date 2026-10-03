@@ -71,6 +71,7 @@ export function buildPackRequestBody(req: StudyRequest, verses: PackVerse[]): st
           passageRef: passageLabel(req).ref,
           verses,
           lessonTitle: req.lessonTitle,
+          contentLanguage: req.contentLanguage,
         }),
       },
     ],
@@ -94,10 +95,10 @@ function cancelled(): Error {
   return new DOMException('Generation cancelled', 'AbortError');
 }
 
-/** Both replies' text → validated content. NS_ERR_NO_JSON names the served model when known. */
-function parseGenerated(text: string, model: string | null): GeneratedContent {
+/** Both replies' text → validated content for the request's content language. NS_ERR_NO_JSON names the served model when known. */
+function parseGenerated(text: string, model: string | null, req: StudyRequest): GeneratedContent {
   try {
-    return validateGenerated(extractJsonObject(text));
+    return validateGenerated(extractJsonObject(text), req.contentLanguage);
   } catch (err) {
     // Rethrown with context: the model id tells the owner which model produced the broken JSON.
     if ((err as Error).message === NS_ERR_NO_JSON && model) throw new Error(withModel(NS_ERR_NO_JSON, model));
@@ -144,5 +145,5 @@ export async function generateStudyPack(
   }
 
   onProgress(NS_STEP_VALIDATE);
-  return assemblePack(req, verses, parseGenerated(text, outcome.model));
+  return assemblePack(req, verses, parseGenerated(text, outcome.model, req));
 }

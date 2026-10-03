@@ -44,6 +44,8 @@ export const STORAGE_KEYS = {
 
   // New study: the leader's default Google Form for feedback ("用于我所有的查经 Use for all my studies")
   FEEDBACK_FORM_DEFAULT_URL: 'feedback_form_default_url',
+  // New study: the leader's last "内容语言 Content language" choice (the form's default next time)
+  CONTENT_LANGUAGE_DEFAULT: 'content_language_default',
 
   // Device/sync
   DEVICE_ID: 'bible_device_id',

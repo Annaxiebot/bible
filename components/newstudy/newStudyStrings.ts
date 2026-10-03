@@ -5,7 +5,7 @@
  * them. Chinese first, English second (ADR-0003 §1). Pure module (no React)
  * so Playwright specs can import it.
  */
-import { bilingual, bilingualLine } from '../studypack/principles';
+import { bilingual, bilingualLine, ContentLanguage } from '../studypack/principles';
 
 export const NS_TITLE = bilingual('新建查经', 'New study');
 export const NS_INTRO = bilingualLine(
@@ -21,6 +21,13 @@ export const NS_VERSE_TO = bilingual('结束节', 'To verse');
 export const NS_LESSON_TITLE = bilingual('课题（可选）', 'Lesson title (optional)');
 export const NS_LESSON_NUMBER = bilingual('第几课（可选）', 'Lesson number (optional)');
 export const NS_DATE = bilingual('日期', 'Date');
+/** "内容语言 Content language": how much English the generated lines carry (ADR-0003 §1 note). */
+export const NS_CONTENT_LANGUAGE = bilingual('内容语言', 'Content language');
+export const NS_CONTENT_LANGUAGE_OPTIONS: Record<ContentLanguage, string> = {
+  'zh-keywords': bilingual('中文为主，关键词英文', 'Chinese, English keywords'),
+  bilingual: bilingual('中英双语', 'Bilingual (中文 · English)'),
+  'en-keywords': bilingual('英文为主，关键词中文', 'English, Chinese keywords'),
+};
 export const NS_GENERATE = bilingual('生成查经包', 'Generate study pack');
 export const NS_GENERATING = bilingual('生成中…', 'Generating…');
 export const NS_CANCEL = bilingual('取消', 'Cancel');
@@ -60,7 +67,12 @@ export const NS_ERR_LIFE_AREAS = bilingualLine(
 
 // ---- editor ----
 export const NS_EDIT_TITLE = bilingual('审阅与编辑', 'Review and edit');
-export const NS_EDIT_HINT = bilingualLine('每行保持「中文 · English」', 'Keep each line "中文 · English"');
+/** Editor hint per content language: what shape each model-drafted line keeps. */
+export const NS_EDIT_HINTS: Record<ContentLanguage, string> = {
+  'zh-keywords': bilingualLine('每行中文，关键词附英文（括号）', 'Keep each line Chinese, with the English keyword in parentheses'),
+  bilingual: bilingualLine('每行保持「中文 · English」', 'Keep each line "中文 · English"'),
+  'en-keywords': bilingualLine('每行英文，关键词附中文（括号）', 'Keep each line English, with the Chinese keyword in parentheses'),
+};
 export const NS_PACK_TITLE = bilingual('标题', 'Title');
 export const NS_SCRIPTURE_NOTE = bilingualLine('经文来自内置圣经，不可编辑', 'Scripture comes from the bundled Bible and is not editable');
 export const NS_QUESTION_ADD = bilingual('加一题', 'Add a question');

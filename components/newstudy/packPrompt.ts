@@ -8,7 +8,9 @@
  * rules are imported from principles.ts — never pasted (R3).
  */
 import { PackVerse } from '../studypack/packTypes';
-import { PACK_CONTENT_CONTRACT, LIFE_AREAS, TRANSLATIONS } from '../studypack/principles';
+import {
+  PACK_CONTENT_CONTRACT, CONTENT_LANGUAGE_CONTRACTS, ContentLanguage, LIFE_AREAS, TRANSLATIONS,
+} from '../studypack/principles';
 
 /**
  * Output budget for one pack. CJK tokenizes at ~1+ token per character, so a
@@ -30,13 +32,15 @@ export const PACK_COMPACT_JSON_RULE = [
   'inside the JSON, no markdown fences, no commentary before or after it.',
 ].join('\n');
 
-/** Per-field length limits; together with the counts they keep a pack inside PACK_MAX_TOKENS. */
+/**
+ * Per-field length limits; together with the counts and the mode's total
+ * target (CONTENT_LANGUAGE_CONTRACTS) they keep a pack inside PACK_MAX_TOKENS.
+ */
 export const PACK_LENGTH_LIMITS = [
   'LENGTH LIMITS (per language half): context paragraphs ≤ 2 sentences each;',
   'originalLanguage notes ≤ 1 sentence each; crossRefs reasons ≤ 12 words;',
   'lifeMenu practices ≤ 25 words each; each reflection check-in 1 line;',
   'closing 1 line; title and keyPhrase a few words. Be concrete, not wordy.',
-  '总量 Total: 整个 JSON 不超过约 2,500 个中文字（含英文），宁短勿长 · Keep the whole reply under ~2,500 Chinese characters including the English; shorter is better.',
 ].join('\n');
 
 /** The user turn that asks the model to finish a reply cut off by max_tokens (one attempt). */
@@ -50,29 +54,48 @@ export interface PromptInput {
   verses: PackVerse[];
   /** Optional lesson title the leader typed (the model keeps it). */
   lessonTitle?: string;
+  /** Which halves each model-drafted line carries (CONTENT_LANGUAGE_CONTRACTS). */
+  contentLanguage: ContentLanguage;
 }
 
-/** The JSON shape the model must return. Kept as a literal template so the prompt and the validator agree. */
-export const GENERATED_SHAPE = [
-  '{',
-  '  "title": {"zh": "短标题", "en": "Short title"},',
-  '  "keyPhrase": {"zh": "「经文中的一句话」", "en": "“a phrase from the passage”", "verse": 23},',
-  '  "context": [{"zh": "…", "en": "…"}, {"zh": "…", "en": "…"}, {"zh": "…", "en": "…"}],',
-  '  "originalLanguage": [{"zh": "…", "en": "…"}, {"zh": "…", "en": "…"}],',
-  '  "crossRefs": [{"ref": "Luke 12:22-31", "zh": "一句话说明关联", "en": "one-line reason"}],',
-  '  "discussion": [{"zh": "…", "en": "…"}],',
-  '  "lifeMenu": [{"area": "健康 Health", "zh": "具体操练", "en": "concrete practice"}],',
-  '  "reflection": {"tue": {"zh": "…", "en": "…"}, "thu": {"zh": "…", "en": "…"}, "weekend": {"zh": "…", "en": "…"}},',
-  '  "closing": {"zh": "下周五的开场问题", "en": "the question next Friday opens with"}',
-  '}',
-].join('\n');
+/**
+ * The JSON shape the model must return for a mode: a bilingual item has both
+ * halves, a keywords mode only its own half (title and keyPhrase always both).
+ * Kept as a literal template so the prompt and the validator agree.
+ */
+export function generatedShape(mode: ContentLanguage): string {
+  const item = (zh: string, en: string, extra = '') => {
+    const halves = mode === 'zh-keywords' ? [`"zh": "${zh}"`]
+      : mode === 'en-keywords' ? [`"en": "${en}"`]
+      : [`"zh": "${zh}"`, `"en": "${en}"`];
+    return `{${extra}${halves.join(', ')}}`;
+  };
+  const dots = item('…', '…');
+  return [
+    '{',
+    '  "title": {"zh": "短标题", "en": "Short title"},',
+    '  "keyPhrase": {"zh": "「经文中的一句话」", "en": "“a phrase from the passage”", "verse": 23},',
+    `  "context": [${dots}, ${dots}, ${dots}],`,
+    `  "originalLanguage": [${dots}, ${dots}],`,
+    `  "crossRefs": [${item('一句话说明关联', 'one-line reason', '"ref": "Luke 12:22-31", ')}],`,
+    `  "discussion": [${dots}],`,
+    `  "lifeMenu": [${item('具体操练', 'concrete practice', '"area": "健康 Health", ')}],`,
+    `  "reflection": {"tue": ${dots}, "thu": ${dots}, "weekend": ${dots}},`,
+    `  "closing": ${item('下周五的开场问题', 'the question next Friday opens with')}`,
+    '}',
+  ].join('\n');
+}
+
+/** The bilingual shape (legacy packs' format; tests pin it). */
+export const GENERATED_SHAPE = generatedShape('bilingual');
 
 function formatPassage(verses: PackVerse[]): string {
   return verses.map(v => `${v.num} ${v.cuv}\n${v.num} ${v.en}`).join('\n');
 }
 
-/** The user-turn prompt: passage, content contract, exact JSON shape and counts. */
+/** The user-turn prompt: passage, content contract, the mode's line rule, exact JSON shape, counts and totals. */
 export function buildPackPrompt(input: PromptInput): string {
+  const contract = CONTENT_LANGUAGE_CONTRACTS[input.contentLanguage];
   const titleLine = input.lessonTitle
     ? `The leader's lesson title is "${input.lessonTitle}" — keep it as the title (translate the missing half).`
     : 'Give the pack a short bilingual title taken from the passage\'s main theme.';
@@ -80,6 +103,7 @@ export function buildPackPrompt(input: PromptInput): string {
     `Draft a Friday small-group study pack for ${input.passageRef}.`,
     `FULL PASSAGE (${TRANSLATIONS.zh.label} / ${TRANSLATIONS.en.label}):\n${formatPassage(input.verses)}`,
     PACK_CONTENT_CONTRACT,
+    contract.lineRule,
     titleLine,
     [
       'COUNTS: context = 3 short paragraphs; originalLanguage = 2–3 notes on key',
@@ -93,8 +117,8 @@ export function buildPackPrompt(input: PromptInput): string {
       'practice met real life. keyPhrase = a short phrase quoted from the passage',
       'with its verse number.',
     ].join('\n'),
-    PACK_LENGTH_LIMITS,
+    `${PACK_LENGTH_LIMITS}\n${contract.totalTarget}`,
     PACK_COMPACT_JSON_RULE,
-    `Return STRICT JSON with exactly this shape (no extra keys, no comments; the shape is indented here only for reading — your output is not):\n${GENERATED_SHAPE}`,
+    `Return STRICT JSON with exactly this shape (no extra keys, no comments; the shape is indented here only for reading — your output is not):\n${generatedShape(input.contentLanguage)}`,
   ].join('\n\n');
 }
