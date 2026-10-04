@@ -23,8 +23,8 @@ export const CK_SHARED = bilingualLine('已分享给组长，谢谢', 'Shared wi
 export const CK_ERR_EMPTY = bilingualLine('请先写一两句', 'Please write a line first');
 export const CK_ERR_SHARE = bilingualLine('分享失败', 'Sharing failed');
 export const CK_PRIVACY = bilingualLine(
-  '反思默认私密：只有按「分享给组长」才会发送',
-  'Reflections are private by default: only "Share with leader" sends anything'
+  '反思默认私密：只有按「分享给组长」才会发送；组长可能借助AI把大家分享的内容整理成不具名的摘要',
+  'Reflections are private by default: only "Share with leader" sends anything; your leader may use AI to turn shared answers into an anonymous summary'
 );
 /** Thank-you page: the member's personal check-in link. */
 export const CK_YOUR_LINK = bilingualLine('你的跟进链接（周中也会发到你的邮箱）', 'Your check-in link (also emailed mid-week)');
