@@ -13,7 +13,7 @@ import CheckinPage from '../CheckinPage';
 import { CHECKIN_CONTEXT_FN, SHARE_ANSWER_FN } from '../../signup/signupSchema';
 import { privateAnswerKey, promptFor, kindForToday } from '../checkinClient';
 import {
-  CK_TITLE, CK_KEEP_PRIVATE, CK_SHARE, CK_KEPT, CK_SHARED, CK_ERR_EMPTY, CK_ERR_SHARE, CK_ERR_LOAD, CK_DEFAULT_QUESTION, CK_KIND_LABEL,
+  CK_TITLE, CK_KEEP_PRIVATE, CK_SHARE, CK_KEPT, CK_SHARED, CK_ERR_EMPTY, CK_ERR_SHARE, CK_ERR_LOAD, CK_DEFAULT_QUESTION, CK_KIND_LABEL, CK_QUESTION_LABEL,
 } from '../checkinStrings';
 
 const rpcMock = vi.fn();
@@ -42,20 +42,31 @@ describe('CheckinPage', () => {
     expect(rpcMock).toHaveBeenCalledWith(CHECKIN_CONTEXT_FN, { p_signup_id: ID });
     expect(screen.getByTestId('checkin-practice')).toHaveTextContent('睡前程序 · Wind-down');
     expect(screen.getByTestId('checkin-question')).toHaveTextContent(CK_KIND_LABEL.tue);
-    expect(screen.getByTestId('checkin-question')).toHaveTextContent('周二跟进：做了吗？');
+    expect(screen.getByTestId('checkin-question')).toHaveTextContent('做了吗？');
+    expect(screen.getByTestId('checkin-question').textContent!.split('周二跟进').length).toBe(2);   // the kind label once (the heading)
     expect(screen.getByRole('button', { name: CK_KEEP_PRIVATE })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: CK_SHARE })).toBeInTheDocument();
     expect(promptFor({ reflection_lines: [] }, 'thu')).toBe(CK_DEFAULT_QUESTION);
     expect(['tue', 'thu', 'weekend']).toContain(kindForToday());
   });
 
-  it('a new-style row shows every chosen practice with its area; the own version replaces the first', async () => {
+  it('a new-style row shows every chosen practice with its own text and area; the own version is an extra labelled line', async () => {
     const practices = [{ area: '家庭 Family', practice: '一起吃饭' }, { area: '工作 Work', practice: '写下忧虑' }, { area: '金钱 Money', practice: '记账' }];
-    rpcMock.mockResolvedValueOnce({ data: [{ ...CONTEXT, practice_note: ' 我的版本 ', practices }], error: null });
+    rpcMock.mockResolvedValueOnce({ data: [{ ...CONTEXT, practice_note: ' My own pratice: Diet ', practices }], error: null });
     render(<CheckinPage signupId={ID} kind="tue" />);
     await screen.findByTestId('checkin-form');
     const items = screen.getAllByTestId('checkin-practice-item').map(i => i.textContent);
-    expect(items).toEqual(['我的版本家庭 Family', '写下忧虑工作 Work', '记账金钱 Money']);
+    expect(items).toEqual(['一起吃饭家庭 Family', '写下忧虑工作 Work', '记账金钱 Money']);
+    expect(screen.getByTestId('checkin-own-version')).toHaveTextContent('我的版本 · My own version：My own pratice: Diet');
+  });
+
+  it('the weekend question shows the kind once: the doubled "周末回顾：周末:" / "End of week: Weekend:" labels are stripped', async () => {
+    const line = '周末回顾：周末:回顾本周… · End of week: Weekend: Looking back…';
+    rpcMock.mockResolvedValueOnce({ data: [{ ...CONTEXT, reflection_lines: ['a', 'b', line] }], error: null });
+    render(<CheckinPage signupId={ID} kind="weekend" />);
+    const question = await screen.findByTestId('checkin-question');
+    expect(question).toHaveTextContent(`${CK_QUESTION_LABEL} · ${CK_KIND_LABEL.weekend}`);
+    expect(question.querySelectorAll('p')[1]).toHaveTextContent(/^回顾本周… · Looking back…$/);
   });
 
   it('Keep private stores on this device only and never calls the network', async () => {

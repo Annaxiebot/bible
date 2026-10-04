@@ -8,7 +8,9 @@
  * Storage (ADR-0004 §7): `practices` JSONB holds every chosen life-menu row
  * in tap order. The legacy columns practice_area/practice_text (= first) and
  * practice2_area/practice2_text (= second) are still written for older
- * readers; rows from before multi-select have only those.
+ * readers; rows from before multi-select have only those. The member's own
+ * version (practice_note) is an ADDITIONAL line (ownVersionLine), never a
+ * replacement for a chosen practice's text.
  */
 
 export interface ChosenPractice {
@@ -47,17 +49,18 @@ export function chosenPractices(row: PracticeColumns): ChosenPractice[] {
   return legacy;
 }
 
-/**
- * One item per chosen practice, in order. The member's own version
- * (practice_note) replaces the FIRST practice's menu text, as it always
- * has; a note on a row without a practice is the one item.
- */
+/** One item per chosen practice, in order, each with its own menu text (the own version is a separate line). */
 export function practiceItems(row: PracticeColumns): PracticeItem[] {
-  const items = chosenPractices(row).map(p => ({ area: p.area, text: p.practice }));
+  return chosenPractices(row).map(p => ({ area: p.area, text: p.practice }));
+}
+
+/** Label of the member's own version line, wherever practices are shown. */
+export const OWN_VERSION_LABEL = '我的版本 · My own version';
+
+/** "我的版本 · My own version：<note>" — shown after the chosen practices; null when none was written. */
+export function ownVersionLine(row: Pick<PracticeColumns, 'practice_note'>): string | null {
   const note = row.practice_note?.trim();
-  if (!note) return items;
-  if (items.length === 0) return [{ area: '', text: note }];
-  return [{ area: items[0].area, text: note }, ...items.slice(1)];
+  return note ? `${OWN_VERSION_LABEL}：${note}` : null;
 }
 
 /** Just the texts of practiceItems (one line each in messages). */

@@ -11,51 +11,30 @@
  * a public demo pack shows the bilingual "no sign-up" line. Each row
  * carries the pack's leader_id so only that leader can read it (ADR-0004).
  * A stored row flips to the thank-you: every chosen practice restated, the
- * member's check-in link, and the welcome email's verdict.
+ * member's check-in link, the welcome email's verdict, and — when this
+ * sign-up replaced the member's earlier one (same pack + email) — a line
+ * saying so (a failed replace is shown, never swallowed).
  * Every failure (pack missing, service unconfigured, insert rejected) is a
  * visible state, never a silent catch.
  */
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { packSignupState } from '../studypack/packSource';
-import { loadSignupPack, SignupPack } from './signupPack';
-import { useLocalPackClaim } from '../newstudy/claimLocalPacks';
+import { useSignupPack, SignupPackState } from './useSignupPack';
 import SignupForm from './SignupForm';
 import UnclaimedSignIn from './UnclaimedSignIn';
 import {
-  SignupForm as SignupFormValues, getSignupClient, insertSignup, toInsertPayload, practiceLines,
+  SignupForm as SignupFormValues, getSignupClient, insertSignup, toInsertPayload, practiceLines, ownVersionOf, markReplaced, ReplaceResult,
 } from './signupClient';
 import { sendWelcome, WelcomeResult } from './welcomeEmail';
 import { currentCheckinLink } from '../checkin/checkinLink';
 import { CK_YOUR_LINK } from '../checkin/checkinStrings';
 import {
   SU_TITLE, SU_INTRO, SU_PACK_LOADING, SU_ERR_PACK, SU_ERR_NOT_CONFIGURED, SU_THANKS, SU_NEXT, SU_NEXT_NO_CHECKINS,
-  SU_DEMO_LINE, commitmentLine,
+  SU_DEMO_LINE, SU_REPLACED, commitmentLine,
 } from './signupStrings';
 import { textStyle, headingStyle, pageTitleStyle, controlStyle } from '../newstudy/newStudyStyles';
 
-type PackState =
-  | { status: 'loading' }
-  | { status: 'ready'; pack: SignupPack }
-  | { status: 'failed'; message: string };
-
-/** Load the pack once (again after a sign-in claims it); a failure is a rendered state carrying the message. */
-function usePack(packId: string): PackState {
-  const [state, setState] = useState<PackState>({ status: 'loading' });
-  const claim = useLocalPackClaim(packId);
-  useEffect(() => {
-    let cancelled = false;
-    setState({ status: 'loading' });
-    loadSignupPack(packId)
-      .then(pack => { if (!cancelled) setState({ status: 'ready', pack }); })
-      .catch((err: unknown) => {
-        if (!cancelled) setState({ status: 'failed', message: err instanceof Error ? err.message : String(err) });
-      });
-    return () => { cancelled = true; };
-  }, [packId, claim.version]);
-  return state;
-}
-
-const PackHeader: React.FC<{ state: PackState }> = ({ state }) => {
+const PackHeader: React.FC<{ state: SignupPackState }> = ({ state }) => {
   if (state.status === 'ready') {
     return (
       <div data-testid="signup-pack">
@@ -73,8 +52,10 @@ const PackHeader: React.FC<{ state: PackState }> = ({ state }) => {
 export interface SignupDone {
   consent: boolean;
   practices: string[];
+  ownVersion: string | null;
   link: string;
   welcome: WelcomeResult;
+  replace: ReplaceResult;
 }
 
 const Thanks: React.FC<{ done: SignupDone }> = ({ done }) => (
@@ -83,11 +64,18 @@ const Thanks: React.FC<{ done: SignupDone }> = ({ done }) => (
     {done.practices.map((line, i) => (
       <p key={i} data-testid="signup-commitment" className="mt-3 text-slate-50" style={textStyle}>{commitmentLine(line)}</p>
     ))}
+    {done.ownVersion && <p data-testid="signup-own-version" className="mt-3 text-slate-50" style={textStyle}>{done.ownVersion}</p>}
+    {done.replace.status === 'done' && done.replace.replaced > 0 && (
+      <p data-testid="signup-replaced" className="mt-3 text-slate-100" style={textStyle}>{SU_REPLACED}</p>
+    )}
     <p className="mt-3 text-slate-100" style={textStyle}>{done.consent ? SU_NEXT : SU_NEXT_NO_CHECKINS}</p>
     <p className="mt-3 text-slate-400" style={textStyle}>{CK_YOUR_LINK}</p>
     <a data-testid="signup-checkin-link" href={done.link} className="break-all text-amber-300 underline underline-offset-4" style={textStyle}>
       {done.link}
     </a>
+    {done.replace.status === 'failed' && (
+      <p role="alert" data-testid="replace-failed" className="mt-3 text-red-300" style={textStyle}>{done.replace.message}</p>
+    )}
     {done.welcome.status === 'failed' && (
       <p role="alert" data-testid="welcome-failed" className="mt-3 text-red-300" style={textStyle}>{done.welcome.message}</p>
     )}
@@ -95,7 +83,7 @@ const Thanks: React.FC<{ done: SignupDone }> = ({ done }) => (
 );
 
 /** Form for an owned pack; sign-in block for an unclaimed local pack; the demo line for a public demo pack. */
-const Body: React.FC<{ state: PackState; done: SignupDone | null; onSubmit: (f: SignupFormValues) => Promise<void> }> =
+const Body: React.FC<{ state: SignupPackState; done: SignupDone | null; onSubmit: (f: SignupFormValues) => Promise<void> }> =
   ({ state, done, onSubmit }) => {
     if (state.status !== 'ready') return null;
     const signup = packSignupState(state.pack);
@@ -105,7 +93,7 @@ const Body: React.FC<{ state: PackState; done: SignupDone | null; onSubmit: (f: 
   };
 
 const SignupPage: React.FC<{ packId: string }> = ({ packId }) => {
-  const state = usePack(packId);
+  const state = useSignupPack(packId);
   const [done, setDone] = useState<SignupDone | null>(null);
 
   const submit = async (form: SignupFormValues) => {
@@ -117,8 +105,9 @@ const SignupPage: React.FC<{ packId: string }> = ({ packId }) => {
     const practices = practiceLines(form);
     // The Google Form prefill carries the first practice (same as the edge function's feedbackUrl).
     const link = currentCheckinLink({ pack: state.pack, signupId, name: payload.name, practice: practices[0] ?? '' });
+    const replace = await markReplaced(client, signupId);
     const welcome = await sendWelcome(client, signupId, payload.email);
-    setDone({ consent: form.consent, practices, link, welcome });
+    setDone({ consent: form.consent, practices, ownVersion: ownVersionOf(form), link, welcome, replace });
   };
 
   return (

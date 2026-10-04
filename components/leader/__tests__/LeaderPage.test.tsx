@@ -128,6 +128,21 @@ describe('LeaderPage', () => {
     expect(signupsToCsv(ROWS, ANSWERS)).toContain('做了两晚');
   });
 
+  it('a sign-up replaced by the same person signing up again is not listed or counted; its shared answer moves to the live row', async () => {
+    const replaced: SignupRecord = { ...ROWS[0], id: '0', name: '小明 (first try)', email: 'MING@example.org', replaced_at: '2026-10-02T20:05:00Z' };
+    orderMock.mockResolvedValue({ data: [...ROWS, replaced], error: null });
+    answersOrderMock.mockResolvedValue({ data: [{ ...ANSWERS[0], id: 'a0', signup_id: '0', kind: 'thu', answer: '第一次报名的分享' }], error: null });
+    signIn();
+    render(<LeaderPage packId={PACK_ID} />);
+    const table = await screen.findByTestId('leader-table');
+    expect(screen.getByTestId('leader-count')).toHaveTextContent(countLine(2));
+    expect(within(table).getAllByTestId('leader-row')).toHaveLength(2);
+    expect(table).not.toHaveTextContent('first try');
+    expect(screen.getByTestId('leader-answered')).toHaveTextContent(answeredLine(1, 2));
+    expect(screen.getByTestId('leader-feedback')).toHaveTextContent('第一次报名的分享');
+    expect(screen.getByTestId('leader-feedback')).toHaveTextContent('小明');
+  });
+
   it('shows 承诺 Commitments (who chose what, counts per area) and 反馈 Shared feedback (answers by kind, counts)', async () => {
     signIn();
     render(<LeaderPage packId={PACK_ID} />);
@@ -138,8 +153,9 @@ describe('LeaderPage', () => {
     expect(screen.getByTestId('leader-area-counts')).toHaveTextContent(areaCountLine('金钱 Money', 1));   // every chosen practice counts
     const rows = within(commitments).getAllByTestId('leader-commitment');
     expect(rows[0]).toHaveTextContent('睡前程序 · Wind-down');
-    const ann = within(rows[1]).getAllByTestId('leader-practice').map(p => p.textContent);   // own version replaces the first
-    expect(ann).toEqual(['工作 Work — 写下来 · Write it', '家庭 Family — 一起吃饭 · Eat together', '金钱 Money — 记账 · Track spending']);
+    const ann = within(rows[1]).getAllByTestId('leader-practice').map(p => p.textContent);   // every practice keeps its own text
+    expect(ann).toEqual(['工作 Work — 写下忧虑', '家庭 Family — 一起吃饭 · Eat together', '金钱 Money — 记账 · Track spending']);
+    expect(within(rows[1]).getByTestId('leader-own-version')).toHaveTextContent('我的版本 · My own version：写下来 · Write it');
     const feedback = screen.getByTestId('leader-feedback');
     expect(feedback).toHaveTextContent(LD_FEEDBACK);
     expect(screen.getByTestId('leader-answered')).toHaveTextContent(answeredLine(1, 2));

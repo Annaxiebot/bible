@@ -23,7 +23,7 @@ import { NEW_STUDY_HASH } from '../landing/landingRoute';
 import { useSummarySync } from '../signup/useSummarySync';
 import { useLocalPackClaim } from '../newstudy/claimLocalPacks';
 import {
-  SignupRecord, AnswerRecord, fetchSignups, fetchAnswers, signupsToCsv, csvFilename, sendTestCheckin,
+  SignupRecord, AnswerRecord, fetchSignups, fetchAnswers, foldReplaced, signupsToCsv, csvFilename, sendTestCheckin,
 } from './leaderData';
 import { Commitments, Feedback } from './LeaderSections';
 import {
@@ -53,7 +53,7 @@ function useSignups(packId: string, leaderId: string): Rows {
     if (!supabase) return;
     let cancelled = false;
     Promise.all([fetchSignups(supabase, packId, leaderId), fetchAnswers(supabase, packId, leaderId)])
-      .then(([list, answers]) => { if (!cancelled) setRows({ status: 'ready', rows: list, answers }); })
+      .then(([list, answers]) => { if (!cancelled) setRows({ status: 'ready', ...foldReplaced(list, answers) }); })
       .catch((err: unknown) => { if (!cancelled) setRows({ status: 'failed', message: describe(err) }); });
     return () => { cancelled = true; };
   }, [packId, leaderId]);

@@ -16,6 +16,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { StudyPack } from '../studypack/packTypes';
 import { fetchSignups, fetchAnswers, commitmentCounts } from '../leader/leaderData';
+import { isLive } from '../../supabase/functions/send-checkins/replaced';
 import { ownPacksNewestFirst } from '../leader/leaderHomeData';
 import { packSummaryFrom } from '../signup/packSummary';
 import { makeScrubber } from './sharingScrub';
@@ -52,13 +53,13 @@ export async function loadSharingMaterial(client: SupabaseClient, previous: Stud
     fetchSignups(client, previous.id, uid),
     fetchAnswers(client, previous.id, uid),
   ]);
-  const scrub = makeScrubber(signups);
+  const scrub = makeScrubber(signups);   // every row, replaced ones too: their names/emails/phones are scrubbed as well
   const sharedAnswers = answers
     .slice(0, MAX_SHARED_ANSWERS)
     .map(a => scrub(a.answer.trim()).slice(0, MAX_ANSWER_CHARS))
     .filter(text => text.length > 0);
   return {
-    practices: commitmentCounts(signups),
+    practices: commitmentCounts(signups.filter(isLive)),   // one person, one count
     sharedAnswers,
     closingQuestion: packSummaryFrom(previous)?.closing_question ?? null,
     scrub,

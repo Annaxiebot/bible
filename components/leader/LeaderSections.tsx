@@ -13,7 +13,7 @@ import type { CheckinKind } from '../checkin/checkinRoute';
 import { CHECKIN_KINDS } from '../checkin/checkinRoute';
 import { CK_KIND_LABEL } from '../checkin/checkinStrings';
 import { SignupRecord, AnswerRecord, commitmentCounts, feedbackCounts } from './leaderData';
-import { practiceItems } from '../../supabase/functions/send-checkins/practices';
+import { practiceItems, ownVersionLine } from '../../supabase/functions/send-checkins/practices';
 import {
   LD_COMMITMENTS, LD_COMMITMENTS_HINT, LD_COL_NAME, LD_COL_PRACTICE, LD_NO_PRACTICE, LD_FEEDBACK, LD_FEEDBACK_NONE,
   answeredLine, areaCountLine,
@@ -22,10 +22,11 @@ import { textStyle, headingStyle } from '../newstudy/newStudyStyles';
 
 const cell = 'py-3 pr-4 text-left align-top';
 
-/** Every chosen practice as "area — text", one line each; the first carries the own version when written. */
+/** Every chosen practice as "area — text", one line each, then the own version as its own line when written. */
 const PracticeList: React.FC<{ row: SignupRecord }> = ({ row }) => {
   const items = practiceItems(row);
-  if (items.length === 0) return <>{LD_NO_PRACTICE}</>;
+  const own = ownVersionLine(row);
+  if (items.length === 0 && !own) return <>{LD_NO_PRACTICE}</>;
   return (
     <>
       {items.map((item, i) => (
@@ -33,6 +34,7 @@ const PracticeList: React.FC<{ row: SignupRecord }> = ({ row }) => {
           {item.area ? <span className="text-amber-300">{item.area} — </span> : null}{item.text}
         </span>
       ))}
+      {own && <span data-testid="leader-own-version" className="block">{own}</span>}
     </>
   );
 };

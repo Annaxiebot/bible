@@ -159,8 +159,11 @@ practice_text` (= first) and `practice2_area/practice2_text` (= second) so
 older readers keep working; rows from before the column have `practices`
 NULL. One reader, `supabase/functions/send-checkins/practices.ts` (pure;
 imported by the app and the edge function), returns the full list, falling
-back to the legacy pair. `practice_note` (the own version) replaces the
-FIRST practice's text wherever practices are shown, as before. Every reader
+back to the legacy pair. `practice_note` (the own version) is shown as an
+ADDITIONAL line, "我的版本 · My own version：…" (`practices.ownVersionLine`),
+after the chosen practices, which all keep their own text (amended
+2026-10-04: replacing the first practice's text lost it and made the note
+look like that area's). Every reader
 shows all practices: the leader roster (one line each), the per-area counts
 (each chosen area once per member — also the counts ADR-0008 sends), the
 CSV (`practices` column), `checkin_context()` (now also returns
@@ -168,6 +171,15 @@ CSV (`practices` column), `checkin_context()` (now also returns
 return type changed), the check-in page, and the welcome + Tue/Thu/weekend
 messages (one "你选的操练：…" line per practice). The Google Form prefill
 still carries only the first practice.
+
+**Amendment (2026-10-04): email is required.** Email is the check-in channel, so the contact step requires it (`signupClient.validateSignup`; client-side only — no database constraint, older rows may lack it); phone stays optional.
+
+**Fix (2026-10-04): the kind is named once.** A pack's reflection line
+often repeats the kind ("周末回顾：周末:回顾本周… · End of week: Weekend: …").
+The check-in page (heading) and the email (subject) already name it, so both
+show the prompt through one helper, `send-checkins/promptText.ts`
+(`promptWithoutKindLabel`), which drops every leading kind label followed
+by a colon from each bilingual half.
 
 **Fix (2026-10-04): the anon insert never reads its row back.** Anon has
 no SELECT policy on `study_signups` (members must not read rows), so
@@ -177,6 +189,29 @@ every member sign-up was rejected. The browser now makes the uuid
 return=minimal, and uses that id as the check-in token. No anon SELECT
 policy was added. The e2e mock answers a `Prefer: return=representation`
 insert with the same 42501 error, so a client that reads back cannot pass.
+
+**Amendment (2026-10-04): a later sign-up replaces an earlier one.** The
+same person submitting twice for a pack used to get every check-in twice
+and be counted twice. Anon still has no UPDATE/SELECT policy: after its
+insert the browser calls `mark_replaced_signups(new id)`
+(`database/signup-replace-schema.sql`, SECURITY DEFINER, anon-callable),
+which — only for a live row younger than the welcome window — sets
+`replaced_at` on every OTHER live row with the same `pack_id` and
+`lower(trim(email))` created no later than it, and returns only a count
+(never an id: an id is a member's check-in token). The thank-you says
+"已更新你之前的报名 · Your earlier sign-up was updated" when the count is ≥ 1;
+a failed call is a visible notice, the new row stays. Replaced rows are
+kept, not deleted: their shared answers stay linked and still count, and
+their old check-in link keeps working (`checkin_context` unchanged). Every
+reader treats one person as one row (`send-checkins/replaced.ts`): the
+function's `loadSignups` asks for `replaced_at IS NULL` and
+`selectRecipients` skips a replaced row; the leader home counts live rows;
+the leader page folds replaced rows away and moves their answers onto the
+live row (`leaderData.foldReplaced`); last-week sharing counts live rows
+but still scrubs the replaced rows' names. Trade-off: anyone who types a
+member's email for that pack replaces their row (they could already sign
+up under that email); the count reveals only that an earlier sign-up
+existed, never its content or link.
 
 ### Consequences (addendum)
 

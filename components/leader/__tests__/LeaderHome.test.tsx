@@ -18,7 +18,7 @@ import { idbService } from '../../../services/idbService';
 import { SIGNUPS_TABLE, CHECKIN_ANSWERS_TABLE } from '../../signup/signupSchema';
 import { SU_ERR_NOT_CONFIGURED } from '../../signup/signupStrings';
 import { newStudyHash, packHash, NEW_STUDY_HASH } from '../../landing/landingRoute';
-import { signupHash } from '../../signup/signupRoute';
+import { qrHash } from '../../signup/signupRoute';
 import { leaderHash } from '../leaderRoute';
 import { LH_SIGNIN, LH_ERR_COUNTS, packCountsLine } from '../leaderStrings';
 import { SETUP_SIGN_OUT, SETUP_SIGN_OUT_FAILED } from '../../setup/setupStrings';
@@ -27,13 +27,19 @@ let uid: string | null = 'uid-lead';
 let configured = true;
 const signInMock = vi.fn();
 const signOutMock = vi.fn(async (): Promise<{ error: { message: string } | null }> => ({ error: null }));
-const rowsByTable: Record<string, Array<{ pack_id: string; leader_id: string }>> = {};
+type CountRow = { pack_id: string; leader_id: string; replaced_at?: string | null };
+const rowsByTable: Record<string, CountRow[]> = {};
 let countsError: string | null = null;
+/** PostgREST-shaped: .eq() is awaitable and also takes a further .is(col, null) filter, honoured like the server would. */
+const reply = (rows: CountRow[]) => (countsError ? { data: null, error: { message: countsError } } : { data: rows, error: null });
 const fromMock = vi.fn((table: string) => ({
   select: () => ({
-    eq: async (_col: string, value: string) => countsError
-      ? { data: null, error: { message: countsError } }
-      : { data: (rowsByTable[table] ?? []).filter(r => r.leader_id === value), error: null },
+    eq: (_col: string, value: string) => {
+      const rows = (rowsByTable[table] ?? []).filter(r => r.leader_id === value);
+      return Object.assign(Promise.resolve(reply(rows)), {
+        is: async (col: 'replaced_at', isValue: null) => reply(rows.filter(r => (r[col] ?? null) === isValue)),
+      });
+    },
   }),
 }));
 const authState = () => ({ user: uid ? { id: uid, email: 'lead@example.com' } : null, session: null, isAuthenticated: !!uid, isLoading: false });
@@ -64,6 +70,8 @@ beforeEach(async () => {
   rowsByTable[SIGNUPS_TABLE] = [
     { pack_id: 'local-2026-10-09-jhn3', leader_id: 'uid-lead' },
     { pack_id: 'local-2026-10-09-jhn3', leader_id: 'uid-lead' },
+    // Replaced by a later sign-up of the same person (same pack + email): never counted.
+    { pack_id: 'local-2026-10-09-jhn3', leader_id: 'uid-lead', replaced_at: '2026-10-04T10:00:00Z' },
     { pack_id: 'local-2026-10-02-matt6', leader_id: 'uid-lead' },
   ];
   rowsByTable[CHECKIN_ANSWERS_TABLE] = [{ pack_id: 'local-2026-10-09-jhn3', leader_id: 'uid-lead' }];
@@ -87,7 +95,7 @@ describe('LeaderHome', () => {
     expect(screen.queryByTestId('lh-signin-button')).toBeNull();
   });
 
-  it('signed in: own packs newest first, counts per pack, and the four links + New study', async () => {
+  it('signed in: own packs newest first, counts per pack (replaced sign-ups skipped), and the four links + New study', async () => {
     await saveLocalPack(pack('local-2026-10-02-matt6', '2026-10-02', '不要忧虑'));
     await saveLocalPack(pack('local-2026-10-09-jhn3', '2026-10-09', '祂必兴旺'));
     await saveLocalPack(pack('local-2026-10-16-rom8', '2026-10-16', 'Someone else', 'uid-other'));
@@ -102,7 +110,7 @@ describe('LeaderHome', () => {
     expect(within(rows[0]).getByTestId('lh-edit')).toHaveAttribute('href', newStudyHash(id));
     expect(within(rows[0]).getByTestId('lh-present')).toHaveAttribute('href', packHash(id));
     expect(within(rows[0]).getByTestId('lh-responses')).toHaveAttribute('href', leaderHash(id));
-    expect(within(rows[0]).getByTestId('lh-qr')).toHaveAttribute('href', signupHash(id));
+    expect(within(rows[0]).getByTestId('lh-qr')).toHaveAttribute('href', qrHash(id));   // the page that SHOWS the QR, not the member form
     expect(screen.getByTestId('lh-new')).toHaveAttribute('href', NEW_STUDY_HASH);
     expect(fromMock).toHaveBeenCalledWith(SIGNUPS_TABLE);
     expect(fromMock).toHaveBeenCalledWith(CHECKIN_ANSWERS_TABLE);

@@ -37,13 +37,14 @@ import {
 } from './recipients.ts';
 import { emailConfig, sendEmail, sendSms, TwilioConfig } from './senders.ts';
 import { isTrustedCaller, CRON_SECRET_HEADER } from './trust.ts';
+import { REPLACED_COLUMN } from './replaced.ts';
 import { preflightResponse, withCors } from '../_shared/cors.ts';
 
 /** Must equal components/studypack/packTypes.ts PACK_SCHEMA_VERSION (pinned by checkins.test.ts). */
 export const PACK_SCHEMA_VERSION = 2;
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' };
-const SIGNUP_COLUMNS = 'id, pack_id, leader_id, name, phone, email, consent_checkins, practice_area, practice_text, practice2_area, practice2_text, practice_note, practices, created_at';
+const SIGNUP_COLUMNS = `id, pack_id, leader_id, name, phone, email, consent_checkins, practice_area, practice_text, practice2_area, practice2_text, practice_note, practices, created_at, ${REPLACED_COLUMN}`;
 
 interface RequestBody {
   pack_id?: unknown;
@@ -95,7 +96,8 @@ function loadPack(client: SupabaseClient, packId: string): Promise<CheckinPack> 
 }
 
 async function loadSignups(client: SupabaseClient, packId: string): Promise<SignupRow[]> {
-  const { data, error } = await client.from('study_signups').select(SIGNUP_COLUMNS).eq('pack_id', packId);
+  // Live rows only: a row replaced by a later sign-up (same pack + email) gets nothing (replaced.ts).
+  const { data, error } = await client.from('study_signups').select(SIGNUP_COLUMNS).eq('pack_id', packId).is(REPLACED_COLUMN, null);
   if (error) throw new Error(`study_signups query failed: ${error.message}`);
   return (data ?? []) as SignupRow[];
 }

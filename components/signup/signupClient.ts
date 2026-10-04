@@ -11,16 +11,20 @@
  * supplies url + anon key so Playwright can route the PostgREST call —
  * same dev-only hook pattern as window.__ASK_AI_TIMEOUT_MS.
  * A sign-up is a commitment (ADR-0004 §7): at least one life-menu practice
- * (any number) is required before any contact detail.
+ * (any number) is required before any contact detail; then a name and an
+ * email (the check-in channel); phone is optional. After the insert,
+ * markReplaced asks the server to retire this member's earlier rows for the
+ * same pack + email (database/signup-replace-schema.sql).
  */
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '../../services/supabase';
 import type { StudyPack, LifeMenuRow } from '../studypack/packTypes';
 import {
-  SU_ERR_NAME, SU_ERR_CONTACT, SU_ERR_EMAIL, SU_ERR_PHONE, SU_ERR_SUBMIT, SU_ERR_PRACTICE, SU_DEMO_LINE,
+  SU_ERR_NAME, SU_ERR_EMAIL_REQUIRED, SU_ERR_EMAIL, SU_ERR_PHONE, SU_ERR_SUBMIT, SU_ERR_PRACTICE, SU_DEMO_LINE, SU_REPLACE_FAILED,
 } from './signupStrings';
 import { SIGNUPS_TABLE, SIGNUP_LOCALE, SignupInsert } from './signupSchema';
-import { practiceColumns, practiceTexts } from '../../supabase/functions/send-checkins/practices';
+import { practiceColumns, practiceTexts, ownVersionLine } from '../../supabase/functions/send-checkins/practices';
+import { MARK_REPLACED_FN } from '../../supabase/functions/send-checkins/replaced';
 
 export { SIGNUPS_TABLE, SIGNUP_LOCALE };
 export type { SignupInsert };
@@ -58,15 +62,20 @@ export function validateSignup(form: SignupForm): string | null {
   const email = form.email.trim();
   const phone = normalizePhone(form.phone);
   if (!name) return SU_ERR_NAME;
-  if (!email && !phone) return SU_ERR_CONTACT;
-  if (email && !EMAIL_RE.test(email)) return SU_ERR_EMAIL;
+  if (!email) return SU_ERR_EMAIL_REQUIRED;
+  if (!EMAIL_RE.test(email)) return SU_ERR_EMAIL;
   if (phone && !PHONE_RE.test(phone)) return SU_ERR_PHONE;
   return null;
 }
 
-/** One line per chosen practice for the thank-you; the own version, when written, replaces the first. */
+/** One line per chosen practice (its own text) for the thank-you; the own version is shown separately (ownVersionLine). */
 export function practiceLines(form: Pick<SignupForm, 'practices' | 'note'>): string[] {
   return practiceTexts({ practices: form.practices, practice_note: form.note });
+}
+
+/** "我的版本 · My own version：…" when the member wrote one, else null — a line of its own after the practices. */
+export function ownVersionOf(form: Pick<SignupForm, 'note'>): string | null {
+  return ownVersionLine({ practice_note: form.note });
 }
 
 /** RFC 4122 v4 uuid: crypto.randomUUID where available (secure contexts), else built from crypto.getRandomValues. */
@@ -137,4 +146,19 @@ export async function insertSignup(client: SupabaseClient, payload: SignupInsert
   const { error } = await client.from(SIGNUPS_TABLE).insert(payload);
   if (error) throw new Error(`${SU_ERR_SUBMIT}: ${error.message}`);
   return payload.id;
+}
+
+export type ReplaceResult = { status: 'done'; replaced: number } | { status: 'failed'; message: string };
+
+/**
+ * After the insert: mark this member's earlier rows for the same pack +
+ * email as replaced (SECURITY DEFINER RPC; it returns only a count, never
+ * another row's id). A failure is returned, not thrown: the new row is
+ * stored, so the thank-you still shows, with the reason under it.
+ */
+export async function markReplaced(client: SupabaseClient, signupId: string): Promise<ReplaceResult> {
+  const { data, error } = await client.rpc(MARK_REPLACED_FN, { p_new_id: signupId });
+  if (error) return { status: 'failed', message: `${SU_REPLACE_FAILED}: ${error.message}` };
+  if (typeof data !== 'number') return { status: 'failed', message: `${SU_REPLACE_FAILED}: ${JSON.stringify(data)}` };
+  return { status: 'done', replaced: data };
 }

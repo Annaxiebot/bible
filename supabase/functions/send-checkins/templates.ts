@@ -6,8 +6,11 @@
  * (ADR-0003 §1). A message is: greeting, the member's practices (one line each), the
  * prompt (or the welcome line), then the feedback link — the in-app
  * check-in page keyed by the signup uuid, or the pack's Google Form
- * (prefilled) when the leader set one (ADR-0004 §7, §9).
+ * (prefilled) when the leader set one (ADR-0004 §7, §9). The kind is named
+ * once, in the subject; the prompt drops a repeated leading label
+ * (promptText.ts, shared with the check-in page).
  */
+import { promptWithoutKindLabel } from './promptText.ts';
 
 export type CheckinKind = 'tue' | 'thu' | 'weekend';
 export const CHECKIN_KINDS: readonly CheckinKind[] = ['tue', 'thu', 'weekend'];
@@ -58,7 +61,8 @@ export interface CheckinMessage {
 export interface MemberContext {
   name: string;
   signupId: string | null;   // null for the leader's ad-hoc test recipient
-  practices: string[];       // every chosen practice, own version replacing the first; [] before the commitment step
+  practices: string[];       // every chosen practice's own text; [] before the commitment step
+  ownVersion?: string | null; // "我的版本 · My own version：…" (practices.ownVersionLine), its own line after the practices
 }
 
 export function packUrl(packId: string): string {
@@ -136,13 +140,14 @@ export function practiceLine(practice: string): string {
 
 const WELCOME_LINE = `周中我们会再提醒你${BILINGUAL_SEPARATOR}We will remind you mid-week`;
 
-/** Greeting, one line per practice, prompt (or the welcome line), link; subject is bilingual with the pack title. */
+/** Greeting, one line per practice (+ the own version), prompt (or the welcome line), link; subject is bilingual with the pack title. */
 export function renderCheckin(kind: MessageKind, pack: CheckinPack, member: MemberContext): CheckinMessage {
   const label = KIND_LABEL[kind];
   const checkinKind = kind === WELCOME_KIND ? null : kind;
   const lines = [greeting(member.name)];
   for (const practice of member.practices) lines.push(practiceLine(practice));
-  lines.push(kind === WELCOME_KIND ? WELCOME_LINE : pack.prompts[kind]);
+  if (member.ownVersion) lines.push(member.ownVersion);
+  lines.push(kind === WELCOME_KIND ? WELCOME_LINE : promptWithoutKindLabel(pack.prompts[kind]));
   lines.push(feedbackUrl(pack, member, checkinKind));
   return {
     subject: `${label.zh}${BILINGUAL_SEPARATOR}${label.en} — ${pack.title}`,

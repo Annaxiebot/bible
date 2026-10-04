@@ -12,6 +12,7 @@ import { signupUrl } from '../../../components/signup/signupRoute';
 import {
   SIGNUPS_TABLE, SignupInsert, CHECKIN_CONTEXT_FN, SHARE_ANSWER_FN, SEND_CHECKINS_FUNCTION, SIGNUP_PACK_FN,
 } from '../../../components/signup/signupSchema';
+import { MARK_REPLACED_FN, REPLACED_COLUMN, signupEmailKey } from '../../../supabase/functions/send-checkins/replaced';
 
 export const E2E_LEADER_ID = '00000000-0000-4000-8000-00000000e2e1';
 export const E2E_SIGNUP_ID = '7d4e8b2a-1c3f-4a5b-9e6d-0f1a2b3c4d5e';
@@ -42,7 +43,17 @@ export const E2E_CHECKIN_PRACTICES = [
   { area: '家庭 Family', practice: '一起吃晚饭 · Dinner together' },
 ];
 
-export interface BackendMocks { bodies: () => SignupInsert[]; welcomes: () => unknown[]; shares: () => unknown[] }
+/** A stored row of the fake study_signups table (what the insert sent, plus the column the replace RPC sets). */
+export type FakeSignupRow = SignupInsert & { replaced_at: string | null };
+
+/** The owner's live case: an own version typed next to the chosen practices, and a weekend line carrying the kind label twice. */
+export const E2E_CHECKIN_NOTE = 'My own pratice: Diet';
+export const E2E_WEEKEND_LINE = '周末回顾：周末:回顾本周… · End of week: Weekend: Looking back…';
+
+export interface BackendMocks {
+  bodies: () => SignupInsert[]; welcomes: () => unknown[]; shares: () => unknown[];
+  rows: () => FakeSignupRow[]; replaces: () => unknown[];
+}
 /** PostgREST's reply to a return=minimal insert: 201, no body (the browser already holds the id it sent). */
 export const OK_INSERT = { status: 201, body: '' };
 /**
@@ -56,18 +67,52 @@ export const RLS_RETURNING_REPLY = {
   body: JSON.stringify({ code: '42501', message: 'new row violates row-level security policy for table "study_signups"' }),
 };
 
-/** Route PostgREST insert, the welcome function call, and the two check-in RPCs under the fake base. */
+/**
+ * mark_replaced_signups as database/signup-replace-schema.sql does it: the
+ * new row must exist and be live; every OTHER live row of the same pack +
+ * lower(trim(email)) inserted before it is marked; returns the count.
+ */
+function markReplacedRows(rows: FakeSignupRow[], newId: string): { status: number; body: unknown } {
+  const index = rows.findIndex(r => r.id === newId && !r.replaced_at);
+  if (index < 0) return { status: 404, body: { code: 'P0002', message: `sign-up ${newId} not found` } };
+  const key = signupEmailKey(rows[index].email);
+  if (!key) return { status: 200, body: 0 };
+  const earlier = rows.slice(0, index).filter(r => !r.replaced_at && r.pack_id === rows[index].pack_id && signupEmailKey(r.email) === key);
+  for (const r of earlier) r.replaced_at = new Date().toISOString();
+  return { status: 200, body: earlier.length };
+}
+
+/**
+ * Route PostgREST (a fake study_signups table: POST inserts, GET reads with
+ * the replaced_at=is.null filter honoured), the replace RPC, the welcome
+ * function call, and the two check-in RPCs under the fake base.
+ */
 export async function mockBackend(page: Page, insertReply: { status: number; body: string } = OK_INSERT): Promise<BackendMocks> {
   const bodies: SignupInsert[] = [];
+  const rows: FakeSignupRow[] = [];
+  const replaces: unknown[] = [];
   const welcomes: unknown[] = [];
   const shares: unknown[] = [];
   const json = { 'Content-Type': 'application/json' };
   await injectSupabaseOverride(page);
   await page.route(`**${E2E_SUPABASE_PATH}/rest/v1/${SIGNUPS_TABLE}**`, async route => {
-    bodies.push(route.request().postDataJSON() as SignupInsert);
-    const prefer = (await route.request().headerValue('prefer')) ?? '';
+    const request = route.request();
+    if (request.method() === 'GET') {
+      const liveOnly = new URL(request.url()).searchParams.get(REPLACED_COLUMN) === 'is.null';
+      return route.fulfill({ status: 200, headers: json, body: JSON.stringify(rows.filter(r => !liveOnly || !r.replaced_at)) });
+    }
+    const body = request.postDataJSON() as SignupInsert;
+    bodies.push(body);
+    const prefer = (await request.headerValue('prefer')) ?? '';
     const reply = prefer.includes('return=representation') ? RLS_RETURNING_REPLY : insertReply;
+    if (reply.status < 300) rows.push({ ...body, replaced_at: null });
     return route.fulfill({ status: reply.status, headers: json, body: reply.body });
+  });
+  await page.route(`**${E2E_SUPABASE_PATH}/rest/v1/rpc/${MARK_REPLACED_FN}**`, route => {
+    const args = route.request().postDataJSON() as { p_new_id: string };
+    replaces.push(args);
+    const reply = markReplacedRows(rows, args.p_new_id);
+    return route.fulfill({ status: reply.status, headers: json, body: JSON.stringify(reply.body) });
   });
   await page.route(`**${E2E_SUPABASE_PATH}/functions/v1/${SEND_CHECKINS_FUNCTION}**`, route => {
     welcomes.push(route.request().postDataJSON());
@@ -77,15 +122,15 @@ export async function mockBackend(page: Page, insertReply: { status: number; bod
     status: 200, headers: json,
     body: JSON.stringify([{
       pack_id: SAMPLE_PACK_ID, pack_title: '不要忧虑 Do Not Be Anxious', name: '小明', practice_area: '健康 Health',
-      practice_text: '固定的睡前程序 · Fixed wind-down', practice_note: null, practices: E2E_CHECKIN_PRACTICES,
-      reflection_lines: ['周二跟进：做了吗？ · Tue: did it happen?', '周四 · Thu', '周末 · Weekend'], feedback_form_url: null,
+      practice_text: '固定的睡前程序 · Fixed wind-down', practice_note: E2E_CHECKIN_NOTE, practices: E2E_CHECKIN_PRACTICES,
+      reflection_lines: ['周二跟进：做了吗？ · Tue: did it happen?', '周四 · Thu', E2E_WEEKEND_LINE], feedback_form_url: null,
     }]),
   }));
   await page.route(`**${E2E_SUPABASE_PATH}/rest/v1/rpc/${SHARE_ANSWER_FN}**`, route => {
     shares.push(route.request().postDataJSON());
     return route.fulfill({ status: 200, headers: json, body: JSON.stringify('answer-id') });
   });
-  return { bodies: () => bodies, welcomes: () => welcomes, shares: () => shares };
+  return { bodies: () => bodies, welcomes: () => welcomes, shares: () => shares, rows: () => rows, replaces: () => replaces };
 }
 
 /**

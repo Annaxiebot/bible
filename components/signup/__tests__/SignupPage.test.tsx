@@ -18,15 +18,16 @@ import { render, screen, fireEvent, waitFor, within } from '@testing-library/rea
 import SignupPage from '../SignupPage';
 import { SIGNUPS_TABLE, SIGNUP_LOCALE } from '../signupClient';
 import { SEND_CHECKINS_FUNCTION } from '../signupSchema';
+import { MARK_REPLACED_FN } from '../../../supabase/functions/send-checkins/replaced';
 import { WELCOME_KIND } from '../welcomeEmail';
 import { saveLocalPack } from '../../studypack/packSource';
 import { idbService } from '../../../services/idbService';
 import { checkinHash } from '../../checkin/checkinRoute';
 import { CK_WELCOME_FAILED } from '../../checkin/checkinStrings';
 import {
-  SU_TITLE, SU_NAME, SU_EMAIL, SU_PHONE, SU_CONSENT, SU_SUBMIT, SU_ERR_NAME, SU_ERR_CONTACT, SU_ERR_SUBMIT, SU_ERR_PRACTICE,
+  SU_TITLE, SU_NAME, SU_EMAIL, SU_PHONE, SU_CONSENT, SU_SUBMIT, SU_ERR_NAME, SU_ERR_EMAIL_REQUIRED, SU_ERR_SUBMIT, SU_ERR_PRACTICE,
   SU_THANKS, SU_NEXT, SU_NEXT_NO_CHECKINS, SU_ERR_PACK, SU_ERR_NOT_CONFIGURED, SU_DEMO_LINE, SU_UNCLAIMED_LINE,
-  SU_SIGN_IN_GOOGLE, SU_PRACTICE_TITLE, SU_NEXT_STEP, commitmentLine,
+  SU_SIGN_IN_GOOGLE, SU_PRACTICE_TITLE, SU_NEXT_STEP, SU_REPLACED, SU_REPLACE_FAILED, commitmentLine,
 } from '../signupStrings';
 import { SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../../setup/setupStrings';
 
@@ -38,10 +39,11 @@ const insertMock = vi.fn((_payload: unknown) => Object.assign(Promise.resolve().
 }));
 const fromMock = vi.fn(() => ({ insert: insertMock }));
 const invokeMock = vi.fn();
+const rpcMock = vi.fn();
 const signInMock = vi.fn(async () => ({ error: null }));
 let configured = true;
 vi.mock('../../../services/supabase', () => ({
-  get supabase() { return configured ? { from: fromMock, functions: { invoke: invokeMock } } : null; },
+  get supabase() { return configured ? { from: fromMock, rpc: rpcMock, functions: { invoke: invokeMock } } : null; },
   isSupabaseConfigured: () => configured,
   authManager: { getUserId: () => null, signInWithGoogle: () => signInMock(), subscribe: () => () => undefined },
 }));
@@ -84,6 +86,7 @@ describe('SignupPage', () => {
     vi.spyOn(crypto, 'randomUUID').mockReturnValue(SIGNUP_ID);
     insertMock.mockClear();
     fromMock.mockClear();
+    rpcMock.mockReset().mockResolvedValue({ data: 0, error: null });
     invokeMock.mockReset().mockResolvedValue({ data: { attempted: 1, results: [{ status: 'sent' }] }, error: null });
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => PACK })));
   });
@@ -131,9 +134,11 @@ describe('SignupPage', () => {
     choosePractice();
     fireEvent.click(screen.getByTestId('su-submit'));
     expect(await screen.findByRole('alert')).toHaveTextContent(SU_ERR_NAME);
-    fill({ name: '小明' });
+    fill({ name: '小明', phone: '4085551234' });   // phone alone is not enough: email is required
     fireEvent.click(screen.getByTestId('su-submit'));
-    expect(await screen.findByRole('alert')).toHaveTextContent(SU_ERR_CONTACT);
+    expect(await screen.findByRole('alert')).toHaveTextContent(SU_ERR_EMAIL_REQUIRED);
+    expect(screen.getByTestId('su-email')).toBeRequired();
+    expect(screen.getByTestId('su-phone')).not.toBeRequired();
     expect(insertMock).not.toHaveBeenCalled();
   });
 
@@ -155,11 +160,38 @@ describe('SignupPage', () => {
     expect(invokeMock).toHaveBeenCalledWith(SEND_CHECKINS_FUNCTION, { body: { kind: WELCOME_KIND, signup_id: SIGNUP_ID } });
     const thanks = screen.getByTestId('signup-thanks');
     expect(thanks).toHaveTextContent(SU_THANKS);
-    expect(within(thanks).getByTestId('signup-commitment')).toHaveTextContent(commitmentLine('十点关机 · Phone off at ten'));
+    // The chosen practice keeps its own text; the own version is an extra labelled line.
+    expect(within(thanks).getByTestId('signup-commitment')).toHaveTextContent(commitmentLine(ROWS[0].practice));
+    expect(within(thanks).getByTestId('signup-own-version')).toHaveTextContent('我的版本 · My own version：十点关机 · Phone off at ten');
     expect(thanks).toHaveTextContent(SU_NEXT);
     expect(within(thanks).getByTestId('signup-checkin-link')).toHaveAttribute('href', expect.stringContaining(checkinHash(SIGNUP_ID)));
     expect(within(thanks).queryByTestId('welcome-failed')).toBeNull();
     expect(screen.queryByTestId('signup-form')).toBeNull();
+    // After the insert the server is asked to retire earlier rows of this person — with only the new id.
+    expect(rpcMock).toHaveBeenCalledWith(MARK_REPLACED_FN, { p_new_id: SIGNUP_ID });
+    expect(within(thanks).queryByTestId('signup-replaced')).toBeNull();   // nothing was replaced
+  });
+
+  it('signing up again (the RPC replaced an earlier row) says the earlier sign-up was updated', async () => {
+    rpcMock.mockResolvedValue({ data: 1, error: null });
+    await renderWithPack();
+    choosePractice();
+    fill({ name: 'A', email: 'a@b.co' });
+    fireEvent.click(screen.getByTestId('su-submit'));
+    expect(await screen.findByTestId('signup-replaced')).toHaveTextContent(SU_REPLACED);
+    expect(screen.queryByTestId('replace-failed')).toBeNull();
+  });
+
+  it('a failed replace is a visible notice under the thank-you (the new row is stored; the welcome still goes)', async () => {
+    rpcMock.mockResolvedValue({ data: null, error: { message: 'function not found' } });
+    await renderWithPack();
+    choosePractice();
+    fill({ name: 'A', email: 'a@b.co' });
+    fireEvent.click(screen.getByTestId('su-submit'));
+    expect(await screen.findByTestId('replace-failed')).toHaveTextContent(`${SU_REPLACE_FAILED}: function not found`);
+    expect(screen.getByTestId('signup-thanks')).toHaveTextContent(SU_THANKS);
+    expect(screen.queryByTestId('signup-replaced')).toBeNull();
+    expect(invokeMock).toHaveBeenCalledTimes(1);
   });
 
   it('with consent off the thank-you says no check-ins will come; a failed welcome is shown under it', async () => {
@@ -175,13 +207,13 @@ describe('SignupPage', () => {
     expect(screen.getByTestId('welcome-failed')).toHaveTextContent(`${CK_WELCOME_FAILED}: Function not found`);
   });
 
-  it('phone-only sign-up skips the welcome email', async () => {
+  it('email without a phone is accepted (phone stays optional) and the phone is stored as null', async () => {
     await renderWithPack();
     choosePractice();
-    fill({ name: 'A', phone: '4085551234' });
+    fill({ name: 'A', email: 'a@b.co' });
     fireEvent.click(screen.getByTestId('su-submit'));
     await screen.findByTestId('signup-thanks');
-    expect(invokeMock).not.toHaveBeenCalled();
+    expect(insertMock.mock.calls[0][0]).toMatchObject({ email: 'a@b.co', phone: null });
   });
 
   it('an insert error is surfaced with the server message; the form stays', async () => {
