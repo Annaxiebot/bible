@@ -131,7 +131,7 @@ export function greeting(name: string): string {
 
 /** "你选的操练：… · Your practice: …" — one line per committed practice. */
 export function practiceLine(practice: string): string {
-  return `你选的操练：${practice}${BILINGUAL_SEPARATOR}Your practice: ${practice}`;
+  return `你选的操练${BILINGUAL_SEPARATOR}Your practice：${practice}`;
 }
 
 const WELCOME_LINE = `周中我们会再提醒你${BILINGUAL_SEPARATOR}We will remind you mid-week`;

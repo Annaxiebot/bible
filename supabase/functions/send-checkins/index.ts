@@ -37,6 +37,7 @@ import {
 } from './recipients.ts';
 import { emailConfig, sendEmail, sendSms, TwilioConfig } from './senders.ts';
 import { isTrustedCaller, CRON_SECRET_HEADER } from './trust.ts';
+import { preflightResponse, withCors } from '../_shared/cors.ts';
 
 /** Must equal components/studypack/packTypes.ts PACK_SCHEMA_VERSION (pinned by checkins.test.ts). */
 export const PACK_SCHEMA_VERSION = 2;
@@ -221,10 +222,13 @@ async function handle(request: Request): Promise<Response> {
 }
 
 Deno.serve(async (request: Request) => {
+  // The member's browser asks for the welcome email (and a leader's for a test), so it preflights first.
+  const origin = request.headers.get('Origin');
+  if (request.method === 'OPTIONS') return preflightResponse(origin);
   try {
-    return await handle(request);
+    return withCors(await handle(request), origin);
   } catch (err) {
     // Surfaced to the caller (pg_net response / leader page) as a 500 body, never swallowed.
-    return jsonResponse(500, { error: err instanceof Error ? err.message : String(err) });
+    return withCors(jsonResponse(500, { error: err instanceof Error ? err.message : String(err) }), origin);
   }
 });

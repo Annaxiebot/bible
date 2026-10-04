@@ -11,25 +11,9 @@
 import { AIRole } from './policy.ts';
 
 export const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';
-/** Sent to OpenRouter as HTTP-Referer / X-Title (attribution on the OpenRouter dashboard). */
-export const SITE_ORIGIN = 'https://scripturetolife.org';
+/** CORS lives in ../_shared/cors.ts (one policy for every function); SITE_ORIGIN is also OpenRouter's HTTP-Referer. */
+export { SITE_ORIGIN, isAllowedOrigin, corsHeaders } from '../_shared/cors.ts';
 export const SITE_TITLE = 'Scripture to Life';
-
-const LOCALHOST_ORIGIN = /^http:\/\/localhost(:\d{1,5})?$/;
-
-export function isAllowedOrigin(origin: string | null): boolean {
-  return origin !== null && (origin === SITE_ORIGIN || LOCALHOST_ORIGIN.test(origin));
-}
-
-/** CORS headers: the origin is echoed only when allowed (a browser elsewhere gets no ACAO). */
-export function corsHeaders(origin: string | null): Record<string, string> {
-  const base: Record<string, string> = {
-    'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Vary': 'Origin',
-  };
-  return isAllowedOrigin(origin) ? { ...base, 'Access-Control-Allow-Origin': origin as string } : base;
-}
 
 export interface Failure { status: number; body: Record<string, unknown> }
 

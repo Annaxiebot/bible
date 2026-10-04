@@ -43,7 +43,7 @@ describe('renderCheckin', () => {
     expect(lines[0]).toBe(greeting('小明'));
     expect(lines[0].indexOf('平安')).toBeLessThan(lines[0].indexOf('Peace'));
     expect(lines[1]).toBe(practiceLine(MEMBER.practices[0]));
-    expect(lines[1]).toBe('你选的操练：睡前程序 · Wind-down · Your practice: 睡前程序 · Wind-down');
+    expect(lines[1]).toBe('你选的操练 · Your practice：睡前程序 · Wind-down'); // the practice appears once (it was repeated in both halves)
     expect(lines[2]).toBe(PACK.prompts.tue);
     expect(lines[3]).toBe(checkinPageUrl(SIGNUP_ID, 'tue'));
     expect(lines[3]).toBe(`${SITE_ORIGIN}/${checkinHash(SIGNUP_ID, 'tue')}`);   // same route the app parses

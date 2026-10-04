@@ -39,8 +39,8 @@ export const SU_PACK_LOADING = bilingualLine('载入中', 'loading');
 // ---- after submit ----
 export const SU_THANKS = bilingual('谢谢，已登记！', 'Thank you, you are signed up!');
 export const SU_NEXT = bilingualLine(
-  '周二和周四早上九点会收到提醒；反思只留在你自己的设备上',
-  'You will hear from us Tuesday and Thursday at 9 am; reflections stay on your own device'
+  '周二、周四和周末早上九点会收到提醒；你可以把反思留给自己，或分享给组长',
+  'You will hear from us Tuesday, Thursday and the weekend at 9 am; keep your reflections private or share them with your leader'
 );
 export const SU_NEXT_NO_CHECKINS = bilingualLine('你选择了不接收提醒', 'You chose not to receive check-ins');
 export const SU_PRIVACY = bilingualLine(
@@ -65,9 +65,13 @@ export const SU_NEXT_STEP = bilingual('下一步', 'Next');
 export const SU_PREV_STEP = bilingual('上一步', 'Back');
 export const SU_CONTACT_TITLE = bilingual('联系方式', 'How to reach you');
 export const SU_ERR_PRACTICE = bilingualLine('请至少选一项操练', 'Please choose at least one practice');
-/** Thank-you restatement: "你本周的操练：<text> · Your practice this week: <text>". */
+/**
+ * Thank-you restatement: "你本周的操练 · Your practice this week：<text>". The
+ * practice text is already bilingual, so it appears once (it used to be
+ * repeated inside both halves).
+ */
 export function commitmentLine(practice: string): string {
-  return bilingualLine(`你本周的操练：${practice}`, `Your practice this week: ${practice}`);
+  return `${bilingualLine('你本周的操练', 'Your practice this week')}：${practice}`;
 }
 
 // ---- QR panel (TV slide + landing), shared by every pack ----
