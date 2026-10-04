@@ -17,12 +17,32 @@ import { getLeaderPackIdFromHash } from '../leader/leaderRoute';
 import { getCheckinFromHash } from '../checkin/checkinRoute';
 import { installClaimOnSignIn } from '../newstudy/claimLocalPacks';
 
-const Landing = lazy(() => import('./Landing'));
-const NewStudyPage = lazy(() => import('../newstudy/NewStudyPage'));
-const SignupPage = lazy(() => import('../signup/SignupPage'));
-const LeaderPage = lazy(() => import('../leader/LeaderPage'));
-const LeaderHome = lazy(() => import('../leader/LeaderHome'));
-const CheckinPage = lazy(() => import('../checkin/CheckinPage'));
+// One loader per page, shared by lazy() and preloadLandingPages().
+const pageLoaders = {
+  landing: () => import('./Landing'),
+  newStudy: () => import('../newstudy/NewStudyPage'),
+  signup: () => import('../signup/SignupPage'),
+  leader: () => import('../leader/LeaderPage'),
+  leaderHome: () => import('../leader/LeaderHome'),
+  checkin: () => import('../checkin/CheckinPage'),
+};
+
+/**
+ * Warm every lazy page module. Tests that assert on a rendered page `await`
+ * this at file top level: the first dynamic import is 0.1 s idle but several
+ * seconds under heavy CPU load, which blew the 1 s findBy budget. The app
+ * itself never needs it — Suspense shows the fallback meanwhile.
+ */
+export function preloadLandingPages(): Promise<unknown> {
+  return Promise.all(Object.values(pageLoaders).map(load => load()));
+}
+
+const Landing = lazy(pageLoaders.landing);
+const NewStudyPage = lazy(pageLoaders.newStudy);
+const SignupPage = lazy(pageLoaders.signup);
+const LeaderPage = lazy(pageLoaders.leader);
+const LeaderHome = lazy(pageLoaders.leaderHome);
+const CheckinPage = lazy(pageLoaders.checkin);
 
 const fallback = <div className="fixed inset-0 bg-stl-bg" />;
 
