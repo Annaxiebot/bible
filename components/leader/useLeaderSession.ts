@@ -6,14 +6,12 @@
  * short display name. Reads the app's session (services/supabase
  * authManager).
  *
- * E2E seam (dev builds only, same pattern as window.__SUPABASE_E2E__ in
- * signupClient): window.__LEADER_E2E__ = { uid, email, name } stands in for
- * a Google session so Playwright can render the signed-in pages; data calls
- * still go through getSignupClient's routed fake base. Ignored in
- * production builds (import.meta.env.DEV is false).
+ * E2E seam: services/e2eLeader.ts (dev builds only) stands in for a Google
+ * session; data calls still go through getSignupClient's routed fake base.
  */
 import { useEffect, useState } from 'react';
 import { authManager, isSupabaseConfigured, type AuthState } from '../../services/supabase';
+import { e2eLeader } from '../../services/e2eLeader';
 
 export interface LeaderSession {
   configured: boolean;
@@ -23,15 +21,6 @@ export interface LeaderSession {
   name: string | null;
 }
 
-interface E2ELeader { uid: string; email: string | null; name: string | null }
-
-function e2eLeader(): E2ELeader | null {
-  if (!import.meta.env.DEV) return null;
-  const value = (window as Window & { __LEADER_E2E__?: unknown }).__LEADER_E2E__;
-  if (typeof value !== 'object' || value === null) return null;
-  const { uid, email, name } = value as Partial<E2ELeader>;
-  return typeof uid === 'string' ? { uid, email: email ?? null, name: name ?? null } : null;
-}
 
 /** First word of the full name; else the email's local part; else ''. */
 export function leaderDisplayName(name: string | null, email: string | null): string {
