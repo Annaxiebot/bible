@@ -67,12 +67,16 @@ function sourceFiles(dir: string): string[] {
   });
 }
 
+// Walking + reading every component file is >10 s under heavy CPU load (every
+// read is also scanned by the endpoint antivirus). Do it once at file
+// collection, which has no timeout, so the slow I/O never counts against it.
+const SIGN_IN_CALLERS = sourceFiles(join(__dirname, '..', '..', 'components'))
+  .map(path => ({ path, calls: readFileSync(path, 'utf8').match(/signInWithGoogle\([^)]*\)/g) ?? [] }))
+  .filter(f => f.calls.length > 0);
+
 describe('every sign-in caller is identity-only except the Forms opt-in', () => {
   it('only components/newstudy/useFeedbackForm.ts passes withForms', () => {
-    const root = join(__dirname, '..', '..', 'components');
-    const callers = sourceFiles(root)
-      .map(path => ({ path, calls: readFileSync(path, 'utf8').match(/signInWithGoogle\([^)]*\)/g) ?? [] }))
-      .filter(f => f.calls.length > 0);
+    const callers = SIGN_IN_CALLERS;
     expect(callers.length).toBeGreaterThanOrEqual(3);   // AuthPanel, UnclaimedSignIn, useFeedbackForm
     for (const { path, calls } of callers) {
       for (const call of calls) {

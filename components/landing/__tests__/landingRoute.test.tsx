@@ -21,7 +21,12 @@ import { signupHash } from '../../signup/signupRoute';
 import { leaderHash } from '../../leader/leaderRoute';
 import { SU_TITLE } from '../../signup/signupStrings';
 import { LD_TITLE } from '../../leader/leaderStrings';
-import LandingGate from '../LandingGate';
+import LandingGate, { preloadLandingPages } from '../LandingGate';
+
+// The pages are React.lazy; their first import is load-dependent (several
+// seconds under heavy CPU load) and must not count against a 1 s findBy.
+// Top-level await: file collection has no timeout (a beforeAll hook does).
+await preloadLandingPages();
 
 describe('resolveRootView', () => {
   it('shows the landing only at a bare root URL', () => {
