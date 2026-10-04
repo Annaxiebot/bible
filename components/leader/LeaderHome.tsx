@@ -20,6 +20,7 @@ import { useLeaderSession } from './useLeaderSession';
 import { useLeaderPacks } from './leaderHomeData';
 import { LeaderPackRow, linkButtonClass } from './LeaderPackRow';
 import { LH_TITLE, LH_SIGNIN, LH_LOADING, LD_BACK } from './leaderStrings';
+import { LeaderSignOut } from './LeaderSignOut';
 import { textStyle, controlStyle, pageTitleStyle } from '../newstudy/newStudyStyles';
 
 const alert = (text: string) => <p role="alert" className="text-red-300" style={textStyle}>{text}</p>;
@@ -71,6 +72,7 @@ const LeaderHome: React.FC = () => {
         </header>
         {!session.configured && alert(SU_ERR_NOT_CONFIGURED)}
         {session.configured && !session.loading && !session.uid && <SignInPrompt />}
+        {session.uid && <LeaderSignOut email={session.email} />}
         {session.uid && <MyPacks uid={session.uid} />}
       </div>
     </div>
