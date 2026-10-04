@@ -21,6 +21,7 @@ import SignupQr from '../signup/SignupQr';
 import UnclaimedSignIn from '../signup/UnclaimedSignIn';
 import { SU_DEMO_LINE } from '../signup/signupStrings';
 import { packSignupState } from './packSource';
+import { isQuoteLine } from '../sharing/sharingStrings';
 
 interface SlideProps {
   slide: Slide;
@@ -55,15 +56,19 @@ const Heading: React.FC<{ text: string; counter?: string }> = ({ text, counter }
   );
 };
 
-const BodyLines: React.FC<{ lines?: string[]; pack?: StudyPack }> = ({ lines, pack }) => {
+/** `quietQuotes` (sharing slides, ADR-0008): 「…」 lines — members' paraphrased words — in the quieter text colour. */
+const BodyLines: React.FC<{ lines?: string[]; pack?: StudyPack; quietQuotes?: boolean }> = ({ lines, pack, quietQuotes }) => {
   const t = useSlideTypography();
   return (
     <div className="space-y-[2.5vh]">
-      {(lines || []).map((line, i) => (
-        <p key={i} className="text-stl-text" style={t.body}>
-          {pack ? <RefLinkedText text={line} pack={pack} /> : line}
-        </p>
-      ))}
+      {(lines || []).map((line, i) => {
+        const quiet = !!quietQuotes && isQuoteLine(line);
+        return (
+          <p key={i} className={quiet ? 'text-stl-text-2' : 'text-stl-text'} data-quote={quiet || undefined} style={t.body}>
+            {pack ? <RefLinkedText text={line} pack={pack} /> : line}
+          </p>
+        );
+      })}
     </div>
   );
 };
@@ -198,7 +203,7 @@ const TVSlide: React.FC<SlideProps> = ({ slide, pack }) => {
     <div className="h-full flex flex-col">
       <Heading text={slide.heading} counter={partCounter(slide.partIndex, slide.partTotal)} />
       <div className="overflow-y-auto flex-1">
-        <BodyLines lines={slide.body} pack={pack} />
+        <BodyLines lines={slide.body} pack={pack} quietQuotes={slide.kind === 'sharing'} />
       </div>
     </div>
   );

@@ -1,7 +1,8 @@
 /**
  * NewStudyEditor.tsx — review and edit a generated pack · 审阅与编辑
  *
- * Pack title input, then per section: a toolbar (move up/down, remove with
+ * Pack title input, the "last week's sharing" control (ADR-0008,
+ * components/sharing), then per section: a toolbar (move up/down, remove with
  * inline confirm — sectionRules decides what is allowed), the scripture
  * range editor (first scripture section only), and the SectionEditor.
  * "添加段落 Add section" appends an allowed kind. Every edit is a pure
@@ -21,6 +22,7 @@ import {
   validateEdited, withTitle, withSection, withMovedSection, withoutSection, withAddedSection,
 } from './packEdits';
 import FeedbackFormField from './FeedbackFormField';
+import SharingControl from '../sharing/SharingControl';
 import type { AutoSaveStatus } from './useAutoSave';
 import type { FormNotice, FeedbackFormState } from './useFeedbackForm';
 import {
@@ -127,13 +129,14 @@ const NewStudyEditor: React.FC<Props> = ({ pack, onChange, onSave, onPreview, on
         <input type="text" value={titleHeading} aria-label={NS_PACK_TITLE} data-testid="ns-title"
           onChange={e => edit(withTitle(pack, e.target.value))} className={inputClass} style={controlStyle} />
       </label>
+      <SharingControl pack={pack} onApply={edit} />
       {pack.sections.map((section, i) => (
         <div key={keys[i]} data-testid="ns-section" data-kind={section.kind} className="flex flex-col gap-3">
           <SectionToolbar heading={section.heading}
             canUp={canMoveUp(pack.sections, i)} canDown={canMoveDown(pack.sections, i)} canRemove={canRemove(pack.sections, i)}
             onUp={() => move(i, -1)} onDown={() => move(i, 1)} onRemove={() => remove(i)} />
           {i === firstScripture && <ScriptureRangeEditor pack={pack} onApply={edit} />}
-          <SectionEditor section={section} onPatch={patch => edit(withSection(pack, i, patch))} />
+          <SectionEditor section={section} pack={pack} onPatch={patch => edit(withSection(pack, i, patch))} />
         </div>
       ))}
       <AddSectionMenu sections={pack.sections} onAdd={add} />

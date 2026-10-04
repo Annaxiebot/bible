@@ -161,6 +161,23 @@ export const CONTENT_LANGUAGE_CONTRACTS: Record<ContentLanguage, ContentLanguage
   },
 };
 
+/**
+ * Last-week sharing contract (ADR-0003 §1, §13, §17; ADR-0008): what the AI
+ * may do with the answers members chose to share with their leader. Injected
+ * verbatim into every sharing prompt by buildSharingPrompt.
+ */
+export const SHARING_CONTENT_CONTRACT = [
+  'SHARING RULES: Chinese is 简体 Simplified; where both languages appear,',
+  'Chinese is shown first, English second. Report only what the members said',
+  'in the answers given below — do not add theological claims, Bible verses,',
+  'interpretations, advice or health/scientific claims of your own, and never',
+  'present what a member did as a biblical claim. Keep three kinds of claims',
+  'separate: what Scripture says, what behavior it may lead to, and any',
+  'scientific/health claim. Quotes are short anonymised paraphrases, never',
+  'verbatim: no names, places, workplaces, family details or other identifiers.',
+  'If the answers are few, say less; never invent experiences.',
+].join('\n');
+
 export const ASK_AI_ANSWER_CONTRACT = [
   'ANSWER RULES (override any other format rules): answer in at most 2 short',
   'sentences (max ~60 words total — this is shown on a TV and must fit the',

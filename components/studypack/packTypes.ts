@@ -17,6 +17,7 @@ import {
 
 export type SectionKind =
   | 'title'
+  | 'sharing'     // optional, right after the title: last week's practices + shared answers (ADR-0008)
   | 'scripture'
   | 'context'
   | 'originalLanguage'
@@ -28,7 +29,7 @@ export type SectionKind =
   | 'closing';
 
 const SECTION_KINDS: readonly SectionKind[] = [
-  'title', 'scripture', 'context', 'originalLanguage', 'crossRefs',
+  'title', 'sharing', 'scripture', 'context', 'originalLanguage', 'crossRefs',
   'discussion', 'lifeMenu', 'reflection', 'qr', 'closing',
 ];
 
@@ -154,6 +155,9 @@ function parseSection(raw: unknown, index: number): PackSection {
   }
   if (s.kind === 'scripture' && (!isPackVerses(s.verses) || s.verses.length === 0)) {
     throw new Error(`StudyPack scripture section ${index} needs non-empty verses[] ({num, cuv, en})`);
+  }
+  if (s.kind === 'sharing' && (!isStringArray(s.body) || s.body.length === 0)) {
+    throw new Error(`StudyPack sharing section ${index} needs a non-empty body[]`);
   }
   if (s.kind === 'qr' && s.image !== undefined && typeof s.image !== 'string') {
     throw new Error(`StudyPack qr section ${index} legacy image must be a string when present`);

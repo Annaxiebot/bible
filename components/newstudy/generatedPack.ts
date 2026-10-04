@@ -50,11 +50,11 @@ export function extractJsonObject(text: string): Record<string, unknown> {
   return parsed as Record<string, unknown>;
 }
 
-type Half = keyof Bilingual;
+export type Half = keyof Bilingual;
 const BOTH_HALVES: readonly Half[] = ['zh', 'en'];
 
-/** Which halves a model-drafted item must carry in a mode (title and keyPhrase always use BOTH_HALVES). */
-function requiredHalves(mode: ContentLanguage): readonly Half[] {
+/** Which halves a model-drafted item must carry in a mode (title and keyPhrase always use BOTH_HALVES). Shared with the sharing reply validator. */
+export function requiredHalves(mode: ContentLanguage): readonly Half[] {
   if (mode === 'zh-keywords') return ['zh'];
   if (mode === 'en-keywords') return ['en'];
   return BOTH_HALVES;
@@ -65,14 +65,14 @@ function filled(v: unknown): v is string {
 }
 
 /** An object whose required halves are non-empty strings; the other half, when present, must be a string. */
-function hasHalves(v: unknown, halves: readonly Half[]): v is Partial<Bilingual> {
+export function hasHalves(v: unknown, halves: readonly Half[]): v is Partial<Bilingual> {
   const b = v as Partial<Bilingual>;
   if (typeof b !== 'object' || b === null) return false;
   return BOTH_HALVES.every(h => (halves.includes(h) ? filled(b[h]) : b[h] === undefined || typeof b[h] === 'string'));
 }
 
 /** Trimmed halves; a half the mode did not ask for is '' (assembly never shows it). */
-function trimHalves(b: Partial<Bilingual>): Bilingual {
+export function trimHalves(b: Partial<Bilingual>): Bilingual {
   return { zh: (b.zh ?? '').trim(), en: (b.en ?? '').trim() };
 }
 

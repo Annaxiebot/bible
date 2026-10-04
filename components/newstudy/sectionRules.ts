@@ -2,7 +2,9 @@
  * sectionRules.ts — what the editor may do to a pack's section list · 段落规则
  *
  * One pure module holds every ordering constraint: the title is first,
- * scripture directly follows it (one or more, in place), qr then closing
+ * an optional last-week sharing section sits right after it (ADR-0008;
+ * fixed in place, removable, never added from the menu), scripture
+ * follows (one or more, in place), qr then closing
  * close the pack, lifeMenu/reflection/qr/closing appear at most once, and
  * title/scripture/qr can be neither added nor removed. The move/remove/add
  * predicates and operations below all derive from `validateSectionOrder`,
@@ -12,7 +14,7 @@ import { PackSection, SectionKind } from '../studypack/packTypes';
 import { LIFE_AREAS } from '../studypack/principles';
 import { SECTION_HEADINGS, PRIVACY_LINE, CLOSING_LEAD } from './packAssembly';
 import {
-  NS_ERR_TITLE_FIRST, NS_ERR_SCRIPTURE_PLACE, NS_ERR_TAIL, NS_ERR_DUPLICATE_SECTION,
+  NS_ERR_TITLE_FIRST, NS_ERR_SCRIPTURE_PLACE, NS_ERR_TAIL, NS_ERR_DUPLICATE_SECTION, NS_ERR_SHARING_PLACE,
 } from './newStudyStrings';
 
 /** Kinds the leader may add or remove, in menu order. */
@@ -23,12 +25,18 @@ export const ADDABLE_KINDS: readonly SectionKind[] = [
 /** Kinds that appear at most once in a pack. */
 export const SINGLETON_KINDS: readonly SectionKind[] = ['lifeMenu', 'reflection', 'qr', 'closing'];
 
+/** Kinds the leader may remove but not add from the menu (they are inserted by their own control). */
+const REMOVE_ONLY_KINDS: readonly SectionKind[] = ['sharing'];
+
+/** The sharing section's only allowed place: right after the title (so a second one is a place error too). */
+export const SHARING_INDEX = 1;
+
 /** Kinds that close the pack, in order: qr second-to-last, closing last (each optional). */
 const TAIL_KINDS: readonly SectionKind[] = ['qr', 'closing'];
 
 const isTail = (s: PackSection): boolean => TAIL_KINDS.includes(s.kind);
 const isMovable = (s: PackSection): boolean =>
-  s.kind !== 'title' && s.kind !== 'scripture' && !isTail(s);
+  s.kind !== 'title' && s.kind !== 'sharing' && s.kind !== 'scripture' && !isTail(s);
 
 /** Index of the first tail section (qr/closing), or sections.length when there is none. */
 function tailStart(sections: readonly PackSection[]): number {
@@ -41,8 +49,10 @@ export function validateSectionOrder(sections: readonly PackSection[]): string |
   if (sections[0]?.kind !== 'title' || sections.some((s, i) => i > 0 && s.kind === 'title')) {
     return NS_ERR_TITLE_FIRST;
   }
+  if (sections.some((s, i) => s.kind === 'sharing' && i !== SHARING_INDEX)) return NS_ERR_SHARING_PLACE;
+  const scriptureStart = sections[SHARING_INDEX]?.kind === 'sharing' ? SHARING_INDEX + 1 : 1;
   const lastScripture = sections.map(s => s.kind).lastIndexOf('scripture');
-  if (lastScripture !== -1 && sections.slice(1, lastScripture + 1).some(s => s.kind !== 'scripture')) {
+  if (lastScripture !== -1 && sections.slice(scriptureStart, lastScripture + 1).some(s => s.kind !== 'scripture')) {
     return NS_ERR_SCRIPTURE_PLACE;
   }
   for (const kind of SINGLETON_KINDS) {
@@ -66,7 +76,7 @@ export function canMoveDown(sections: readonly PackSection[], i: number): boolea
 
 export function canRemove(sections: readonly PackSection[], i: number): boolean {
   const s = sections[i];
-  return !!s && ADDABLE_KINDS.includes(s.kind);
+  return !!s && (ADDABLE_KINDS.includes(s.kind) || REMOVE_ONLY_KINDS.includes(s.kind));
 }
 
 export function canAdd(sections: readonly PackSection[], kind: SectionKind): boolean {

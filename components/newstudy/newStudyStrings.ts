@@ -125,6 +125,7 @@ export const NS_SECTION_ADD = bilingual('添加段落', 'Add section');
 export const NS_ERR_TITLE_FIRST = bilingualLine('标题必须在最前', 'The title must come first');
 export const NS_ERR_SCRIPTURE_PLACE = bilingualLine('经文必须紧跟标题', 'Scripture must directly follow the title');
 export const NS_ERR_TAIL = bilingualLine('签到和闭环必须在最后', 'Sign up and Closing must be the last sections');
+export const NS_ERR_SHARING_PLACE = bilingualLine('上周操练分享只能紧跟在标题之后', "Last week's sharing must come right after the title");
 export const NS_ERR_DUPLICATE_SECTION = bilingualLine('这种段落只能有一个', 'Only one section of this kind is allowed');
 
 // ---- my packs ----
