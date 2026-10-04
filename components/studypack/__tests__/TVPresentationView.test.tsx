@@ -5,8 +5,12 @@ import React from 'react';
 import { STORAGE_KEYS } from '../../../constants/storageKeys';
 import { SAMPLE_PACK_ID, TEST_PACK_PATH } from './fixtures';
 import TVPresentationView from '../TVPresentationView';
+import { preloadMarkdown } from '../../LazyMarkdown';
 import { FIRST_SLIDE_HINT, ASK_AI_LABEL } from '../tvHints';
 import { SETUP_TITLE } from '../../setup/setupStrings';
+
+// Warm react-markdown outside every timed budget; see preloadMarkdown() for why.
+await preloadMarkdown();
 
 
 const packJson = () => JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8'));

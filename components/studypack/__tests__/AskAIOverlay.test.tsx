@@ -19,6 +19,7 @@ vi.mock('../askAIFallback', () => ({
 }));
 
 import AskAIOverlay from '../AskAIOverlay';
+import { preloadMarkdown } from '../../LazyMarkdown';
 
 
 
@@ -45,6 +46,9 @@ function renderOverlay(onClose = vi.fn(), initialQuestion: string | null = null)
   );
   return { onClose, view };
 }
+
+// Warm react-markdown outside every timed budget; see preloadMarkdown() for why.
+await preloadMarkdown();
 
 beforeEach(() => {
   streamStudyAIMock.mockReset().mockImplementation(

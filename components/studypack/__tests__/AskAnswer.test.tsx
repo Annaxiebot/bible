@@ -5,7 +5,11 @@ import path from 'path';
 import React from 'react';
 import { parseStudyPack, StudyPack } from '../packTypes';
 import AskAnswer, { answerFontSize } from '../AskAnswer';
+import { preloadMarkdown } from '../../LazyMarkdown';
 import { TYPE_SCALE } from '../principles';
+
+// Warm react-markdown outside every timed budget; see preloadMarkdown() for why.
+await preloadMarkdown();
 
 const PACK_PATH = path.resolve(__dirname, '../../../public/packs/2026-10-02-matt6.json');
 const pack: StudyPack = parseStudyPack(JSON.parse(readFileSync(PACK_PATH, 'utf-8')));

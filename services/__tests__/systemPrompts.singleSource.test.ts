@@ -27,11 +27,14 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
+// Walking + reading every source file is >10 s under heavy CPU load (every
+// read is also scanned by the endpoint antivirus). Do it once at file
+// collection, which has no timeout, so the slow I/O never counts against it.
+const FILES_WITH_MARKER = walk(REPO_ROOT).filter(f => readFileSync(f, 'utf8').includes(MARKER));
+
 describe('R3: BIBLE_SCHOLAR_SYSTEM_PROMPT single source of truth', () => {
   it('the prompt literal appears in exactly one source file (services/systemPrompts.ts)', () => {
-    const files = walk(REPO_ROOT);
-    const hits = files.filter(f => readFileSync(f, 'utf8').includes(MARKER));
-    expect(hits.map(f => relative(REPO_ROOT, f))).toEqual(['services/systemPrompts.ts']);
+    expect(FILES_WITH_MARKER.map(f => relative(REPO_ROOT, f))).toEqual(['services/systemPrompts.ts']);
   });
 
   it('every client AI provider imports BIBLE_SCHOLAR_SYSTEM_PROMPT from the shared module', () => {

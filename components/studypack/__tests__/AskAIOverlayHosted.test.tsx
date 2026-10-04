@@ -49,11 +49,18 @@ vi.mock('../../../services/supabase', () => ({
 vi.mock('../../signup/signupClient', () => ({ getSignupClient: () => null }));
 
 import AskAIOverlay from '../AskAIOverlay';
+import { preloadMarkdown } from '../../LazyMarkdown';
 
 function renderOverlay(initialQuestion: string | null = null) {
   const pack = parseStudyPack(JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8')));
   render(<AskAIOverlay pack={pack} slide={buildSlides(pack)[0]} initialQuestion={initialQuestion} onClose={vi.fn()} />);
 }
+
+// Answers render through react-markdown but are not awaited here, so its
+// load-dependent first import ran on into the NEXT test and starved it past
+// the 10 s test timeout under CPU load. Warm it outside every timed budget
+// (see preloadMarkdown() for why top level, not beforeAll).
+await preloadMarkdown();
 
 beforeEach(() => {
   streamStudyAIMock.mockReset().mockImplementation(async (_p, _s, _h, _q, onText: (t: string) => void) => {
