@@ -55,10 +55,18 @@ function formatPassage(pack: StudyPack): string {
   return lines.join('\n');
 }
 
-/** Auto-ask question for text the user selected on a slide. */
-export function questionForSelection(selected: string): string {
-  return `Explain this phrase in the context of the passage and cite the verse ` +
-    `请结合经文解释并注明节数: "${selected}"`;
+/**
+ * Auto-ask question for text the user selected on a slide: what the word or
+ * phrase means right here — historical and cultural background first, then
+ * the original-language sense (owner, 2026-10-04). With the verse it was selected in, the question
+ * names that verse; otherwise the passage. Chinese first (ADR-0003 §1).
+ */
+export function questionForSelection(selected: string, verse: number | null = null): string {
+  const where = verse === null
+    ? { zh: '在这段经文中', en: 'in this passage' }
+    : { zh: `在第${verse}节中`, en: `in verse ${verse}` };
+  return `「${selected}」${where.zh}是什么意思？请说明当时的历史和文化背景、原文（希腊文/希伯来文）的意思，以及它在这里的含义，并注明节数 · ` +
+    `What does "${selected}" mean ${where.en}? Explain the historical and cultural background of the time, the original-language sense, and its meaning here, and cite the verse`;
 }
 
 /**

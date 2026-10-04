@@ -4,6 +4,8 @@ import {
   useSelectToAsk,
   SELECT_TO_ASK_MIN_CHARS,
   SELECT_TO_ASK_DEBOUNCE_MS,
+  isAskableSelection,
+  selectionVerse,
 } from '../useSelectToAsk';
 
 const container = document.createElement('div');
@@ -42,7 +44,7 @@ describe('useSelectToAsk', () => {
     window.dispatchEvent(new MouseEvent('mouseup'));
     expect(onSelect).not.toHaveBeenCalled(); // waits for the debounce
     vi.advanceTimersByTime(SELECT_TO_ASK_DEBOUNCE_MS + 10);
-    expect(onSelect).toHaveBeenCalledExactlyOnceWith('飛鳥 the birds');
+    expect(onSelect).toHaveBeenCalledExactlyOnceWith('飛鳥 the birds', null);
     expect(removeAllRanges).toHaveBeenCalled();
   });
 
@@ -73,6 +75,34 @@ describe('useSelectToAsk', () => {
     mockSelection('abc'.slice(0, SELECT_TO_ASK_MIN_CHARS - 1), insideNode);
     mouseUpAndSettle();
     expect(onSelect).not.toHaveBeenCalled();
+  });
+
+  it('a two-character Chinese word is enough (regression: selecting 箴言 did not open Ask AI)', () => {
+    const onSelect = vi.fn();
+    renderHook(() => useSelectToAsk(containerRef, true, onSelect));
+    mockSelection('箴言', insideNode);
+    mouseUpAndSettle();
+    expect(onSelect).toHaveBeenCalledWith('箴言', null);
+  });
+
+  it('selectionVerse: the data-verse of the element the selection starts in, else null', () => {
+    const verse = document.createElement('div');
+    verse.setAttribute('data-verse', '25');
+    const inner = document.createElement('span');
+    const text = document.createTextNode('不要为生命忧虑');
+    inner.appendChild(text); verse.appendChild(inner);
+    expect(selectionVerse({ anchorNode: text } as unknown as Selection)).toBe(25);
+    expect(selectionVerse({ anchorNode: insideNode } as unknown as Selection)).toBeNull();
+    expect(selectionVerse(null)).toBeNull();
+  });
+
+  it('isAskableSelection: ≥ 2 Chinese characters or ≥ 4 characters otherwise', () => {
+    expect(isAskableSelection('箴言')).toBe(true);
+    expect(isAskableSelection('言')).toBe(false);
+    expect(isAskableSelection('言 a')).toBe(false);
+    expect(isAskableSelection('LORD')).toBe(true);
+    expect(isAskableSelection('law')).toBe(false);
+    expect(isAskableSelection('「忧虑」')).toBe(true);
   });
 
   it('ignores selections anchored outside the slide content (e.g. the overlay)', () => {

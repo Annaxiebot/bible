@@ -217,8 +217,8 @@ describe('TVPresentationView', () => {
     fireEvent.keyDown(window, { key: 'a' });
     await waitFor(() => expect(streamStudyAIMock).toHaveBeenCalledTimes(1));
     const question = String(streamStudyAIMock.mock.calls[0][3]);
-    expect(question).toContain('Explain this phrase in the context of the passage');
-    expect(question).toContain('"飞鸟 the birds"');
+    expect(question).toContain('「飞鸟 the birds」在这段经文中是什么意思');
+    expect(question).toContain('historical and cultural background');
     expect(question).not.toContain('Where does anxiety');
     expect(removeAllRanges).toHaveBeenCalled(); // selection cleared after sending
   });
