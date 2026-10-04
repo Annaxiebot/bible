@@ -4,13 +4,15 @@
  * The demo sample pack shows the no-sign-up line; an unclaimed LOCAL pack
  * (seeded into IndexedDB) shows the sign-in block. Served as an owned pack
  * (leaderId routed in), #/signup/<id> renders the commitment step first
- * (the seven life-menu practices as large choices), then the Chinese-first
+ * (the seven life-menu practices as large multi-select choices; any number,
+ * kept in tap order), then the Chinese-first
  * contact form; an empty submit shows the name error and sends nothing; a
  * valid submit POSTs to PostgREST (mocked at the network level through the
  * dev-only window.__SUPABASE_E2E__ override), asks the edge function for
  * the welcome email, and the thank-you restates the commitment with the
- * personal check-in link; a rejected insert is surfaced. #/checkin/<uuid>
- * renders practice + question and the two buttons; Keep private never
+ * personal check-in link; three chosen practices all reach the insert
+ * (practices + the legacy first two) and the thank-you; a rejected insert
+ * is surfaced. #/checkin/<uuid> renders every practice + question and the two buttons; Keep private never
  * touches the network; Share calls the RPC. A signed-out member phone with
  * an empty IndexedDB loads a leader's local- pack through the mocked
  * public_signup_pack RPC and its insert carries that leader. No live Supabase.
@@ -30,7 +32,7 @@ import {
 import { SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../../components/setup/setupStrings';
 import {
   routeOwnedSamplePack, E2E_LEADER_ID, E2E_SIGNUP_ID as SIGNUP_ID, E2E_SUPABASE_PATH, seedLocalPack, fetchSamplePack, mockBackend,
-  OK_INSERT as okInsert, BackendMocks as Mocks, mockSignupPackRpc,
+  OK_INSERT as okInsert, BackendMocks as Mocks, mockSignupPackRpc, E2E_CHECKIN_PRACTICES,
 } from './helpers/signup';
 
 const LOCAL_ID = 'local-2026-10-02-matt6';
@@ -82,7 +84,8 @@ test.describe('Sign-up page', () => {
     await page.getByTestId('su-next').click();
     await expect(page.getByRole('alert')).toHaveText(SU_ERR_PRACTICE);
     await choices.first().click();
-    await expect(choices.first()).toHaveAttribute('data-chosen', 'practice');
+    await expect(choices.first()).toHaveAttribute('data-chosen', '1');
+    await expect(choices.first()).toHaveAttribute('aria-checked', 'true');
     await page.getByRole('button', { name: SU_NEXT_STEP }).click();
     for (const label of [SU_NAME, SU_EMAIL, SU_PHONE, SU_CONSENT]) {
       expect(label).toMatch(/^[一-鿿]/);  // Chinese first (ADR-0003 §1)
@@ -119,11 +122,39 @@ test.describe('Sign-up page', () => {
       pack_id: SAMPLE_PACK_ID, leader_id: E2E_LEADER_ID, name: '小明', email: 'ming@example.org', phone: '4085551234',
       consent_checkins: true, practice_area: practiceText, practice2_area: null, practice_note: null,
     });
-    expect(bodies()[0].practice_text.length).toBeGreaterThan(0);
-    await expect(page.getByTestId('signup-commitment')).toHaveText(commitmentLine(bodies()[0].practice_text));
-    await expect(page.getByTestId('signup-checkin-link')).toHaveAttribute('href', new RegExp(`${checkinHash(SIGNUP_ID)}$`));
+    expect(bodies()[0].practices).toEqual([{ area: practiceText, practice: bodies()[0].practice_text }]);
+    const practiceTextSent = bodies()[0].practice_text ?? '';
+    expect(practiceTextSent.length).toBeGreaterThan(0);
+    await expect(page.getByTestId('signup-commitment')).toHaveText(commitmentLine(practiceTextSent));
+    // The browser makes the id (anon cannot read the row back); link and welcome use that same id.
+    const id = bodies()[0].id;
+    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    await expect(page.getByTestId('signup-checkin-link')).toHaveAttribute('href', new RegExp(`${checkinHash(id)}$`));
     await expect.poll(() => welcomes().length).toBe(1);
-    expect(welcomes()[0]).toEqual({ kind: 'welcome', signup_id: SIGNUP_ID });
+    expect(welcomes()[0]).toEqual({ kind: 'welcome', signup_id: id });
+  });
+
+  test('three practices chosen: the insert carries all three in practices (tap order) and the first two in the legacy columns; the thank-you lists all three', async ({ page }) => {
+    const { bodies } = await openSignup(page);
+    const choices = page.getByTestId('su-practice');
+    for (const i of [4, 1, 6]) await choices.nth(i).click();
+    await expect(choices.nth(4)).toHaveAttribute('data-chosen', '1');
+    await expect(choices.nth(6)).toHaveAttribute('data-chosen', '3');
+    await page.getByTestId('su-next').click();
+    await expect(page.getByTestId('su-commitment')).toHaveCount(3);
+    await page.getByTestId('su-name').fill('小明');
+    await page.getByTestId('su-email').fill('ming@example.org');
+    await page.getByRole('button', { name: SU_SUBMIT }).click();
+    await expect(page.getByTestId('signup-thanks')).toContainText(SU_THANKS);
+    const pack = await fetchSamplePack(page);
+    const menu = (pack.sections as { kind: string; rows?: { area: string; practice: string }[] }[]).find(s => s.kind === 'lifeMenu')!.rows!;
+    const chosen = [menu[4], menu[1], menu[6]].map(r => ({ area: r.area, practice: r.practice }));
+    expect(bodies()).toHaveLength(1);
+    expect(bodies()[0]).toMatchObject({
+      practices: chosen,
+      practice_area: chosen[0].area, practice_text: chosen[0].practice, practice2_area: chosen[1].area, practice2_text: chosen[1].practice,
+    });
+    await expect(page.getByTestId('signup-commitment')).toHaveText(chosen.map(c => commitmentLine(c.practice)));
   });
 
   test('an owned pack with a Google Form: the thank-you link points at the form (prefilled with name + practice)', async ({ page }) => {
@@ -195,6 +226,8 @@ test.describe('Check-in page', () => {
     await page.goto(`./${checkinHash(SIGNUP_ID, 'tue')}`);
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(CK_TITLE);
     await expect(page.getByTestId('checkin-practice')).toContainText('固定的睡前程序 · Fixed wind-down');
+    await expect(page.getByTestId('checkin-practice-item')).toHaveCount(E2E_CHECKIN_PRACTICES.length);   // every chosen practice
+    await expect(page.getByTestId('checkin-practice')).toContainText(E2E_CHECKIN_PRACTICES[1].practice);
     await expect(page.getByTestId('checkin-question')).toContainText(CK_KIND_LABEL.tue);
     await expect(page.getByTestId('checkin-question')).toContainText('周二跟进：做了吗？');
     await expect(page.getByRole('button', { name: CK_KEEP_PRIVATE })).toBeVisible();

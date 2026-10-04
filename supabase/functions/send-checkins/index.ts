@@ -42,7 +42,7 @@ import { isTrustedCaller, CRON_SECRET_HEADER } from './trust.ts';
 export const PACK_SCHEMA_VERSION = 2;
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' };
-const SIGNUP_COLUMNS = 'id, pack_id, leader_id, name, phone, email, consent_checkins, practice_text, practice_note, created_at';
+const SIGNUP_COLUMNS = 'id, pack_id, leader_id, name, phone, email, consent_checkins, practice_area, practice_text, practice2_area, practice2_text, practice_note, practices, created_at';
 
 interface RequestBody {
   pack_id?: unknown;

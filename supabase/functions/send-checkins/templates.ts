@@ -3,7 +3,7 @@
  *
  * Pure module (no Deno globals) so vitest covers it; index.ts is the only
  * Deno-specific file. Chinese first, English second on every line
- * (ADR-0003 §1). A message is: greeting, the member's own practice, the
+ * (ADR-0003 §1). A message is: greeting, the member's practices (one line each), the
  * prompt (or the welcome line), then the feedback link — the in-app
  * check-in page keyed by the signup uuid, or the pack's Google Form
  * (prefilled) when the leader set one (ADR-0004 §7, §9).
@@ -54,11 +54,11 @@ export interface CheckinMessage {
   text: string;
 }
 
-/** What a message is addressed to: the signup token (for the in-app link) and the committed practice. */
+/** What a message is addressed to: the signup token (for the in-app link) and the committed practices. */
 export interface MemberContext {
   name: string;
   signupId: string | null;   // null for the leader's ad-hoc test recipient
-  practice: string | null;   // own version if written, else the chosen menu text; null before the commitment step
+  practices: string[];       // every chosen practice, own version replacing the first; [] before the commitment step
 }
 
 export function packUrl(packId: string): string {
@@ -89,10 +89,10 @@ export function prefillFormUrl(formUrl: string, entries: FeedbackFormEntries | n
   return `${formUrl}${joiner}${params.toString()}`;
 }
 
-/** The feedback link for one member: the form when the pack has one, else the in-app page, else the pack. */
+/** The feedback link for one member: the form (prefilled with the first practice) when the pack has one, else the in-app page, else the pack. */
 export function feedbackUrl(pack: CheckinPack, member: MemberContext, kind: CheckinKind | null): string {
   if (pack.feedbackFormUrl) {
-    return prefillFormUrl(pack.feedbackFormUrl, pack.feedbackFormEntries, { name: member.name, practice: member.practice ?? '' });
+    return prefillFormUrl(pack.feedbackFormUrl, pack.feedbackFormEntries, { name: member.name, practice: member.practices[0] ?? '' });
   }
   return member.signupId ? checkinPageUrl(member.signupId, kind) : packUrl(pack.id);
 }
@@ -129,19 +129,19 @@ export function greeting(name: string): string {
   return `${name} 平安${BILINGUAL_SEPARATOR}Peace, ${name}`;
 }
 
-/** "你选的操练：… · Your practice: …" — present whenever the member committed to one. */
+/** "你选的操练：… · Your practice: …" — one line per committed practice. */
 export function practiceLine(practice: string): string {
   return `你选的操练：${practice}${BILINGUAL_SEPARATOR}Your practice: ${practice}`;
 }
 
 const WELCOME_LINE = `周中我们会再提醒你${BILINGUAL_SEPARATOR}We will remind you mid-week`;
 
-/** Greeting, practice, prompt (or the welcome line), link; subject is bilingual with the pack title. */
+/** Greeting, one line per practice, prompt (or the welcome line), link; subject is bilingual with the pack title. */
 export function renderCheckin(kind: MessageKind, pack: CheckinPack, member: MemberContext): CheckinMessage {
   const label = KIND_LABEL[kind];
   const checkinKind = kind === WELCOME_KIND ? null : kind;
   const lines = [greeting(member.name)];
-  if (member.practice) lines.push(practiceLine(member.practice));
+  for (const practice of member.practices) lines.push(practiceLine(practice));
   lines.push(kind === WELCOME_KIND ? WELCOME_LINE : pack.prompts[kind]);
   lines.push(feedbackUrl(pack, member, checkinKind));
   return {

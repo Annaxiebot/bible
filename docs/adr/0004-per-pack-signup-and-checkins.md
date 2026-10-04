@@ -67,10 +67,11 @@ hand. Supabase was already in the stack (auth, sync, `ai-chat` edge function).
 
 7. **A sign-up is a commitment, not a contact form.** The first step of
    `#/signup/<packId>` is "我本周的操练 My practice this week": the pack's
-   seven life-menu rows as large choices (exactly one, an optional second,
-   an optional own version), then the contact step. The row carries
-   `practice_area/practice_text/practice2_*/practice_note`. Check-ins
-   restate the member's own practice ("你选的操练：…") and link to the
+   seven life-menu rows as large choices (any number, at least one — see
+   the 2026-10-04 amendment below; an optional own version), then the
+   contact step. The row carries
+   `practices/practice_area/practice_text/practice2_*/practice_note`. Check-ins
+   restate the member's practices ("你选的操练：…") and link to the
    member's check-in page `#/checkin/<signupId>[/<kind>]`
    (components/checkin/). **Token rule:** the signup uuid is the member's
    only credential — unguessable, no uid or pack id in the URL. The page
@@ -147,6 +148,35 @@ hand. Supabase was already in the stack (auth, sync, `ai-chat` edge function).
     `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM`, `DRY_RUN`,
     `CHECKIN_CRON_SECRET` (the trusted-caller header value, see §6)
     (runbook: `database/signups-schema.sql`). SMS is unaffected.
+
+**Amendment (2026-10-04): any number of practices.** The commitment step
+is a multi-select: a tap toggles a row, any number may be chosen (at least
+one to continue), kept in tap order; chosen rows show a check and the gold
+border. Storage: `study_signups.practices JSONB` — an array of
+`{area, practice}` in that order (`database/signup-practices-schema.sql`,
+CHECK: NULL or a JSON array). The insert still writes `practice_area/
+practice_text` (= first) and `practice2_area/practice2_text` (= second) so
+older readers keep working; rows from before the column have `practices`
+NULL. One reader, `supabase/functions/send-checkins/practices.ts` (pure;
+imported by the app and the edge function), returns the full list, falling
+back to the legacy pair. `practice_note` (the own version) replaces the
+FIRST practice's text wherever practices are shown, as before. Every reader
+shows all practices: the leader roster (one line each), the per-area counts
+(each chosen area once per member — also the counts ADR-0008 sends), the
+CSV (`practices` column), `checkin_context()` (now also returns
+`practices`; it moved to the new file, dropped and re-created because its
+return type changed), the check-in page, and the welcome + Tue/Thu/weekend
+messages (one "你选的操练：…" line per practice). The Google Form prefill
+still carries only the first practice.
+
+**Fix (2026-10-04): the anon insert never reads its row back.** Anon has
+no SELECT policy on `study_signups` (members must not read rows), so
+`INSERT ... RETURNING` (supabase-js `.insert().select()`) failed RLS and
+every member sign-up was rejected. The browser now makes the uuid
+(`signupClient.newSignupId`), sends it as `id`, inserts with
+return=minimal, and uses that id as the check-in token. No anon SELECT
+policy was added. The e2e mock answers a `Prefer: return=representation`
+insert with the same 42501 error, so a client that reads back cannot pass.
 
 ### Consequences (addendum)
 

@@ -84,14 +84,9 @@ describe('signups-schema.sql', () => {
     expect(sql).toContain(`GRANT EXECUTE ON FUNCTION public.${SHARE_ANSWER_FN}(UUID, TEXT, TEXT) TO anon, authenticated;`);
   });
 
-  it('checkin_context: the member page reads practice + prompts by token only, never contact details', () => {
-    const fn = sql.slice(sql.indexOf(`CREATE OR REPLACE FUNCTION public.${CHECKIN_CONTEXT_FN}(`));
-    const body = fn.slice(0, fn.indexOf('$$;') + 3);
-    expect(body).toContain('SECURITY DEFINER');
-    expect(body).toContain('WHERE s.id = p_signup_id');
-    expect(body).not.toMatch(/\b(phone|email)\b/);
-    expect(body).toContain('feedback_form_url');
-    expect(sql).toContain(`GRANT EXECUTE ON FUNCTION public.${CHECKIN_CONTEXT_FN}(UUID) TO anon, authenticated;`);
+  it('checkin_context is defined once, in signup-practices-schema.sql (R3), not here', () => {
+    expect(sql).not.toContain(`FUNCTION public.${CHECKIN_CONTEXT_FN}(`);
+    expect(sql).toContain('database/signup-practices-schema.sql');
   });
 
   it('checkin_sends: owner-scoped SELECT, no app-role INSERT; the cron body marks itself scheduled', () => {

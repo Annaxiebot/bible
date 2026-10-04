@@ -2,15 +2,14 @@
  * signupClient.test.ts — validation, payload, client resolution, insert · 报名数据层测试
  *
  * The Supabase client is mocked; the assertions are on what would be sent.
- * A sign-up is a commitment: the practice is required before anything else.
+ * A sign-up is a commitment: at least one practice is required before anything else.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
-  validateSignup, validatePractice, toInsertPayload, normalizePhone, insertSignup, getSignupClient, practiceLine, EMPTY_SIGNUP,
+  validateSignup, validatePractice, toInsertPayload, normalizePhone, insertSignup, getSignupClient, practiceLines, newSignupId, EMPTY_SIGNUP,
   SIGNUPS_TABLE, SIGNUP_LOCALE, SignupForm,
 } from '../signupClient';
-import { SIGNUP_RETURNING } from '../signupSchema';
 import {
   SU_ERR_NAME, SU_ERR_CONTACT, SU_ERR_EMAIL, SU_ERR_PHONE, SU_ERR_SUBMIT, SU_DEMO_LINE, SU_ERR_PRACTICE,
 } from '../signupStrings';
@@ -18,16 +17,18 @@ import {
 const OWNED = { id: '2026-10-02-matt6', title: '不要忧虑', leaderId: 'uid-lead' };
 const HEALTH = { area: '健康 Health', practice: '睡前程序 · Wind-down' };
 const WORK = { area: '工作 Work', practice: '写下忧虑 · Write it down' };
+const FAMILY = { area: '家庭 Family', practice: '一起吃饭 · Eat together' };
 
 const valid: SignupForm = {
-  ...EMPTY_SIGNUP, practice: HEALTH, name: ' 小明 ', phone: '(408) 555-1234', email: ' ming@example.org ', consent: true,
+  ...EMPTY_SIGNUP, practices: [HEALTH], name: ' 小明 ', phone: '(408) 555-1234', email: ' ming@example.org ', consent: true,
 };
 
 describe('validateSignup', () => {
-  it('requires a practice first, then a name and a contact; bilingual message for each problem', () => {
+  it('requires at least one practice first, then a name and a contact; bilingual message for each problem', () => {
     expect(validateSignup(valid)).toBeNull();
-    expect(validatePractice({ practice: null })).toBe(SU_ERR_PRACTICE);
-    expect(validateSignup({ ...valid, practice: null })).toBe(SU_ERR_PRACTICE);
+    expect(validatePractice({ practices: [] })).toBe(SU_ERR_PRACTICE);
+    expect(validatePractice({ practices: [HEALTH, WORK, FAMILY] })).toBeNull();
+    expect(validateSignup({ ...valid, practices: [] })).toBe(SU_ERR_PRACTICE);
     expect(validateSignup({ ...valid, name: '  ' })).toBe(SU_ERR_NAME);
     expect(validateSignup({ ...valid, phone: '', email: '' })).toBe(SU_ERR_CONTACT);
     expect(validateSignup({ ...valid, email: 'not-an-email' })).toBe(SU_ERR_EMAIL);
@@ -40,56 +41,74 @@ describe('validateSignup', () => {
     expect(normalizePhone('+1 (408) 555-1234')).toBe('+14085551234');
   });
 
-  it('practiceLine: the own version when written, else the chosen menu text', () => {
-    expect(practiceLine(valid)).toBe(HEALTH.practice);
-    expect(practiceLine({ ...valid, note: ' 十点关机 ' })).toBe('十点关机');
-    expect(practiceLine({ practice: null, note: '' })).toBe('');
+  it('practiceLines: one per chosen practice in order; the own version replaces the first', () => {
+    expect(practiceLines(valid)).toEqual([HEALTH.practice]);
+    expect(practiceLines({ practices: [HEALTH, WORK, FAMILY], note: '' })).toEqual([HEALTH.practice, WORK.practice, FAMILY.practice]);
+    expect(practiceLines({ practices: [HEALTH, WORK], note: ' 十点关机 ' })).toEqual(['十点关机', WORK.practice]);
+    expect(practiceLines({ practices: [], note: '' })).toEqual([]);
   });
 });
 
 describe('toInsertPayload', () => {
   it('trims, nulls empty optionals, carries pack id + title + the owning leader_id, consent, locale and the commitment', () => {
-    expect(toInsertPayload(OWNED, valid)).toEqual({
-      pack_id: '2026-10-02-matt6', leader_id: 'uid-lead', pack_title: '不要忧虑', name: '小明',
+    expect(toInsertPayload(OWNED, valid, 'id-1')).toEqual({
+      id: 'id-1', pack_id: '2026-10-02-matt6', leader_id: 'uid-lead', pack_title: '不要忧虑', name: '小明',
       phone: '4085551234', email: 'ming@example.org', consent_checkins: true, locale: SIGNUP_LOCALE,
-      practice_area: HEALTH.area, practice_text: HEALTH.practice, practice2_area: null, practice2_text: null, practice_note: null,
+      practices: [HEALTH], practice_area: HEALTH.area, practice_text: HEALTH.practice, practice2_area: null, practice2_text: null,
+      practice_note: null,
     });
-    const full = toInsertPayload(OWNED, { ...valid, second: WORK, note: ' 十点关机 ', phone: '', consent: false });
+    const full = toInsertPayload(OWNED, { ...valid, practices: [WORK, HEALTH, FAMILY], note: ' 十点关机 ', phone: '', consent: false });
     expect(full).toMatchObject({
-      phone: null, consent_checkins: false, practice2_area: WORK.area, practice2_text: WORK.practice, practice_note: '十点关机',
+      phone: null, consent_checkins: false, practice_note: '十点关机',
+      practices: [WORK, HEALTH, FAMILY],                                  // every choice, in tap order
+      practice_area: WORK.area, practice_text: WORK.practice,             // legacy first
+      practice2_area: HEALTH.area, practice2_text: HEALTH.practice,       // legacy second
     });
+  });
+
+  it('carries a fresh RFC 4122 v4 uuid as id by default (the browser makes it; the insert cannot read it back)', () => {
+    const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+    const a = toInsertPayload(OWNED, valid).id;
+    expect(a).toMatch(UUID_V4);
+    expect(toInsertPayload(OWNED, valid).id).not.toBe(a);
+    const original = Object.getOwnPropertyDescriptor(crypto, 'randomUUID');
+    Object.defineProperty(crypto, 'randomUUID', { value: undefined, configurable: true });   // insecure context (http LAN)
+    try {
+      expect(newSignupId()).toMatch(UUID_V4);
+    } finally {
+      if (original) Object.defineProperty(crypto, 'randomUUID', original);
+      else delete (crypto as { randomUUID?: unknown }).randomUUID;
+    }
   });
 
   it('refuses a demo pack (no leaderId) and a form without a practice', () => {
     expect(() => toInsertPayload({ id: 'p', title: 't' }, valid)).toThrow(SU_DEMO_LINE);
-    expect(() => toInsertPayload(OWNED, { ...valid, practice: null })).toThrow(SU_ERR_PRACTICE);
+    expect(() => toInsertPayload(OWNED, { ...valid, practices: [] })).toThrow(SU_ERR_PRACTICE);
   });
 });
 
 describe('insertSignup', () => {
-  function fakeClient(result: { data: unknown; error: { message: string } | null }) {
-    const single = vi.fn(async () => result);
-    const select = vi.fn(() => ({ single }));
-    const insert = vi.fn(() => ({ select }));
+  /** Models the live guard: the plain insert passes; reading the row back (.select → RETURNING) fails RLS for anon. */
+  function fakeClient(result: { error: { message: string } | null }) {
+    const select = vi.fn(() => ({ single: async () => ({ data: null, error: { message: 'new row violates row-level security policy' } }) }));
+    const insert = vi.fn(() => Object.assign(Promise.resolve({ data: null, ...result }), { select }));
     const from = vi.fn(() => ({ insert }));
     return { client: { from } as unknown as SupabaseClient, from, insert, select };
   }
 
-  it('inserts into study_signups, asks for the new id back, and resolves with it', async () => {
-    const { client, from, insert, select } = fakeClient({ data: { id: 'uuid-1' }, error: null });
+  it('inserts into study_signups WITHOUT reading the row back (no select / RETURNING) and resolves with the payload id', async () => {
+    const { client, from, insert, select } = fakeClient({ error: null });
     const payload = toInsertPayload(OWNED, valid);
-    expect(await insertSignup(client, payload)).toBe('uuid-1');
+    expect(await insertSignup(client, payload)).toBe(payload.id);
     expect(from).toHaveBeenCalledWith(SIGNUPS_TABLE);
     expect(insert).toHaveBeenCalledWith(payload);
-    expect(select).toHaveBeenCalledWith(SIGNUP_RETURNING);
+    expect(select).not.toHaveBeenCalled();
   });
 
-  it('throws the bilingual submit error with the PostgREST message, or when no id comes back (never silent)', async () => {
-    const { client } = fakeClient({ data: null, error: { message: 'new row violates row-level security policy' } });
+  it('throws the bilingual submit error with the PostgREST message (never silent)', async () => {
+    const { client } = fakeClient({ error: { message: 'new row violates row-level security policy' } });
     await expect(insertSignup(client, toInsertPayload(OWNED, valid)))
       .rejects.toThrow(`${SU_ERR_SUBMIT}: new row violates row-level security policy`);
-    await expect(insertSignup(fakeClient({ data: {}, error: null }).client, toInsertPayload(OWNED, valid)))
-      .rejects.toThrow(`${SU_ERR_SUBMIT}: no id returned`);
   });
 });
 

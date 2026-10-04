@@ -1,7 +1,8 @@
 /**
  * LeaderSections.tsx — 承诺 Commitments and 反馈 Shared feedback · 组长页区块
  *
- * Commitments: who chose which practice, with a count per area. Feedback:
+ * Commitments: who chose which practices (all of them, one line each),
+ * with a count per area. Feedback:
  * the answers members chose to share, grouped by kind, newest first, with
  * "answered vs signed up" counts. Both read the rows the page already
  * fetched (leaderData); nothing here queries. This is next Friday's
@@ -11,7 +12,8 @@ import React from 'react';
 import type { CheckinKind } from '../checkin/checkinRoute';
 import { CHECKIN_KINDS } from '../checkin/checkinRoute';
 import { CK_KIND_LABEL } from '../checkin/checkinStrings';
-import { SignupRecord, AnswerRecord, commitmentCounts, feedbackCounts, practiceOf } from './leaderData';
+import { SignupRecord, AnswerRecord, commitmentCounts, feedbackCounts } from './leaderData';
+import { practiceItems } from '../../supabase/functions/send-checkins/practices';
 import {
   LD_COMMITMENTS, LD_COMMITMENTS_HINT, LD_COL_NAME, LD_COL_PRACTICE, LD_NO_PRACTICE, LD_FEEDBACK, LD_FEEDBACK_NONE,
   answeredLine, areaCountLine,
@@ -19,6 +21,21 @@ import {
 import { textStyle, headingStyle } from '../newstudy/newStudyStyles';
 
 const cell = 'py-3 pr-4 text-left align-top';
+
+/** Every chosen practice as "area — text", one line each; the first carries the own version when written. */
+const PracticeList: React.FC<{ row: SignupRecord }> = ({ row }) => {
+  const items = practiceItems(row);
+  if (items.length === 0) return <>{LD_NO_PRACTICE}</>;
+  return (
+    <>
+      {items.map((item, i) => (
+        <span key={i} data-testid="leader-practice" className="block">
+          {item.area ? <span className="text-amber-300">{item.area} — </span> : null}{item.text}
+        </span>
+      ))}
+    </>
+  );
+};
 
 export const Commitments: React.FC<{ rows: SignupRecord[] }> = ({ rows }) => (
   <section data-testid="leader-commitments" className="flex flex-col gap-3">
@@ -35,11 +52,7 @@ export const Commitments: React.FC<{ rows: SignupRecord[] }> = ({ rows }) => (
         {rows.map(r => (
           <tr key={r.id} data-testid="leader-commitment" className="border-t border-slate-800 text-slate-100">
             <td className={cell}>{r.name}</td>
-            <td className={cell}>
-              {r.practice_area ? <span className="text-amber-300">{r.practice_area} — </span> : null}
-              {practiceOf(r) || LD_NO_PRACTICE}
-              {r.practice2_text ? <span className="block text-slate-400">+ {r.practice2_area}: {r.practice2_text}</span> : null}
-            </td>
+            <td className={cell}><PracticeList row={r} /></td>
           </tr>
         ))}
       </tbody>

@@ -2,8 +2,8 @@
  * SignupPage.test.tsx — the member's flow in jsdom · 报名页测试
  *
  * Pack loads through the TV seam (fetch of the public pack JSON) and shows
- * title + passage Chinese first; step 1 is the commitment (one practice
- * required, optional second, own version), Next is gated on it; step 2 is
+ * title + passage Chinese first; step 1 is the commitment (any number of
+ * practices, at least one, own version), Next is gated on it; step 2 is
  * the contact form (large type, ≥48px targets); validation errors render
  * inline; a valid submit inserts the payload with the practice through the
  * (mocked) Supabase client, asks for the welcome email, and shows the
@@ -30,8 +30,12 @@ import {
 } from '../signupStrings';
 import { SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../../setup/setupStrings';
 
-const singleMock = vi.fn();
-const insertMock = vi.fn((_payload: unknown) => ({ select: () => ({ single: singleMock }) }));
+/** The anon insert result; reading the row back (.select → RETURNING) fails RLS, as live (anon has no SELECT policy). */
+const insertResult = vi.fn();
+const RLS_ERROR = { message: 'new row violates row-level security policy for table "study_signups"' };
+const insertMock = vi.fn((_payload: unknown) => Object.assign(Promise.resolve().then(() => insertResult()), {
+  select: () => ({ single: async () => ({ data: null, error: RLS_ERROR }) }),
+}));
 const fromMock = vi.fn(() => ({ insert: insertMock }));
 const invokeMock = vi.fn();
 const signInMock = vi.fn(async () => ({ error: null }));
@@ -76,7 +80,8 @@ function fill(values: { name?: string; email?: string; phone?: string }) {
 describe('SignupPage', () => {
   beforeEach(() => {
     configured = true;
-    singleMock.mockReset().mockResolvedValue({ data: { id: SIGNUP_ID }, error: null });
+    insertResult.mockReset().mockReturnValue({ data: null, error: null });
+    vi.spyOn(crypto, 'randomUUID').mockReturnValue(SIGNUP_ID);
     insertMock.mockClear();
     fromMock.mockClear();
     invokeMock.mockReset().mockResolvedValue({ data: { attempted: 1, results: [{ status: 'sent' }] }, error: null });
@@ -98,17 +103,17 @@ describe('SignupPage', () => {
     expect(screen.queryByTestId('su-name')).toBeNull();
   });
 
-  it('Next without a practice shows the bilingual reason; one tap = the practice, a second tap = the optional second', async () => {
+  it('Next without a practice shows the bilingual reason; taps toggle any number of practices, kept in tap order', async () => {
     await renderWithPack();
     fireEvent.click(screen.getByTestId('su-next'));
     expect(screen.getByRole('alert')).toHaveTextContent(SU_ERR_PRACTICE);
     const [health, work] = screen.getAllByTestId('su-practice');
     fireEvent.click(health);
     fireEvent.click(work);
-    expect(health).toHaveAttribute('data-chosen', 'practice');
-    expect(work).toHaveAttribute('data-chosen', 'second');
-    fireEvent.click(health);   // clearing the first promotes the second
-    expect(work).toHaveAttribute('data-chosen', 'practice');
+    expect(health).toHaveAttribute('data-chosen', '1');
+    expect(work).toHaveAttribute('data-chosen', '2');
+    fireEvent.click(health);   // clearing the first moves the next one up
+    expect(work).toHaveAttribute('data-chosen', '1');
     expect(health).toHaveAttribute('data-chosen', '');
     fireEvent.click(screen.getByTestId('su-next'));
     expect(screen.getByTestId('su-commitment')).toHaveTextContent(commitmentLine(ROWS[1].practice));
@@ -142,10 +147,10 @@ describe('SignupPage', () => {
     await screen.findByTestId('signup-thanks');
     expect(fromMock).toHaveBeenCalledWith(SIGNUPS_TABLE);
     expect(insertMock).toHaveBeenCalledWith({
-      pack_id: PACK_ID, leader_id: LEADER_ID, pack_title: PACK.title, name: '小明', phone: '4085551234',
+      id: SIGNUP_ID, pack_id: PACK_ID, leader_id: LEADER_ID, pack_title: PACK.title, name: '小明', phone: '4085551234',
       email: 'ming@example.org', consent_checkins: true, locale: SIGNUP_LOCALE,
-      practice_area: ROWS[0].area, practice_text: ROWS[0].practice, practice2_area: null, practice2_text: null,
-      practice_note: '十点关机 · Phone off at ten',
+      practices: [ROWS[0]], practice_area: ROWS[0].area, practice_text: ROWS[0].practice, practice2_area: null,
+      practice2_text: null, practice_note: '十点关机 · Phone off at ten',
     });
     expect(invokeMock).toHaveBeenCalledWith(SEND_CHECKINS_FUNCTION, { body: { kind: WELCOME_KIND, signup_id: SIGNUP_ID } });
     const thanks = screen.getByTestId('signup-thanks');
@@ -180,7 +185,7 @@ describe('SignupPage', () => {
   });
 
   it('an insert error is surfaced with the server message; the form stays', async () => {
-    singleMock.mockResolvedValue({ data: null, error: { message: 'permission denied' } });
+    insertResult.mockReturnValue({ data: null, error: { message: 'permission denied' } });
     await renderWithPack();
     choosePractice();
     fill({ name: 'A', email: 'a@b.co' });

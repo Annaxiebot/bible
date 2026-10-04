@@ -1,8 +1,8 @@
 /**
  * SignupForm.tsx — the two-step sign-up · 报名表单
  *
- * Step 1 (PracticeStep): the commitment — one life-menu practice, an
- * optional second, an optional own version; Next is gated on a choice.
+ * Step 1 (PracticeStep): the commitment — any number of life-menu
+ * practices (at least one), an optional own version; Next is gated on a choice.
  * Step 2: name (required), email (recommended), phone (optional, with the
  * SMS-not-yet hint), consent (default on). Large type and ≥48px targets
  * from newStudyStyles (ADR-0003 §15). Validation and submit errors render
@@ -10,7 +10,7 @@
  */
 import React, { useState } from 'react';
 import type { LifeMenuRow } from '../studypack/packTypes';
-import { SignupForm as SignupFormValues, EMPTY_SIGNUP, validateSignup, validatePractice, practiceLine } from './signupClient';
+import { SignupForm as SignupFormValues, EMPTY_SIGNUP, validateSignup, validatePractice, practiceLines } from './signupClient';
 import PracticeStep from './PracticeStep';
 import {
   SU_NAME, SU_PHONE, SU_PHONE_HINT, SU_EMAIL, SU_CONSENT, SU_SUBMIT, SU_SUBMITTING, SU_PRIVACY,
@@ -97,7 +97,9 @@ const SignupForm: React.FC<Props> = ({ rows, onSubmit }) => {
         </>
       ) : (
         <>
-          <p data-testid="su-commitment" className="text-amber-300" style={textStyle}>{commitmentLine(practiceLine(form))}</p>
+          {practiceLines(form).map((line, i) => (
+            <p key={i} data-testid="su-commitment" className="text-amber-300" style={textStyle}>{commitmentLine(line)}</p>
+          ))}
           <h2 className="font-bold text-amber-300" style={headingStyle}>{SU_CONTACT_TITLE}</h2>
           <ContactFields form={form} set={set} />
           <div className="flex flex-wrap gap-3">

@@ -55,9 +55,11 @@ CREATE POLICY "Leaders can delete their own sign-ups"
 
 -- No UPDATE policy on purpose: a sign-up is replaced by a new row, never edited.
 
--- The commitment (ADR-0004 §7): a sign-up is a promise to one life-menu
--- practice for the week (an optional second, an optional own version).
--- Added as nullable columns so rows from before the commitment step keep loading.
+-- The commitment (ADR-0004 §7): a sign-up is a promise to life-menu
+-- practices for the week (an optional own version). Added as nullable
+-- columns so rows from before the commitment step keep loading. The full
+-- list of any number of practices is the practices JSONB column
+-- (database/signup-practices-schema.sql); these keep the first two.
 ALTER TABLE study_signups ADD COLUMN IF NOT EXISTS practice_area TEXT;
 ALTER TABLE study_signups ADD COLUMN IF NOT EXISTS practice_text TEXT;
 ALTER TABLE study_signups ADD COLUMN IF NOT EXISTS practice2_area TEXT;
@@ -212,25 +214,9 @@ END $$;
 REVOKE ALL ON FUNCTION public.share_checkin_answer(UUID, TEXT, TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.share_checkin_answer(UUID, TEXT, TEXT) TO anon, authenticated;
 
--- What the check-in page may know about its token: the pack title, the
--- member's first name and commitment, the three check-in prompt lines and
--- the optional feedback form. Never phone or email.
-CREATE OR REPLACE FUNCTION public.checkin_context(p_signup_id UUID)
-RETURNS TABLE (
-  pack_id TEXT, pack_title TEXT, name TEXT,
-  practice_area TEXT, practice_text TEXT, practice_note TEXT,
-  reflection_lines TEXT[], feedback_form_url TEXT
-)
-LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
-  SELECT s.pack_id, s.pack_title, s.name,
-         s.practice_area, s.practice_text, s.practice_note,
-         COALESCE(p.reflection_lines, '{}'), p.feedback_form_url
-  FROM study_signups s
-  LEFT JOIN pack_summaries p ON p.pack_id = s.pack_id
-  WHERE s.id = p_signup_id;
-$$;
-REVOKE ALL ON FUNCTION public.checkin_context(UUID) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.checkin_context(UUID) TO anon, authenticated;
+-- checkin_context(p_signup_id) — what the check-in page may know about its
+-- token — lives in database/signup-practices-schema.sql (apply it after this
+-- file); it returns the practices column that file adds.
 
 -- =====================================================
 -- SCHEDULE — pg_cron calls the send-checkins edge function via pg_net

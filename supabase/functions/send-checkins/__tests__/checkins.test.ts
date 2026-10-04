@@ -32,7 +32,7 @@ const PACK: CheckinPack = {
   feedbackFormEntries: null,
 };
 const SIGNUP_ID = '7d4e8b2a-1c3f-4a5b-9e6d-0f1a2b3c4d5e';
-const MEMBER: MemberContext = { name: '小明', signupId: SIGNUP_ID, practice: '睡前程序 · Wind-down' };
+const MEMBER: MemberContext = { name: '小明', signupId: SIGNUP_ID, practices: ['睡前程序 · Wind-down'] };
 const FORM = 'https://docs.google.com/forms/d/e/abc/viewform';
 
 describe('renderCheckin', () => {
@@ -42,7 +42,7 @@ describe('renderCheckin', () => {
     expect(lines).toHaveLength(4);
     expect(lines[0]).toBe(greeting('小明'));
     expect(lines[0].indexOf('平安')).toBeLessThan(lines[0].indexOf('Peace'));
-    expect(lines[1]).toBe(practiceLine(MEMBER.practice!));
+    expect(lines[1]).toBe(practiceLine(MEMBER.practices[0]));
     expect(lines[1]).toBe('你选的操练：睡前程序 · Wind-down · Your practice: 睡前程序 · Wind-down');
     expect(lines[2]).toBe(PACK.prompts.tue);
     expect(lines[3]).toBe(checkinPageUrl(SIGNUP_ID, 'tue'));
@@ -54,13 +54,13 @@ describe('renderCheckin', () => {
     const m = renderCheckin(WELCOME_KIND, PACK, MEMBER);
     expect(m.subject).toBe(`${KIND_LABEL.welcome.zh}${BILINGUAL_SEPARATOR}${KIND_LABEL.welcome.en} — ${PACK.title}`);
     const lines = m.text.split('\n');
-    expect(lines[1]).toBe(practiceLine(MEMBER.practice!));
+    expect(lines[1]).toBe(practiceLine(MEMBER.practices[0]));
     expect(lines[2]).toBe('周中我们会再提醒你 · We will remind you mid-week');
     expect(lines[3]).toBe(checkinPageUrl(SIGNUP_ID, null));
   });
 
   it('without a practice (pre-commitment row) the line is omitted; the leader test (no signup id) links the pack', () => {
-    const m = renderCheckin('weekend', PACK, { name: 'Ann', signupId: null, practice: null });
+    const m = renderCheckin('weekend', PACK, { name: 'Ann', signupId: null, practices: [] });
     expect(m.subject).toBe(`${KIND_LABEL.weekend.zh}${BILINGUAL_SEPARATOR}${KIND_LABEL.weekend.en} — ${PACK.title}`);
     const lines = m.text.split('\n');
     expect(lines).toHaveLength(3);
@@ -71,7 +71,7 @@ describe('renderCheckin', () => {
   it('a pack with a Google Form links the form (prefilled when entry ids exist) for every kind, welcome included', () => {
     const withForm = { ...PACK, feedbackFormUrl: FORM, feedbackFormEntries: { name: 'entry.1', practice: 'entry.2' } };
     const link = feedbackUrl(withForm, MEMBER, 'thu');
-    expect(link).toBe(prefillFormUrl(FORM, withForm.feedbackFormEntries, { name: '小明', practice: MEMBER.practice! }));
+    expect(link).toBe(prefillFormUrl(FORM, withForm.feedbackFormEntries, { name: '小明', practice: MEMBER.practices[0] }));
     expect(new URL(link).searchParams.get('entry.2')).toBe('睡前程序 · Wind-down');
     expect(renderCheckin(WELCOME_KIND, withForm, MEMBER).text.split('\n')[3]).toBe(link);
     expect(feedbackUrl({ ...PACK, feedbackFormUrl: FORM }, MEMBER, 'tue')).toBe(FORM);   // no ids: plain form
@@ -85,10 +85,10 @@ describe('memberContext + welcomeAllowed', () => {
     practice_text: 'menu', practice_note: null, ...over,
   });
 
-  it('the own version beats the menu text; neither → null', () => {
-    expect(memberContext(row({}))).toEqual({ name: 'n', signupId: SIGNUP_ID, practice: 'menu' });
-    expect(memberContext(row({ practice_note: ' mine ' })).practice).toBe('mine');
-    expect(memberContext(row({ practice_text: null })).practice).toBeNull();
+  it('old rows: the own version beats the menu text; neither → no practice lines', () => {
+    expect(memberContext(row({}))).toEqual({ name: 'n', signupId: SIGNUP_ID, practices: ['menu'] });
+    expect(memberContext(row({ practice_note: ' mine ' })).practices).toEqual(['mine']);
+    expect(memberContext(row({ practice_text: null })).practices).toEqual([]);
   });
 
   it('a welcome is allowed only for a row created within the last 10 minutes', () => {

@@ -59,7 +59,8 @@ const PACK = {
 const practice = { practice_area: '健康 Health', practice_text: '睡前程序 · Wind-down', practice2_area: null, practice2_text: null, practice_note: null };
 const ROWS: SignupRecord[] = [
   { id: '1', leader_id: LEADER_ID, name: '小明', phone: '+14085551234', email: 'ming@example.org', consent_checkins: true, created_at: '2026-10-02T20:00:00Z', ...practice },
-  { id: '2', leader_id: LEADER_ID, name: 'Ann', phone: null, email: 'ann@example.org', consent_checkins: false, created_at: '2026-10-02T21:00:00Z', ...practice, practice_area: '工作 Work', practice_note: '写下来 · Write it' },
+  { id: '2', leader_id: LEADER_ID, name: 'Ann', phone: null, email: 'ann@example.org', consent_checkins: false, created_at: '2026-10-02T21:00:00Z', ...practice, practice_area: '工作 Work', practice_note: '写下来 · Write it',
+    practices: [{ area: '工作 Work', practice: '写下忧虑' }, { area: '家庭 Family', practice: '一起吃饭 · Eat together' }, { area: '金钱 Money', practice: '记账 · Track spending' }] },
 ];
 const ANSWERS: AnswerRecord[] = [
   { id: 'a1', signup_id: '1', leader_id: LEADER_ID, kind: 'tue', answer: '做了两晚 · Two nights', created_at: '2026-10-06T16:00:00Z' },
@@ -134,9 +135,11 @@ describe('LeaderPage', () => {
     expect(commitments).toHaveTextContent(LD_COMMITMENTS);
     expect(screen.getByTestId('leader-area-counts')).toHaveTextContent(areaCountLine('健康 Health', 1));
     expect(screen.getByTestId('leader-area-counts')).toHaveTextContent(areaCountLine('工作 Work', 1));
+    expect(screen.getByTestId('leader-area-counts')).toHaveTextContent(areaCountLine('金钱 Money', 1));   // every chosen practice counts
     const rows = within(commitments).getAllByTestId('leader-commitment');
     expect(rows[0]).toHaveTextContent('睡前程序 · Wind-down');
-    expect(rows[1]).toHaveTextContent('写下来 · Write it');   // own version beats the menu text
+    const ann = within(rows[1]).getAllByTestId('leader-practice').map(p => p.textContent);   // own version replaces the first
+    expect(ann).toEqual(['工作 Work — 写下来 · Write it', '家庭 Family — 一起吃饭 · Eat together', '金钱 Money — 记账 · Track spending']);
     const feedback = screen.getByTestId('leader-feedback');
     expect(feedback).toHaveTextContent(LD_FEEDBACK);
     expect(screen.getByTestId('leader-answered')).toHaveTextContent(answeredLine(1, 2));
