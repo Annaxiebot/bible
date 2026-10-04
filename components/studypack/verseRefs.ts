@@ -1,7 +1,8 @@
 /**
  * verseRefs.ts — find verse references in slide/answer text · 经文引用解析
  *
- * Recognizes "v.24", "vv.25,31", "vv.24–25", "Matthew 6:24", "1 Peter 5:7",
+ * Recognizes "第7节", "第7至9节", "verse 7", "verses 7 and 9", "v.24", "vv.25,31",
+ * "vv.24–25", "Matthew 6:24", "1 Peter 5:7",
  * "太6:24", "彼前5:7", "马太福音 6:24" — with ranges. Book names resolve
  * against the app's canonical book table (services/bibleBookData.ts — R3,
  * no second book list). In-pack verses resolve from the pack; cross-book/
@@ -20,10 +21,12 @@ export interface VerseRef {
   verses: number[];   // referenced verse numbers (ranges expanded)
 }
 
-// One alternation per supported shape: v./vv. lists+ranges, English Book C:V,
-// CJK book C:V. Dashes: hyphen, en dash, em dash.
+// One alternation per supported shape: 第7节 / 第7至9节 / 第7、9节, "verse 7" /
+// "verses 7–9" / "verses 7 and 9", v./vv. lists+ranges, English Book C:V,
+// CJK book C:V. Dashes: hyphen, en dash, em dash. Bare forms (no book) refer
+// to the pack's own passage.
 const REF_PATTERN =
-  /vv?\.\s?\d+(?:\s?[–—-]\s?\d+)?(?:\s?,\s?\d+(?:\s?[–—-]\s?\d+)?)*|(?:[1-3]\s?)?[A-Za-z]+\.?\s?\d+:\d+(?:[–—-]\d+)?|[一-鿿]{1,8}\s?\d+:\d+(?:[–—-]\d+)?/g;
+  /第\d+(?:\s?[–—\-至到]\s?\d+)?(?:\s?[、,，]\s?\d+(?:\s?[–—\-至到]\s?\d+)?)*节|\b[Vv]erses?\s\d+(?:\s?[–—-]\s?\d+)?(?:(?:\s?,\s?|\s(?:and|&)\s)\d+(?:\s?[–—-]\s?\d+)?)*|vv?\.\s?\d+(?:\s?[–—-]\s?\d+)?(?:\s?,\s?\d+(?:\s?[–—-]\s?\d+)?)*|(?:[1-3]\s?)?[A-Za-z]+\.?\s?\d+:\d+(?:[–—-]\d+)?|[一-鿿]{1,8}\s?\d+:\d+(?:[–—-]\d+)?/g;
 
 /** English book name (lowercased, no dots) → book id, from the app's table. */
 const EN_NAME_TO_ID: ReadonlyMap<string, string> = (() => {
@@ -85,6 +88,15 @@ function lookupBookId(namePart: string): string | null {
   );
 }
 
+/** A bare (no-book) reference → "7-9,12": prefix/suffix dropped, 至/到 → "-", 、，and/& → ",". */
+function bareVerseList(text: string): string {
+  return text
+    .replace(/^(?:vv?\.|[Vv]erses?\s|第)/, '')
+    .replace(/节$/, '')
+    .replace(/\s?[至到]\s?/g, '-')
+    .replace(/\s?[、，]\s?|\s(?:and|&)\s/g, ',');
+}
+
 function parseMatch(text: string): Pick<VerseRef, 'bookId' | 'chapter' | 'verses'> {
   const bookForm = /^(.*?)(\d+):(\d+(?:[–—-]\d+)?)$/.exec(text);
   if (bookForm && !text.startsWith('v.') && !text.startsWith('vv.')) {
@@ -94,7 +106,7 @@ function parseMatch(text: string): Pick<VerseRef, 'bookId' | 'chapter' | 'verses
       verses: parseVerseList(bookForm[3]),
     };
   }
-  return { bookId: null, chapter: null, verses: parseVerseList(text.replace(/^vv?\./, '')) };
+  return { bookId: null, chapter: null, verses: parseVerseList(bareVerseList(text)) };
 }
 
 /** All verse references in `text`, in order of appearance. */
