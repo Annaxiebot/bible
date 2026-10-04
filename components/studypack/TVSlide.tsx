@@ -113,7 +113,7 @@ const ScriptureSlide: React.FC<SlideProps> = ({ slide, pack }) => {
       </div>
       <div className="overflow-y-auto flex-1 space-y-[3vh]">
         {(slide.verses || []).map(v => (
-          <div key={v.num} className="grid grid-cols-1 gap-[0.5vh] md:grid-cols-2 md:gap-[4vw]">
+          <div key={v.num} data-verse={v.num} className="grid grid-cols-1 gap-[0.5vh] md:grid-cols-2 md:gap-[4vw]">
             <VerseText num={v.num} text={v.cuv} emphasis={emphasis} />
             <VerseText num={v.num} text={v.en} emphasis={emphasis} />
           </div>

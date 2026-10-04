@@ -15,7 +15,7 @@ import { loadPack } from './packSource';
 import { useLocalPackClaim } from '../newstudy/claimLocalPacks';
 import { questionForSelection } from './askAI';
 import { useTVNavigation } from './useTVNavigation';
-import { useSelectToAsk } from './useSelectToAsk';
+import { useSelectToAsk, selectionVerse } from './useSelectToAsk';
 import TVSlide from './TVSlide';
 import AskAIOverlay from './AskAIOverlay';
 
@@ -28,8 +28,9 @@ function initialAskQuestion(slide: Slide | undefined): string | null {
   const selection = window.getSelection?.();
   const selected = selection?.toString().trim() ?? '';
   if (selected) {
+    const verse = selectionVerse(selection);
     selection?.removeAllRanges();
-    return questionForSelection(selected);
+    return questionForSelection(selected, verse);
   }
   if (slide?.kind === 'discussion' && slide.question) return slide.question;
   return null;
@@ -142,8 +143,8 @@ const TVPresentationView: React.FC<TVPresentationViewProps> = ({ packId, onExit 
   useAskAIHotkey(askOpen, openAsk);
 
   // Selecting slide text with the mouse asks about it directly.
-  const onSlideSelection = useCallback((text: string) => {
-    setAskInitial(questionForSelection(text));
+  const onSlideSelection = useCallback((text: string, verse: number | null) => {
+    setAskInitial(questionForSelection(text, verse));
     setAskOpen(true);
   }, []);
   useSelectToAsk(contentRef, !askOpen && !!slide, onSlideSelection);

@@ -124,11 +124,20 @@ describe('buildAskAIPrompt', () => {
 });
 
 describe('questionForSelection', () => {
-  it('frames the selected text as a cite-the-verse explain request', () => {
+  it('asks what the selection means in this passage, Chinese first, citing the verse', () => {
     const q = questionForSelection('treasures in heaven');
-    expect(q).toContain('Explain this phrase in the context of the passage');
+    expect(q.startsWith('「treasures in heaven」在这段经文中是什么意思')).toBe(true);
+    expect(q).toContain('What does "treasures in heaven" mean in this passage');
+    expect(q).toContain('历史和文化背景');
+    expect(q).toContain('historical and cultural background');
+    expect(q).toContain('original-language sense');
     expect(q).toContain('cite the verse');
-    expect(q).toContain('"treasures in heaven"');
+  });
+
+  it('names the verse the selection came from', () => {
+    const q = questionForSelection('箴言', 1);
+    expect(q.startsWith('「箴言」在第1节中是什么意思')).toBe(true);
+    expect(q).toContain('mean in verse 1');
   });
 });
 
