@@ -19,6 +19,26 @@ describe('findVerseRefs', () => {
     expect(one('see v.24 here')).toMatchObject({ text: 'v.24', chapter: null, verses: [24] });
   });
 
+  it('parses Chinese 第N节 forms (regression: "第7节" in a discussion question was plain text)', () => {
+    expect(one('第7节说敬畏耶和华是知识的开端')).toMatchObject({ text: '第7节', chapter: null, bookId: null, verses: [7] });
+    expect(one('看第7至9节')).toMatchObject({ verses: [7, 8, 9] });
+    expect(one('第7–8节')).toMatchObject({ verses: [7, 8] });
+    expect(one('第7、9节')).toMatchObject({ verses: [7, 9] });
+    expect(findVerseRefs('第8课 家庭')).toHaveLength(0); // lesson number, not a verse
+  });
+
+  it('parses English "verse N" / "verses N–M" / "verses N and M"', () => {
+    expect(one('Verse 7 says fearing the LORD')).toMatchObject({ text: 'Verse 7', verses: [7] });
+    expect(one('in verses 25–27 Jesus')).toMatchObject({ verses: [25, 26, 27] });
+    expect(one('verses 7 and 9')).toMatchObject({ verses: [7, 9] });
+    expect(findVerseRefs('the universe 7 times')).toHaveLength(0);
+  });
+
+  it('finds both halves of a bilingual question', () => {
+    const refs = findVerseRefs('第7节说敬畏耶和华是知识的开端。· Verse 7 says fearing the LORD begins knowledge.');
+    expect(refs.map(r => r.text)).toEqual(['第7节', 'Verse 7']);
+  });
+
   it('parses vv. lists and ranges (en dash and hyphen)', () => {
     expect(one('vv.25,31')).toMatchObject({ verses: [25, 31] });
     expect(one('vv.24–25')).toMatchObject({ verses: [24, 25] });
