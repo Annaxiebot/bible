@@ -48,8 +48,12 @@ describe('LIFE_AREAS', () => {
 
 describe('ASK_AI_ANSWER_CONTRACT', () => {
   it('contains the key phrases ADR-0003 §9 states', () => {
-    expect(ASK_AI_ANSWER_CONTRACT).toContain('2 short');
-    expect(ASK_AI_ANSWER_CONTRACT).toContain('~60 words');
+    expect(ASK_AI_ANSWER_CONTRACT).toContain('4 short sentences');
+    expect(ASK_AI_ANSWER_CONTRACT).toContain('~120 words');
+    expect(ASK_AI_ANSWER_CONTRACT).toContain('从整本圣经来看 · Across the whole Bible');
+    expect(ASK_AI_ANSWER_CONTRACT).toContain('Never stop at');
+    expect(ASK_AI_ANSWER_CONTRACT).toContain('historical and cultural background');
+    expect(ASK_AI_ANSWER_CONTRACT).toContain('一种理解 · one reading');
     expect(ASK_AI_ANSWER_CONTRACT).toContain('citing the verse');
     expect(ASK_AI_ANSWER_CONTRACT).toContain('language of the question');
     expect(ASK_AI_ANSWER_CONTRACT).toContain('Chinese answer with');

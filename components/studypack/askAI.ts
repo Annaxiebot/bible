@@ -18,7 +18,8 @@ export function resolveAskAIModel(): string {
  * Token cap for overlay answers. The contract is ≤2 short sentences
  * (~60 words); 300 tokens leaves headroom for CJK tokenization.
  */
-export const ASK_AI_MAX_TOKENS = 300;
+/** ~4 short sentences incl. background + cross-references; CJK is ~1 token per character (ADR-0003 §9). */
+export const ASK_AI_MAX_TOKENS = 700;
 
 export interface AskAIMessage {
   role: 'user' | 'assistant';

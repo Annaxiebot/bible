@@ -61,8 +61,8 @@ describe('buildAskAIPrompt', () => {
     expect(prompt).toContain('不要为生命忧虑');                 // CUV v.25
     expect(prompt).toContain('do not worry about tomorrow');  // BSB v.34
     expect(prompt).toContain(slide.heading);                    // current slide content
-    expect(prompt).toContain('2 short');
-    expect(prompt).toContain('~60 words');
+    expect(prompt).toContain('4 short sentences');
+    expect(prompt).toContain('Across the whole Bible');
     expect(prompt).toContain('language of the question');
     expect(prompt).toContain('citing the verse');
     expect(prompt).toContain('QUESTION: Why birds?');
