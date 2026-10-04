@@ -86,7 +86,7 @@ export interface AskAIRequestOptions {
 }
 
 /** Token cap for the no-reasoning retry: room for an answer after a model that used to think first. */
-export const ASK_AI_RETRY_MAX_TOKENS = 600;
+export const ASK_AI_RETRY_MAX_TOKENS = 1000;
 
 export function buildRequestBody(
   pack: StudyPack,

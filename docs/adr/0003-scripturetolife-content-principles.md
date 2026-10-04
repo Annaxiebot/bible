@@ -28,7 +28,8 @@ scripturetolife.org serves Chinese-speaking congregations. During the first week
 
 ### Ask AI on the TV 大屏问答
 
-9. **Short first, deeper on request.** First answers: at most 2 short sentences (~60 words), citing the verse, in the language of the question (Chinese question → Chinese answer with English keywords). Follow-ups go deeper (chapter → book → interpretations). Depth is pulled by the group, never pushed by the AI.
+9. **Short first, deeper on request.** First answers: at most 4 short sentences (~120 words / ~200 字), citing the verse, in the language of the question (Chinese question → Chinese answer with English keywords). Follow-ups go deeper (chapter → book → interpretations). Depth is pulled by the group, never pushed by the AI.
+   *Amended (2026-10-04):* passage first, then the whole Bible. An answer starts with what this passage says; when the question reaches beyond it (a doctrine, Christian maturity, Christ), it adds "从整本圣经来看 · Across the whole Bible" with 1–2 Book C:V references, and never ends at "the passage does not mention this" — it connects or distinguishes ("related but not the same"). A selected word or phrase gets its historical and cultural background, the original-language sense and its meaning here. Interpretations where Christians differ are marked "一种理解 · one reading". Why: the 2-sentence, passage-only rule made Ask AI answer "Is a Christian who keeps the Word more mature, with more wisdom?" from 箴言 1 alone, missing Colossians 1:9–10 and Hebrews 5:14 (owner review, 2026-10-04).
 10. **Fits a 1080p screen.** Answers stream token-by-token and are sized to fill the panel without scrolling in the common case; the input never leaves the screen.
 11. **The AI supports the discussion; the group leads it.** The leader controls when the panel is visible. The AI never replaces the pastor, the group, or the church.
 
