@@ -35,8 +35,8 @@ const LoopDiagram: React.FC = () => (
   >
     {ARROWS.map((a, i) => (
       <g key={a.from}>
-        <path d={`M${a.from} ${NODE_Y}H${a.to}`} stroke="var(--stl-surface-2)" strokeWidth="3" strokeLinecap="round" />
-        <path d={`M${a.to - 12} ${NODE_Y - 9}L${a.to} ${NODE_Y}l-12 9`} stroke="var(--stl-surface-2)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+        <path d={`M${a.from} ${NODE_Y}H${a.to}`} stroke="var(--stl-text-3)" strokeOpacity="0.55" strokeWidth="3" strokeLinecap="round" />
+        <path d={`M${a.to - 12} ${NODE_Y - 9}L${a.to} ${NODE_Y}l-12 9`} stroke="var(--stl-text-3)" strokeOpacity="0.55" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
         <path
           d={`M${a.from} ${NODE_Y}H${a.to}`}
           className={`ld-arrow-glow ld-arrow-glow-${i + 1}`}

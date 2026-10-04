@@ -1,7 +1,7 @@
 /* dawn.css — Genesis 1:2–3, light over the deep · 淵面之光 */
 .ld-ripples {
   background: repeating-linear-gradient(
-    180deg, rgba(148, 163, 184, 0.035) 0 1px, transparent 1px 44px
+    180deg, rgba(228, 231, 236, 0.07) 0 1px, transparent 1px 44px
   );
   animation: ld-ripple-drift 38s ease-in-out infinite alternate;
 }
