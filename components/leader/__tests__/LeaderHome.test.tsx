@@ -21,10 +21,12 @@ import { newStudyHash, packHash, NEW_STUDY_HASH } from '../../landing/landingRou
 import { signupHash } from '../../signup/signupRoute';
 import { leaderHash } from '../leaderRoute';
 import { LH_SIGNIN, LH_ERR_COUNTS, packCountsLine } from '../leaderStrings';
+import { SETUP_SIGN_OUT, SETUP_SIGN_OUT_FAILED } from '../../setup/setupStrings';
 
 let uid: string | null = 'uid-lead';
 let configured = true;
 const signInMock = vi.fn();
+const signOutMock = vi.fn(async (): Promise<{ error: { message: string } | null }> => ({ error: null }));
 const rowsByTable: Record<string, Array<{ pack_id: string; leader_id: string }>> = {};
 let countsError: string | null = null;
 const fromMock = vi.fn((table: string) => ({
@@ -44,6 +46,7 @@ vi.mock('../../../services/supabase', () => ({
     getUserId: () => uid,
     getFullName: () => null,
     signInWithGoogle: () => signInMock(),
+    signOut: () => signOutMock(),
   },
 }));
 
@@ -112,5 +115,27 @@ describe('LeaderHome', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(`${LH_ERR_COUNTS}: permission denied`);
     expect(await screen.findAllByTestId('lh-pack')).toHaveLength(1);
     expect(screen.queryByTestId('lh-counts')).toBeNull();
+  });
+
+  it('signed in: shows the email and a Sign out button (regression: there was no way to sign out)', async () => {
+    render(<LeaderHome />);
+    const bar = screen.getByTestId('leader-sign-out');
+    expect(bar).toHaveTextContent('lead@example.com');
+    fireEvent.click(within(bar).getByRole('button', { name: SETUP_SIGN_OUT }));
+    await waitFor(() => expect(signOutMock).toHaveBeenCalledTimes(1));
+    expect(within(bar).queryByRole('alert')).toBeNull();
+  });
+
+  it('a failed sign-out is shown with the auth message', async () => {
+    signOutMock.mockResolvedValueOnce({ error: { message: 'network down' } });
+    render(<LeaderHome />);
+    fireEvent.click(screen.getByRole('button', { name: SETUP_SIGN_OUT }));
+    expect(await screen.findByRole('alert')).toHaveTextContent(`${SETUP_SIGN_OUT_FAILED} · network down`);
+  });
+
+  it('signed out: no Sign out button', () => {
+    uid = null;
+    render(<LeaderHome />);
+    expect(screen.queryByTestId('leader-sign-out')).toBeNull();
   });
 });
