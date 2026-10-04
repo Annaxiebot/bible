@@ -21,6 +21,7 @@ import { getApiKey, OPENROUTER_API_URL } from './openrouter';
 import { authManager, supabase, type AuthState } from './supabase';
 import type { AIRole } from '../supabase/functions/ai-proxy/policy';
 import { E2E_ACCESS_TOKEN, aiProxyUrl } from './aiProxyRoute';
+import { e2eLeader } from './e2eLeader';
 
 export type { AIRole } from '../supabase/functions/ai-proxy/policy';
 
@@ -32,16 +33,13 @@ export type AIRequestResult =
   | { kind: 'own-key' | 'hosted'; response: Response }
   | { kind: 'sign-in-needed' };
 
-// TODO(R3): __LEADER_E2E__ is also read in components/leader/useLeaderSession.ts
-// (owned by another session); export one reader from there and use it here.
 interface E2ESeam { uid: string; baseUrl: string; anonKey: string }
 
 function e2eSeam(): E2ESeam | null {
-  if (!import.meta.env.DEV) return null;
-  const w = window as Window & { __LEADER_E2E__?: unknown; __SUPABASE_E2E__?: unknown };
-  const leader = w.__LEADER_E2E__ as { uid?: unknown } | undefined;
-  const base = w.__SUPABASE_E2E__ as { url?: unknown; anonKey?: unknown } | undefined;
-  if (typeof leader?.uid !== 'string' || typeof base?.url !== 'string' || typeof base.anonKey !== 'string') return null;
+  const leader = e2eLeader();
+  if (!leader) return null;
+  const base = (window as Window & { __SUPABASE_E2E__?: unknown }).__SUPABASE_E2E__ as { url?: unknown; anonKey?: unknown } | undefined;
+  if (typeof base?.url !== 'string' || typeof base.anonKey !== 'string') return null;
   return { uid: leader.uid, baseUrl: base.url, anonKey: base.anonKey };
 }
 
