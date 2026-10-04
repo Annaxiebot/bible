@@ -16,7 +16,7 @@ import { signupHash } from '../../components/signup/signupRoute';
 import { checkinHash } from '../../components/checkin/checkinRoute';
 import { SU_SUBMIT, SU_THANKS } from '../../components/signup/signupStrings';
 import { injectApiKey, mockOpenRouterStream } from './helpers/tv';
-import { E2E_LEADER_ID, E2E_SIGNUP_ID, mockBackend } from './helpers/signup';
+import { E2E_LEADER_ID, mockBackend } from './helpers/signup';
 import { PACK_ID, openNewStudy, fillJohn3, chunked } from './helpers/newStudy';
 
 test.describe('New study: feedback vehicle', () => {
@@ -85,7 +85,7 @@ test.describe('New study: feedback vehicle', () => {
     await page.getByRole('button', { name: SU_SUBMIT }).click();
     await expect(page.getByTestId('signup-thanks')).toContainText(SU_THANKS);
     const href = (await page.getByTestId('signup-checkin-link').getAttribute('href'))!;
-    expect(href.endsWith(checkinHash(E2E_SIGNUP_ID))).toBe(true);
+    expect(href.endsWith(checkinHash(mocks.bodies()[0].id))).toBe(true);   // the browser makes the id (anon cannot read the row back)
     expect(href).not.toContain('docs.google.com');
     expect(mocks.bodies()[0]).toMatchObject({ pack_id: PACK_ID, leader_id: E2E_LEADER_ID, name: '小明' });
   });

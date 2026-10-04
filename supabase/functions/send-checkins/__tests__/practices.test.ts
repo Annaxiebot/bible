@@ -7,7 +7,7 @@
  * Chinese-first line each, in the member's order.
  */
 import { describe, it, expect } from 'vitest';
-import { chosenPractices, practiceItems, practiceTexts, practiceColumns } from '../practices.ts';
+import { chosenPractices, practiceItems, practiceTexts, practiceColumns, ownVersionLine, OWN_VERSION_LABEL } from '../practices.ts';
 import { memberContext, SignupRow } from '../recipients.ts';
 import { renderCheckin, practiceLine, WELCOME_KIND, CHECKIN_KINDS, CheckinPack } from '../templates.ts';
 
@@ -37,12 +37,20 @@ describe('chosenPractices / practiceItems', () => {
     expect(chosenPractices({ ...OLD, practices: { area: 'x', practice: 'y' } })).toEqual([A, B]);
   });
 
-  it('the own version replaces the first practice only; a note alone is the one item', () => {
+  it('the own version never replaces a chosen practice: every practice keeps its text; the note is its own labelled line', () => {
+    // Owner's live case: picked 属灵 Spiritual, typed "My own pratice: Diet".
+    const spiritual = { area: '属灵 Spiritual', practice: '每天读经 · Read daily' };
+    const row = { ...practiceColumns([spiritual]), practice_note: 'My own pratice: Diet' };
+    expect(practiceItems(row)).toEqual([{ area: spiritual.area, text: spiritual.practice }]);
+    expect(ownVersionLine(row)).toBe('我的版本 · My own version：My own pratice: Diet');
+    expect(OWN_VERSION_LABEL).toBe('我的版本 · My own version');
     expect(practiceItems({ ...NEW, practice_note: ' 我的版本 ' })).toEqual([
-      { area: A.area, text: '我的版本' }, { area: B.area, text: B.practice }, { area: C.area, text: C.practice },
+      { area: A.area, text: A.practice }, { area: B.area, text: B.practice }, { area: C.area, text: C.practice },
     ]);
-    expect(practiceItems({ practice_note: '只有我的' })).toEqual([{ area: '', text: '只有我的' }]);
-    expect(practiceItems({ ...OLD, practice_note: '  ' })).toEqual([{ area: A.area, text: A.practice }, { area: B.area, text: B.practice }]);
+    expect(practiceItems({ practice_note: '只有我的' })).toEqual([]);
+    expect(ownVersionLine({ practice_note: '只有我的' })).toBe(`${OWN_VERSION_LABEL}：只有我的`);
+    expect(ownVersionLine({ practice_note: '  ' })).toBeNull();
+    expect(ownVersionLine({})).toBeNull();
   });
 });
 
@@ -76,9 +84,11 @@ describe('emails list every practice', () => {
     }
   });
 
-  it('an old row: the first (own version when written) and the second', () => {
-    const lines = renderCheckin('tue', PACK, memberContext(row({ ...OLD, practice_note: '十点关机' }))).text.split('\n');
-    expect(lines.slice(1, 3)).toEqual([practiceLine('十点关机'), practiceLine(B.practice)]);
-    expect(lines[3]).toBe('TUE');
+  it('an old row: the first and the second, then the own version as its own line (welcome and every kind)', () => {
+    for (const kind of [WELCOME_KIND, ...CHECKIN_KINDS] as const) {
+      const lines = renderCheckin(kind, PACK, memberContext(row({ ...OLD, practice_note: '十点关机' }))).text.split('\n');
+      expect(lines.slice(1, 4)).toEqual([practiceLine(A.practice), practiceLine(B.practice), '我的版本 · My own version：十点关机']);
+    }
+    expect(renderCheckin('tue', PACK, memberContext(row({ ...OLD, practice_note: '十点关机' }))).text.split('\n')[4]).toBe('TUE');
   });
 });

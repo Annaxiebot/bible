@@ -3,14 +3,14 @@
  *
  * Step 1 (PracticeStep): the commitment — any number of life-menu
  * practices (at least one), an optional own version; Next is gated on a choice.
- * Step 2: name (required), email (recommended), phone (optional, with the
+ * Step 2: name (required), email (required — the check-in channel), phone (optional, with the
  * SMS-not-yet hint), consent (default on). Large type and ≥48px targets
  * from newStudyStyles (ADR-0003 §15). Validation and submit errors render
  * inline (role=alert); the parent owns the insert.
  */
 import React, { useState } from 'react';
 import type { LifeMenuRow } from '../studypack/packTypes';
-import { SignupForm as SignupFormValues, EMPTY_SIGNUP, validateSignup, validatePractice, practiceLines } from './signupClient';
+import { SignupForm as SignupFormValues, EMPTY_SIGNUP, validateSignup, validatePractice, practiceLines, ownVersionOf } from './signupClient';
 import PracticeStep from './PracticeStep';
 import {
   SU_NAME, SU_PHONE, SU_PHONE_HINT, SU_EMAIL, SU_CONSENT, SU_SUBMIT, SU_SUBMITTING, SU_PRIVACY,
@@ -40,7 +40,7 @@ const ContactFields: React.FC<{ form: SignupFormValues; set: (patch: Partial<Sig
     </label>
     <label className={labelClass} style={textStyle}>
       <span>{SU_EMAIL}</span>
-      <input data-testid="su-email" className={inputClass} style={controlStyle} type="email" inputMode="email" autoComplete="email"
+      <input data-testid="su-email" className={inputClass} style={controlStyle} type="email" inputMode="email" autoComplete="email" required
         value={form.email} onChange={e => set({ email: e.target.value })} />
     </label>
     <label className={labelClass} style={textStyle}>
@@ -100,6 +100,7 @@ const SignupForm: React.FC<Props> = ({ rows, onSubmit }) => {
           {practiceLines(form).map((line, i) => (
             <p key={i} data-testid="su-commitment" className="text-amber-300" style={textStyle}>{commitmentLine(line)}</p>
           ))}
+          {ownVersionOf(form) && <p data-testid="su-own-version" className="text-amber-300" style={textStyle}>{ownVersionOf(form)}</p>}
           <h2 className="font-bold text-amber-300" style={headingStyle}>{SU_CONTACT_TITLE}</h2>
           <ContactFields form={form} set={set} />
           <div className="flex flex-wrap gap-3">

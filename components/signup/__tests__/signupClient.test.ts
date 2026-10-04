@@ -8,11 +8,13 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   validateSignup, validatePractice, toInsertPayload, normalizePhone, insertSignup, getSignupClient, practiceLines, newSignupId, EMPTY_SIGNUP,
+  markReplaced, ownVersionOf,
   SIGNUPS_TABLE, SIGNUP_LOCALE, SignupForm,
 } from '../signupClient';
 import {
-  SU_ERR_NAME, SU_ERR_CONTACT, SU_ERR_EMAIL, SU_ERR_PHONE, SU_ERR_SUBMIT, SU_DEMO_LINE, SU_ERR_PRACTICE,
+  SU_ERR_NAME, SU_ERR_EMAIL_REQUIRED, SU_ERR_EMAIL, SU_ERR_PHONE, SU_ERR_SUBMIT, SU_DEMO_LINE, SU_ERR_PRACTICE, SU_REPLACE_FAILED,
 } from '../signupStrings';
+import { MARK_REPLACED_FN, signupEmailKey, isLive } from '../../../supabase/functions/send-checkins/replaced';
 
 const OWNED = { id: '2026-10-02-matt6', title: '不要忧虑', leaderId: 'uid-lead' };
 const HEALTH = { area: '健康 Health', practice: '睡前程序 · Wind-down' };
@@ -24,16 +26,18 @@ const valid: SignupForm = {
 };
 
 describe('validateSignup', () => {
-  it('requires at least one practice first, then a name and a contact; bilingual message for each problem', () => {
+  it('requires at least one practice first, then a name and an email; bilingual message for each problem', () => {
     expect(validateSignup(valid)).toBeNull();
     expect(validatePractice({ practices: [] })).toBe(SU_ERR_PRACTICE);
     expect(validatePractice({ practices: [HEALTH, WORK, FAMILY] })).toBeNull();
     expect(validateSignup({ ...valid, practices: [] })).toBe(SU_ERR_PRACTICE);
     expect(validateSignup({ ...valid, name: '  ' })).toBe(SU_ERR_NAME);
-    expect(validateSignup({ ...valid, phone: '', email: '' })).toBe(SU_ERR_CONTACT);
+    expect(validateSignup({ ...valid, phone: '', email: '' })).toBe(SU_ERR_EMAIL_REQUIRED);
+    expect(validateSignup({ ...valid, email: '   ' })).toBe(SU_ERR_EMAIL_REQUIRED);
     expect(validateSignup({ ...valid, email: 'not-an-email' })).toBe(SU_ERR_EMAIL);
     expect(validateSignup({ ...valid, phone: '12' })).toBe(SU_ERR_PHONE);
-    expect(validateSignup({ ...valid, phone: '+1 408 555 1234', email: '' })).toBeNull();
+    // Email is the check-in channel: phone-only is no longer accepted; email without phone is.
+    expect(validateSignup({ ...valid, phone: '+1 408 555 1234', email: '' })).toBe(SU_ERR_EMAIL_REQUIRED);
     expect(validateSignup({ ...valid, phone: '', email: 'a@b.co' })).toBeNull();
   });
 
@@ -41,10 +45,12 @@ describe('validateSignup', () => {
     expect(normalizePhone('+1 (408) 555-1234')).toBe('+14085551234');
   });
 
-  it('practiceLines: one per chosen practice in order; the own version replaces the first', () => {
+  it('practiceLines: one per chosen practice in order, each its own text; the own version is a separate line', () => {
     expect(practiceLines(valid)).toEqual([HEALTH.practice]);
     expect(practiceLines({ practices: [HEALTH, WORK, FAMILY], note: '' })).toEqual([HEALTH.practice, WORK.practice, FAMILY.practice]);
-    expect(practiceLines({ practices: [HEALTH, WORK], note: ' 十点关机 ' })).toEqual(['十点关机', WORK.practice]);
+    expect(practiceLines({ practices: [HEALTH, WORK], note: ' 十点关机 ' })).toEqual([HEALTH.practice, WORK.practice]);
+    expect(ownVersionOf({ note: ' 十点关机 ' })).toBe('我的版本 · My own version：十点关机');
+    expect(ownVersionOf({ note: ' ' })).toBeNull();
     expect(practiceLines({ practices: [], note: '' })).toEqual([]);
   });
 });
@@ -124,5 +130,33 @@ describe('getSignupClient', () => {
     const client = getSignupClient();
     expect(client).not.toBeNull();
     expect(getSignupClient()).toBe(client);
+  });
+});
+
+describe('markReplaced (a later sign-up of the same pack + email replaces the earlier)', () => {
+  const rpcClient = (reply: { data: unknown; error: { message: string } | null }) => {
+    const rpc = vi.fn(async () => reply);
+    return { client: { rpc } as unknown as SupabaseClient, rpc };
+  };
+
+  it('calls the RPC with only the new id and returns how many earlier rows it replaced', async () => {
+    const { client, rpc } = rpcClient({ data: 2, error: null });
+    expect(await markReplaced(client, 'new-id')).toEqual({ status: 'done', replaced: 2 });
+    expect(rpc).toHaveBeenCalledWith(MARK_REPLACED_FN, { p_new_id: 'new-id' });
+  });
+
+  it('a PostgREST error or a non-number reply is a failed result carrying the reason (never thrown, never swallowed)', async () => {
+    expect(await markReplaced(rpcClient({ data: null, error: { message: 'boom' } }).client, 'x'))
+      .toEqual({ status: 'failed', message: `${SU_REPLACE_FAILED}: boom` });
+    expect(await markReplaced(rpcClient({ data: { id: 'leak' }, error: null }).client, 'x'))
+      .toEqual({ status: 'failed', message: `${SU_REPLACE_FAILED}: {"id":"leak"}` });
+  });
+
+  it('the email key matches the SQL lower(trim(email)); rows without replaced_at are live', () => {
+    expect(signupEmailKey(' Ming@Example.ORG ')).toBe('ming@example.org');
+    expect(signupEmailKey(null)).toBe('');
+    expect(isLive({})).toBe(true);
+    expect(isLive({ replaced_at: null })).toBe(true);
+    expect(isLive({ replaced_at: '2026-10-04T00:00:00Z' })).toBe(false);
   });
 });

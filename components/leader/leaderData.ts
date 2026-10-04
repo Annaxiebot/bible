@@ -7,7 +7,9 @@
  * addresses it to `test_to` only, so this button can never message members.
  * Commitments (which practice each member chose) and shared feedback
  * (checkin_answers) are the material for next Friday's closing question
- * (ADR-0004 §7).
+ * (ADR-0004 §7). A row replaced by a later sign-up (same pack + email,
+ * replaced.ts) is fetched but folded away: the person counts once, and the
+ * answers they shared from the old row move onto the live one.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { StudyPack } from '../studypack/packTypes';
@@ -16,6 +18,7 @@ import type { CheckinKind } from '../checkin/checkinRoute';
 import { CHECKIN_KINDS } from '../checkin/checkinRoute';
 import { LD_ERR_LOAD, LD_TEST_FAILED } from './leaderStrings';
 import { chosenPractices, ChosenPractice } from '../../supabase/functions/send-checkins/practices';
+import { REPLACED_COLUMN, isLive, signupEmailKey } from '../../supabase/functions/send-checkins/replaced';
 
 export { SEND_CHECKINS_FUNCTION };
 
@@ -33,6 +36,7 @@ export interface SignupRecord {
   practice2_text: string | null;
   practice_note: string | null;
   practices?: ChosenPractice[] | null;   // every chosen practice; absent/null on rows from before multi-select
+  replaced_at?: string | null;           // set when a later sign-up (same pack + email) replaced this row
 }
 
 export interface AnswerRecord {
@@ -45,13 +49,14 @@ export interface AnswerRecord {
 }
 
 export const SIGNUP_COLUMNS =
-  'id, leader_id, name, phone, email, consent_checkins, created_at, practice_area, practice_text, practice2_area, practice2_text, practice_note, practices';
+  `id, leader_id, name, phone, email, consent_checkins, created_at, practice_area, practice_text, practice2_area, practice2_text, practice_note, practices, ${REPLACED_COLUMN}`;
 export const ANSWER_COLUMNS = 'id, signup_id, leader_id, kind, answer, created_at';
 /** The kind a leader's test uses, whatever the weekday. */
 export const TEST_CHECKIN_KIND = 'tue';
 
 /**
- * The signed-in leader's rows for the pack, newest first. RLS already limits
+ * The signed-in leader's rows for the pack, newest first — replaced ones
+ * included (foldReplaced drops them; the sharing scrubber needs them). RLS already limits
  * the query to leader_id = auth.uid(); the client filters by the same uid so
  * a misconfigured policy can never widen what the page shows. Throws a
  * bilingual error carrying the PostgREST message.
@@ -77,6 +82,18 @@ export async function fetchAnswers(client: SupabaseClient, packId: string, leade
     .order('created_at', { ascending: false });
   if (error) throw new Error(`${LD_ERR_LOAD}: ${error.message}`);
   return ((data ?? []) as AnswerRecord[]).filter(row => row.leader_id === leaderId);
+}
+
+/**
+ * One row per person: the live rows, and every answer re-attached to the
+ * live row of the same person (pack + lower(trim(email))) when it was shared
+ * from a replaced row — those answers were real, the person counts once.
+ */
+export function foldReplaced(rows: SignupRecord[], answers: AnswerRecord[]): { rows: SignupRecord[]; answers: AnswerRecord[] } {
+  const live = rows.filter(isLive);
+  const liveByEmail = new Map(live.filter(r => signupEmailKey(r.email)).map(r => [signupEmailKey(r.email), r.id]));
+  const owner = new Map(rows.filter(r => !isLive(r)).map(r => [r.id, liveByEmail.get(signupEmailKey(r.email)) ?? r.id]));
+  return { rows: live, answers: answers.map(a => (owner.has(a.signup_id) ? { ...a, signup_id: owner.get(a.signup_id)! } : a)) };
 }
 
 /** How many members chose each area (every chosen practice counts; legacy rows: first + second), in first-seen order. */

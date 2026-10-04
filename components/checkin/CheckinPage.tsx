@@ -2,7 +2,7 @@
  * CheckinPage.tsx — "#/checkin/<signupId>[/<kind>]" · 周中跟进页
  *
  * The page a member opens from a check-in message. Shows every committed
- * practice (the own version replaces the first) and the pack's question for the kind, one short answer field,
+ * practice (each its own text; the own version as an extra line) and the pack's question for the kind, one short answer field,
  * and two choices: keep it on this device (localStorage, no network) or
  * share it with the leader (share_checkin_answer RPC). Private by default
  * (ADR-0003 §17): nothing leaves the phone unless the member taps Share.
@@ -16,7 +16,7 @@ import type { CheckinKind } from './checkinRoute';
 import {
   CheckinContext, fetchCheckinContext, shareAnswer, readPrivateAnswer, keepPrivateAnswer, promptFor, kindForToday,
 } from './checkinClient';
-import { practiceItems } from '../../supabase/functions/send-checkins/practices';
+import { practiceItems, ownVersionLine } from '../../supabase/functions/send-checkins/practices';
 import {
   CK_TITLE, CK_LOADING, CK_PRACTICE_LABEL, CK_QUESTION_LABEL, CK_ANSWER, CK_KEEP_PRIVATE, CK_SHARE, CK_SHARING, CK_KEPT,
   CK_SHARED, CK_ERR_EMPTY, CK_PRIVACY, CK_KIND_LABEL,
@@ -82,6 +82,9 @@ const AnswerForm: React.FC<{ signupId: string; kind: CheckinKind; context: Check
             {item.area && <p className="text-slate-400" style={textStyle}>{item.area}</p>}
           </div>
         ))}
+        {ownVersionLine(context) && (
+          <p data-testid="checkin-own-version" className="mt-2 font-semibold text-amber-300" style={headingStyle}>{ownVersionLine(context)}</p>
+        )}
       </div>
       <div data-testid="checkin-question">
         <p className="text-slate-400" style={textStyle}>{CK_QUESTION_LABEL} · {CK_KIND_LABEL[kind]}</p>

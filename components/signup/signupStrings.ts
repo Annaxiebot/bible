@@ -17,14 +17,15 @@ export const SU_INTRO = bilingualLine(
 export const SU_NAME = bilingual('姓名', 'Name');
 export const SU_PHONE = bilingual('手机（可选）', 'Phone (optional)');
 export const SU_PHONE_HINT = bilingualLine('短信提醒开通后才会发送', 'Texts start once SMS is enabled');
-export const SU_EMAIL = bilingual('邮箱（推荐）', 'Email (recommended)');
+/** Required: email is the check-in channel (ADR-0004); phone stays optional. */
+export const SU_EMAIL = bilingual('邮箱', 'Email');
 export const SU_CONSENT = bilingualLine('周二/周四收到提醒', 'Receive Tue/Thu check-ins');
 export const SU_SUBMIT = bilingual('提交', 'Submit');
 export const SU_SUBMITTING = bilingual('提交中…', 'Submitting…');
 
 // ---- validation / errors (surfaced inline, never swallowed) ----
 export const SU_ERR_NAME = bilingualLine('请填写姓名', 'Please enter your name');
-export const SU_ERR_CONTACT = bilingualLine('请填写邮箱或手机', 'Please enter an email or a phone number');
+export const SU_ERR_EMAIL_REQUIRED = bilingualLine('请填写邮箱', 'Please enter your email');
 export const SU_ERR_EMAIL = bilingualLine('邮箱格式不对', 'That email does not look right');
 export const SU_ERR_PHONE = bilingualLine('手机号格式不对', 'That phone number does not look right');
 export const SU_ERR_NOT_CONFIGURED = bilingualLine('报名服务未配置', 'The sign-up service is not configured');
@@ -42,6 +43,10 @@ export const SU_NEXT = bilingualLine(
   '周二、周四和周末早上九点会收到提醒；你可以把反思留给自己，或分享给组长',
   'You will hear from us Tuesday, Thursday and the weekend at 9 am; keep your reflections private or share them with your leader'
 );
+/** The thank-you when this sign-up replaced the member's earlier one for the same pack + email. */
+export const SU_REPLACED = bilingualLine('已更新你之前的报名', 'Your earlier sign-up was updated');
+/** mark_replaced_signups failed: the new row is stored, but an earlier one may still get check-ins; the reason follows. */
+export const SU_REPLACE_FAILED = bilingualLine('未能更新之前的报名', 'Could not update your earlier sign-up');
 export const SU_NEXT_NO_CHECKINS = bilingualLine('你选择了不接收提醒', 'You chose not to receive check-ins');
 export const SU_PRIVACY = bilingualLine(
   '这些信息只用于你勾选的提醒',
@@ -76,6 +81,9 @@ export function commitmentLine(practice: string): string {
 
 // ---- QR panel (TV slide + landing), shared by every pack ----
 export const SU_QR_BODY = bilingualLine('扫码报名，周二周四收到提醒', 'Scan to sign up for the Tue/Thu check-ins');
+/** The leader's #/qr page: print the code, and go back to the leader home. */
+export const SU_QR_PRINT = bilingualLine('打印', 'Print');
+export const SU_QR_BACK = bilingualLine('返回我的查经包', 'Back to my study packs');
 export const SU_QR_FAILED = bilingualLine('二维码生成失败', 'The QR code could not be drawn');
 /** pack_summaries upsert failed: check-ins for this pack would have no text until it succeeds. */
 export const SU_SUMMARY_FAILED = bilingualLine('提醒内容未同步', 'Check-in text not synced');

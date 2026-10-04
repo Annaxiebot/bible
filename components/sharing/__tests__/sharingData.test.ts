@@ -5,7 +5,7 @@ import { describe, it, expect } from 'vitest';
 import { loadSharingMaterial, previousPackCandidates, defaultPreviousPack, MAX_SHARED_ANSWERS } from '../sharingData';
 import { SIGNUPS_TABLE, CHECKIN_ANSWERS_TABLE } from '../../signup/signupSchema';
 import { LD_ERR_LOAD } from '../../leader/leaderStrings';
-import { LEADER, PREVIOUS, CURRENT, CLOSING_Q, IDENTIFIERS, defaultClient, fakeClient, makePack } from './fixtures';
+import { LEADER, PREVIOUS, CURRENT, CLOSING_Q, IDENTIFIERS, SIGNUPS, ANSWERS, defaultClient, fakeClient, makePack } from './fixtures';
 
 describe('loadSharingMaterial', () => {
   it('reads both tables for the previous pack AND the leader uid (RLS + client filter)', async () => {
@@ -25,6 +25,19 @@ describe('loadSharingMaterial', () => {
     for (const id of IDENTIFIERS) expect(sent).not.toContain(id);
     expect(sent).not.toContain('Other Leader Member');  // another leader's row never counts
     expect(scrub('王小明')).not.toContain('王小明');
+  });
+
+  it('a replaced sign-up (same person signed up again) is not counted twice, but its identifiers are still scrubbed', async () => {
+    const replaced = { ...SIGNUPS[0], id: 's-0', name: '王小明旧', practice_area: '工作 Work', replaced_at: '2026-10-02T21:00:00Z' };
+    const { client } = fakeClient({
+      [SIGNUPS_TABLE]: { data: [...SIGNUPS, replaced], error: null },
+      [CHECKIN_ANSWERS_TABLE]: { data: [...ANSWERS, { ...ANSWERS[0], id: 'a-0', signup_id: 's-0', answer: '王小明旧 shared this' }], error: null },
+    });
+    const { scrub, ...material } = await loadSharingMaterial(client, PREVIOUS, LEADER);
+    expect(material.practices).toEqual([{ area: '健康 Health', count: 2 }, { area: '家庭 Family', count: 1 }]);   // no 工作 Work from the old row
+    expect(material.sharedAnswers).toHaveLength(4);   // its answer was real and still goes in
+    expect(JSON.stringify(material)).not.toContain('王小明旧');
+    expect(scrub('王小明旧')).not.toContain('王小明旧');
   });
 
   it('keeps at most MAX_SHARED_ANSWERS answers', async () => {

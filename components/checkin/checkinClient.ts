@@ -12,6 +12,7 @@ import { CHECKIN_CONTEXT_FN, SHARE_ANSWER_FN } from '../signup/signupSchema';
 import { CK_ERR_LOAD, CK_ERR_SHARE, CK_DEFAULT_QUESTION } from './checkinStrings';
 import { CheckinKind, CHECKIN_KINDS } from './checkinRoute';
 import type { ChosenPractice } from '../../supabase/functions/send-checkins/practices';
+import { promptWithoutKindLabel } from '../../supabase/functions/send-checkins/promptText';
 
 export interface CheckinContext {
   pack_id: string;
@@ -28,8 +29,10 @@ export interface CheckinContext {
 /** Which reflection line carries each kind's prompt (same as the edge function's REFLECTION_LINE_INDEX). */
 const PROMPT_LINE: Record<CheckinKind, number> = { tue: 0, thu: 1, weekend: 2 };
 
+/** The kind's question, without the kind label the line may repeat (the page's heading already names the kind). */
 export function promptFor(context: Pick<CheckinContext, 'reflection_lines'>, kind: CheckinKind): string {
-  return context.reflection_lines[PROMPT_LINE[kind]] ?? CK_DEFAULT_QUESTION;
+  const line = context.reflection_lines[PROMPT_LINE[kind]];
+  return line === undefined ? CK_DEFAULT_QUESTION : promptWithoutKindLabel(line);
 }
 
 export async function fetchCheckinContext(client: SupabaseClient, signupId: string): Promise<CheckinContext> {

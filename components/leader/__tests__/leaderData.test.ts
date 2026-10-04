@@ -4,7 +4,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
-  fetchSignups, fetchAnswers, signupsToCsv, csvFilename, sendTestCheckin, commitmentCounts, feedbackCounts, latestAnswers,
+  fetchSignups, fetchAnswers, foldReplaced, signupsToCsv, csvFilename, sendTestCheckin, commitmentCounts, feedbackCounts, latestAnswers,
   SignupRecord, AnswerRecord, SIGNUP_COLUMNS, ANSWER_COLUMNS, CSV_COLUMNS, SEND_CHECKINS_FUNCTION, TEST_CHECKIN_KIND,
 } from '../leaderData';
 import { SIGNUPS_TABLE, CHECKIN_ANSWERS_TABLE } from '../../signup/signupSchema';
@@ -69,6 +69,38 @@ describe('fetchSignups / fetchAnswers', () => {
     const { client } = queryClient({ data: null, error: { message: 'JWT expired' } });
     await expect(fetchSignups(client, 'p', LEADER_ID)).rejects.toThrow(`${LD_ERR_LOAD}: JWT expired`);
     await expect(fetchAnswers(client, 'p', LEADER_ID)).rejects.toThrow(`${LD_ERR_LOAD}: JWT expired`);
+  });
+});
+
+describe('foldReplaced (a later sign-up of the same pack + email replaces the earlier)', () => {
+  // '0' is 小明's first sign-up (email differs only in case/spaces), replaced by '1'; he shared one answer from it.
+  const OLD: SignupRecord = { ...ROWS[0], id: '0', email: ' Ming@Example.org ', name: '小明 (old)', replaced_at: '2026-10-02T20:00:00Z' };
+  const OLD_ANSWER: AnswerRecord = { id: 'a0', signup_id: '0', leader_id: LEADER_ID, kind: 'weekend', answer: 'from the old row', created_at: '2026-10-05T00:00:00Z' };
+
+  it('SIGNUP_COLUMNS reads replaced_at so the fold can see it', () => {
+    expect(SIGNUP_COLUMNS).toContain('replaced_at');
+  });
+
+  it('keeps live rows only; the person counts once in the roster, commitments and feedback', () => {
+    const folded = foldReplaced([...ROWS, OLD], [...ANSWERS, OLD_ANSWER]);
+    expect(folded.rows).toEqual(ROWS);
+    expect(commitmentCounts(folded.rows)).toEqual(commitmentCounts(ROWS));
+    const counts = feedbackCounts(folded.rows, folded.answers);
+    expect(counts.signedUp).toBe(2);
+    expect(counts.answered).toBe(2);                 // 小明 once, though he answered from two rows
+    expect(counts.byKind.weekend).toBe(1);           // the old row's answer is real and still counts
+  });
+
+  it("moves a replaced row's answers onto the live row of the same person (CSV + names see them)", () => {
+    const folded = foldReplaced([...ROWS, OLD], [OLD_ANSWER]);
+    expect(folded.answers).toEqual([{ ...OLD_ANSWER, signup_id: '1' }]);
+    expect(latestAnswers(folded.answers).get('1')).toEqual({ weekend: 'from the old row' });
+  });
+
+  it('a replaced row with no live match keeps its own id (answer stays, row hidden); rows without replaced_at are live', () => {
+    const orphan = { ...OLD, email: 'gone@example.org' };
+    expect(foldReplaced([orphan], [OLD_ANSWER])).toEqual({ rows: [], answers: [OLD_ANSWER] });
+    expect(foldReplaced(ROWS, ANSWERS)).toEqual({ rows: ROWS, answers: ANSWERS });
   });
 });
 

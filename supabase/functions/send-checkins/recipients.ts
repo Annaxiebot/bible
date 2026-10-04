@@ -5,10 +5,12 @@
  * row has an email; otherwise SMS, but only once CHECKIN_SMS_ENABLED is on
  * (Twilio toll-free verification pending). Rows with neither, or without
  * consent, are skipped — the skip reasons are returned so the caller logs
- * them instead of dropping them silently.
+ * them instead of dropping them silently. A row replaced by a later sign-up
+ * (same pack + email, replaced.ts) is skipped as 'replaced'.
  */
 import type { MemberContext } from './templates.ts';
-import { practiceTexts, PracticeColumns } from './practices.ts';
+import { practiceTexts, ownVersionLine, PracticeColumns } from './practices.ts';
+import { isLive } from './replaced.ts';
 
 export type Channel = 'email' | 'sms';
 
@@ -24,6 +26,7 @@ export interface SignupRow extends PracticeColumns {
   practice_text: string | null;  // the first committed life-menu practice (ADR-0004 §7)
   practice_note: string | null;  // the member's own version, when written
   created_at?: string;           // ISO; the welcome window is checked against it
+  replaced_at?: string | null;   // set when a later sign-up (same pack + email) replaced this row
 }
 
 export interface Recipient {
@@ -32,7 +35,7 @@ export interface Recipient {
   to: string;
 }
 
-export type SkipReason = 'no-consent' | 'no-contact' | 'sms-disabled';
+export type SkipReason = 'replaced' | 'no-consent' | 'no-contact' | 'sms-disabled';
 
 export interface Selection {
   recipients: Recipient[];
@@ -42,7 +45,9 @@ export interface Selection {
 export function selectRecipients(rows: SignupRow[], options: { smsEnabled: boolean }): Selection {
   const selection: Selection = { recipients: [], skipped: [] };
   for (const signup of rows) {
-    if (!signup.consent_checkins) {
+    if (!isLive(signup)) {
+      selection.skipped.push({ signup, reason: 'replaced' });
+    } else if (!signup.consent_checkins) {
       selection.skipped.push({ signup, reason: 'no-consent' });
     } else if (signup.email) {
       selection.recipients.push({ signup, channel: 'email', to: signup.email });
@@ -57,9 +62,9 @@ export function selectRecipients(rows: SignupRow[], options: { smsEnabled: boole
   return selection;
 }
 
-/** The member context a template renders for: every chosen practice; the own version replaces the first. */
+/** The member context a template renders for: every chosen practice, plus the own version as its own line. */
 export function memberContext(signup: SignupRow): MemberContext {
-  return { name: signup.name, signupId: signup.id, practices: practiceTexts(signup) };
+  return { name: signup.name, signupId: signup.id, practices: practiceTexts(signup), ownVersion: ownVersionLine(signup) };
 }
 
 /** The leader's "send me a test" recipient: a synthetic consenting row with only an email. */

@@ -44,7 +44,7 @@ describe('renderCheckin', () => {
     expect(lines[0].indexOf('平安')).toBeLessThan(lines[0].indexOf('Peace'));
     expect(lines[1]).toBe(practiceLine(MEMBER.practices[0]));
     expect(lines[1]).toBe('你选的操练 · Your practice：睡前程序 · Wind-down'); // the practice appears once (it was repeated in both halves)
-    expect(lines[2]).toBe(PACK.prompts.tue);
+    expect(lines[2]).toBe('操练做了吗？ · did it happen?');   // the kind is named once, in the subject
     expect(lines[3]).toBe(checkinPageUrl(SIGNUP_ID, 'tue'));
     expect(lines[3]).toBe(`${SITE_ORIGIN}/${checkinHash(SIGNUP_ID, 'tue')}`);   // same route the app parses
     expect(lines[3]).not.toContain('uid-lead');
@@ -85,9 +85,9 @@ describe('memberContext + welcomeAllowed', () => {
     practice_text: 'menu', practice_note: null, ...over,
   });
 
-  it('old rows: the own version beats the menu text; neither → no practice lines', () => {
-    expect(memberContext(row({}))).toEqual({ name: 'n', signupId: SIGNUP_ID, practices: ['menu'] });
-    expect(memberContext(row({ practice_note: ' mine ' })).practices).toEqual(['mine']);
+  it('old rows: the menu text stays; the own version is its own line; neither → no practice lines', () => {
+    expect(memberContext(row({}))).toEqual({ name: 'n', signupId: SIGNUP_ID, practices: ['menu'], ownVersion: null });
+    expect(memberContext(row({ practice_note: ' mine ' }))).toMatchObject({ practices: ['menu'], ownVersion: '我的版本 · My own version：mine' });
     expect(memberContext(row({ practice_text: null })).practices).toEqual([]);
   });
 
@@ -152,6 +152,13 @@ describe('selectRecipients', () => {
     expect(on.recipients.map(r => [r.signup.id, r.channel, r.to])).toEqual([
       ['p', 'sms', '+14085551234'], ['both', 'email', 'b@x.org'],
     ]);
+  });
+
+  it('a row replaced by a later sign-up (same pack + email) gets nothing, even with consent and an email', () => {
+    const rows = [row({ id: 'old', email: 'm@x.org', replaced_at: '2026-10-04T10:00:00Z' }), row({ id: 'new', email: 'M@x.org ', replaced_at: null })];
+    const s = selectRecipients(rows, { smsEnabled: true });
+    expect(s.recipients.map(r => r.signup.id)).toEqual(['new']);
+    expect(s.skipped).toEqual([{ signup: rows[0], reason: 'replaced' }]);
   });
 
   it('the leader test row is a consenting email-only recipient with no signup id, owned by the pack leader', () => {
@@ -230,6 +237,15 @@ describe('loadCheckinPack (packSource)', () => {
     await expect(loadCheckinPack('local-x', { readSummary: async () => null, fetchPublic: async () => null }))
       .rejects.toThrow('no pack_summaries row');
     expect(() => packFromSummary({ ...summary, reflection_lines: ['one'] })).toThrow('3 reflection lines');
+  });
+});
+
+describe('replaced sign-ups in the function', () => {
+  it('loadSignups reads replaced_at and asks only for live rows (replaced_at IS NULL)', () => {
+    const source = readFileSync(path.resolve(__dirname, '../index.ts'), 'utf-8');
+    expect(source).toMatch(/const SIGNUP_COLUMNS = `[^`]*\$\{REPLACED_COLUMN\}`;/);
+    const load = source.slice(source.indexOf('async function loadSignups('), source.indexOf('async function loadSignup('));
+    expect(load).toContain(".is(REPLACED_COLUMN, null)");
   });
 });
 
