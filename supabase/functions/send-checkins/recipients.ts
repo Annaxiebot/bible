@@ -8,10 +8,12 @@
  * them instead of dropping them silently.
  */
 import type { MemberContext } from './templates.ts';
+import { practiceTexts, PracticeColumns } from './practices.ts';
 
 export type Channel = 'email' | 'sms';
 
-export interface SignupRow {
+/** practices / practice_area / practice2_* come from PracticeColumns (all optional for old rows). */
+export interface SignupRow extends PracticeColumns {
   id: string | null;             // null for the leader's ad-hoc test recipient
   pack_id: string;
   leader_id: string;
@@ -19,7 +21,7 @@ export interface SignupRow {
   phone: string | null;
   email: string | null;
   consent_checkins: boolean;
-  practice_text: string | null;  // the committed life-menu practice (ADR-0004 §7)
+  practice_text: string | null;  // the first committed life-menu practice (ADR-0004 §7)
   practice_note: string | null;  // the member's own version, when written
   created_at?: string;           // ISO; the welcome window is checked against it
 }
@@ -55,10 +57,9 @@ export function selectRecipients(rows: SignupRow[], options: { smsEnabled: boole
   return selection;
 }
 
-/** The member context a template renders for: own version beats the menu text. */
+/** The member context a template renders for: every chosen practice; the own version replaces the first. */
 export function memberContext(signup: SignupRow): MemberContext {
-  const practice = signup.practice_note?.trim() || signup.practice_text || null;
-  return { name: signup.name, signupId: signup.id, practice };
+  return { name: signup.name, signupId: signup.id, practices: practiceTexts(signup) };
 }
 
 /** The leader's "send me a test" recipient: a synthetic consenting row with only an email. */

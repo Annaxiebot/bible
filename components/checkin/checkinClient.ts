@@ -1,7 +1,7 @@
 /**
  * checkinClient.ts — the member's check-in data paths · 跟进数据层
  *
- * Context (practice, prompts) comes from the checkin_context() RPC with the
+ * Context (practices, prompts) comes from the checkin_context() RPC with the
  * signup uuid as the only credential. "Keep private" writes localStorage
  * on this device and never touches the network; "Share with leader" calls
  * share_checkin_answer() (SECURITY DEFINER copies pack/leader from the
@@ -11,6 +11,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { CHECKIN_CONTEXT_FN, SHARE_ANSWER_FN } from '../signup/signupSchema';
 import { CK_ERR_LOAD, CK_ERR_SHARE, CK_DEFAULT_QUESTION } from './checkinStrings';
 import { CheckinKind, CHECKIN_KINDS } from './checkinRoute';
+import type { ChosenPractice } from '../../supabase/functions/send-checkins/practices';
 
 export interface CheckinContext {
   pack_id: string;
@@ -19,6 +20,7 @@ export interface CheckinContext {
   practice_area: string | null;
   practice_text: string | null;
   practice_note: string | null;
+  practices?: ChosenPractice[] | null;   // every chosen practice; null on rows from before multi-select
   reflection_lines: string[];
   feedback_form_url: string | null;
 }
@@ -28,11 +30,6 @@ const PROMPT_LINE: Record<CheckinKind, number> = { tue: 0, thu: 1, weekend: 2 };
 
 export function promptFor(context: Pick<CheckinContext, 'reflection_lines'>, kind: CheckinKind): string {
   return context.reflection_lines[PROMPT_LINE[kind]] ?? CK_DEFAULT_QUESTION;
-}
-
-/** The member's own version wins over the menu text; empty when the row predates the commitment step. */
-export function practiceOf(context: Pick<CheckinContext, 'practice_text' | 'practice_note'>): string {
-  return context.practice_note?.trim() || context.practice_text || '';
 }
 
 export async function fetchCheckinContext(client: SupabaseClient, signupId: string): Promise<CheckinContext> {

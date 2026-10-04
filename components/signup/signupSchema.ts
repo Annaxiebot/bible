@@ -2,13 +2,17 @@
  * signupSchema.ts — the study_signups contract shared by browser and tests · 报名表结构
  *
  * Pure module (no Supabase import) so Playwright specs can import the table
- * name and the row shape. Must match database/signups-schema.sql.
+ * name and the row shape. Must match database/signups-schema.sql and
+ * database/signup-practices-schema.sql.
  */
+
+import type { ChosenPractice } from '../../supabase/functions/send-checkins/practices';
 
 export const SIGNUPS_TABLE = 'study_signups';
 export const SIGNUP_LOCALE = 'zh';
 
 export interface SignupInsert {
+  id: string;          // made in the browser (newSignupId): the insert cannot read it back (anon has no SELECT)
   pack_id: string;
   leader_id: string;   // the pack's owning leader (StudyPack.leaderId); RLS scopes reads to this uid
   pack_title: string;
@@ -17,16 +21,15 @@ export interface SignupInsert {
   email: string | null;
   consent_checkins: boolean;
   locale: string;
-  // The commitment (ADR-0004 §7): one life-menu practice for the week, an optional second, an optional own version.
-  practice_area: string;
-  practice_text: string;
+  // The commitment (ADR-0004 §7): every chosen life-menu practice in tap order, an optional own version.
+  // practice_* / practice2_* repeat the first two for older readers (supabase/functions/send-checkins/practices.ts).
+  practices: ChosenPractice[];
+  practice_area: string | null;
+  practice_text: string | null;
   practice2_area: string | null;
   practice2_text: string | null;
   practice_note: string | null;
 }
-
-/** Columns the insert returns so the client can send the welcome email and build the check-in link. */
-export const SIGNUP_RETURNING = 'id';
 
 /** The edge function both the leader's test and the member's welcome call. */
 export const SEND_CHECKINS_FUNCTION = 'send-checkins';

@@ -1,7 +1,7 @@
 /**
  * CheckinPage.test.tsx — private vs shared answers · 跟进页测试
  *
- * The anon client is mocked (rpc). The page shows the member's practice and
+ * The anon client is mocked (rpc). The page shows every practice of the member and
  * the kind's question from the pack summary; "Keep private" stores on this
  * device and never calls the network; "Share with leader" calls the
  * share_checkin_answer RPC with the token + kind + text; errors render.
@@ -11,7 +11,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import CheckinPage from '../CheckinPage';
 import { CHECKIN_CONTEXT_FN, SHARE_ANSWER_FN } from '../../signup/signupSchema';
-import { privateAnswerKey, promptFor, practiceOf, kindForToday } from '../checkinClient';
+import { privateAnswerKey, promptFor, kindForToday } from '../checkinClient';
 import {
   CK_TITLE, CK_KEEP_PRIVATE, CK_SHARE, CK_KEPT, CK_SHARED, CK_ERR_EMPTY, CK_ERR_SHARE, CK_ERR_LOAD, CK_DEFAULT_QUESTION, CK_KIND_LABEL,
 } from '../checkinStrings';
@@ -46,8 +46,16 @@ describe('CheckinPage', () => {
     expect(screen.getByRole('button', { name: CK_KEEP_PRIVATE })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: CK_SHARE })).toBeInTheDocument();
     expect(promptFor({ reflection_lines: [] }, 'thu')).toBe(CK_DEFAULT_QUESTION);
-    expect(practiceOf({ practice_text: 'menu', practice_note: ' mine ' })).toBe('mine');
     expect(['tue', 'thu', 'weekend']).toContain(kindForToday());
+  });
+
+  it('a new-style row shows every chosen practice with its area; the own version replaces the first', async () => {
+    const practices = [{ area: '家庭 Family', practice: '一起吃饭' }, { area: '工作 Work', practice: '写下忧虑' }, { area: '金钱 Money', practice: '记账' }];
+    rpcMock.mockResolvedValueOnce({ data: [{ ...CONTEXT, practice_note: ' 我的版本 ', practices }], error: null });
+    render(<CheckinPage signupId={ID} kind="tue" />);
+    await screen.findByTestId('checkin-form');
+    const items = screen.getAllByTestId('checkin-practice-item').map(i => i.textContent);
+    expect(items).toEqual(['我的版本家庭 Family', '写下忧虑工作 Work', '记账金钱 Money']);
   });
 
   it('Keep private stores on this device only and never calls the network', async () => {

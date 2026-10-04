@@ -10,7 +10,7 @@
  * An unclaimed local pack shows the sign-in block (the leader's own device);
  * a public demo pack shows the bilingual "no sign-up" line. Each row
  * carries the pack's leader_id so only that leader can read it (ADR-0004).
- * A stored row flips to the thank-you: the commitment restated, the
+ * A stored row flips to the thank-you: every chosen practice restated, the
  * member's check-in link, and the welcome email's verdict.
  * Every failure (pack missing, service unconfigured, insert rejected) is a
  * visible state, never a silent catch.
@@ -22,7 +22,7 @@ import { useLocalPackClaim } from '../newstudy/claimLocalPacks';
 import SignupForm from './SignupForm';
 import UnclaimedSignIn from './UnclaimedSignIn';
 import {
-  SignupForm as SignupFormValues, getSignupClient, insertSignup, toInsertPayload, practiceLine,
+  SignupForm as SignupFormValues, getSignupClient, insertSignup, toInsertPayload, practiceLines,
 } from './signupClient';
 import { sendWelcome, WelcomeResult } from './welcomeEmail';
 import { currentCheckinLink } from '../checkin/checkinLink';
@@ -72,7 +72,7 @@ const PackHeader: React.FC<{ state: PackState }> = ({ state }) => {
 
 export interface SignupDone {
   consent: boolean;
-  practice: string;
+  practices: string[];
   link: string;
   welcome: WelcomeResult;
 }
@@ -80,7 +80,9 @@ export interface SignupDone {
 const Thanks: React.FC<{ done: SignupDone }> = ({ done }) => (
   <div data-testid="signup-thanks" className="rounded-2xl border border-amber-400/60 bg-slate-900 p-6">
     <p className="font-bold text-amber-300" style={headingStyle}>{SU_THANKS}</p>
-    <p data-testid="signup-commitment" className="mt-3 text-slate-50" style={textStyle}>{commitmentLine(done.practice)}</p>
+    {done.practices.map((line, i) => (
+      <p key={i} data-testid="signup-commitment" className="mt-3 text-slate-50" style={textStyle}>{commitmentLine(line)}</p>
+    ))}
     <p className="mt-3 text-slate-100" style={textStyle}>{done.consent ? SU_NEXT : SU_NEXT_NO_CHECKINS}</p>
     <p className="mt-3 text-slate-400" style={textStyle}>{CK_YOUR_LINK}</p>
     <a data-testid="signup-checkin-link" href={done.link} className="break-all text-amber-300 underline underline-offset-4" style={textStyle}>
@@ -112,10 +114,11 @@ const SignupPage: React.FC<{ packId: string }> = ({ packId }) => {
     if (!client) throw new Error(SU_ERR_NOT_CONFIGURED);
     const payload = toInsertPayload(state.pack, form);
     const signupId = await insertSignup(client, payload);
-    const practice = practiceLine(form);
-    const link = currentCheckinLink({ pack: state.pack, signupId, name: payload.name, practice });
+    const practices = practiceLines(form);
+    // The Google Form prefill carries the first practice (same as the edge function's feedbackUrl).
+    const link = currentCheckinLink({ pack: state.pack, signupId, name: payload.name, practice: practices[0] ?? '' });
     const welcome = await sendWelcome(client, signupId, payload.email);
-    setDone({ consent: form.consent, practice, link, welcome });
+    setDone({ consent: form.consent, practices, link, welcome });
   };
 
   return (

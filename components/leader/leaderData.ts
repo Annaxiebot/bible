@@ -15,6 +15,7 @@ import { SIGNUPS_TABLE, CHECKIN_ANSWERS_TABLE, SEND_CHECKINS_FUNCTION } from '..
 import type { CheckinKind } from '../checkin/checkinRoute';
 import { CHECKIN_KINDS } from '../checkin/checkinRoute';
 import { LD_ERR_LOAD, LD_TEST_FAILED } from './leaderStrings';
+import { chosenPractices, ChosenPractice } from '../../supabase/functions/send-checkins/practices';
 
 export { SEND_CHECKINS_FUNCTION };
 
@@ -31,6 +32,7 @@ export interface SignupRecord {
   practice2_area: string | null;
   practice2_text: string | null;
   practice_note: string | null;
+  practices?: ChosenPractice[] | null;   // every chosen practice; absent/null on rows from before multi-select
 }
 
 export interface AnswerRecord {
@@ -43,7 +45,7 @@ export interface AnswerRecord {
 }
 
 export const SIGNUP_COLUMNS =
-  'id, leader_id, name, phone, email, consent_checkins, created_at, practice_area, practice_text, practice2_area, practice2_text, practice_note';
+  'id, leader_id, name, phone, email, consent_checkins, created_at, practice_area, practice_text, practice2_area, practice2_text, practice_note, practices';
 export const ANSWER_COLUMNS = 'id, signup_id, leader_id, kind, answer, created_at';
 /** The kind a leader's test uses, whatever the weekday. */
 export const TEST_CHECKIN_KIND = 'tue';
@@ -77,17 +79,12 @@ export async function fetchAnswers(client: SupabaseClient, packId: string, leade
   return ((data ?? []) as AnswerRecord[]).filter(row => row.leader_id === leaderId);
 }
 
-/** The member's practice as one line: own version when written, else the menu text. */
-export function practiceOf(row: Pick<SignupRecord, 'practice_text' | 'practice_note'>): string {
-  return row.practice_note?.trim() || row.practice_text || '';
-}
-
-/** How many members chose each area (first choice only), in first-seen order. */
+/** How many members chose each area (every chosen practice counts; legacy rows: first + second), in first-seen order. */
 export function commitmentCounts(rows: SignupRecord[]): Array<{ area: string; count: number }> {
   const counts = new Map<string, number>();
   for (const row of rows) {
-    if (!row.practice_area) continue;
-    counts.set(row.practice_area, (counts.get(row.practice_area) ?? 0) + 1);
+    const areas = new Set(chosenPractices(row).map(p => p.area).filter(Boolean));
+    for (const area of areas) counts.set(area, (counts.get(area) ?? 0) + 1);
   }
   return [...counts.entries()].map(([area, count]) => ({ area, count }));
 }
@@ -112,13 +109,18 @@ export function latestAnswers(answers: AnswerRecord[]): Map<string, Partial<Reco
 
 export const CSV_COLUMNS = [
   'name', 'phone', 'email', 'consent_checkins', 'created_at',
-  'practice_area', 'practice_text', 'practice2_area', 'practice2_text', 'practice_note',
+  'practice_area', 'practice_text', 'practice2_area', 'practice2_text', 'practice_note', 'practices',
   'answer_tue', 'answer_thu', 'answer_weekend',
 ] as const;
 
 function csvCell(value: string | boolean | null | undefined): string {
   const text = value === null || value === undefined ? '' : String(value);
   return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+/** Every chosen practice as "area: practice", joined with "; " (one CSV cell). */
+function practicesCell(row: SignupRecord): string {
+  return chosenPractices(row).map(p => (p.area ? `${p.area}: ${p.practice}` : p.practice)).join('; ');
 }
 
 /** RFC 4180 CSV with a header row; a UTF-8 BOM so Excel opens Chinese names correctly. Shared answers ride along. */
@@ -128,7 +130,7 @@ export function signupsToCsv(rows: SignupRecord[], answers: AnswerRecord[] = [])
   for (const row of rows) {
     const shared = latest.get(row.id) ?? {};
     const record: Record<(typeof CSV_COLUMNS)[number], string | boolean | null | undefined> = {
-      ...row, answer_tue: shared.tue, answer_thu: shared.thu, answer_weekend: shared.weekend,
+      ...row, practices: practicesCell(row), answer_tue: shared.tue, answer_thu: shared.thu, answer_weekend: shared.weekend,
     };
     lines.push(CSV_COLUMNS.map(col => csvCell(record[col])).join(','));
   }

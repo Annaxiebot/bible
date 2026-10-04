@@ -29,11 +29,12 @@ lists both. Hosted AI (ADR-0007) already reserves the role `sharing`
    pack id. Every `checkin_answers` row is, by construction, an answer the
    member chose to share; private answers never reach the server.
 3. **What is sent to the AI — and what is not.** `sharingData.loadSharingMaterial`
-   reduces the rows to: practice counts per life area (first choice only,
-   `commitmentCounts`), answer TEXT only (newest 40, each ≤ 500 characters),
+   reduces the rows to: practice counts per life area (every chosen
+   practice counts once per member, `commitmentCounts`; ADR-0004 §7
+   amendment 2026-10-04), answer TEXT only (newest 40, each ≤ 500 characters),
    and the previous pack's closing question. Never sent: names, emails,
    phones, signup or answer ids, timestamps, the member's own practice
-   wording (`practice_note`), the second practice. Before anything leaves the
+   wording (`practice_note`), any practice text. Before anything leaves the
    browser, every answer passes `sharingScrub.makeScrubber`: exact occurrences
    of the pack's member names (and each name word of 2+ characters; Latin as
    whole words), stored emails and phones, plus anything email-shaped or

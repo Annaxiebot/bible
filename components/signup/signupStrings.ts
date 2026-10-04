@@ -59,13 +59,12 @@ export const SU_CLAIM_FAILED = bilingualLine('登录后未能认领查经包', '
 
 // ---- commitment (the sign-up's first step, ADR-0004 §7) ----
 export const SU_PRACTICE_TITLE = bilingual('我本周的操练', 'My practice this week');
-export const SU_PRACTICE_INTRO = bilingualLine('从生活应用里选一项（可再选一项备用）', 'Pick one from the life menu (a second one is optional)');
-export const SU_PRACTICE_SECOND = bilingualLine('第二项（可选）', 'Second (optional)');
+export const SU_PRACTICE_INTRO = bilingualLine('从生活应用里选一项或多项（再点一下取消）', 'Pick one or more from the life menu (tap again to clear)');
 export const SU_PRACTICE_NOTE = bilingual('我的版本（可选）', 'My own version (optional)');
 export const SU_NEXT_STEP = bilingual('下一步', 'Next');
 export const SU_PREV_STEP = bilingual('上一步', 'Back');
 export const SU_CONTACT_TITLE = bilingual('联系方式', 'How to reach you');
-export const SU_ERR_PRACTICE = bilingualLine('请先选一项操练', 'Please choose a practice first');
+export const SU_ERR_PRACTICE = bilingualLine('请至少选一项操练', 'Please choose at least one practice');
 /** Thank-you restatement: "你本周的操练：<text> · Your practice this week: <text>". */
 export function commitmentLine(practice: string): string {
   return bilingualLine(`你本周的操练：${practice}`, `Your practice this week: ${practice}`);

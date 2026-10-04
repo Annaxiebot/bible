@@ -36,8 +36,25 @@ export async function injectSupabaseOverride(page: Page) {
   }, [E2E_SUPABASE_PATH, E2E_ANON_KEY] as const);
 }
 
+/** The practices the mocked checkin_context returns (a new-style row: two chosen). */
+export const E2E_CHECKIN_PRACTICES = [
+  { area: '健康 Health', practice: '固定的睡前程序 · Fixed wind-down' },
+  { area: '家庭 Family', practice: '一起吃晚饭 · Dinner together' },
+];
+
 export interface BackendMocks { bodies: () => SignupInsert[]; welcomes: () => unknown[]; shares: () => unknown[] }
-export const OK_INSERT = { status: 201, body: JSON.stringify({ id: E2E_SIGNUP_ID }) };
+/** PostgREST's reply to a return=minimal insert: 201, no body (the browser already holds the id it sent). */
+export const OK_INSERT = { status: 201, body: '' };
+/**
+ * What live PostgREST answers when anon asks for the row back (Prefer:
+ * return=representation, i.e. INSERT ... RETURNING): anon has no SELECT
+ * policy on study_signups, so RLS rejects it. The mock enforces the same
+ * guard so a client that reads its row back can never pass vacuously.
+ */
+export const RLS_RETURNING_REPLY = {
+  status: 401,
+  body: JSON.stringify({ code: '42501', message: 'new row violates row-level security policy for table "study_signups"' }),
+};
 
 /** Route PostgREST insert, the welcome function call, and the two check-in RPCs under the fake base. */
 export async function mockBackend(page: Page, insertReply: { status: number; body: string } = OK_INSERT): Promise<BackendMocks> {
@@ -46,9 +63,11 @@ export async function mockBackend(page: Page, insertReply: { status: number; bod
   const shares: unknown[] = [];
   const json = { 'Content-Type': 'application/json' };
   await injectSupabaseOverride(page);
-  await page.route(`**${E2E_SUPABASE_PATH}/rest/v1/${SIGNUPS_TABLE}**`, route => {
+  await page.route(`**${E2E_SUPABASE_PATH}/rest/v1/${SIGNUPS_TABLE}**`, async route => {
     bodies.push(route.request().postDataJSON() as SignupInsert);
-    return route.fulfill({ status: insertReply.status, headers: json, body: insertReply.body });
+    const prefer = (await route.request().headerValue('prefer')) ?? '';
+    const reply = prefer.includes('return=representation') ? RLS_RETURNING_REPLY : insertReply;
+    return route.fulfill({ status: reply.status, headers: json, body: reply.body });
   });
   await page.route(`**${E2E_SUPABASE_PATH}/functions/v1/${SEND_CHECKINS_FUNCTION}**`, route => {
     welcomes.push(route.request().postDataJSON());
@@ -58,7 +77,7 @@ export async function mockBackend(page: Page, insertReply: { status: number; bod
     status: 200, headers: json,
     body: JSON.stringify([{
       pack_id: SAMPLE_PACK_ID, pack_title: '不要忧虑 Do Not Be Anxious', name: '小明', practice_area: '健康 Health',
-      practice_text: '固定的睡前程序 · Fixed wind-down', practice_note: null,
+      practice_text: '固定的睡前程序 · Fixed wind-down', practice_note: null, practices: E2E_CHECKIN_PRACTICES,
       reflection_lines: ['周二跟进：做了吗？ · Tue: did it happen?', '周四 · Thu', '周末 · Weekend'], feedback_form_url: null,
     }]),
   }));

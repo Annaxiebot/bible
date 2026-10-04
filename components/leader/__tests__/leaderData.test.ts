@@ -5,7 +5,7 @@ import { describe, it, expect, vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   fetchSignups, fetchAnswers, signupsToCsv, csvFilename, sendTestCheckin, commitmentCounts, feedbackCounts, latestAnswers,
-  practiceOf, SignupRecord, AnswerRecord, SIGNUP_COLUMNS, ANSWER_COLUMNS, CSV_COLUMNS, SEND_CHECKINS_FUNCTION, TEST_CHECKIN_KIND,
+  SignupRecord, AnswerRecord, SIGNUP_COLUMNS, ANSWER_COLUMNS, CSV_COLUMNS, SEND_CHECKINS_FUNCTION, TEST_CHECKIN_KIND,
 } from '../leaderData';
 import { SIGNUPS_TABLE, CHECKIN_ANSWERS_TABLE } from '../../signup/signupSchema';
 import { LD_ERR_LOAD, LD_TEST_FAILED } from '../leaderStrings';
@@ -73,11 +73,19 @@ describe('fetchSignups / fetchAnswers', () => {
 });
 
 describe('commitments + feedback', () => {
-  it('counts first choices per area; practiceOf prefers the own version', () => {
-    expect(commitmentCounts(ROWS)).toEqual([{ area: '健康 Health', count: 2 }]);
+  it('old rows (no practices): counts first + second choice per area', () => {
+    expect(commitmentCounts(ROWS)).toEqual([{ area: '健康 Health', count: 2 }, { area: '工作 Work', count: 1 }]);
     expect(commitmentCounts([{ ...ROWS[0], practice_area: null }])).toEqual([]);
-    expect(practiceOf(ROWS[0])).toBe('睡前程序 · Wind-down');
-    expect(practiceOf(ROWS[1])).toBe('十点关机 · Phone off at ten');
+  });
+
+  it('new rows: every chosen practice counts once per member, in first-seen order', () => {
+    const many = { ...ROWS[0], id: '3', practices: [
+      { area: '家庭 Family', practice: '一起吃饭' }, { area: '健康 Health', practice: '散步' }, { area: '金钱 Money', practice: '记账' },
+    ] };
+    expect(commitmentCounts([many, ROWS[1]])).toEqual([
+      { area: '家庭 Family', count: 1 }, { area: '健康 Health', count: 2 }, { area: '金钱 Money', count: 1 }, { area: '工作 Work', count: 1 },
+    ]);
+    expect(SIGNUP_COLUMNS).toContain('practices');
   });
 
   it('feedbackCounts: members answered (any kind, and per kind) vs signed up; latestAnswers keeps the newest per kind', () => {
@@ -94,12 +102,15 @@ describe('signupsToCsv', () => {
     expect(csv.charCodeAt(0)).toBe(0xfeff);
     const lines = csv.slice(1).split('\n');
     expect(lines[0]).toBe(CSV_COLUMNS.join(','));
-    expect(CSV_COLUMNS).toEqual(expect.arrayContaining(['practice_area', 'practice_text', 'practice_note', 'answer_tue', 'answer_thu', 'answer_weekend']));
-    expect(lines[1]).toBe('小明,+14085551234,ming@example.org,true,2026-10-02T20:00:00Z,健康 Health,睡前程序 · Wind-down,,,,later,,');
+    expect(CSV_COLUMNS).toEqual(expect.arrayContaining(['practice_area', 'practice_text', 'practice_note', 'practices', 'answer_tue', 'answer_thu', 'answer_weekend']));
+    expect(lines[1]).toBe('小明,+14085551234,ming@example.org,true,2026-10-02T20:00:00Z,健康 Health,睡前程序 · Wind-down,,,,健康 Health: 睡前程序 · Wind-down,later,,');
     expect(lines[2]).toBe(
-      '"Ann ""Annie"" Lee",,ann@example.org,false,2026-10-02T21:00:00Z,健康 Health,睡前程序 · Wind-down,工作 Work,写下忧虑 · Write it down,十点关机 · Phone off at ten,,"did it, ""mostly""",'
+      '"Ann ""Annie"" Lee",,ann@example.org,false,2026-10-02T21:00:00Z,健康 Health,睡前程序 · Wind-down,工作 Work,写下忧虑 · Write it down,十点关机 · Phone off at ten,'
+      + '健康 Health: 睡前程序 · Wind-down; 工作 Work: 写下忧虑 · Write it down,,"did it, ""mostly""",'
     );
     expect(lines[3]).toBe('');
+    const many = { ...ROWS[0], practices: [{ area: 'A', practice: 'a' }, { area: 'B', practice: 'b' }, { area: 'C', practice: 'c' }] };
+    expect(signupsToCsv([many]).split('\n')[1]).toContain(',A: a; B: b; C: c,');
     expect(signupsToCsv(ROWS).split('\n')[1].endsWith(',,,')).toBe(true);
     expect(csvFilename('2026-10-02-matt6')).toBe('signups-2026-10-02-matt6.csv');
   });
