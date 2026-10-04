@@ -30,6 +30,11 @@ function countBundledCuv(): { books: number; verses: number } {
   return { books: books.length, verses };
 }
 
+// Reading ~1,189 chapter files is >10 s under heavy CPU load (every read is
+// also scanned by the endpoint antivirus). Count once at file collection,
+// which has no timeout, so the slow I/O never counts against the test timeout.
+const BUNDLED_CUV = countBundledCuv();
+
 describe('LandingNumbers', () => {
   it('shows exactly the four figures, Chinese label before English', () => {
     render(<LandingNumbers />);
@@ -58,7 +63,7 @@ describe('LandingNumbers', () => {
   });
 
   it('book and verse figures match the bundled 和合本 data', () => {
-    const { books, verses } = countBundledCuv();
+    const { books, verses } = BUNDLED_CUV;
     expect(books).toBe(BOOK_COUNT);
     const labelFloor = Number(VERSE_COUNT_LABEL.replace(/[,+]/g, ''));
     expect(verses).toBeGreaterThanOrEqual(labelFloor);
