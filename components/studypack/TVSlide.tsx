@@ -18,9 +18,7 @@ import { useSlideTypography } from './slideTypography';
 import RefLinkedText from './RefLinkedText';
 import { HEADING_DETAIL_SEPARATOR, emphasisSegments, keyPhraseFragments, splitHeading } from './slideText';
 import SignupQr from '../signup/SignupQr';
-import UnclaimedSignIn from '../signup/UnclaimedSignIn';
-import { SU_DEMO_LINE } from '../signup/signupStrings';
-import { packSignupState } from './packSource';
+import NoSignupNotice from '../signup/NoSignupNotice';
 import { isQuoteLine } from '../sharing/sharingStrings';
 
 interface SlideProps {
@@ -160,15 +158,6 @@ const LifeMenuSlide: React.FC<SlideProps> = ({ slide, pack }) => {
   );
 };
 
-/** Without a sign-up URL: a local pack asks its leader to sign in (claims it); a public pack is a demo. */
-const NoSignup: React.FC<{ pack?: StudyPack }> = ({ pack }) => {
-  const t = useSlideTypography();
-  if (pack && packSignupState(pack) === 'unclaimed') {
-    return <UnclaimedSignIn packId={pack.id} lineStyle={t.body} buttonStyle={t.body} />;
-  }
-  return <p data-testid="qr-demo" className="text-stl-text" style={t.body}>{SU_DEMO_LINE}</p>;
-};
-
 /**
  * QR sign-up slide: the pack's own sign-up URL drawn as a large centered
  * code (SignupQr renders it on a white quiet zone), the URL printed under it
@@ -187,7 +176,7 @@ const QrSlide: React.FC<SlideProps> = ({ slide, pack }) => {
         <BodyLines lines={slide.body} />
       </>
     ) : (
-      <NoSignup pack={pack} />
+      <NoSignupNotice pack={pack} lineStyle={t.body} buttonStyle={t.body} />
     )}
   </div>
   );

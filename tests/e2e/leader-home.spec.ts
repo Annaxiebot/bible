@@ -7,15 +7,18 @@
  * __LEADER_E2E__ seam), the nav shows the leader's first name linking to
  * #/leader, which lists the leader's pack with its sign-up / shared-answer
  * counts (PostgREST mocked); Edit opens the editor at #/new/<id> and
- * Present opens TV mode at #/pack/<id>. No live Supabase.
+ * Present opens TV mode at #/pack/<id>; Sign-up QR opens #/qr/<id>, a
+ * page that shows the pack's sign-up QR. No live Supabase.
  */
 import { test, expect } from '@playwright/test';
 import { NAV_LEADER_SIGNIN } from '../../components/landing/landingStrings';
 import { newStudyHash, packHash } from '../../components/landing/landingRoute';
 import { LEADER_HOME_HASH } from '../../components/leader/leaderRoute';
-import { LH_TITLE, packCountsLine } from '../../components/leader/leaderStrings';
+import { LH_TITLE, LH_QR, packCountsLine } from '../../components/leader/leaderStrings';
 import { SETUP_MIN_TAP_PX } from '../../components/setup/setupStrings';
-import { E2E_LEADER_ID, seedLocalPack, fetchSamplePack } from './helpers/signup';
+import { E2E_LEADER_ID, seedLocalPack, fetchSamplePack, expectedSignupUrl } from './helpers/signup';
+import { qrHash } from '../../components/signup/signupRoute';
+import { SU_QR_PRINT } from '../../components/signup/signupStrings';
 import { fakeLeaderSession, mockLeaderCounts } from './helpers/leader';
 
 const PACK_ID = 'local-2026-10-09-matt6';
@@ -36,7 +39,8 @@ test.describe('Leader sign-in and home', () => {
     const sample = await fetchSamplePack(page);
     await seedLocalPack(page, { ...sample, id: PACK_ID, title: PACK_TITLE, date: '2026-10-09', leaderId: E2E_LEADER_ID });
     await fakeLeaderSession(page);
-    await mockLeaderCounts(page, [PACK_ID, PACK_ID, 'local-other'], [PACK_ID]);
+    // A third sign-up row for PACK_ID was replaced by a later one (same email): never counted.
+    await mockLeaderCounts(page, [PACK_ID, PACK_ID, 'local-other'], [PACK_ID], [PACK_ID]);
 
     await page.goto('./');
     const name = page.getByTestId('nav-leader');
@@ -58,5 +62,25 @@ test.describe('Leader sign-in and home', () => {
     await page.getByTestId('lh-pack').getByTestId('lh-present').click();
     await expect(page).toHaveURL(new RegExp(`${packHash(PACK_ID)}$`));
     await expect(page.getByTestId('tv-presentation')).toBeVisible();
+
+    await page.goto(`./${LEADER_HOME_HASH}`);
+    const qrLink = page.getByTestId('lh-pack').getByTestId('lh-qr');
+    await expect(qrLink).toHaveText(LH_QR);
+    await qrLink.click();
+    await expect(page).toHaveURL(new RegExp(`${qrHash(PACK_ID)}$`));
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText(PACK_TITLE);
+    const qr = page.getByTestId('signup-qr');
+    await expect(qr).toHaveAttribute('data-signup-url', expectedSignupUrl(page, PACK_ID));
+    await expect(qr.locator('svg')).toBeVisible();
+    expect((await qr.boundingBox())!.width).toBeGreaterThanOrEqual(300);   // large enough to scan across a room
+    await expect(page.getByTestId('qr-url')).toHaveText(expectedSignupUrl(page, PACK_ID));
+    await expect(page.getByRole('button', { name: SU_QR_PRINT })).toBeVisible();
+    await page.emulateMedia({ media: 'print' });
+    await expect(page.getByRole('button', { name: SU_QR_PRINT })).toBeHidden();
+    await expect(page.getByTestId('qr-back')).toBeHidden();
+    await expect(qr).toBeVisible();
+    await page.emulateMedia({ media: 'screen' });
+    await page.getByTestId('qr-back').click();
+    await expect(page).toHaveURL(new RegExp(`${LEADER_HOME_HASH}$`));
   });
 });

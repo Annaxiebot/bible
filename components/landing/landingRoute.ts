@@ -3,13 +3,13 @@
  *
  * Only a bare root URL (no hash at all, or a lone "#") shows the landing.
  * "#/pack/<id>" is TV presentation mode, "#/signup/<id>" the member sign-up
- * page, "#/leader" the leader home, "#/leader/<id>" the leader's sign-up
+ * page, "#/qr/<id>" the leader's printable sign-up QR, "#/leader" the leader home, "#/leader/<id>" the leader's sign-up
  * list; every other hash — "#app"
  * and any bookmarked deep state we do not recognize — falls through to the
  * app, so existing bookmarks keep working.
  */
 import { getPackIdFromHash } from '../studypack/packTypes';
-import { getSignupPackIdFromHash } from '../signup/signupRoute';
+import { getSignupPackIdFromHash, getQrPackIdFromHash } from '../signup/signupRoute';
 import { getLeaderPackIdFromHash, isLeaderHomeHash } from '../leader/leaderRoute';
 import { getCheckinFromHash } from '../checkin/checkinRoute';
 
@@ -44,12 +44,13 @@ export function getNewStudyPackIdFromHash(hash: string): string | null {
   return match ? match[1] : null;
 }
 
-export type RootView = 'landing' | 'setup' | 'app' | 'pack' | 'new' | 'signup' | 'leader' | 'leaderHome' | 'checkin';
+export type RootView = 'landing' | 'setup' | 'app' | 'pack' | 'new' | 'signup' | 'qr' | 'leader' | 'leaderHome' | 'checkin';
 
 /** Map a location.hash to the view the root gate should render. */
 export function resolveRootView(hash: string): RootView {
   if (getPackIdFromHash(hash)) return 'pack';
   if (getSignupPackIdFromHash(hash)) return 'signup';
+  if (getQrPackIdFromHash(hash)) return 'qr';
   if (getLeaderPackIdFromHash(hash)) return 'leader';
   if (isLeaderHomeHash(hash)) return 'leaderHome';
   if (getCheckinFromHash(hash)) return 'checkin';

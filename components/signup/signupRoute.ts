@@ -2,7 +2,8 @@
  * signupRoute.ts — the per-pack sign-up route, its URL, and how the QR encodes it · 报名路由
  *
  * "#/signup/<packId>" is the member-facing sign-up page (scanned from the
- * TV QR). Pure module: the hash helpers take no globals, and the browser
+ * TV QR); "#/qr/<packId>" is the leader's page that SHOWS that QR (screen
+ * or print). Pure module: the hash helpers take no globals, and the browser
  * wrapper `currentSignupUrl` is the one place that reads window/BASE_URL,
  * so packTypes.buildSlides, TVSlide, the landing and tests all derive the
  * same URL (R3).
@@ -19,6 +20,21 @@ export function signupHash(packId: string): string {
 /** "#/signup/<id>" → pack id, anything else → null. */
 export function getSignupPackIdFromHash(hash: string): string | null {
   const match = SIGNUP_HASH_RE.exec(hash);
+  return match ? match[1] : null;
+}
+
+export const QR_HASH_PREFIX = '#/qr/';
+
+const QR_HASH_RE = /^#\/qr\/([A-Za-z0-9._-]+)$/;
+
+/** The leader's QR page for a pack: shows (and prints) the code that encodes signupUrl. */
+export function qrHash(packId: string): string {
+  return `${QR_HASH_PREFIX}${packId}`;
+}
+
+/** "#/qr/<id>" → pack id, anything else → null. */
+export function getQrPackIdFromHash(hash: string): string | null {
+  const match = QR_HASH_RE.exec(hash);
   return match ? match[1] : null;
 }
 

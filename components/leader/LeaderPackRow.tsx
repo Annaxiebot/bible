@@ -3,13 +3,13 @@
  *
  * Title, passage · date, "报名 N 人，分享 M 条" and four links: 编辑 Edit
  * (#/new/<id>), 放映 Present (#/pack/<id>), 报名与反馈 Sign-ups & responses
- * (#/leader/<id>), 报名二维码 Sign-up QR (#/signup/<id>). Plain hash links,
+ * (#/leader/<id>), 报名二维码 Sign-up QR (#/qr/<id>, the printable code). Plain hash links,
  * so each target survives reload and the browser's back button returns here.
  */
 import React from 'react';
 import type { StudyPack } from '../studypack/packTypes';
 import { newStudyHash, packHash } from '../landing/landingRoute';
-import { signupHash } from '../signup/signupRoute';
+import { qrHash } from '../signup/signupRoute';
 import { leaderHash } from './leaderRoute';
 import type { PackCounts } from './leaderHomeData';
 import { NS_EDIT } from '../newstudy/newStudyStrings';
@@ -30,7 +30,7 @@ export const LeaderPackRow: React.FC<Props> = ({ pack, counts }) => {
     { href: newStudyHash(pack.id), label: NS_EDIT, testId: 'lh-edit' },
     { href: packHash(pack.id), label: LH_PRESENT, testId: 'lh-present' },
     { href: leaderHash(pack.id), label: LH_RESPONSES, testId: 'lh-responses' },
-    { href: signupHash(pack.id), label: LH_QR, testId: 'lh-qr' },
+    { href: qrHash(pack.id), label: LH_QR, testId: 'lh-qr' },
   ];
   return (
     <li data-testid="lh-pack" className="flex flex-col gap-2 rounded-xl border border-stl-border bg-stl-surface p-4">

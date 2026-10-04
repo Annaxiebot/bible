@@ -2,7 +2,9 @@
  * signupRoute.test.ts — hash ↔ pack id and the QR URL · 报名路由测试
  */
 import { describe, it, expect } from 'vitest';
-import { signupHash, getSignupPackIdFromHash, signupUrl, currentSignupUrl, SIGNUP_HASH_PREFIX } from '../signupRoute';
+import {
+  signupHash, getSignupPackIdFromHash, signupUrl, currentSignupUrl, SIGNUP_HASH_PREFIX, qrHash, getQrPackIdFromHash, QR_HASH_PREFIX,
+} from '../signupRoute';
 import { leaderHash, getLeaderPackIdFromHash } from '../../leader/leaderRoute';
 
 describe('signupRoute', () => {
@@ -25,6 +27,17 @@ describe('signupRoute', () => {
     expect(signupUrl('2026-10-02-matt6', 'https://scripturetolife.org', '/')).toBe('https://scripturetolife.org/#/signup/2026-10-02-matt6');
     expect(signupUrl('p', 'http://localhost:3000', '/bible/')).toBe('http://localhost:3000/bible/#/signup/p');
     expect(currentSignupUrl('p')).toBe(`${window.location.origin}${import.meta.env.BASE_URL}#/signup/p`);
+  });
+
+  it('qrHash and getQrPackIdFromHash are inverses; nothing else parses as a QR page', () => {
+    for (const id of ['2026-10-02-matt6', 'local-2026-10-02-jhn3']) {
+      expect(qrHash(id)).toBe(`${QR_HASH_PREFIX}${id}`);
+      expect(getQrPackIdFromHash(qrHash(id))).toBe(id);
+    }
+    expect(getQrPackIdFromHash('#/qr/')).toBeNull();
+    expect(getQrPackIdFromHash('#/qr/a b')).toBeNull();
+    expect(getQrPackIdFromHash(signupHash('x'))).toBeNull();
+    expect(getSignupPackIdFromHash(qrHash('x'))).toBeNull();
   });
 
   it('leader route mirrors it', () => {
