@@ -46,6 +46,19 @@ describe('LIFE_AREAS', () => {
   });
 });
 
+describe('Ask AI language follows the pack setting (owner, 2026-10-04)', () => {
+  it('zh-keywords: Chinese with English keywords, no second English version', () => {
+    expect(CONTENT_LANGUAGE_CONTRACTS['zh-keywords'].askAIRule).toContain('Do NOT add a second, English version');
+  });
+  it('bilingual: Chinese first, then the same answer in English', () => {
+    expect(CONTENT_LANGUAGE_CONTRACTS.bilingual.askAIRule).toContain('Simplified Chinese first');
+    expect(CONTENT_LANGUAGE_CONTRACTS.bilingual.askAIRule).toContain('then the same answer in English');
+  });
+  it('en-keywords: English with Chinese keywords, no second Chinese version', () => {
+    expect(CONTENT_LANGUAGE_CONTRACTS['en-keywords'].askAIRule).toContain('Do NOT add a second, Chinese version');
+  });
+});
+
 describe('ASK_AI_ANSWER_CONTRACT', () => {
   it('contains the key phrases ADR-0003 §9 states', () => {
     expect(ASK_AI_ANSWER_CONTRACT).toContain('4 short sentences');
@@ -55,9 +68,11 @@ describe('ASK_AI_ANSWER_CONTRACT', () => {
     expect(ASK_AI_ANSWER_CONTRACT).toContain('historical and cultural background');
     expect(ASK_AI_ANSWER_CONTRACT).toContain('一种理解 · one reading');
     expect(ASK_AI_ANSWER_CONTRACT).toContain('citing the verse');
-    expect(ASK_AI_ANSWER_CONTRACT).toContain('language of the question');
-    expect(ASK_AI_ANSWER_CONTRACT).toContain('Chinese answer with');
-    expect(ASK_AI_ANSWER_CONTRACT).toContain('key terms also in English');
+    expect(ASK_AI_ANSWER_CONTRACT).toContain('follow the CONTENT LANGUAGE rule below exactly');
+    expect(ASK_AI_ANSWER_CONTRACT).toContain('overrides the language of the question');
+    expect(ASK_AI_ANSWER_CONTRACT).toContain('never equate a medical or emotional condition');
+    expect(ASK_AI_ANSWER_CONTRACT).toContain('MUST be introduced');
+    expect(ASK_AI_ANSWER_CONTRACT).toContain('LaTeX or math notation');
   });
 });
 
@@ -76,7 +91,7 @@ describe('content language (ADR-0003 §1 note)', () => {
     for (const mode of CONTENT_LANGUAGES) {
       const c = CONTENT_LANGUAGE_CONTRACTS[mode];
       expect(c.lineRule).toMatch(/^CONTENT LANGUAGE:/);
-      expect(c.askAIRule).toMatch(/^CONTENT LANGUAGE:/);
+      expect(c.askAIRule).toMatch(/^CONTENT LANGUAGE \(the leader chose this for the pack\):/);
       expect(c.totalTarget.length).toBeGreaterThan(20);
     }
     // The shared contract no longer demands two halves — the mode's rule does.

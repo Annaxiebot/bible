@@ -10,7 +10,7 @@
  * throw an AskAIError; reasoning and finish_reason are reported so the
  * Ask-AI orchestrator (askAIFallback.ts) can retry sensibly.
  */
-import { BIBLE_SCHOLAR_SYSTEM_PROMPT } from '../../services/systemPrompts';
+import { ASK_AI_SYSTEM_PROMPT } from './principles';
 import { sendAIRequest, AIRole } from '../../services/aiTransport';
 import { StudyPack, Slide } from './packTypes';
 import { AskAIMessage, ASK_AI_MAX_TOKENS, buildAskAIPrompt } from './askAI';
@@ -102,7 +102,7 @@ export function buildRequestBody(
     temperature: 0.7,
     ...(opts.noReasoning ? { reasoning: { enabled: false, exclude: true } } : {}),
     messages: [
-      { role: 'system', content: BIBLE_SCHOLAR_SYSTEM_PROMPT },
+      { role: 'system', content: ASK_AI_SYSTEM_PROMPT },
       ...history.map(m => ({ role: m.role, content: m.content })),
       { role: 'user', content: buildAskAIPrompt(pack, slide, question) },
     ],
