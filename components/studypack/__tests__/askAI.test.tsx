@@ -10,9 +10,10 @@ import {
 } from '../askAI';
 import { DEFAULT_AI_SETUP, ASK_AI_MODEL, FREE_MODELS_ROUTER_ID, wireModelId } from '../../../services/aiDefaults';
 import { FREE_ROUTER_MODEL } from '../../../services/openrouter';
-import { createSSEParser, SSEEvent } from '../askAIStream';
+import { createSSEParser, SSEEvent, buildRequestBody } from '../askAIStream';
 import { TEST_PACK_PATH } from './fixtures';
-import { CONTENT_LANGUAGE_CONTRACTS, CONTENT_LANGUAGES } from '../principles';
+import { CONTENT_LANGUAGE_CONTRACTS, CONTENT_LANGUAGES, ASK_AI_SYSTEM_PROMPT } from '../principles';
+import { BIBLE_SCHOLAR_SYSTEM_PROMPT } from '../../../services/systemPrompts';
 
 function loadPack(): { pack: StudyPack; slide: Slide } {
   const pack = parseStudyPack(JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8')));
@@ -63,7 +64,7 @@ describe('buildAskAIPrompt', () => {
     expect(prompt).toContain(slide.heading);                    // current slide content
     expect(prompt).toContain('4 short sentences');
     expect(prompt).toContain('Across the whole Bible');
-    expect(prompt).toContain('language of the question');
+    expect(prompt).toContain('follow the CONTENT LANGUAGE rule below exactly');
     expect(prompt).toContain('citing the verse');
     expect(prompt).toContain('QUESTION: Why birds?');
   });
@@ -120,6 +121,15 @@ describe('buildAskAIPrompt', () => {
       expect(prompt).toContain(section.verses![0].cuv);
       expect(prompt).toContain(section.verses![section.verses!.length - 1].en);
     }
+  });
+});
+
+describe('Ask AI request', () => {
+  it('sends Ask AI its own system prompt, not the Scripture Scholar one (which forced [SPLIT] Chinese+English, LaTeX and a closing offer)', () => {
+    const pack = parseStudyPack(JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8')));
+    const body = JSON.parse(buildRequestBody(pack, buildSlides(pack)[0], [], 'q', { model: 'm' }));
+    expect(body.messages[0]).toEqual({ role: 'system', content: ASK_AI_SYSTEM_PROMPT });
+    expect(JSON.stringify(body.messages)).not.toContain(BIBLE_SCHOLAR_SYSTEM_PROMPT.split('\n')[0]);
   });
 });
 

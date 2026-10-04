@@ -136,8 +136,9 @@ export const CONTENT_LANGUAGE_CONTRACTS: Record<ContentLanguage, ContentLanguage
       'exceptions are title and keyPhrase, which carry both "zh" and "en".',
     ].join('\n'),
     totalTarget: '总量 Total: 整个 JSON 不超过约 1,600 个中文字，宁短勿长 · Keep the whole reply under ~1,600 Chinese characters; shorter is better.',
-    askAIRule: 'CONTENT LANGUAGE: this pack is Chinese with English keywords — by default answer in Simplified Chinese ' +
-      `with each key term once in English in parentheses, e.g. ${KEYWORD_EXAMPLE_ZH}, whatever language the question is in.`,
+    askAIRule: 'CONTENT LANGUAGE (the leader chose this for the pack): answer in Simplified Chinese ' +
+      `with each key term once in English in parentheses, e.g. ${KEYWORD_EXAMPLE_ZH}, whatever language the question is in. ` +
+      'Do NOT add a second, English version of the answer.',
   },
   bilingual: {
     lineRule: [
@@ -145,7 +146,9 @@ export const CONTENT_LANGUAGE_CONTRACTS: Record<ContentLanguage, ContentLanguage
       'English half ("en") saying the same thing; the app shows them as "中文 · English".',
     ].join('\n'),
     totalTarget: '总量 Total: 整个 JSON 不超过约 2,500 个中文字（含英文），宁短勿长 · Keep the whole reply under ~2,500 Chinese characters including the English; shorter is better.',
-    askAIRule: 'CONTENT LANGUAGE: this pack is bilingual (中文 · English) — answer in the language of the question.',
+    askAIRule: 'CONTENT LANGUAGE (the leader chose this for the pack): bilingual — write the answer in Simplified Chinese first, ' +
+      'then the same answer in English, separated by a blank line, whatever language the question is in. ' +
+      'The length rule applies to each half.',
   },
   'en-keywords': {
     lineRule: [
@@ -156,8 +159,9 @@ export const CONTENT_LANGUAGE_CONTRACTS: Record<ContentLanguage, ContentLanguage
       'exceptions are title and keyPhrase, which carry both "zh" and "en".',
     ].join('\n'),
     totalTarget: 'Total: keep the whole reply under ~900 English words; shorter is better.',
-    askAIRule: 'CONTENT LANGUAGE: this pack is English with Chinese keywords — by default answer in English ' +
-      `with each key term once in Simplified Chinese in parentheses, e.g. ${KEYWORD_EXAMPLE_EN}, whatever language the question is in.`,
+    askAIRule: 'CONTENT LANGUAGE (the leader chose this for the pack): answer in English ' +
+      `with each key term once in Simplified Chinese in parentheses, e.g. ${KEYWORD_EXAMPLE_EN}, whatever language the question is in. ` +
+      'Do NOT add a second, Chinese version of the answer.',
   },
 };
 
@@ -178,6 +182,16 @@ export const SHARING_CONTENT_CONTRACT = [
   'If the answers are few, say less; never invent experiences.',
 ].join('\n');
 
+/**
+ * Ask AI's own system message (TV study assistant). Deliberately NOT the
+ * Scripture Scholar app's BIBLE_SCHOLAR_SYSTEM_PROMPT: that one demands a
+ * Chinese section + [SPLIT] + English section, LaTeX and a closing offer,
+ * which contradicted the pack's content-language choice (2026-10-04 review).
+ */
+export const ASK_AI_SYSTEM_PROMPT =
+  'You are a careful, warm Bible study assistant for a church small group, answering on a TV during the meeting. ' +
+  'Follow the ANSWER RULES and the CONTENT LANGUAGE rule in the user message exactly.';
+
 export const ASK_AI_ANSWER_CONTRACT = [
   'ANSWER RULES (override any other format rules):',
   '1. SHORT: at most 4 short sentences (~120 words / ~200 Chinese characters) —',
@@ -192,10 +206,16 @@ export const ASK_AI_ANSWER_CONTRACT = [
   '3. A WORD OR PHRASE: give its historical and cultural background, the',
   'original-language sense (Hebrew/Greek, transliterated), and its meaning here.',
   '4. KEEP CLAIMS APART: what the text says, a theological synthesis, and an',
-  'application are different kinds of claim; where Christians read a text',
-  'differently, say "一种理解 · one reading" rather than stating it as fact.',
-  '5. LANGUAGE: answer in the language of the question: a Chinese question gets',
-  'a Chinese answer with key terms also in English; an English question gets an',
-  'English answer. Follow-ups may go deeper, still within 4 short sentences.',
-  'Do NOT use the [SPLIT] marker or a two-section format.',
+  'application are different kinds of claim. A reading that Christians debate',
+  '(e.g. personified Wisdom as Christ, a disputed doctrine) MUST be introduced',
+  'with "一种理解 · one reading" — never stated as plain fact.',
+  '5. PASTORAL CARE: never equate a medical or emotional condition (anxiety',
+  'disorder, depression, trauma) with weak faith; say what the text addresses,',
+  'distinguish it from a diagnosis, and point to community and professional help',
+  'where fitting. Never shame the person asking.',
+  '6. LANGUAGE: follow the CONTENT LANGUAGE rule below exactly — it is the',
+  "leader's choice for this pack and overrides the language of the question.",
+  'Follow-ups may go deeper, still within the length rule. Plain text only: no',
+  'LaTeX or math notation, no headings, no [SPLIT] marker, no closing offer such',
+  'as "let me know if you want more".',
 ].join('\n');
