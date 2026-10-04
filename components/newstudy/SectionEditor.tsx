@@ -5,11 +5,15 @@
  * discussion is an editable question list, life menu edits each area's
  * practice, every other kind is a lines textarea. title/qr render nothing
  * (title is edited at pack level; the QR is fixed). Used by NewStudyEditor.
+ * Given the pack, an adjustable section (adjustPrompt.ADJUSTABLE_KINDS — never
+ * scripture, title or qr) is wrapped in SectionAdjust ("AI 修改 Adjust with AI").
  */
 import React from 'react';
 import { PackSection } from '../studypack/packTypes';
 import { NS_SCRIPTURE_NOTE, NS_QUESTION_ADD, NS_QUESTION_REMOVE } from './newStudyStrings';
 import { textStyle, controlStyle, inputClass, secondaryButtonClass, quietButtonClass, labelClass } from './newStudyStyles';
+import SectionAdjust from './SectionAdjust';
+import { isAdjustable, AdjustPack } from './adjustPrompt';
 
 /** Textarea text → body lines (blank lines dropped). */
 export function splitLines(text: string): string[] {
@@ -96,9 +100,11 @@ const LifeMenuSection: React.FC<{ section: PackSection; onRows: (rows: PackSecti
 export interface SectionEditorProps {
   section: PackSection;
   onPatch: (patch: Partial<PackSection>) => void;
+  /** The pack's passage + content language: enables "AI 修改" on adjustable sections (absent → no AI box). */
+  pack?: AdjustPack;
 }
 
-const SectionEditor: React.FC<SectionEditorProps> = ({ section, onPatch }) => {
+const SectionControl: React.FC<SectionEditorProps> = ({ section, onPatch }) => {
   switch (section.kind) {
     case 'title':
     case 'qr':
@@ -112,6 +118,12 @@ const SectionEditor: React.FC<SectionEditorProps> = ({ section, onPatch }) => {
     default:
       return <LinesSection section={section} onBody={body => onPatch({ body })} />;
   }
+};
+
+const SectionEditor: React.FC<SectionEditorProps> = ({ section, onPatch, pack }) => {
+  const control = <SectionControl section={section} onPatch={onPatch} />;
+  if (!pack || !isAdjustable(section.kind)) return control;
+  return <SectionAdjust section={section} pack={pack} onPatch={onPatch}>{control}</SectionAdjust>;
 };
 
 export default SectionEditor;
