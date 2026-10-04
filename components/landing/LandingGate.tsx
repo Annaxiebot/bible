@@ -4,7 +4,7 @@
  * Wraps StudyPackGate (which already splits "#/pack/<id>" TV mode from the
  * app) and adds branches in front: a bare root URL renders the lazy-loaded
  * Landing page; "#/setup" renders it with the AI setup dialog open; "#/new"
- * (and "#/new/<id>") the New study page; "#/signup/<id>", "#/leader" (home),
+ * (and "#/new/<id>") the New study page; "#/signup/<id>", "#/qr/<id>", "#/leader" (home),
  * "#/leader/<id>" and "#/checkin/<signupId>" their pages. Keeps the touch-point in
  * index.tsx to a single wrapper line, same pattern as StudyPackGate. Also
  * the one place the sign-in claim hook is installed (claimLocalPacks).
@@ -12,7 +12,7 @@
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import StudyPackGate from '../studypack/StudyPackGate';
 import { resolveRootView, RootView } from './landingRoute';
-import { getSignupPackIdFromHash } from '../signup/signupRoute';
+import { getSignupPackIdFromHash, getQrPackIdFromHash } from '../signup/signupRoute';
 import { getLeaderPackIdFromHash } from '../leader/leaderRoute';
 import { getCheckinFromHash } from '../checkin/checkinRoute';
 import { installClaimOnSignIn } from '../newstudy/claimLocalPacks';
@@ -22,6 +22,7 @@ const pageLoaders = {
   landing: () => import('./Landing'),
   newStudy: () => import('../newstudy/NewStudyPage'),
   signup: () => import('../signup/SignupPage'),
+  qr: () => import('../signup/QrPage'),
   leader: () => import('../leader/LeaderPage'),
   leaderHome: () => import('../leader/LeaderHome'),
   checkin: () => import('../checkin/CheckinPage'),
@@ -40,6 +41,7 @@ export function preloadLandingPages(): Promise<unknown> {
 const Landing = lazy(pageLoaders.landing);
 const NewStudyPage = lazy(pageLoaders.newStudy);
 const SignupPage = lazy(pageLoaders.signup);
+const QrPage = lazy(pageLoaders.qr);
 const LeaderPage = lazy(pageLoaders.leader);
 const LeaderHome = lazy(pageLoaders.leaderHome);
 const CheckinPage = lazy(pageLoaders.checkin);
@@ -65,6 +67,10 @@ const LandingGate: React.FC<{ app: React.ReactElement }> = ({ app }) => {
   if (view === 'signup') {
     const packId = getSignupPackIdFromHash(window.location.hash)!;
     return <Suspense fallback={fallback}><SignupPage packId={packId} /></Suspense>;
+  }
+  if (view === 'qr') {
+    const packId = getQrPackIdFromHash(window.location.hash)!;
+    return <Suspense fallback={fallback}><QrPage packId={packId} /></Suspense>;
   }
   if (view === 'leader') {
     const packId = getLeaderPackIdFromHash(window.location.hash)!;

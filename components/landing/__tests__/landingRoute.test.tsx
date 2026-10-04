@@ -17,7 +17,7 @@ import {
   NEW_STUDY_LINE,
 } from '../landingStrings';
 import { SETUP_TITLE, SETUP_CLOSE } from '../../setup/setupStrings';
-import { signupHash } from '../../signup/signupRoute';
+import { signupHash, qrHash } from '../../signup/signupRoute';
 import { leaderHash } from '../../leader/leaderRoute';
 import { SU_TITLE } from '../../signup/signupStrings';
 import { LD_TITLE } from '../../leader/leaderStrings';
@@ -61,6 +61,13 @@ describe('resolveRootView', () => {
     expect(resolveRootView(signupHash('2026-10-02-matt6'))).toBe('signup');
     expect(resolveRootView(signupHash('local-2026-10-02-jhn3'))).toBe('signup');
     expect(resolveRootView(leaderHash('2026-10-02-matt6'))).toBe('leader');
+  });
+
+  it('routes #/qr/<id> to the leader QR page; a bad id falls through to the app', () => {
+    expect(resolveRootView(qrHash('local-2026-10-02-jhn3'))).toBe('qr');
+    expect(resolveRootView(qrHash('2026-10-02-matt6'))).toBe('qr');
+    expect(resolveRootView('#/qr/')).toBe('app');
+    expect(resolveRootView('#/qr/bad id')).toBe('app');
   });
 
   it('falls through to the app on any unrecognized hash (bookmarked deep state)', () => {
@@ -215,6 +222,11 @@ describe('LandingGate', () => {
     render(<LandingGate app={app} />);
     expect(await screen.findByTestId('leader-page')).toHaveTextContent(LD_TITLE);
     expect(screen.queryByTestId('the-app')).toBeNull();
+    cleanup();
+    window.location.hash = qrHash('2026-10-02-matt6');
+    render(<LandingGate app={app} />);
+    expect(await screen.findByTestId('qr-page')).toBeInTheDocument();
+    expect(screen.queryByTestId('landing-page')).toBeNull();
     vi.unstubAllGlobals();
   });
 
