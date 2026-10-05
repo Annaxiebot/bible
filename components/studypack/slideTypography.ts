@@ -5,10 +5,16 @@
  * from principles.ts or a step above it. On a portrait phone the vh sizes
  * outgrow the width (a 7vh heading wrapped to four lines at 390×844), so the
  * same roles switch to width-based sizes that keep the px floors.
+ * Content roles are then multiplied by the slide's fit factor (fitted()),
+ * which only ever grows them; headings are never fitted.
  */
 import type { CSSProperties } from 'react';
 import { useSyncExternalStore } from 'react';
 import { TYPE_SCALE } from './principles';
+import { FIT_VAR } from './fitScale';
+
+/** Longest line a fitted text block may run, in its own ems (~36 汉字 / ~70 Latin letters), so a wide screen never gets one giant line. */
+export const MAX_LINE_EM = 36;
 
 /** Portrait phones: narrower than the md breakpoint and taller than wide. */
 export const PORTRAIT_PHONE_QUERY = '(orientation: portrait) and (max-width: 767px)';
@@ -72,6 +78,15 @@ export function slideTypography(portraitPhone: boolean): SlideTypography {
     columnLabel: { fontSize: s.columnLabel, lineHeight: 1.4 },
     lifeMenu: { fontSize: s.lifeMenu, lineHeight: 1.45 },
   };
+}
+
+/**
+ * A content role scaled by the slide's fit factor (fitScale.ts, useFitScale):
+ * base size × var(--fit), 1 outside a fit area, so the floors above still bind.
+ */
+export function fitted(style: CSSProperties, capLine = true): CSSProperties {
+  const fontSize = `calc(${String(style.fontSize)} * var(${FIT_VAR}, 1))`;
+  return capLine ? { ...style, fontSize, maxWidth: `${MAX_LINE_EM}em` } : { ...style, fontSize };
 }
 
 const TV = slideTypography(false);

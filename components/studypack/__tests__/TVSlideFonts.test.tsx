@@ -10,6 +10,7 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import TVSlide from '../TVSlide';
 import type { Slide } from '../packTypes';
+import { FIT_VAR } from '../fitScale';
 
 const TV_HEAD = 'stl-tv-head';
 
@@ -35,5 +36,22 @@ describe('TVSlide heading fonts', () => {
     render(<TVSlide slide={slide} />);
     expect(screen.getByTestId('key-phrase').className).toContain(TV_HEAD);
     for (const p of document.querySelectorAll('[data-verse] > p')) expect(p.className).toBe('text-stl-text');
+  });
+});
+
+describe('TVSlide fit area', () => {
+  it('fits the content under the heading, never the heading itself', () => {
+    render(<TVSlide slide={{ kind: 'discussion', heading: '讨论 Discussion', question: '问题？ · A question?', questionNumber: 1, questionTotal: 5 }} />);
+    const area = screen.getByTestId('tv-fit-area');
+    expect(area).toContainElement(screen.getByText('问题？ · A question?'));
+    expect(area).not.toContainElement(screen.getByRole('heading', { level: 1 }));
+    expect(screen.getByText('问题？ · A question?').style.fontSize).toContain(`var(${FIT_VAR}, 1)`);
+  });
+
+  it('the title slide fits its whole title block', () => {
+    render(<TVSlide slide={{ kind: 'title', heading: '不要忧虑 Do Not Be Anxious', body: ['马太福音 6:25–34'] }} />);
+    const area = screen.getByTestId('tv-fit-area');
+    expect(area).toContainElement(screen.getByRole('heading', { level: 1 }));
+    expect(area).toContainElement(screen.getByText('马太福音 6:25–34'));
   });
 });

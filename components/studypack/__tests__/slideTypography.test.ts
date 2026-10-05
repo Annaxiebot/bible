@@ -6,7 +6,8 @@
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
-import { PORTRAIT_PHONE_QUERY, slideTypography, useSlideTypography, SlideTypography } from '../slideTypography';
+import { MAX_LINE_EM, PORTRAIT_PHONE_QUERY, fitted, slideTypography, useSlideTypography, SlideTypography } from '../slideTypography';
+import { FIT_VAR } from '../fitScale';
 import { TYPE_SCALE } from '../principles';
 
 const pxFloor = (size: unknown) => Number(/max\((\d+)px/.exec(String(size))?.[1]);
@@ -54,5 +55,18 @@ describe('useSlideTypography', () => {
     expect(renderHook(() => useSlideTypography()).result.current).toEqual(slideTypography(false));
     mockPortrait(true);
     expect(renderHook(() => useSlideTypography()).result.current).toEqual(slideTypography(true));
+  });
+});
+
+describe('fitted', () => {
+  it('multiplies the base size by the fit factor (1 outside a fit area) and caps the line length in ems', () => {
+    const style = fitted(slideTypography(false).question);
+    expect(style.fontSize).toBe(`calc(${TYPE_SCALE.question} * var(${FIT_VAR}, 1))`);
+    expect(style.maxWidth).toBe(`${MAX_LINE_EM}em`);
+    expect(style.lineHeight).toBe(slideTypography(false).question.lineHeight);
+  });
+
+  it('can leave the line uncapped (the scripture column labels share the verse grid)', () => {
+    expect(fitted(slideTypography(false).columnLabel, false).maxWidth).toBeUndefined();
   });
 });

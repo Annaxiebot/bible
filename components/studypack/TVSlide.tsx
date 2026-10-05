@@ -12,11 +12,15 @@
  * interactive popups (ADR-0003 §8). Bilingual text is Chinese-first (§1).
  * Headings, the title and the key phrase carry .stl-tv-head: Chinese in
  * 霞鹜文楷 WenKai bold, the English half in the TV's Latin face (stlShared.css).
+ * Everything under the heading sits in a FitArea: it grows (never shrinks)
+ * to fill the slide down to the bottom safe zone (useFitScale); headings keep
+ * one size on every slide. Vertical gaps inside scale with the text.
  */
-import React from 'react';
+import React, { useRef } from 'react';
 import { Slide, StudyPack } from './packTypes';
 import { TRANSLATIONS, bilingual } from './principles';
-import { useSlideTypography } from './slideTypography';
+import { fitted, useSlideTypography } from './slideTypography';
+import { useFitScale } from './useFitScale';
 import RefLinkedText from './RefLinkedText';
 import { HEADING_DETAIL_SEPARATOR, emphasisSegments, keyPhraseFragments, splitHeading } from './slideText';
 import SignupQr from '../signup/SignupQr';
@@ -56,15 +60,33 @@ const Heading: React.FC<{ text: string; counter?: string }> = ({ text, counter }
   );
 };
 
+/**
+ * The slide's content area: takes the rest of the slide below the heading and
+ * scales its content (--fit) to fill it. overflow-y-auto stays so a slide
+ * that overflows even at scale 1 still shows up as scrolling (tv-polish e2e).
+ */
+const FitArea: React.FC<{ fitKey: unknown; className?: string; children: React.ReactNode }> = ({ fitKey, className = '', children }) => {
+  const area = useRef<HTMLDivElement>(null);
+  const content = useRef<HTMLDivElement>(null);
+  useFitScale(area, content, fitKey);
+  return (
+    <div ref={area} data-testid="tv-fit-area" className={`flex-1 min-h-0 overflow-y-auto ${className}`}>
+      <div ref={content} data-testid="tv-fit-content">{children}</div>
+    </div>
+  );
+};
+
 /** `quietQuotes` (sharing slides, ADR-0008): 「…」 lines — members' paraphrased words — in the quieter text colour. */
-const BodyLines: React.FC<{ lines?: string[]; pack?: StudyPack; quietQuotes?: boolean }> = ({ lines, pack, quietQuotes }) => {
+const BodyLines: React.FC<{ lines?: string[]; pack?: StudyPack; quietQuotes?: boolean; centered?: boolean }> = ({ lines, pack, quietQuotes, centered }) => {
   const t = useSlideTypography();
   return (
-    <div className="space-y-[2.5vh]">
+    <div className="space-y-[calc(2.5vh*var(--fit,1))]">
       {(lines || []).map((line, i) => {
         const quiet = !!quietQuotes && isQuoteLine(line);
+        const tone = quiet ? 'text-stl-text-2' : 'text-stl-text';
+        // Centered lines (title, QR) balance their wrap: a grown title line otherwise broke "2026-10- / 02".
         return (
-          <p key={i} className={quiet ? 'text-stl-text-2' : 'text-stl-text'} data-quote={quiet || undefined} style={t.body}>
+          <p key={i} className={centered ? `${tone} mx-auto` : tone} data-quote={quiet || undefined} style={centered ? { ...fitted(t.body), textWrap: 'balance' } : fitted(t.body)}>
             {pack ? <RefLinkedText text={line} pack={pack} /> : line}
           </p>
         );
@@ -76,9 +98,11 @@ const BodyLines: React.FC<{ lines?: string[]; pack?: StudyPack; quietQuotes?: bo
 const TitleSlide: React.FC<SlideProps> = ({ slide }) => {
   const t = useSlideTypography();
   return (
-    <div className="flex flex-col items-center justify-center text-center h-full">
-      <h1 className="stl-tv-head font-bold text-stl-gold mb-[5vh]" style={t.title}>{slide.heading}</h1>
-      <BodyLines lines={slide.body} />
+    <div className="h-full flex flex-col">
+      <FitArea fitKey={slide} className="flex items-center justify-center text-center">
+        <h1 className="stl-tv-head font-bold text-stl-gold mb-[calc(5vh*var(--fit,1))] mx-auto" style={fitted(t.title)}>{slide.heading}</h1>
+        <BodyLines lines={slide.body} centered />
+      </FitArea>
     </div>
   );
 };
@@ -87,7 +111,7 @@ const TitleSlide: React.FC<SlideProps> = ({ slide }) => {
 const VerseText: React.FC<{ num: number; text: string; emphasis: string[] }> = ({ num, text, emphasis }) => {
   const t = useSlideTypography();
   return (
-    <p className="text-stl-text" style={t.verse}>
+    <p className="text-stl-text" style={fitted(t.verse)}>
       <span className="text-stl-text-3 mr-[0.35em]" style={t.verseNumber}>{num}</span>
       {emphasisSegments(text, emphasis).map((seg, i) => seg.emphasis
         ? <span key={i} data-testid="verse-emphasis" className="text-stl-gold">{seg.text}</span>
@@ -103,22 +127,24 @@ const ScriptureSlide: React.FC<SlideProps> = ({ slide, pack }) => {
   return (
     <div className="h-full flex flex-col">
       <Heading text={slide.heading} counter={partCounter(slide.partIndex, slide.partTotal)} />
-      {slide.keyPhrase && (
-        <p data-testid="key-phrase" className="stl-tv-head text-stl-gold font-semibold mb-[3.5vh]" style={t.keyPhrase}>{slide.keyPhrase}</p>
-      )}
-      <div className="grid grid-cols-1 md:grid-cols-2 md:gap-[4vw] text-stl-text-3 mb-[1.5vh]" style={t.columnLabel}>
-        <span className="hidden md:block">{bilingual(TRANSLATIONS.zh.label, 'CUV')}</span>
-        <span className="hidden md:block">{pack?.enVersion ?? TRANSLATIONS.en.label}</span>
-        <span className="md:hidden">{`${bilingual(TRANSLATIONS.zh.label, 'CUV')} · ${pack?.enVersion ?? TRANSLATIONS.en.label}`}</span>
-      </div>
-      <div className="overflow-y-auto flex-1 space-y-[3vh]">
-        {(slide.verses || []).map(v => (
-          <div key={v.num} data-verse={v.num} className="grid grid-cols-1 gap-[0.5vh] md:grid-cols-2 md:gap-[4vw]">
-            <VerseText num={v.num} text={v.cuv} emphasis={emphasis} />
-            <VerseText num={v.num} text={v.en} emphasis={emphasis} />
-          </div>
-        ))}
-      </div>
+      <FitArea fitKey={slide}>
+        {slide.keyPhrase && (
+          <p data-testid="key-phrase" className="stl-tv-head text-stl-gold font-semibold mb-[calc(3.5vh*var(--fit,1))]" style={fitted(t.keyPhrase)}>{slide.keyPhrase}</p>
+        )}
+        <div className="grid grid-cols-1 md:grid-cols-2 md:gap-[4vw] text-stl-text-3 mb-[calc(1.5vh*var(--fit,1))]" style={fitted(t.columnLabel, false)}>
+          <span className="hidden md:block">{bilingual(TRANSLATIONS.zh.label, 'CUV')}</span>
+          <span className="hidden md:block">{pack?.enVersion ?? TRANSLATIONS.en.label}</span>
+          <span className="md:hidden">{`${bilingual(TRANSLATIONS.zh.label, 'CUV')} · ${pack?.enVersion ?? TRANSLATIONS.en.label}`}</span>
+        </div>
+        <div className="space-y-[calc(3vh*var(--fit,1))]">
+          {(slide.verses || []).map(v => (
+            <div key={v.num} data-verse={v.num} className="grid grid-cols-1 gap-[calc(0.5vh*var(--fit,1))] md:grid-cols-2 md:gap-[4vw]">
+              <VerseText num={v.num} text={v.cuv} emphasis={emphasis} />
+              <VerseText num={v.num} text={v.en} emphasis={emphasis} />
+            </div>
+          ))}
+        </div>
+      </FitArea>
     </div>
   );
 };
@@ -128,11 +154,11 @@ const DiscussionSlide: React.FC<SlideProps> = ({ slide, pack }) => {
   return (
     <div className="h-full flex flex-col">
       <Heading text={slide.heading} counter={partCounter(slide.questionNumber, slide.questionTotal)} />
-      <div className="flex-1 flex items-center">
-        <p className="text-stl-text font-semibold" style={t.question}>
+      <FitArea fitKey={slide} className="flex items-center">
+        <p className="text-stl-text font-semibold" style={fitted(t.question)}>
           {pack && slide.question ? <RefLinkedText text={slide.question} pack={pack} /> : slide.question}
         </p>
-      </div>
+      </FitArea>
     </div>
   );
 };
@@ -142,20 +168,22 @@ const LifeMenuSlide: React.FC<SlideProps> = ({ slide, pack }) => {
   return (
   <div className="h-full flex flex-col">
     <Heading text={slide.heading} counter={partCounter(slide.partIndex, slide.partTotal)} />
-    <table className="w-full border-collapse">
-      <tbody>
-        {(slide.rows || []).map((row, i) => (
-          <tr key={i} className="block border-b border-stl-border md:table-row">
-            <td className="block pt-[1vh] text-stl-gold font-semibold md:table-cell md:py-[1vh] md:pr-[2vw] md:whitespace-nowrap md:align-top" style={t.lifeMenu}>
-              {row.area}
-            </td>
-            <td className="block pb-[1vh] text-stl-text md:table-cell md:py-[1vh]" style={t.lifeMenu}>
-              {pack ? <RefLinkedText text={row.practice} pack={pack} /> : row.practice}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
+    <FitArea fitKey={slide}>
+      <table className="w-full border-collapse">
+        <tbody>
+          {(slide.rows || []).map((row, i) => (
+            <tr key={i} className="block border-b border-stl-border md:table-row">
+              <td className="block pt-[calc(1vh*var(--fit,1))] text-stl-gold font-semibold md:table-cell md:py-[calc(1vh*var(--fit,1))] md:pr-[2vw] md:whitespace-nowrap md:align-top" style={fitted(t.lifeMenu)}>
+                {row.area}
+              </td>
+              <td className="block pb-[calc(1vh*var(--fit,1))] text-stl-text md:table-cell md:py-[calc(1vh*var(--fit,1))]" style={fitted(t.lifeMenu)}>
+                {pack ? <RefLinkedText text={row.practice} pack={pack} /> : row.practice}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </FitArea>
   </div>
   );
 };
@@ -175,7 +203,7 @@ const QrSlide: React.FC<SlideProps> = ({ slide, pack }) => {
       <>
         <SignupQr url={slide.signupUrl} size="46vh" className="mb-[3vh]" pack={pack} />
         <p className="text-stl-gold font-semibold mb-[2vh] break-all" style={t.body}>{slide.signupUrl}</p>
-        <BodyLines lines={slide.body} />
+        <BodyLines lines={slide.body} centered />
       </>
     ) : (
       <NoSignupNotice pack={pack} lineStyle={t.body} buttonStyle={t.body} />
@@ -193,9 +221,9 @@ const TVSlide: React.FC<SlideProps> = ({ slide, pack }) => {
   return (
     <div className="h-full flex flex-col">
       <Heading text={slide.heading} counter={partCounter(slide.partIndex, slide.partTotal)} />
-      <div className="overflow-y-auto flex-1">
+      <FitArea fitKey={slide}>
         <BodyLines lines={slide.body} pack={pack} quietQuotes={slide.kind === 'sharing'} />
-      </div>
+      </FitArea>
     </div>
   );
 };

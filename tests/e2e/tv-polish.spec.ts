@@ -7,10 +7,12 @@
  * bilingual headings stay on one line; the hint, Ask AI pill and counter
  * never overlap; the key phrase is gold where it occurs; a quiet progress
  * bar tracks the counter. Headings are measured in 霞鹜文楷 WenKai bold once it
- * has loaded.
+ * has loaded. Short slides do not leave the TV half empty: the content under
+ * the heading grows (useFitScale) until it fills its area or hits a bound.
  */
 import { test, expect, Page } from '@playwright/test';
 import { ASK_AI_LABEL } from '../../components/studypack/tvHints';
+import { FIT_VAR, MAX_SCALE } from '../../components/studypack/fitScale';
 import { openTV, goToSlide, DEMO_SLIDE, waitForWenKai } from './helpers/tv';
 
 /** Overflow of the slide frame and its inner scroll areas, and how far text reaches below the pill's top. */
@@ -24,6 +26,39 @@ async function slideFit(page: Page) {
     frame.querySelectorAll('h1, p, td').forEach(el => { textBottom = Math.max(textBottom, el.getBoundingClientRect().bottom); });
     return { overflow, textBelowPill: textBottom - pillTop, heading: frame.querySelector('h1')?.textContent ?? '' };
   }, ASK_AI_LABEL);
+}
+
+/**
+ * A fitted slide fills at least this share of its content area's height, unless MAX_SCALE stopped it. (The
+ * width bound is not accepted here: every demo slide is height-bound, so the stricter check holds — R14.)
+ */
+const MIN_FILL = 0.75;
+/** The sparsest demo slide (one discussion question) must grow at least this much over its base size. */
+const MIN_SPARSE_GROWTH = 1.5;
+
+/**
+ * The fit area's fill (content height / area height), its --fit, the heading's size, and the largest
+ * content font now and at --fit 1 (the size before fit-to-screen). Null on an unfitted slide (QR).
+ */
+async function slideFill(page: Page) {
+  return page.getByTestId('tv-presentation').evaluate((root, fitVar) => {
+    const area = root.querySelector<HTMLElement>('[data-testid="tv-fit-area"]');
+    if (!area) return null;
+    const content = area.firstElementChild as HTMLElement;
+    const largestFont = () => Math.max(...[...content.querySelectorAll('p, td')].map(el => parseFloat(getComputedStyle(el).fontSize)));
+    const fit = area.style.getPropertyValue(fitVar);
+    const result = {
+      fill: content.getBoundingClientRect().height / area.clientHeight,
+      fit: Number(fit),
+      heading: parseFloat(getComputedStyle(root.querySelector('h1')!).fontSize),
+      font: largestFont(),
+      baseFont: 0,
+    };
+    area.style.setProperty(fitVar, '1');
+    result.baseFont = largestFont();
+    area.style.setProperty(fitVar, fit);
+    return result;
+  }, FIT_VAR);
 }
 
 for (const viewport of [{ width: 1280, height: 720 }, { width: 1920, height: 1080 }]) {
@@ -44,6 +79,28 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 1920, height: 108
         }
       });
     }
+
+    test('short slides fill the screen: content grows until it fills its area or reaches a bound', async ({ page }) => {
+      await openTV(page);
+      await waitForWenKai(page, 700, '不要忧虑经文');
+      const headingSizes = new Set<number>();
+      for (let n = 1; n <= DEMO_SLIDE.total; n++) {
+        if (n > 1) await page.keyboard.press('ArrowRight');
+        await expect(page.getByTestId('tv-counter')).toHaveText(`${n}/${DEMO_SLIDE.total}`);
+        await page.evaluate(() => document.fonts.ready.then(() => undefined));
+        const fill = await slideFill(page);
+        if (fill && n > 1) headingSizes.add(fill.heading); // the title slide's heading is its fitted title
+        if (n === DEMO_SLIDE.qr) { expect(fill, 'the QR slide is not fitted').toBeNull(); continue; }
+        expect(fill, `slide ${n} has a fit area`).not.toBeNull();
+        expect(fill!.fit, `slide ${n} never shrinks below its base size`).toBeGreaterThanOrEqual(1);
+        const capped = fill!.fit >= MAX_SCALE - 0.01;
+        expect(fill!.fill >= MIN_FILL || capped, `slide ${n} fills ${fill!.fill.toFixed(2)} at fit ${fill!.fit.toFixed(2)}`).toBe(true);
+        if (n === DEMO_SLIDE.discussion) {
+          expect(fill!.font / fill!.baseFont, 'the one-question slide grows').toBeGreaterThanOrEqual(MIN_SPARSE_GROWTH);
+        }
+      }
+      expect([...headingSizes], 'headings keep one size on every slide').toHaveLength(1);
+    });
 
     test('the first-slide hint, the Ask AI pill and the counter do not overlap', async ({ page }) => {
       await openTV(page);
