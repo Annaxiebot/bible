@@ -9,7 +9,8 @@
  * Every failure is a visible state. A small "停止提醒 · Stop these emails"
  * link goes to the stop page; a stopped member sees that state with Resume
  * (CheckinSubscription, ADR-0009). Paper style like the landing
- * (shared/paperStyles): WenKai heading, sans body, gold pills.
+ * (shared/paperStyles): WenKai heading, sans body, gold pills; the brand link
+ * home (shared/PaperHeader) on top.
  */
 import React, { useEffect, useState } from 'react';
 import { getSignupClient } from '../signup/signupClient';
@@ -20,6 +21,7 @@ import {
   PAPER_INPUT_CLASS, PAPER_LABEL_CLASS,
 } from '../shared/paperStyles';
 import Pill from '../shared/Pill';
+import PaperHeader from '../shared/PaperHeader';
 import type { CheckinKind } from './checkinRoute';
 import { CheckinSubscription } from './StopPage';
 import {
@@ -125,6 +127,7 @@ const CheckinPage: React.FC<{ signupId: string; kind: CheckinKind | null }> = ({
   return (
     <div data-testid="checkin-page" className={PAPER_PAGE_CLASS}>
       <div className={PAPER_COLUMN_CLASS}>
+        <PaperHeader />
         <header>
           <h1 className={PAPER_HEAD_CLASS} style={pageTitleStyle}>{CK_TITLE}</h1>
           {state.status === 'ready' && <p className={`mt-2 ${PAPER_MUTED_CLASS}`} style={textStyle}>{state.context.pack_title}</p>}

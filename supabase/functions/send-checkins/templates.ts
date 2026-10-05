@@ -16,12 +16,14 @@
  * Verses are the pack's own 和合本 + BSB text, both in every content mode.
  * checkinContent builds the parts once; checkinText renders the plain-text
  * part (URLs on their own lines) and emailHtml.ts the HTML part (buttons, no
- * raw URLs). Email sends both; SMS gets the text only.
+ * raw URLs). Email sends both, the text ending with SITE_FOOTER_LINE; SMS
+ * gets the text only, without that line.
  */
 import { promptWithoutKindLabel } from './promptText.ts';
 import { renderCheckinHtml } from './emailHtml.ts';
+import { EMAIL_BRAND_EN } from './emailStyle.ts';
 import {
-  SITE_ORIGIN, BILINGUAL_SEPARATOR, PRACTICE_LABEL, PASSAGE_LABEL, FULL_PASSAGE_HEADING, LINK_LABEL,
+  SITE_ORIGIN, SITE_HOST, BILINGUAL_SEPARATOR, PRACTICE_LABEL, PASSAGE_LABEL, FULL_PASSAGE_HEADING, LINK_LABEL,
 } from './messageStrings.ts';
 
 export { SITE_ORIGIN, BILINGUAL_SEPARATOR, PRACTICE_LABEL, PASSAGE_LABEL, FULL_PASSAGE_HEADING, LINK_LABEL };
@@ -208,6 +210,9 @@ export function checkinContent(
   };
 }
 
+/** Last line of an email's text part: "Scripture to Life · scripturetolife.org" (equals landingStrings SITE_LINE). */
+export const SITE_FOOTER_LINE = `${EMAIL_BRAND_EN}${BILINGUAL_SEPARATOR}${SITE_HOST}`;
+
 /**
  * Plain text: greeting, one line per practice (+ the own version), prompt,
  * [blank, passage line, key verse, blank], link, [blank, whole passage],
@@ -229,8 +234,9 @@ export function renderCheckin(
   kind: MessageKind, pack: CheckinPack, member: MemberContext, channel: MessageChannel = 'email',
 ): CheckinMessage {
   const content = checkinContent(kind, pack, member, channel);
-  const text = checkinText(content);
-  return channel === 'email' ? { subject: content.subject, text, html: renderCheckinHtml(content) } : { subject: content.subject, text };
+  if (channel === 'sms') return { subject: content.subject, text: checkinText(content) };   // SMS: no site line (length)
+  const text = `${checkinText(content)}\n\n${SITE_FOOTER_LINE}`;
+  return { subject: content.subject, text, html: renderCheckinHtml(content) };
 }
 
 /**

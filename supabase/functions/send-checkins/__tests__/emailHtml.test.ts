@@ -2,8 +2,9 @@
  * emailHtml.test.ts — the HTML check-in email · 邮件 HTML 测试
  *
  * Structure (one 600px table column, inline styles, no script/img/<style>),
- * no raw URL outside href attributes, the pill button and stop link carry
- * the right hrefs, every interpolation is escaped, the key verse and the
+ * no raw URL outside href attributes (the bare host shows once, as the
+ * footer link's text), the header wordmark and footer link go home, the pill
+ * button and stop link carry the right hrefs, every interpolation is escaped, the key verse and the
  * whole passage appear or vanish like the text part, Chinese before English;
  * Resend gets both parts; the style constants equal the site's tokens.
  */
@@ -11,14 +12,14 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import path from 'path';
 import {
-  renderCheckin, checkinPageUrl, stopPageUrl, packUrl, WELCOME_KIND, LINK_LABEL, PASSAGE_LABEL, FULL_PASSAGE_HEADING,
+  renderCheckin, checkinPageUrl, stopPageUrl, packUrl, SITE_ORIGIN, SITE_FOOTER_LINE, WELCOME_KIND, LINK_LABEL, PASSAGE_LABEL, FULL_PASSAGE_HEADING,
   CheckinPack, MemberContext, MessageKind,
 } from '../templates.ts';
 import { escapeHtml } from '../emailHtml.ts';
 import { packFromSummary, PackSummaryRow } from '../packSource.ts';
 import { resendBody } from '../senders.ts';
 import { EMAIL_COLORS, EMAIL_BRAND_EN, EMAIL_BRAND_ZH, EMAIL_BODY_PX, EMAIL_MAX_WIDTH_PX, EMAIL_SCRIPTURE_FONT, EMAIL_HEAD_FONT, EMAIL_BODY_FONT } from '../emailStyle.ts';
-import { BRAND_EN, BRAND_ZH } from '../../../../components/landing/landingStrings';
+import { BRAND_EN, BRAND_ZH, SITE_LINE } from '../../../../components/landing/landingStrings';
 
 const ROW: PackSummaryRow = {
   pack_id: 'local-2026-10-02-pro1', leader_id: 'uid-lead', title: '第1课 箴言 1:1–33',
@@ -56,8 +57,32 @@ describe('renderCheckinHtml: structure and email-client safety', () => {
   it('shows no raw URL anywhere outside href attributes', () => {
     for (const kind of KINDS) {
       for (const member of [MEMBER, { name: 'Ann', signupId: null, practices: [] }]) {
-        expect(withoutHrefs(html(kind, PACK, member))).not.toMatch(/https?:\/\/|scripturetolife\.org/);
+        const shown = withoutHrefs(html(kind, PACK, member));
+        expect(shown).not.toMatch(/https?:\/\//);
+        // the bare host shows exactly once: the footer link's text
+        expect(shown.match(/scripturetolife\.org/g)).toEqual(['scripturetolife.org']);
+        expect(shown).toContain('>scripturetolife.org</a></td></tr>');
       }
+    }
+  });
+
+  it('the header wordmark and the footer "scripturetolife.org" link go to the home page', () => {
+    const home = `${SITE_ORIGIN}/`;
+    for (const kind of KINDS) {
+      for (const member of [MEMBER, { name: 'Ann', signupId: null, practices: [] }]) {
+        const doc = html(kind, PACK, member);
+        expect(doc).toContain(`<a href="${home}" style="color:${EMAIL_COLORS['gold-deep']};text-decoration:none;">${EMAIL_BRAND_EN} · ${EMAIL_BRAND_ZH}</a>`);
+        expect(doc).toMatch(new RegExp(`<a href="${home}" style="[^"]*">scripturetolife\\.org</a></td></tr>`));
+        expect(hrefs(doc).filter(h => h === home)).toHaveLength(2);
+        expect(doc.indexOf(`${EMAIL_BRAND_EN} · ${EMAIL_BRAND_ZH}`)).toBeLessThan(doc.indexOf(' 平安'));   // the header, above the greeting
+      }
+    }
+  });
+
+  it('the text part ends with the site line; SMS does not', () => {
+    for (const kind of KINDS) {
+      expect(renderCheckin(kind, PACK, MEMBER).text.endsWith(`\n\n${SITE_FOOTER_LINE}`)).toBe(true);
+      expect(renderCheckin(kind, PACK, MEMBER, 'sms').text).not.toContain(SITE_FOOTER_LINE);
     }
   });
 
@@ -130,6 +155,7 @@ describe('emailStyle pins', () => {
     for (const [name, value] of Object.entries(EMAIL_COLORS)) expect(token(name), name).toBe(value);
     expect(EMAIL_BRAND_EN).toBe(BRAND_EN);
     expect(EMAIL_BRAND_ZH).toBe(BRAND_ZH);
+    expect(SITE_FOOTER_LINE).toBe(SITE_LINE);   // the text part's site line = the landing's footer line
   });
 
   it('the email font stacks follow the site stacks in styles/stlShared.css', () => {

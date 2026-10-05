@@ -7,14 +7,16 @@
  * no images, no script; every interpolated string passes through escapeHtml.
  * No raw URL is ever shown — the check-in link is a gold pill button, the
  * stop link a small text link, and the passage reference links nowhere (a
- * member has no public page for a leader's pack).
+ * member has no public page for a leader's pack). The header wordmark links
+ * home (SITE_HOME_URL); the footer's small "scripturetolife.org" link too —
+ * the bare host as link text is the one place the domain shows.
  */
 import type { CheckinContent, PassageVerse } from './templates.ts';
 import {
   EMAIL_COLORS as C, EMAIL_HEAD_FONT, EMAIL_SCRIPTURE_FONT, EMAIL_BODY_FONT, EMAIL_BODY_PX, EMAIL_MAX_WIDTH_PX,
   EMAIL_BRAND_EN, EMAIL_BRAND_ZH,
 } from './emailStyle.ts';
-import { FULL_PASSAGE_HEADING, PASSAGE_LABEL, PRACTICE_LABEL, SITE_ORIGIN, LINK_LABEL } from './messageStrings.ts';
+import { FULL_PASSAGE_HEADING, PASSAGE_LABEL, PRACTICE_LABEL, SITE_HOME_URL, SITE_HOST, LINK_LABEL } from './messageStrings.ts';
 
 const ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
 
@@ -30,10 +32,16 @@ function row(inner: string, style = ''): string {
   return `<tr><td style="padding:0 24px 20px;${style}">${inner}</td></tr>`;
 }
 
+/** A link home (the landing), styled by the caller. */
+function homeLink(text: string, style: string): string {
+  return `<a href="${escapeHtml(SITE_HOME_URL)}" style="${style}">${escapeHtml(text)}</a>`;
+}
+
 function header(): string {
   return `<tr><td style="padding:28px 24px 18px;border-bottom:1px solid ${C.line};">`
-    + `<p style="margin:0;font-family:${EMAIL_HEAD_FONT};font-size:16px;font-weight:700;color:${C['gold-deep']};">`
-    + `${escapeHtml(EMAIL_BRAND_EN)} · ${escapeHtml(EMAIL_BRAND_ZH)}</p></td></tr>`;
+    + `<p style="margin:0;font-family:${EMAIL_HEAD_FONT};font-size:16px;font-weight:700;">`
+    + homeLink(`${EMAIL_BRAND_EN} · ${EMAIL_BRAND_ZH}`, `color:${C['gold-deep']};text-decoration:none;`)
+    + `</p></td></tr>`;
 }
 
 /** The rounded card: the member's practices (+ own version), then the question. */
@@ -91,7 +99,7 @@ function footer(c: CheckinContent): string {
     ? `<a href="${escapeHtml(c.stopUrl)}" style="color:${C['ink-2']};text-decoration:underline;">${escapeHtml(LINK_LABEL.stop)}</a><br>`
     : '';
   return `<tr><td style="padding:18px 24px 28px;font-size:14px;line-height:1.7;color:${C['ink-2']};border-top:1px solid ${C.line};">`
-    + `${stop}<a href="${escapeHtml(SITE_ORIGIN)}" style="color:${C['gold-deep']};text-decoration:none;">${escapeHtml(EMAIL_BRAND_EN)} · ${escapeHtml(EMAIL_BRAND_ZH)}</a></td></tr>`;
+    + `${stop}${homeLink(SITE_HOST, `color:${C['gold-deep']};text-decoration:underline;`)}</td></tr>`;
 }
 
 /** The whole HTML document for one message. */

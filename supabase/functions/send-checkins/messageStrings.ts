@@ -8,6 +8,10 @@
 
 /** Public site; pack JSON and TV links are served from here. */
 export const SITE_ORIGIN = 'https://scripturetolife.org';
+/** The landing (home page): the email header wordmark and footer link point here. */
+export const SITE_HOME_URL = `${SITE_ORIGIN}/`;
+/** "scripturetolife.org": the footer link's text (the HTML never shows a raw https:// URL). */
+export const SITE_HOST = new URL(SITE_ORIGIN).host;
 
 export const BILINGUAL_SEPARATOR = ' · ';
 

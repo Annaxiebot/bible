@@ -9,7 +9,8 @@
  * keeps only the title, QR and URL, on white. On screen: paper style like
  * the landing (shared/paperStyles), WenKai title, gold Pill. A pack with no owning leader
  * shows the TV slide's notice (NoSignupNotice) instead of a QR that cannot
- * work. Back link → #/leader.
+ * work. Back link → #/leader; above it the brand link home (shared/PaperHeader,
+ * hidden in print).
  */
 import React from 'react';
 import SignupQr from './SignupQr';
@@ -21,6 +22,7 @@ import { SU_QR_BODY, SU_QR_PRINT, SU_QR_BACK, SU_ERR_PACK, SU_PACK_LOADING } fro
 import { textStyle, headingStyle, controlStyle } from '../newstudy/newStudyStyles';
 import { PAPER_PAGE_CLASS, PAPER_HEAD_CLASS, PAPER_MUTED_CLASS, PAPER_ACCENT_CLASS, PAPER_ERROR_CLASS, PAPER_LINK_CLASS } from '../shared/paperStyles';
 import Pill from '../shared/Pill';
+import PaperHeader from '../shared/PaperHeader';
 
 /** Large on a screen across the room, still fits a phone (the SVG scales to fill it). */
 const QR_SIZE = 'min(60vh, 85vw)';
@@ -51,6 +53,7 @@ const QrPage: React.FC<{ packId: string }> = ({ packId }) => {
     <div data-testid="qr-page"
       className={`${PAPER_PAGE_CLASS} print:static print:min-h-screen print:overflow-visible print:bg-white print:text-black`}>
       <div className="mx-auto flex max-w-3xl flex-col items-center gap-6 px-4 py-8 text-center sm:px-6">
+        <PaperHeader />
         <a href={LEADER_HOME_HASH} data-testid="qr-back"
           className={`self-start ${PAPER_LINK_CLASS} print:hidden`} style={controlStyle}>
           ← {SU_QR_BACK}

@@ -10,8 +10,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   renderCheckin, passageLine, keyVerseLine, passageVerseLine, stopLine, checkinPageUrl, greeting, practiceLine,
-  FULL_PASSAGE_HEADING, WELCOME_KIND, CheckinPack, MemberContext, MessageKind,
+  FULL_PASSAGE_HEADING, WELCOME_KIND, SITE_FOOTER_LINE, CheckinPack, MemberContext, MessageKind,
 } from '../templates.ts';
+import { bodyLines } from './textBody';
 import { loadCheckinPack, packFromSummary, passageFromSummary, PackSummaryRow, SUMMARY_COLUMNS } from '../packSource.ts';
 
 /** The first verses of the live 箴言 1 pack (bundled 和合本 + BSB, as stored in pack_summaries). */
@@ -67,6 +68,8 @@ describe('renderCheckin with the passage', () => {
       passageVerseLine(PRO1_VERSES[2]),
       '',
       stopLine(SIGNUP_ID),
+      '',
+      SITE_FOOTER_LINE,
     ]);
     expect(lines[4]).toBe(passageLine(REF));
     expect(lines[5]).toBe(keyVerseLine(PRO1_VERSES[1]));
@@ -89,7 +92,7 @@ describe('renderCheckin with the passage', () => {
       expect(text).toContain(passageLine(REF));
       expect(text).toContain(FULL_PASSAGE_HEADING);
     }
-    const lines = renderCheckin('tue', PACK, { name: 'Chris', signupId: null, practices: [] }).text.split('\n');
+    const lines = bodyLines(renderCheckin('tue', PACK, { name: 'Chris', signupId: null, practices: [] }).text);
     expect(lines[lines.length - 1]).toBe(passageVerseLine(PRO1_VERSES[2]));
   });
 
@@ -102,6 +105,7 @@ describe('renderCheckin with the passage', () => {
     expect(sms).toContain(keyVerseLine(PRO1_VERSES[1]));
     expect(sms).not.toContain(FULL_PASSAGE_HEADING);
     expect(sms).not.toContain(passageVerseLine(PRO1_VERSES[0]));
+    expect(sms).not.toContain(SITE_FOOTER_LINE);   // SMS stays short: no site line
   });
 
   it('a summary without verses renders exactly as before — no empty headings, no blank lines', () => {
@@ -109,8 +113,8 @@ describe('renderCheckin with the passage', () => {
       const text = renderCheckin(kind, OLD, MEMBER).text;
       expect(text).not.toContain('本周经文');
       expect(text).not.toContain(FULL_PASSAGE_HEADING);
-      expect(text.split('\n')).not.toContain('');
-      expect(text.split('\n')).toHaveLength(5);
+      expect(bodyLines(text)).not.toContain('');
+      expect(bodyLines(text)).toHaveLength(5);
     }
   });
 });

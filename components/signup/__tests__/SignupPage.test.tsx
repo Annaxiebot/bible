@@ -31,6 +31,8 @@ import {
 } from '../signupStrings';
 import { SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../../setup/setupStrings';
 import { PAPER_PAGE_CLASS } from '../../shared/paperStyles';
+import { PAPER_HOME_TEST_ID } from '../../shared/PaperHeader';
+import { LANDING_HASH } from '../../landing/landingRoute';
 
 const WENKAI_HEAD = 'stl-head';
 const PILL = 'stl-pill';
@@ -110,14 +112,16 @@ describe('SignupPage', () => {
     expect(screen.queryByTestId('su-name')).toBeNull();
   });
 
-  it('paper style like the landing on both steps and the thank-you: WenKai headings, gold pills, paper tokens', async () => {
+  it('paper style like the landing on both steps and the thank-you: brand link home, WenKai headings, gold pills, paper tokens', async () => {
     await renderWithPack();
+    expect(screen.getByTestId(PAPER_HOME_TEST_ID)).toHaveAttribute('href', LANDING_HASH);
     const page = screen.getByTestId('signup-page');
     expect(page.className).toContain(PAPER_PAGE_CLASS);
     expect(screen.getByRole('heading', { level: 1 }).className).toContain(WENKAI_HEAD);
     expect(screen.getByText(SU_PRACTICE_TITLE).className).toContain(WENKAI_HEAD);
     expect(screen.getByTestId('su-next').className).toContain(PILL);
     choosePractice();
+    expect(screen.getByTestId(PAPER_HOME_TEST_ID)).toHaveAttribute('href', LANDING_HASH);
     expect(screen.getByRole('heading', { level: 2 }).className).toContain(WENKAI_HEAD);
     expect(screen.getByTestId('su-submit').className).toContain(PILL);
     expect(screen.getByTestId('su-submit')).toHaveAttribute('type', 'submit');
@@ -126,6 +130,7 @@ describe('SignupPage', () => {
     fireEvent.click(screen.getByTestId('su-submit'));
     const thanks = await screen.findByTestId('signup-thanks');
     expect(within(thanks).getByText(SU_THANKS).className).toContain(WENKAI_HEAD);
+    expect(screen.getByTestId(PAPER_HOME_TEST_ID)).toHaveAttribute('href', LANDING_HASH);
     expect(page.innerHTML).not.toMatch(/\b(bg|text|border)-(slate|amber)-/);
   });
 
