@@ -7,8 +7,7 @@
  * (components/shared/Pill.tsx). Colours stay in stlTheme.css (tokens only).
  * Loaded once, app-wide, from index.tsx. 霞鹜文楷 LXGW WenKai bold comes from
  * index.html (jsDelivr, unicode-range slices: a page fetches only the glyphs
- * it shows); the regular weight is loaded on demand by the TV verse-font
- * experiment (components/studypack/verseFontExperiment.ts).
+ * it shows). Verses stay in the sans (owner, 2026-10-05, after a TV test).
  */
 :root {
   --stl-font-cjk-sans: -apple-system, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
@@ -33,13 +32,6 @@
 .stl-tv-head { font-family: var(--stl-font-tv-head); }
 /* The TV heading's quiet tail (passage ref, part counter) stays in the body face. */
 .stl-tv-tail { font-family: var(--stl-font-body); }
-
-/*
- * TEMPORARY verse-font experiment (2026-10-04, ADR-0003 "Verse font experiment"):
- * the 和合本 column in WenKai REGULAR (long text reads lighter than bold).
- * Remove with verseFontExperiment.ts, or make permanent there.
- */
-.stl-verse-wenkai { font-family: 'LXGW WenKai', var(--stl-font-cjk-sans); font-weight: 400; }
 
 /* ---- pills (CTAs): gold fill, ghost outline; ≥ 48px ---- */
 .stl-pill {

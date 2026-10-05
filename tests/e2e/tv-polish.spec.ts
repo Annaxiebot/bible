@@ -7,14 +7,11 @@
  * bilingual headings stay on one line; the hint, Ask AI pill and counter
  * never overlap; the key phrase is gold where it occurs; a quiet progress
  * bar tracks the counter. Headings are measured in 霞鹜文楷 WenKai bold once it
- * has loaded, and every slide is checked again with the TEMPORARY verse-font
- * experiment on (?verseFont=wenkai: the 和合本 column in WenKai regular).
+ * has loaded.
  */
 import { test, expect, Page } from '@playwright/test';
 import { ASK_AI_LABEL } from '../../components/studypack/tvHints';
-import { SAMPLE_PACK_ID } from '../../components/landing/landingRoute';
 import { openTV, goToSlide, DEMO_SLIDE, waitForWenKai } from './helpers/tv';
-import { VERSE_FONT_WENKAI_CLASS } from '../../components/studypack/verseFontExperiment';
 
 /** Overflow of the slide frame and its inner scroll areas, and how far text reaches below the pill's top. */
 async function slideFit(page: Page) {
@@ -33,17 +30,13 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 1920, height: 108
   test.describe(`TV slides at ${viewport.width}x${viewport.height}`, () => {
     test.use({ viewport });
 
-    for (const hashQuery of ['', '?verseFont=wenkai']) {
-      test(`no slide overflows the screen or runs under the Ask AI pill${hashQuery ? ' (verse font WenKai)' : ''}`, async ({ page }) => {
-        await openTV(page, hashQuery);
+    {
+      test('no slide overflows the screen or runs under the Ask AI pill', async ({ page }) => {
+        await openTV(page);
         await waitForWenKai(page, 700, '不要忧虑经文');
         for (let n = 1; n <= DEMO_SLIDE.total; n++) {
           if (n > 1) await page.keyboard.press('ArrowRight');
           await expect(page.getByTestId('tv-counter')).toHaveText(`${n}/${DEMO_SLIDE.total}`);
-          if (hashQuery && n === DEMO_SLIDE.scripture) {
-            await expect(page.locator(`.${VERSE_FONT_WENKAI_CLASS}`).first()).toBeVisible();
-            await waitForWenKai(page, 400, await page.locator(`.${VERSE_FONT_WENKAI_CLASS}`).first().innerText());
-          }
           await page.evaluate(() => document.fonts.ready.then(() => undefined)); // this slide's glyph slices
           const fit = await slideFit(page);
           expect(fit.overflow, `slide ${n} (${fit.heading}) scrolls`).toBeLessThanOrEqual(1);
@@ -94,28 +87,6 @@ test.describe('TV slide details', () => {
     expect(await family('[data-verse] > p')).not.toContain('LXGW WenKai');
   });
 
-  test('verse font experiment: ?verseFont=wenkai sets the 和合本 column in WenKai regular; F flips it with a 2 s label', async ({ page }) => {
-    await openTV(page, '?verseFont=wenkai');
-    await goToSlide(page, DEMO_SLIDE.scripture);
-    const cuv = page.locator('[data-verse] > p').first();
-    const bsb = page.locator('[data-verse] > p').nth(1);
-    await expect(cuv).toHaveClass(new RegExp(VERSE_FONT_WENKAI_CLASS));
-    await waitForWenKai(page, 400, await cuv.innerText());
-    expect(await cuv.evaluate(el => [getComputedStyle(el).fontFamily, getComputedStyle(el).fontWeight])).toEqual([expect.stringContaining('LXGW WenKai'), '400']);
-    expect(await bsb.evaluate(el => getComputedStyle(el).fontFamily)).not.toContain('LXGW WenKai');
-    await page.keyboard.press('f');
-    await expect(cuv).not.toHaveClass(new RegExp(VERSE_FONT_WENKAI_CLASS));
-    await expect(page.getByTestId('verse-font-label')).toHaveText('经文字体 Verse font: 黑体 Sans');
-    await expect(page.getByTestId('verse-font-label')).toHaveCount(0, { timeout: 4000 });
-    await expect(page.getByTestId('tv-counter')).toHaveText(`${DEMO_SLIDE.scripture}/${DEMO_SLIDE.total}`); // same slide
-  });
-
-  test('the query may also go before the hash: ?verseFont=wenkai#/pack/<id>', async ({ page }) => {
-    await page.goto(`./?verseFont=wenkai#/pack/${SAMPLE_PACK_ID}`);
-    await expect(page.getByTestId('tv-presentation')).toBeVisible();
-    await goToSlide(page, DEMO_SLIDE.scripture);
-    await expect(page.locator('[data-verse] > p').first()).toHaveClass(new RegExp(VERSE_FONT_WENKAI_CLASS));
-  });
 
   test('the key phrase is gold above the verses and where it occurs in 和合本 and BSB', async ({ page }) => {
     await openTV(page);

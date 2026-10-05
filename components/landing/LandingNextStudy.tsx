@@ -77,7 +77,7 @@ const SignupPanel: React.FC<{ state: PackState }> = ({ state }) => {
     <div data-testid="next-study-signup" className="ld-signup-panel">
       {pack?.leaderId ? (
         <>
-          <SignupQr url={currentSignupUrl(pack.id)} size="16rem" pack={pack} />
+          <SignupQr url={currentSignupUrl(pack.id)} size="16rem" pack={pack} tone="paper" />
           <p className="mt-4">{SU_QR_BODY}</p>
           <a href={signupHash(pack.id)} className="ld-text-link">{NEXT_SIGNUP_LINK}</a>
         </>

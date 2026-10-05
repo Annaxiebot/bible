@@ -7,7 +7,6 @@
  * Navigation: arrow keys / Space and touch swipe only (clicks are reserved
  * for text selection). "a", the Ask AI button, or selecting slide text opens
  * the Ask-AI overlay; Escape closes the overlay first, exits the app second.
- * "F" flips the 和合本 verse font (TEMPORARY experiment, verseFontExperiment.ts).
  */
 import { FIRST_SLIDE_HINT, FIRST_SLIDE_HINT_SHORT, ASK_AI_LABEL, TV_LOADING } from './tvHints';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -19,7 +18,6 @@ import { useTVNavigation } from './useTVNavigation';
 import { useSelectToAsk, selectionVerse } from './useSelectToAsk';
 import TVSlide from './TVSlide';
 import AskAIOverlay from './AskAIOverlay';
-import { useVerseFont } from './verseFontExperiment';
 
 /**
  * What the overlay should auto-send on open (one-click smart Ask AI):
@@ -143,7 +141,6 @@ const TVPresentationView: React.FC<TVPresentationViewProps> = ({ packId, onExit 
     setAskOpen(true);
   };
   useAskAIHotkey(askOpen, openAsk);
-  const verseFont = useVerseFont(!askOpen);
 
   // Selecting slide text with the mouse asks about it directly.
   const onSlideSelection = useCallback((text: string, verse: number | null) => {
@@ -187,14 +184,9 @@ const TVPresentationView: React.FC<TVPresentationViewProps> = ({ packId, onExit 
         {!error && !slide && (
           <p className="text-stl-text-2" style={{ fontSize: '4vh' }}>{TV_LOADING}</p>
         )}
-        {slide && pack && <TVSlide slide={slide} pack={pack} verseFont={verseFont.font} />}
+        {slide && pack && <TVSlide slide={slide} pack={pack} />}
       </div>
 
-      {verseFont.label && (
-        <div role="status" data-testid="verse-font-label" className="absolute top-[2vh] left-[2vw] text-stl-text-3" style={{ fontSize: '2.2vh' }}>
-          {verseFont.label}
-        </div>
-      )}
       {slides && (
         <TVChrome slideCount={slides.length} index={nav.index} onAskAI={openAsk} />
       )}

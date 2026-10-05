@@ -247,9 +247,9 @@ describe('getPackIdFromHash', () => {
     expect(getPackIdFromHash('#/pack/2026-10-02-matt6')).toBe('2026-10-02-matt6');
   });
 
-  it('ignores a query after the id (the verse-font experiment: #/pack/<id>?verseFont=wenkai)', () => {
-    expect(getPackIdFromHash('#/pack/local-2026-10-02-pro1?verseFont=wenkai')).toBe('local-2026-10-02-pro1');
-    expect(getPackIdFromHash('#/pack/?verseFont=wenkai')).toBeNull();
+  it('ignores a query after the id (#/pack/<id>?x=1)', () => {
+    expect(getPackIdFromHash('#/pack/local-2026-10-02-pro1?x=1')).toBe('local-2026-10-02-pro1');
+    expect(getPackIdFromHash('#/pack/?x=1')).toBeNull();
     expect(getPackIdFromHash('#/pack/a/b?x=1')).toBeNull();
   });
 
