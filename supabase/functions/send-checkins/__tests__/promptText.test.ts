@@ -7,7 +7,7 @@
  * the email template) strips every leading kind label from each half.
  */
 import { describe, it, expect } from 'vitest';
-import { promptWithoutKindLabel } from '../promptText.ts';
+import { promptWithoutKindLabel, halfWithoutKindLabel, collapseRepeatedKindLabel } from '../promptText.ts';
 import { renderCheckin, CheckinPack } from '../templates.ts';
 
 describe('promptWithoutKindLabel', () => {
@@ -38,5 +38,22 @@ describe('promptWithoutKindLabel', () => {
     };
     const lines = renderCheckin('weekend', pack, { name: 'n', signupId: 's', practices: [] }).text.split('\n');
     expect(lines[1]).toBe('回顾本周… · Looking back…');
+  });
+});
+
+describe('TV reflection labels (owner: "周末回顾：周末:…" showed two labels)', () => {
+  it('halfWithoutKindLabel drops the model\'s own label before the builder adds the app\'s', () => {
+    expect(halfWithoutKindLabel('周末:回顾本周,你在哪个时刻最清楚地听到智慧的呼唤?')).toBe('回顾本周,你在哪个时刻最清楚地听到智慧的呼唤?');
+    expect(halfWithoutKindLabel('Weekend: Looking back, when did you hear wisdom?')).toBe('Looking back, when did you hear wisdom?');
+    expect(halfWithoutKindLabel('没有标签的问题')).toBe('没有标签的问题');
+  });
+
+  it('collapseRepeatedKindLabel keeps the first label of each half and drops the repeat', () => {
+    const stored = '周末回顾：周末:回顾本周,你在哪个时刻最清楚地听到智慧的呼唤?你如何回应? · End of week: Weekend: Looking back, when this week did you most clearly hear wisdom calling? How did you respond?';
+    expect(collapseRepeatedKindLabel(stored)).toBe(
+      '周末回顾：回顾本周,你在哪个时刻最清楚地听到智慧的呼唤?你如何回应? · End of week: Looking back, when this week did you most clearly hear wisdom calling? How did you respond?',
+    );
+    expect(collapseRepeatedKindLabel('周二跟进：今天做了吗？ · Tuesday check-in: Did it happen?')).toBe('周二跟进：今天做了吗？ · Tuesday check-in: Did it happen?');
+    expect(collapseRepeatedKindLabel('隐私规则：反思默认私密')).toBe('隐私规则：反思默认私密');
   });
 });

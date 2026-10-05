@@ -14,6 +14,7 @@ import {
   chunkBalanced, chunkBody, estimateLines, KEY_PHRASE_RESERVE_ROWS,
   MAX_LIFE_MENU_ROWS_PER_SLIDE, MAX_VERSE_ROWS_PER_SLIDE, VERSE_LINE_EMS,
 } from './slideFit';
+import { collapseRepeatedKindLabel } from '../../supabase/functions/send-checkins/promptText';
 
 export type SectionKind =
   | 'title'
@@ -271,7 +272,9 @@ function sectionSlides(pack: StudyPack, section: PackSection): Slide[] {
     return partSlides(menuChunks, chunk => ({ kind, heading, rows: chunk }));
   }
   if (body && kind !== 'title') {
-    return partSlides(chunkBody(body), chunk => ({ kind, heading, body: chunk, headingZh }));
+    // Packs built before the assembler stripped the model's own label read "周末回顾：周末:…" — show one label.
+    const lines = kind === 'reflection' ? body.map(collapseRepeatedKindLabel) : body;
+    return partSlides(chunkBody(lines), chunk => ({ kind, heading, body: chunk, headingZh }));
   }
   return [{ kind, heading, body, rows, keyPhrase: section.keyPhrase, headingZh }];
 }

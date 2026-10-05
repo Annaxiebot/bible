@@ -16,6 +16,7 @@ import { makeLocalPackId } from '../studypack/packSource';
 import { getBookById } from '../../services/bibleBookData';
 import { GeneratedContent } from './generatedPack';
 import { SU_QR_BODY } from '../signup/signupStrings';
+import { halfWithoutKindLabel } from '../../supabase/functions/send-checkins/promptText';
 
 /** A passage inside one chapter (the editor's range change needs only this). */
 export interface VerseRange {
@@ -97,12 +98,17 @@ function keyPhraseLine(gen: GeneratedContent): string {
   return `${gen.keyPhrase.zh} ${gen.keyPhrase.en} (v.${gen.keyPhrase.verse})`;
 }
 
+/** The app's own label + the model's text without its own label ("周末回顾：" + "周末:回顾…" used to show both). */
+function labelled(prefix: { zh: string; en: string }, text: { zh: string; en: string }, mode: ContentLanguage): string {
+  return contentLine(mode, prefix.zh + halfWithoutKindLabel(text.zh), prefix.en + halfWithoutKindLabel(text.en));
+}
+
 function reflectionLines(mode: ContentLanguage, gen: GeneratedContent): string[] {
   const r = gen.reflection;
   return [
-    contentLine(mode, REFLECTION_PREFIX.tue.zh + r.tue.zh, REFLECTION_PREFIX.tue.en + r.tue.en),
-    contentLine(mode, REFLECTION_PREFIX.thu.zh + r.thu.zh, REFLECTION_PREFIX.thu.en + r.thu.en),
-    contentLine(mode, REFLECTION_PREFIX.weekend.zh + r.weekend.zh, REFLECTION_PREFIX.weekend.en + r.weekend.en),
+    labelled(REFLECTION_PREFIX.tue, r.tue, mode),
+    labelled(REFLECTION_PREFIX.thu, r.thu, mode),
+    labelled(REFLECTION_PREFIX.weekend, r.weekend, mode),
     PRIVACY_LINE,
   ];
 }

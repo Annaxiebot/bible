@@ -97,6 +97,16 @@ describe('assemblePack', () => {
     expect(closing.body![1]).toMatch(/^「.*」 · “.*”$/);
   });
 
+  it('a model reply that already starts with its own label gets one label, not two (owner: TV showed 周末回顾：周末:…)', () => {
+    const gen = validateGenerated(JOHN3_GENERATED, JOHN3_REQUEST.contentLanguage);
+    const labelled = { ...gen, reflection: { ...gen.reflection, weekend: { zh: '周末:你里面有什么改变？', en: 'Weekend: What changed in you?' } } };
+    const p = assemblePack(JOHN3_REQUEST, verses, labelled);
+    const weekend = p.sections.find(s => s.kind === 'reflection')!.body![2];
+    expect(weekend).toContain('周末回顾：你里面有什么改变？');
+    expect(weekend).not.toContain('周末:');
+    expect(weekend).not.toContain('Weekend:');
+  });
+
   // Known R3 exception: the sample pack is JSON data and cannot import
   // SU_QR_BODY, so the literal lives there too. This equality is the drift
   // guard — if either side changes, this test fails at test time.
