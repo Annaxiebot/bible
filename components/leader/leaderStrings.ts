@@ -62,3 +62,14 @@ export const LH_ERR_COUNTS = bilingualLine('读取报名与分享人数失败', 
 export function packCountsLine(signups: number, answers: number): string {
   return bilingualLine(`报名 ${signups} 人，分享 ${answers} 条`, `${signups} signed up, ${answers} shared`);
 }
+
+// ---- stop / resume one member, pause the study (ADR-0009) ----
+export const LD_STOP = bilingualLine('停止提醒', 'Stop emails');
+export const LD_RESUME = bilingualLine('恢复', 'Resume');
+export const LD_UNSUBSCRIBED = bilingualLine('已退订', 'Unsubscribed');
+export const LD_BY_MEMBER = bilingualLine('成员本人已退订', 'The member unsubscribed themselves');
+export const LD_BY_LEADER = bilingualLine('组长已停发', 'Stopped by the leader');
+export const LD_ERR_SUBSCRIPTION = bilingualLine('更新提醒状态失败', 'Could not update reminders');
+export const LD_PAUSE = bilingualLine('暂停本次查经的提醒', 'Pause this study\'s reminders');
+export const LD_PAUSED = bilingualLine('提醒已暂停（新报名的确认邮件照常发出）', 'Reminders paused (new sign-ups still get their confirmation)');
+export const LD_ERR_PAUSE = bilingualLine('更新暂停状态失败', 'Could not change the pause');

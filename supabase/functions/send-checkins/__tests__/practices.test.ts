@@ -80,7 +80,7 @@ describe('emails list every practice', () => {
       const lines = renderCheckin(kind, PACK, member).text.split('\n');
       expect(lines.slice(1, 4)).toEqual([practiceLine(A.practice), practiceLine(B.practice), practiceLine(C.practice)]);
       expect(lines[1].indexOf('你选的操练')).toBe(0);
-      expect(lines).toHaveLength(6);
+      expect(lines).toHaveLength(7);   // greeting, 3 practices, prompt, link, stop line
     }
   });
 

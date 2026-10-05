@@ -5,7 +5,7 @@
  * app) and adds branches in front: a bare root URL renders the lazy-loaded
  * Landing page; "#/setup" renders it with the AI setup dialog open; "#/new"
  * (and "#/new/<id>") the New study page; "#/signup/<id>", "#/qr/<id>", "#/leader" (home),
- * "#/leader/<id>" and "#/checkin/<signupId>" their pages. Keeps the touch-point in
+ * "#/leader/<id>", "#/checkin/<signupId>" and "#/checkin/<signupId>/stop" their pages. Keeps the touch-point in
  * index.tsx to a single wrapper line, same pattern as StudyPackGate. Also
  * the one place the sign-in claim hook is installed (claimLocalPacks).
  */
@@ -14,7 +14,7 @@ import StudyPackGate from '../studypack/StudyPackGate';
 import { resolveRootView, RootView } from './landingRoute';
 import { getSignupPackIdFromHash, getQrPackIdFromHash } from '../signup/signupRoute';
 import { getLeaderPackIdFromHash } from '../leader/leaderRoute';
-import { getCheckinFromHash } from '../checkin/checkinRoute';
+import { getCheckinFromHash, getCheckinStopFromHash } from '../checkin/checkinRoute';
 import { installClaimOnSignIn } from '../newstudy/claimLocalPacks';
 
 // One loader per page, shared by lazy() and preloadLandingPages().
@@ -26,6 +26,7 @@ const pageLoaders = {
   leader: () => import('../leader/LeaderPage'),
   leaderHome: () => import('../leader/LeaderHome'),
   checkin: () => import('../checkin/CheckinPage'),
+  checkinStop: () => import('../checkin/StopPage'),
 };
 
 /**
@@ -45,6 +46,7 @@ const QrPage = lazy(pageLoaders.qr);
 const LeaderPage = lazy(pageLoaders.leader);
 const LeaderHome = lazy(pageLoaders.leaderHome);
 const CheckinPage = lazy(pageLoaders.checkin);
+const StopPage = lazy(pageLoaders.checkinStop);
 
 const fallback = <div className="fixed inset-0 bg-stl-bg" />;
 
@@ -82,6 +84,10 @@ const LandingGate: React.FC<{ app: React.ReactElement }> = ({ app }) => {
   if (view === 'checkin') {
     const route = getCheckinFromHash(window.location.hash)!;
     return <Suspense fallback={fallback}><CheckinPage signupId={route.signupId} kind={route.kind} /></Suspense>;
+  }
+  if (view === 'checkinStop') {
+    const signupId = getCheckinStopFromHash(window.location.hash)!;
+    return <Suspense fallback={fallback}><StopPage signupId={signupId} /></Suspense>;
   }
   if (view !== 'landing' && view !== 'setup') return <StudyPackGate app={app} />;
   return (

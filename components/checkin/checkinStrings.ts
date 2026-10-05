@@ -35,3 +35,11 @@ export const CK_KIND_LABEL: Record<CheckinKind, string> = {
   thu: bilingual('周四跟进', 'Thursday check-in'),
   weekend: bilingual('周末回顾', 'Weekend reflection'),
 };
+
+// ---- stop / resume (ADR-0009) ----
+export const CK_STOP = bilingualLine('停止提醒', 'Stop these emails');
+export const CK_STOP_BUSY = bilingualLine('处理中…', 'Working…');
+export const CK_STOPPED = bilingualLine('已停止本次查经的提醒', 'Reminders for this study are stopped');
+export const CK_RESUME = bilingualLine('恢复', 'Resume');
+export const CK_RESUMED = bilingualLine('已恢复本次查经的提醒', 'Reminders for this study are back on');
+export const CK_ERR_STOP = bilingualLine('操作失败，请再试一次', 'That did not work, please try again');

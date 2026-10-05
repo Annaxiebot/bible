@@ -1,3 +1,8 @@
 [api]
 enabled = true
 port = 54321
+
+# The one-click unsubscribe POST (RFC 8058) comes from mail providers with no
+# JWT; every other send-checkins path checks its own caller (ADR-0009).
+[functions.send-checkins]
+verify_jwt = false

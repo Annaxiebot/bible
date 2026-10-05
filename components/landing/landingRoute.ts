@@ -11,7 +11,7 @@
 import { getPackIdFromHash } from '../studypack/packTypes';
 import { getSignupPackIdFromHash, getQrPackIdFromHash } from '../signup/signupRoute';
 import { getLeaderPackIdFromHash, isLeaderHomeHash } from '../leader/leaderRoute';
-import { getCheckinFromHash } from '../checkin/checkinRoute';
+import { getCheckinFromHash, getCheckinStopFromHash } from '../checkin/checkinRoute';
 
 /** Hash the landing's "Open the app" CTA sets. */
 export const APP_HASH = '#app';
@@ -44,7 +44,7 @@ export function getNewStudyPackIdFromHash(hash: string): string | null {
   return match ? match[1] : null;
 }
 
-export type RootView = 'landing' | 'setup' | 'app' | 'pack' | 'new' | 'signup' | 'qr' | 'leader' | 'leaderHome' | 'checkin';
+export type RootView = 'landing' | 'setup' | 'app' | 'pack' | 'new' | 'signup' | 'qr' | 'leader' | 'leaderHome' | 'checkin' | 'checkinStop';
 
 /** Map a location.hash to the view the root gate should render. */
 export function resolveRootView(hash: string): RootView {
@@ -54,6 +54,7 @@ export function resolveRootView(hash: string): RootView {
   if (getLeaderPackIdFromHash(hash)) return 'leader';
   if (isLeaderHomeHash(hash)) return 'leaderHome';
   if (getCheckinFromHash(hash)) return 'checkin';
+  if (getCheckinStopFromHash(hash)) return 'checkinStop';
   if (hash === '' || hash === '#') return 'landing';
   if (hash === SETUP_HASH) return 'setup';
   if (hash === NEW_STUDY_HASH || getNewStudyPackIdFromHash(hash)) return 'new';

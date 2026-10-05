@@ -1,7 +1,8 @@
 /**
  * checkinRoute.ts — the member's check-in page route · 跟进路由
  *
- * "#/checkin/<signupId>" or "#/checkin/<signupId>/<kind>". The signup id is
+ * "#/checkin/<signupId>" or "#/checkin/<signupId>/<kind>"; the member's stop
+ * page is "#/checkin/<signupId>/stop" (ADR-0009). The signup id is
  * a uuid: the member's unguessable token (ADR-0004 §7) — no uid, no pack id
  * in the URL. Pure module (mirrors signupRoute) so the edge function
  * templates, the page and the e2e specs derive one URL.
@@ -14,6 +15,9 @@ export const CHECKIN_KINDS: readonly CheckinKind[] = ['tue', 'thu', 'weekend'];
 
 const UUID = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}';
 const CHECKIN_HASH_RE = new RegExp(`^#\\/checkin\\/(${UUID})(?:\\/(tue|thu|weekend))?$`);
+/** Last path segment of the stop page. */
+export const CHECKIN_STOP_SEGMENT = 'stop';
+const CHECKIN_STOP_RE = new RegExp(`^#\\/checkin\\/(${UUID})\\/${CHECKIN_STOP_SEGMENT}$`);
 
 export interface CheckinRoute {
   signupId: string;
@@ -38,4 +42,15 @@ export function getCheckinFromHash(hash: string): CheckinRoute | null {
 /** Absolute check-in URL: origin + app base path + hash. */
 export function checkinUrl(signupId: string, kind: CheckinKind | undefined, origin: string, base: string): string {
   return `${origin}${base}${checkinHash(signupId, kind)}`;
+}
+
+/** "#/checkin/<uuid>/stop" — the member's stop page (send-checkins templates.stopPageUrl mirrors it). */
+export function checkinStopHash(signupId: string): string {
+  return `${CHECKIN_HASH_PREFIX}${signupId}/${CHECKIN_STOP_SEGMENT}`;
+}
+
+/** "#/checkin/<uuid>/stop" → the signup id, anything else → null. */
+export function getCheckinStopFromHash(hash: string): string | null {
+  const match = CHECKIN_STOP_RE.exec(hash);
+  return match ? match[1] : null;
 }

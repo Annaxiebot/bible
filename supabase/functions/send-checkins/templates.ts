@@ -6,7 +6,8 @@
  * (ADR-0003 §1). A message is: greeting, the member's practices (one line each), the
  * prompt (or the welcome line), then the feedback link — the in-app
  * check-in page keyed by the signup uuid, or the pack's Google Form
- * (prefilled) when the leader set one (ADR-0004 §7, §9). The kind is named
+ * (prefilled) when the leader set one (ADR-0004 §7, §9), then — for a real
+ * member — the stop line to #/checkin/<id>/stop (ADR-0009). The kind is named
  * once, in the subject; the prompt drops a repeated leading label
  * (promptText.ts, shared with the check-in page).
  */
@@ -50,11 +51,14 @@ export interface CheckinPack {
   prompts: Record<CheckinKind, string>;
   feedbackFormUrl: string | null;          // the leader's Google Form, when set (ADR-0004 §9)
   feedbackFormEntries: FeedbackFormEntries | null;
+  paused?: boolean;   // pack_summaries.checkins_paused; a public pack is never paused (ADR-0009)
 }
 
 export interface CheckinMessage {
   subject: string;
   text: string;
+  /** RFC 8058 one-click URL (index.ts adds it per member; senders.resendBody turns it into List-Unsubscribe headers). */
+  oneClickUrl?: string;
 }
 
 /** What a message is addressed to: the signup token (for the in-app link) and the committed practices. */
@@ -76,6 +80,16 @@ export function publicPackJsonUrl(packId: string, schemaVersion: number): string
 /** In-app check-in page for a signup token; mirrors components/checkin/checkinRoute.checkinHash. */
 export function checkinPageUrl(signupId: string, kind: CheckinKind | null): string {
   return kind ? `${SITE_ORIGIN}/#/checkin/${signupId}/${kind}` : `${SITE_ORIGIN}/#/checkin/${signupId}`;
+}
+
+/** The member's stop page; mirrors components/checkin/checkinRoute.checkinStopHash (pinned by a test). */
+export function stopPageUrl(signupId: string): string {
+  return `${SITE_ORIGIN}/#/checkin/${signupId}/stop`;
+}
+
+/** Last line of every member email: "不想再收到？退订 · Stop these emails: <url>". */
+export function stopLine(signupId: string): string {
+  return `不想再收到？退订${BILINGUAL_SEPARATOR}Stop these emails: ${stopPageUrl(signupId)}`;
 }
 
 /**
@@ -140,7 +154,7 @@ export function practiceLine(practice: string): string {
 
 const WELCOME_LINE = `周中我们会再提醒你${BILINGUAL_SEPARATOR}We will remind you mid-week`;
 
-/** Greeting, one line per practice (+ the own version), prompt (or the welcome line), link; subject is bilingual with the pack title. */
+/** Greeting, one line per practice (+ the own version), prompt (or the welcome line), link, stop line (members only); subject is bilingual with the pack title. */
 export function renderCheckin(kind: MessageKind, pack: CheckinPack, member: MemberContext): CheckinMessage {
   const label = KIND_LABEL[kind];
   const checkinKind = kind === WELCOME_KIND ? null : kind;
@@ -149,6 +163,7 @@ export function renderCheckin(kind: MessageKind, pack: CheckinPack, member: Memb
   if (member.ownVersion) lines.push(member.ownVersion);
   lines.push(kind === WELCOME_KIND ? WELCOME_LINE : promptWithoutKindLabel(pack.prompts[kind]));
   lines.push(feedbackUrl(pack, member, checkinKind));
+  if (member.signupId) lines.push(stopLine(member.signupId));
   return {
     subject: `${label.zh}${BILINGUAL_SEPARATOR}${label.en} — ${pack.title}`,
     text: lines.join('\n'),

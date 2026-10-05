@@ -50,6 +50,14 @@ export type FakeSignupRow = SignupInsert & { replaced_at: string | null };
 export const E2E_CHECKIN_NOTE = 'My own pratice: Diet';
 export const E2E_WEEKEND_LINE = '周末回顾：周末:回顾本周… · End of week: Weekend: Looking back…';
 
+/** The row the mocked checkin_context returns (subscribed; helpers/optout overrides unsubscribed_at). */
+export const E2E_CHECKIN_CONTEXT = {
+  pack_id: SAMPLE_PACK_ID, pack_title: '不要忧虑 Do Not Be Anxious', name: '小明', practice_area: '健康 Health',
+  practice_text: '固定的睡前程序 · Fixed wind-down', practice_note: E2E_CHECKIN_NOTE, practices: E2E_CHECKIN_PRACTICES,
+  reflection_lines: ['周二跟进：做了吗？ · Tue: did it happen?', '周四 · Thu', E2E_WEEKEND_LINE], feedback_form_url: null,
+  unsubscribed_at: null as string | null,
+};
+
 export interface BackendMocks {
   bodies: () => SignupInsert[]; welcomes: () => unknown[]; shares: () => unknown[];
   rows: () => FakeSignupRow[]; replaces: () => unknown[];
@@ -119,12 +127,7 @@ export async function mockBackend(page: Page, insertReply: { status: number; bod
     return route.fulfill({ status: 200, headers: json, body: JSON.stringify({ attempted: 1, results: [{ status: 'sent' }] }) });
   });
   await page.route(`**${E2E_SUPABASE_PATH}/rest/v1/rpc/${CHECKIN_CONTEXT_FN}**`, route => route.fulfill({
-    status: 200, headers: json,
-    body: JSON.stringify([{
-      pack_id: SAMPLE_PACK_ID, pack_title: '不要忧虑 Do Not Be Anxious', name: '小明', practice_area: '健康 Health',
-      practice_text: '固定的睡前程序 · Fixed wind-down', practice_note: E2E_CHECKIN_NOTE, practices: E2E_CHECKIN_PRACTICES,
-      reflection_lines: ['周二跟进：做了吗？ · Tue: did it happen?', '周四 · Thu', E2E_WEEKEND_LINE], feedback_form_url: null,
-    }]),
+    status: 200, headers: json, body: JSON.stringify([E2E_CHECKIN_CONTEXT]),
   }));
   await page.route(`**${E2E_SUPABASE_PATH}/rest/v1/rpc/${SHARE_ANSWER_FN}**`, route => {
     shares.push(route.request().postDataJSON());

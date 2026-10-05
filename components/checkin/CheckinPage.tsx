@@ -6,13 +6,16 @@
  * and two choices: keep it on this device (localStorage, no network) or
  * share it with the leader (share_checkin_answer RPC). Private by default
  * (ADR-0003 §17): nothing leaves the phone unless the member taps Share.
- * Every failure is a visible state.
+ * Every failure is a visible state. A small "停止提醒 · Stop these emails"
+ * link goes to the stop page; a stopped member sees that state with Resume
+ * (CheckinSubscription, ADR-0009).
  */
 import React, { useEffect, useState } from 'react';
 import { getSignupClient } from '../signup/signupClient';
 import { SU_ERR_NOT_CONFIGURED } from '../signup/signupStrings';
 import { textStyle, controlStyle, headingStyle, pageTitleStyle, primaryButtonClass, secondaryButtonClass, inputClass } from '../newstudy/newStudyStyles';
 import type { CheckinKind } from './checkinRoute';
+import { CheckinSubscription } from './StopPage';
 import {
   CheckinContext, fetchCheckinContext, shareAnswer, readPrivateAnswer, keepPrivateAnswer, promptFor, kindForToday,
 } from './checkinClient';
@@ -128,6 +131,7 @@ const CheckinPage: React.FC<{ signupId: string; kind: CheckinKind | null }> = ({
         {state.status === 'loading' && <p className="text-slate-400" style={textStyle}>{CK_LOADING}</p>}
         {state.status === 'failed' && <p role="alert" className="text-red-300" style={textStyle}>{state.message}</p>}
         {state.status === 'ready' && <AnswerForm signupId={signupId} kind={resolvedKind} context={state.context} />}
+        {state.status === 'ready' && <CheckinSubscription signupId={signupId} stopped={!!state.context.unsubscribed_at} />}
       </div>
     </div>
   );

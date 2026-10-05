@@ -10,7 +10,7 @@
 import { CheckinPack, FeedbackFormEntries, promptsFromPack, REFLECTION_LINE_INDEX, CHECKIN_KINDS } from './templates.ts';
 
 export const PACK_SUMMARIES_TABLE = 'pack_summaries';
-export const SUMMARY_COLUMNS = 'pack_id, leader_id, title, reflection_lines, feedback_form_url, feedback_form_entries';
+export const SUMMARY_COLUMNS = 'pack_id, leader_id, title, reflection_lines, feedback_form_url, feedback_form_entries, checkins_paused';
 
 export interface PackSummaryRow {
   pack_id: string;
@@ -19,6 +19,7 @@ export interface PackSummaryRow {
   reflection_lines: string[];
   feedback_form_url?: string | null;
   feedback_form_entries?: FeedbackFormEntries | null;
+  checkins_paused?: boolean | null;   // the leader's per-pack pause (ADR-0009)
 }
 
 export interface PackReaders {
@@ -43,6 +44,7 @@ export function packFromSummary(row: PackSummaryRow): CheckinPack {
     },
     feedbackFormUrl: row.feedback_form_url ?? null,
     feedbackFormEntries: row.feedback_form_entries ?? null,
+    paused: row.checkins_paused === true,
   };
 }
 
