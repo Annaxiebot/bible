@@ -14,7 +14,7 @@ import {
   BRAND_EN, BRAND_ZH_LEAD, BRAND_ZH_HIGHLIGHT, HERO_EYEBROW, HERO_SUB_ZH, HERO_SUB_EN,
   GROUP_CTA, NEW_STUDY_LINE, LOOP_LINE_ZH,
 } from './landingStrings';
-import LandingPill from './LandingPill';
+import Pill from '../shared/Pill';
 
 const CENTER = 750;
 const STATIC_RADII = [140, 210, 290, 380, 480, 590, 710] as const;
@@ -57,8 +57,8 @@ const LandingHero: React.FC = () => (
         <span className="ld-en">{HERO_SUB_EN}</span>
       </p>
       <div className="ld-ctas">
-        <LandingPill href={SAMPLE_PACK_HASH} label={GROUP_CTA} arrow testId="hero-sample" />
-        <LandingPill href={NEW_STUDY_HASH} label={NEW_STUDY_LINE} ghost testId="hero-new-study" />
+        <Pill href={SAMPLE_PACK_HASH} label={GROUP_CTA} arrow testId="hero-sample" />
+        <Pill href={NEW_STUDY_HASH} label={NEW_STUDY_LINE} ghost testId="hero-new-study" />
       </div>
       <p className="ld-loop-line">{LOOP_LINE_ZH}</p>
     </div>

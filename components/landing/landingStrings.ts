@@ -149,9 +149,3 @@ export const HONEST_NUMBERS = [
   { value: '2', zh: '译本', en: 'translations', note: '和合本 · BSB' },
   { value: OFFLINE_FIGURE, zh: '可用', en: 'works offline', note: '大屏与经文不需网络 · TV mode and verses need no network' },
 ] as const;
-
-/** Split a "中文 English" label at its first space so the pill can weight the halves; the accessible name stays the whole label. */
-export function splitLabel(label: string): { zh: string; en: string } {
-  const at = label.indexOf(' ');
-  return at < 0 ? { zh: label, en: '' } : { zh: label.slice(0, at), en: label.slice(at + 1) };
-}

@@ -16,6 +16,12 @@ export function bilingual(zh: string, en: string): string {
   return `${zh} ${en}`;
 }
 
+/** Split a "中文 English" label at its first space (inverse of bilingual()), e.g. so a pill can weight the halves. */
+export function splitLabel(label: string): { zh: string; en: string } {
+  const at = label.indexOf(' ');
+  return at < 0 ? { zh: label, en: '' } : { zh: label.slice(0, at), en: label.slice(at + 1) };
+}
+
 /** Separator between the two halves of a bilingual body line ("中文 · English"). */
 export const BILINGUAL_SEPARATOR = ' · ';
 

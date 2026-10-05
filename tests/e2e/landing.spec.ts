@@ -127,9 +127,9 @@ test.describe('Landing page', () => {
       }
       expect(await fontSizePx(page, '.ld-h2')).toBeGreaterThanOrEqual(MIN_TITLE_PX);
       expect(await fontSizePx(page, '.ld-card-title')).toBeGreaterThanOrEqual(MIN_TITLE_PX);
-      expect(await fontSizePx(page, '.ld-hero .ld-pill')).toBeGreaterThanOrEqual(MIN_CTA_PX);
+      expect(await fontSizePx(page, '.ld-hero .stl-pill')).toBeGreaterThanOrEqual(MIN_CTA_PX);
       expect(await fontSizePx(page, '.ld-headline')).toBeGreaterThanOrEqual(MIN_HEADLINE_PX[name]);
-      const targets = page.locator('.ld-pill:visible, .ld-nav-link:visible, [data-testid="landing-setup-line"]');
+      const targets = page.locator('.stl-pill:visible, .ld-nav-link:visible, [data-testid="landing-setup-line"]');
       expect(await targets.count()).toBeGreaterThan(8);
       for (const box of await targets.evaluateAll(els => els.map(el => el.getBoundingClientRect().height))) {
         expect(box).toBeGreaterThanOrEqual(MIN_TAP_PX);

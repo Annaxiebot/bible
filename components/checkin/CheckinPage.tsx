@@ -8,12 +8,18 @@
  * (ADR-0003 §17): nothing leaves the phone unless the member taps Share.
  * Every failure is a visible state. A small "停止提醒 · Stop these emails"
  * link goes to the stop page; a stopped member sees that state with Resume
- * (CheckinSubscription, ADR-0009).
+ * (CheckinSubscription, ADR-0009). Paper style like the landing
+ * (shared/paperStyles): WenKai heading, sans body, gold pills.
  */
 import React, { useEffect, useState } from 'react';
 import { getSignupClient } from '../signup/signupClient';
 import { SU_ERR_NOT_CONFIGURED } from '../signup/signupStrings';
-import { textStyle, controlStyle, headingStyle, pageTitleStyle, primaryButtonClass, secondaryButtonClass, inputClass } from '../newstudy/newStudyStyles';
+import { textStyle, headingStyle, pageTitleStyle } from '../newstudy/newStudyStyles';
+import {
+  PAPER_PAGE_CLASS, PAPER_COLUMN_CLASS, PAPER_HEAD_CLASS, PAPER_MUTED_CLASS, PAPER_ACCENT_CLASS, PAPER_ERROR_CLASS, PAPER_OK_CLASS,
+  PAPER_INPUT_CLASS, PAPER_LABEL_CLASS,
+} from '../shared/paperStyles';
+import Pill from '../shared/Pill';
 import type { CheckinKind } from './checkinRoute';
 import { CheckinSubscription } from './StopPage';
 import {
@@ -78,42 +84,37 @@ const AnswerForm: React.FC<{ signupId: string; kind: CheckinKind; context: Check
   return (
     <div data-testid="checkin-form" className="flex flex-col gap-5">
       <div data-testid="checkin-practice">
-        <p className="text-slate-400" style={textStyle}>{CK_PRACTICE_LABEL}</p>
+        <p className={PAPER_MUTED_CLASS} style={textStyle}>{CK_PRACTICE_LABEL}</p>
         {practiceItems(context).map((item, i) => (
           <div key={i} data-testid="checkin-practice-item" className="mt-2">
-            <p className="font-semibold text-amber-300" style={headingStyle}>{item.text}</p>
-            {item.area && <p className="text-slate-400" style={textStyle}>{item.area}</p>}
+            <p className={`font-semibold ${PAPER_ACCENT_CLASS}`} style={headingStyle}>{item.text}</p>
+            {item.area && <p className={PAPER_MUTED_CLASS} style={textStyle}>{item.area}</p>}
           </div>
         ))}
         {ownVersionLine(context) && (
-          <p data-testid="checkin-own-version" className="mt-2 font-semibold text-amber-300" style={headingStyle}>{ownVersionLine(context)}</p>
+          <p data-testid="checkin-own-version" className={`mt-2 font-semibold ${PAPER_ACCENT_CLASS}`} style={headingStyle}>{ownVersionLine(context)}</p>
         )}
       </div>
       <div data-testid="checkin-question">
-        <p className="text-slate-400" style={textStyle}>{CK_QUESTION_LABEL} · {CK_KIND_LABEL[kind]}</p>
-        <p className="text-slate-100" style={headingStyle}>{promptFor(context, kind)}</p>
+        <p className={PAPER_MUTED_CLASS} style={textStyle}>{CK_QUESTION_LABEL} · {CK_KIND_LABEL[kind]}</p>
+        <p className="text-stl-ink" style={headingStyle}>{promptFor(context, kind)}</p>
       </div>
-      <label className="flex flex-col gap-2 text-slate-400" style={textStyle}>
+      <label className={PAPER_LABEL_CLASS} style={textStyle}>
         <span>{CK_ANSWER}</span>
         <textarea data-testid="checkin-answer" rows={4} value={answer} onChange={e => { setAnswer(e.target.value); setDone(null); }}
-          className={inputClass} style={textStyle} />
+          className={PAPER_INPUT_CLASS} style={textStyle} />
       </label>
       <div className="flex flex-wrap gap-3">
-        <button type="button" data-testid="checkin-keep" onClick={keep} className={secondaryButtonClass} style={controlStyle}>
-          {CK_KEEP_PRIVATE}
-        </button>
-        <button type="button" data-testid="checkin-share" onClick={() => void share()} disabled={busy}
-          className={primaryButtonClass} style={controlStyle}>
-          {busy ? CK_SHARING : CK_SHARE}
-        </button>
+        <Pill ghost testId="checkin-keep" onClick={keep} label={CK_KEEP_PRIVATE} />
+        <Pill testId="checkin-share" onClick={() => void share()} disabled={busy} label={busy ? CK_SHARING : CK_SHARE} />
       </div>
-      {error && <p role="alert" className="text-red-300" style={textStyle}>{error}</p>}
+      {error && <p role="alert" className={PAPER_ERROR_CLASS} style={textStyle}>{error}</p>}
       {done && (
-        <p role="status" data-testid="checkin-done" className="text-emerald-300" style={textStyle}>
+        <p role="status" data-testid="checkin-done" className={PAPER_OK_CLASS} style={textStyle}>
           {done.kind === 'kept' ? CK_KEPT : CK_SHARED}
         </p>
       )}
-      <p className="text-slate-500" style={textStyle}>{CK_PRIVACY}</p>
+      <p className={PAPER_MUTED_CLASS} style={textStyle}>{CK_PRIVACY}</p>
     </div>
   );
 };
@@ -122,14 +123,14 @@ const CheckinPage: React.FC<{ signupId: string; kind: CheckinKind | null }> = ({
   const state = useCheckinContext(signupId);
   const resolvedKind = kind ?? kindForToday();
   return (
-    <div data-testid="checkin-page" className="fixed inset-0 overflow-y-auto bg-slate-950 text-slate-100">
-      <div className="mx-auto flex max-w-xl flex-col gap-6 px-4 py-8 sm:px-6">
+    <div data-testid="checkin-page" className={PAPER_PAGE_CLASS}>
+      <div className={PAPER_COLUMN_CLASS}>
         <header>
-          <h1 className="font-bold text-amber-300" style={pageTitleStyle}>{CK_TITLE}</h1>
-          {state.status === 'ready' && <p className="mt-2 text-slate-300" style={textStyle}>{state.context.pack_title}</p>}
+          <h1 className={PAPER_HEAD_CLASS} style={pageTitleStyle}>{CK_TITLE}</h1>
+          {state.status === 'ready' && <p className={`mt-2 ${PAPER_MUTED_CLASS}`} style={textStyle}>{state.context.pack_title}</p>}
         </header>
-        {state.status === 'loading' && <p className="text-slate-400" style={textStyle}>{CK_LOADING}</p>}
-        {state.status === 'failed' && <p role="alert" className="text-red-300" style={textStyle}>{state.message}</p>}
+        {state.status === 'loading' && <p className={PAPER_MUTED_CLASS} style={textStyle}>{CK_LOADING}</p>}
+        {state.status === 'failed' && <p role="alert" className={PAPER_ERROR_CLASS} style={textStyle}>{state.message}</p>}
         {state.status === 'ready' && <AnswerForm signupId={signupId} kind={resolvedKind} context={state.context} />}
         {state.status === 'ready' && <CheckinSubscription signupId={signupId} stopped={!!state.context.unsubscribed_at} />}
       </div>

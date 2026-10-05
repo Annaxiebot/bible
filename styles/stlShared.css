@@ -1,0 +1,62 @@
+/*
+ * stlShared.css — the scripturetolife font stacks, paper page shell and gold pill · 共用字体与按钮
+ *
+ * One source (R3) for what the landing, the member pages (#/signup, #/checkin,
+ * #/checkin/<id>/stop, #/qr) and TV mode share: the font-family stacks, the
+ * paper page's base type, the WenKai heading faces and the gold pill
+ * (components/shared/Pill.tsx). Colours stay in stlTheme.css (tokens only).
+ * Loaded once, app-wide, from index.tsx. 霞鹜文楷 LXGW WenKai bold comes from
+ * index.html (jsDelivr, unicode-range slices: a page fetches only the glyphs
+ * it shows); the regular weight is loaded on demand by the TV verse-font
+ * experiment (components/studypack/verseFontExperiment.ts).
+ */
+:root {
+  --stl-font-cjk-sans: -apple-system, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
+  --stl-font-body: 'Inter', var(--stl-font-cjk-sans);
+  /* Headings on paper: Latin in Fraunces, Chinese in 霞鹜文楷; the system serif while WenKai loads. */
+  --stl-font-latin-head: 'Fraunces', serif;
+  --stl-font-head: 'Fraunces', 'LXGW WenKai', serif;
+  --stl-font-zh-head: 'LXGW WenKai', serif;
+  /* TV headings: the English half keeps the TV's Latin face (Inter); Chinese falls through to WenKai. */
+  --stl-font-tv-head: 'Inter', 'LXGW WenKai', var(--stl-font-cjk-sans);
+  /* Scripture quotes on the landing: a Song face, not WenKai — rare verse glyphs would pull extra slices. */
+  --stl-font-scripture: 'Songti SC', 'STSong', 'Noto Serif SC', serif;
+  --stl-font-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+}
+
+/* ---- member pages on paper: sans body ≥ 20px; colours via Tailwind stl-* classes (paperStyles.ts) ---- */
+.stl-paper-page { font-family: var(--stl-font-body); font-size: 1.25rem; line-height: 1.6; }
+.stl-paper-page :focus-visible { outline: 3px solid var(--stl-gold-deep); outline-offset: 3px; }
+
+/* ---- WenKai heading faces ---- */
+.stl-head { font-family: var(--stl-font-head); font-weight: 700; letter-spacing: -0.01em; }
+.stl-tv-head { font-family: var(--stl-font-tv-head); }
+/* The TV heading's quiet tail (passage ref, part counter) stays in the body face. */
+.stl-tv-tail { font-family: var(--stl-font-body); }
+
+/*
+ * TEMPORARY verse-font experiment (2026-10-04, ADR-0003 "Verse font experiment"):
+ * the 和合本 column in WenKai REGULAR (long text reads lighter than bold).
+ * Remove with verseFontExperiment.ts, or make permanent there.
+ */
+.stl-verse-wenkai { font-family: 'LXGW WenKai', var(--stl-font-cjk-sans); font-weight: 400; }
+
+/* ---- pills (CTAs): gold fill, ghost outline; ≥ 48px ---- */
+.stl-pill {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 52px; padding: 0 1.5rem; border-radius: 999px;
+  background: var(--stl-cta); color: var(--stl-ink); border: 1.5px solid var(--stl-cta);
+  font: 600 1.25rem/1.2 var(--stl-font-body); white-space: nowrap; cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s, transform 0.2s;
+}
+.stl-pill:hover { background: var(--stl-cta-hover); border-color: var(--stl-cta-hover); }
+.stl-pill:active { transform: translateY(1px); }
+.stl-pill:disabled { opacity: 0.6; cursor: default; }
+.stl-pill-sm { min-height: 48px; padding: 0 1.125rem; font-size: 1.0625rem; }
+.stl-pill-ghost { background: transparent; color: var(--stl-ink); border-color: var(--stl-ink); }
+.stl-pill-ghost:hover { background: var(--stl-paper-2); border-color: var(--stl-ink); }
+.stl-pill-en { font-weight: 500; opacity: 0.8; }
+.stl-arrow { font-family: var(--stl-font-mono); }
+@media (prefers-reduced-motion: reduce) { .stl-pill { transition: none; } }
+/* Pills are controls: never printed (the #/qr page prints only title, QR and URL). */
+@media print { .stl-pill { display: none; } }

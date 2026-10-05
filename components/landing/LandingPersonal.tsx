@@ -14,7 +14,7 @@ import {
 } from './landingStrings';
 import { TRANSLATIONS } from '../studypack/principles';
 import LandingSection from './LandingSection';
-import LandingPill from './LandingPill';
+import Pill from '../shared/Pill';
 import { useBundledVerse, BilingualRef } from './LandingVerse';
 
 const ParallelVerse: React.FC = () => {
@@ -47,7 +47,7 @@ const LandingPersonal: React.FC = () => (
             </li>
           ))}
         </ul>
-        <p className="mt-9"><LandingPill href={APP_HASH} label={PERSONAL_CTA} arrow testId="personal-open" /></p>
+        <p className="mt-9"><Pill href={APP_HASH} label={PERSONAL_CTA} arrow testId="personal-open" /></p>
       </div>
       <ParallelVerse />
     </div>

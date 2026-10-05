@@ -8,11 +8,16 @@
  * "恢复 · Resume" button (resubscribe_signup). CheckinSubscription is the
  * small version the check-in page shows: a link here while subscribed, the
  * stopped state with Resume once stopped. Every failure is a visible line.
+ * Paper style like the landing (shared/paperStyles), gold pills.
  */
 import React, { useState } from 'react';
 import { getSignupClient } from '../signup/signupClient';
 import { SU_ERR_NOT_CONFIGURED } from '../signup/signupStrings';
-import { textStyle, controlStyle, headingStyle, pageTitleStyle } from '../newstudy/newStudyStyles';
+import { textStyle, headingStyle, pageTitleStyle } from '../newstudy/newStudyStyles';
+import {
+  PAPER_PAGE_CLASS, PAPER_COLUMN_CLASS, PAPER_HEAD_CLASS, PAPER_MUTED_CLASS, PAPER_ERROR_CLASS, PAPER_LINK_CLASS,
+} from '../shared/paperStyles';
+import Pill from '../shared/Pill';
 import { setMemberSubscription } from './checkinClient';
 import { checkinHash, checkinStopHash } from './checkinRoute';
 import { CK_TITLE, CK_STOP, CK_STOP_BUSY, CK_STOPPED, CK_RESUME, CK_RESUMED } from './checkinStrings';
@@ -48,34 +53,31 @@ export function useMemberSubscription(signupId: string, initial: Phase): Subscri
   return { phase, busy, error, set };
 }
 
-const bigButton = 'w-full rounded-lg bg-stl-gold px-8 py-4 font-semibold text-stl-bg hover:bg-stl-gold-hover disabled:opacity-60';
-const plainButton = 'rounded-lg border border-stl-border px-6 text-stl-text hover:border-stl-gold disabled:opacity-60';
-
 const ErrorLine: React.FC<{ error: string | null }> = ({ error }) =>
-  error ? <p role="alert" className="text-red-300" style={textStyle}>{error}</p> : null;
+  error ? <p role="alert" className={PAPER_ERROR_CLASS} style={textStyle}>{error}</p> : null;
 
 const StopPage: React.FC<{ signupId: string }> = ({ signupId }) => {
   const sub = useMemberSubscription(signupId, 'subscribed');
   const stopped = sub.phase === 'stopped';
   return (
-    <div data-testid="stop-page" className="fixed inset-0 overflow-y-auto bg-stl-bg text-stl-text">
-      <div className="mx-auto flex max-w-xl flex-col gap-6 px-4 py-8 sm:px-6">
-        <h1 className="font-bold text-stl-gold" style={pageTitleStyle}>{CK_TITLE}</h1>
+    <div data-testid="stop-page" className={PAPER_PAGE_CLASS}>
+      <div className={PAPER_COLUMN_CLASS}>
+        <h1 className={PAPER_HEAD_CLASS} style={pageTitleStyle}>{CK_TITLE}</h1>
         {stopped ? (
           <>
-            <p role="status" data-testid="stop-done" className="font-semibold text-stl-text" style={headingStyle}>{CK_STOPPED}</p>
-            <button type="button" data-testid="stop-resume" disabled={sub.busy} onClick={() => void sub.set(false)}
-              className={plainButton} style={controlStyle}>{sub.busy ? CK_STOP_BUSY : CK_RESUME}</button>
+            <p role="status" data-testid="stop-done" className="font-semibold text-stl-ink" style={headingStyle}>{CK_STOPPED}</p>
+            <Pill ghost testId="stop-resume" disabled={sub.busy} onClick={() => void sub.set(false)}
+              label={sub.busy ? CK_STOP_BUSY : CK_RESUME} className="self-start" />
           </>
         ) : (
           <>
-            {sub.phase === 'resumed' && <p role="status" data-testid="stop-resumed" className="text-stl-text-2" style={textStyle}>{CK_RESUMED}</p>}
-            <button type="button" data-testid="stop-button" disabled={sub.busy} onClick={() => void sub.set(true)}
-              className={bigButton} style={headingStyle}>{sub.busy ? CK_STOP_BUSY : CK_STOP}</button>
+            {sub.phase === 'resumed' && <p role="status" data-testid="stop-resumed" className={PAPER_MUTED_CLASS} style={textStyle}>{CK_RESUMED}</p>}
+            <Pill testId="stop-button" disabled={sub.busy} onClick={() => void sub.set(true)}
+              label={sub.busy ? CK_STOP_BUSY : CK_STOP} className="w-full" />
           </>
         )}
         <ErrorLine error={sub.error} />
-        <a href={checkinHash(signupId)} className="text-stl-text-2 underline underline-offset-4" style={textStyle}>← {CK_TITLE}</a>
+        <a href={checkinHash(signupId)} className={PAPER_LINK_CLASS} style={textStyle}>← {CK_TITLE}</a>
       </div>
     </div>
   );
@@ -87,14 +89,14 @@ export const CheckinSubscription: React.FC<{ signupId: string; stopped: boolean 
   if (sub.phase !== 'stopped') {
     return (
       <a href={checkinStopHash(signupId)} data-testid="checkin-stop-link"
-        className="text-stl-text-3 underline underline-offset-4" style={textStyle}>{CK_STOP}</a>
+        className={PAPER_LINK_CLASS} style={textStyle}>{CK_STOP}</a>
     );
   }
   return (
     <div data-testid="checkin-stopped" className="flex flex-wrap items-center gap-3">
-      <p className="text-stl-text-2" style={textStyle}>{CK_STOPPED}</p>
-      <button type="button" data-testid="checkin-resume" disabled={sub.busy} onClick={() => void sub.set(false)}
-        className={plainButton} style={controlStyle}>{sub.busy ? CK_STOP_BUSY : CK_RESUME}</button>
+      <p className={PAPER_MUTED_CLASS} style={textStyle}>{CK_STOPPED}</p>
+      <Pill ghost testId="checkin-resume" disabled={sub.busy} onClick={() => void sub.set(false)}
+        label={sub.busy ? CK_STOP_BUSY : CK_RESUME} />
       <ErrorLine error={sub.error} />
     </div>
   );

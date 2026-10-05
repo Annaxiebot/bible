@@ -1,10 +1,11 @@
 /*
- * landing.css — the landing's base, nav, pills, section shell and hero · 首页样式
+ * landing.css — the landing's base, nav, section shell and hero · 首页样式
  *
  * Style "醒目 Bold" (approved mockup, 2026-10): paper page, dark bands,
  * gold pills, concentric rings behind the headline. Colours come only from
- * the --stl-* tokens (styles/stlTheme.css); fonts are the --ld-* stacks
- * below. Section styles live in landingSections.css. Type uses rem/clamp
+ * the --stl-* tokens (styles/stlTheme.css); fonts are the --ld-* aliases
+ * below of the shared stacks, and the gold pill is the shared .stl-pill
+ * (styles/stlShared.css). Section styles live in landingSections.css. Type uses rem/clamp
  * so it scales with browser zoom; body ≥ 20px, tap targets ≥ 48px. The
  * rings are decoration: off under prefers-reduced-motion (ADR-0003 §16).
  */
@@ -16,15 +17,14 @@
   overflow-y: auto; overflow-x: hidden; -webkit-overflow-scrolling: touch;
   isolation: isolate;
   background: var(--stl-paper); color: var(--stl-ink);
-  --ld-cjk-sans: -apple-system, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Noto Sans SC', sans-serif;
-  --ld-body: 'Inter', var(--ld-cjk-sans);
-  /* Headings: Latin in Fraunces, Chinese in 霞鹜文楷; the system serif while WenKai loads. */
-  --ld-latin-head: 'Fraunces', serif;
-  --ld-head: 'Fraunces', 'LXGW WenKai', serif;
-  --ld-zh-head: 'LXGW WenKai', serif;
-  /* Scripture quotes: a Song face, not WenKai — rare verse glyphs would pull extra WenKai slices. */
-  --ld-scripture: 'Songti SC', 'STSong', 'Noto Serif SC', serif;
-  --ld-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+  /* Font stacks: aliases of the shared --stl-font-* stacks (styles/stlShared.css, one source). */
+  --ld-cjk-sans: var(--stl-font-cjk-sans);
+  --ld-body: var(--stl-font-body);
+  --ld-latin-head: var(--stl-font-latin-head);
+  --ld-head: var(--stl-font-head);
+  --ld-zh-head: var(--stl-font-zh-head);
+  --ld-scripture: var(--stl-font-scripture);
+  --ld-mono: var(--stl-font-mono);
   --ld-gutter: 1rem;
   --ld-radius: 22px;
   font-family: var(--ld-body); font-size: 1.25rem; line-height: 1.7;
@@ -60,27 +60,12 @@
   .ld-brand { display: none; }
   .ld-nav .ld-wrap { justify-content: space-between; gap: 2px; }
   .ld-nav-link { padding: 0 0.5rem; font-size: 1.0625rem; }
-  .ld-nav .ld-pill-en { display: none; }
+  .ld-nav .stl-pill-en { display: none; }
 }
 
-/* ---- pills (CTAs): gold fill, ghost outline; ≥ 48px ---- */
-.ld-pill {
-  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  min-height: 52px; padding: 0 1.5rem; border-radius: 999px;
-  background: var(--stl-cta); color: var(--stl-ink); border: 1.5px solid var(--stl-cta);
-  font: 600 1.25rem/1.2 var(--ld-body); white-space: nowrap; cursor: pointer;
-  transition: background-color 0.2s, border-color 0.2s, transform 0.2s;
-}
-.ld-pill:hover { background: var(--stl-cta-hover); border-color: var(--stl-cta-hover); }
-.ld-pill:active { transform: translateY(1px); }
-.ld-pill:disabled { opacity: 0.6; cursor: default; }
-.ld-pill-sm { min-height: 48px; padding: 0 1.125rem; font-size: 1.0625rem; }
-.ld-pill-ghost { background: transparent; color: var(--stl-ink); border-color: var(--stl-ink); }
-.ld-pill-ghost:hover { background: var(--stl-paper-2); border-color: var(--stl-ink); }
-.ld-dark .ld-pill-ghost { color: var(--stl-on-night); border-color: var(--stl-on-night-2); }
-.ld-dark .ld-pill-ghost:hover { background: var(--stl-ink); }
-.ld-pill-en { font-weight: 500; opacity: 0.8; }
-.ld-arrow { font-family: var(--ld-mono); }
+/* ---- pills: the shared .stl-pill (styles/stlShared.css); landing-only variants here ---- */
+.ld-dark .stl-pill-ghost { color: var(--stl-on-night); border-color: var(--stl-on-night-2); }
+.ld-dark .stl-pill-ghost:hover { background: var(--stl-ink); }
 
 /* ---- section shell: eyebrow → heading → lede ---- */
 .ld-band { position: relative; padding: 96px 0; scroll-margin-top: 72px; }
@@ -150,12 +135,12 @@ section.ld-dark::before {
 @media (max-width: 560px) {
   .ld-hero { padding: 56px 0 72px; }
   .ld-sub, .ld-sub-zh { font-size: 1.25rem; }
-  .ld-hero .ld-pill { width: 100%; }
+  .ld-hero .stl-pill { width: 100%; }
 }
 
 /* ---- reduced motion: rings static (the waves are hidden), no transitions ---- */
 @media (prefers-reduced-motion: reduce) {
   .ld-rings-wave { display: none; }
   .ld-rings-wave circle { animation: none; }
-  .ld-pill, .ld-card { transition: none; }
+  .ld-card { transition: none; }
 }

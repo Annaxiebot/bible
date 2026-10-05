@@ -152,19 +152,45 @@ describe('themed views use tokens only', () => {
     'components/landing/LandingNav.tsx', 'components/landing/LandingNextStudy.tsx',
     'components/landing/LandingNumbers.tsx', 'components/landing/LandingSection.tsx',
     'components/landing/LandingGroup.tsx', 'components/landing/LandingPersonal.tsx',
-    'components/landing/LandingPill.tsx', 'components/landing/LandingVerse.tsx',
+    'components/shared/Pill.tsx', 'components/landing/LandingVerse.tsx',
     'components/landing/LandingLeaderLink.tsx', 'components/landing/landing.css',
     'components/landing/landingSections.css',
     'components/studypack/TVPresentationView.tsx', 'components/studypack/TVSlide.tsx',
     'components/studypack/AskAIOverlay.tsx', 'components/studypack/AskAnswer.tsx',
     'components/studypack/VerseTooltip.tsx',
+    // member pages on paper (2026-10-04) + their shared styles
+    'components/shared/paperStyles.ts', 'styles/stlShared.css',
+    'components/signup/SignupPage.tsx', 'components/signup/SignupForm.tsx', 'components/signup/PracticeStep.tsx',
+    'components/signup/QrPage.tsx', 'components/signup/NoSignupNotice.tsx',
+    'components/checkin/CheckinPage.tsx', 'components/checkin/StopPage.tsx',
   ];
-  const LEGACY_CLASS = /\b(bg|text|border|outline|fill|stroke)-(black|white|slate|amber|yellow)(-\d+)?(\/\d+)?\b/;
+  // `print:` variants are exempt: the #/qr page prints black on white by design.
+  const LEGACY_CLASS = /(?<!print:)\b(bg|text|border|outline|fill|stroke)-(black|white|slate|amber|yellow)(-\d+)?(\/\d+)?\b/;
   const RAW_HEX = /#[0-9a-fA-F]{6}\b/;
 
   it.each(VIEW_FILES)('%s has no legacy slate/amber/white classes or raw hex colours', file => {
     const src = readFileSync(resolve(ROOT, file), 'utf8');
     expect(src.match(LEGACY_CLASS)?.[0]).toBeUndefined();
     expect(src.match(RAW_HEX)?.[0]).toBeUndefined();
+  });
+});
+
+describe('shared font stacks (R3: one source)', () => {
+  const SHARED_CSS = readFileSync(resolve(ROOT, 'styles/stlShared.css'), 'utf8');
+  const LANDING_CSS = readFileSync(resolve(ROOT, 'components/landing/landing.css'), 'utf8');
+
+  it('styles/stlShared.css names WenKai for the heading stacks; the TV stack keeps Inter first for the English half', () => {
+    expect(SHARED_CSS).toMatch(/--stl-font-head:\s*'Fraunces', 'LXGW WenKai'/);
+    expect(SHARED_CSS).toMatch(/--stl-font-tv-head:\s*'Inter', 'LXGW WenKai'/);
+  });
+
+  it('the landing aliases the shared stacks instead of repeating them', () => {
+    expect(LANDING_CSS).not.toContain("'LXGW WenKai'");
+    expect(LANDING_CSS).not.toContain("'Inter'");
+    expect(LANDING_CSS).toContain('var(--stl-font-head)');
+  });
+
+  it('index.tsx loads the shared stylesheet app-wide (member pages and TV mode use it, not only the landing)', () => {
+    expect(readFileSync(resolve(ROOT, 'index.tsx'), 'utf8')).toContain("import './styles/stlShared.css'");
   });
 });

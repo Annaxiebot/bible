@@ -12,6 +12,7 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import QrPage from '../QrPage';
+import { PAPER_PAGE_CLASS } from '../../shared/paperStyles';
 import { currentSignupUrl } from '../signupRoute';
 import { LEADER_HOME_HASH } from '../../leader/leaderRoute';
 import { saveLocalPack } from '../../studypack/packSource';
@@ -59,6 +60,14 @@ describe('QrPage', () => {
     expect(screen.queryByTestId('qr-demo')).toBeNull();
   });
 
+  it('on screen: paper style like the landing (WenKai title, gold Print pill)', async () => {
+    render(<QrPage packId={PACK_ID} />);
+    await screen.findByTestId('qr-pack');
+    expect(screen.getByTestId('qr-page').className).toContain(PAPER_PAGE_CLASS);
+    expect(screen.getByRole('heading', { level: 1 }).className).toContain('stl-head');
+    expect(screen.getByTestId('qr-print').className).toContain('stl-pill');
+  });
+
   it('Print calls window.print; print CSS hides the controls and the scan line, keeps title + QR + URL on white', async () => {
     const print = vi.spyOn(window, 'print').mockImplementation(() => undefined);
     render(<QrPage packId={PACK_ID} />);
@@ -78,6 +87,7 @@ describe('QrPage', () => {
     servePack(DEMO_PACK);
     render(<QrPage packId={PACK_ID} />);
     expect(await screen.findByTestId('qr-demo')).toHaveTextContent(SU_DEMO_LINE);
+    expect(screen.getByTestId('qr-demo').className).toBe('text-stl-ink');   // paper page: never the TV's light text
     expect(screen.queryByTestId('signup-qr')).toBeNull();
     expect(screen.queryByTestId('qr-print')).toBeNull();
   });

@@ -9,11 +9,26 @@ import { STORAGE_KEYS } from '../../../constants/storageKeys';
 
 export const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
-/** Open the sample pack in TV mode and wait for the title slide. */
-export async function openTV(page: Page) {
-  await page.goto(SAMPLE_PACK_HASH);
+/** Open the sample pack in TV mode (optionally with a query after the hash, e.g. "?verseFont=wenkai") and wait for the title slide. */
+export async function openTV(page: Page, hashQuery = '') {
+  await page.goto(`${SAMPLE_PACK_HASH}${hashQuery}`);
   await expect(page.getByTestId('tv-presentation')).toBeVisible();
   await expect(page.getByText('不要忧虑 Do Not Be Anxious')).toBeVisible();
+}
+
+/**
+ * Wait until the WenKai face of `weight` is registered and loaded for `sample`
+ * (the page's stylesheet must be applied: an empty load means it is not yet),
+ * then for every pending font. Fit checks must measure the real face, never
+ * the fallback (R14: no vacuous pass while the CDN font is still loading).
+ */
+export async function waitForWenKai(page: Page, weight: 400 | 700, sample: string) {
+  await expect.poll(() => page.evaluate(async ([w, text]) => {
+    const faces = await document.fonts.load(`${w} 40px "LXGW WenKai"`, text);
+    // Weight must match: asking for 400 with only the bold CSS applied returns the 700 face.
+    return faces.filter(f => f.status === 'loaded' && f.weight === String(w)).length;
+  }, [weight, sample] as const), { timeout: 20_000 }).toBeGreaterThan(0);
+  await page.evaluate(() => document.fonts.ready.then(() => undefined));
 }
 
 /**

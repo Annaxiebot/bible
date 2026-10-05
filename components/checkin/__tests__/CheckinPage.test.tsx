@@ -10,6 +10,7 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import CheckinPage from '../CheckinPage';
+import { PAPER_PAGE_CLASS } from '../../shared/paperStyles';
 import { CHECKIN_CONTEXT_FN, SHARE_ANSWER_FN } from '../../signup/signupSchema';
 import { privateAnswerKey, promptFor, kindForToday } from '../checkinClient';
 import {
@@ -48,6 +49,16 @@ describe('CheckinPage', () => {
     expect(screen.getByRole('button', { name: CK_SHARE })).toBeInTheDocument();
     expect(promptFor({ reflection_lines: [] }, 'thu')).toBe(CK_DEFAULT_QUESTION);
     expect(['tue', 'thu', 'weekend']).toContain(kindForToday());
+  });
+
+  it('paper style like the landing: WenKai h1, gold pills for Keep/Share, paper tokens only', async () => {
+    render(<CheckinPage signupId={ID} kind="tue" />);
+    await screen.findByTestId('checkin-form');
+    expect(screen.getByTestId('checkin-page').className).toContain(PAPER_PAGE_CLASS);
+    expect(screen.getByRole('heading', { level: 1 }).className).toContain('stl-head');
+    expect(screen.getByTestId('checkin-keep').className).toContain('stl-pill stl-pill-ghost');
+    expect(screen.getByTestId('checkin-share').className).toContain('stl-pill');
+    expect(screen.getByTestId('checkin-page').innerHTML).not.toMatch(/\b(bg|text|border)-(slate|amber)-/);
   });
 
   it('a new-style row shows every chosen practice with its own text and area; the own version is an extra labelled line', async () => {
