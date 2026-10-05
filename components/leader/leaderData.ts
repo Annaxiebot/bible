@@ -19,6 +19,7 @@ import { CHECKIN_KINDS } from '../checkin/checkinRoute';
 import { LD_ERR_LOAD, LD_TEST_FAILED } from './leaderStrings';
 import { chosenPractices, ChosenPractice } from '../../supabase/functions/send-checkins/practices';
 import { REPLACED_COLUMN, isLive, signupEmailKey } from '../../supabase/functions/send-checkins/replaced';
+import { UNSUBSCRIBED_COLUMN, UNSUBSCRIBED_BY_COLUMN, UnsubscribedBy } from '../../supabase/functions/send-checkins/optout';
 
 export { SEND_CHECKINS_FUNCTION };
 
@@ -37,6 +38,8 @@ export interface SignupRecord {
   practice_note: string | null;
   practices?: ChosenPractice[] | null;   // every chosen practice; absent/null on rows from before multi-select
   replaced_at?: string | null;           // set when a later sign-up (same pack + email) replaced this row
+  unsubscribed_at?: string | null;       // reminders stopped (ADR-0009)
+  unsubscribed_by?: UnsubscribedBy | null;
 }
 
 export interface AnswerRecord {
@@ -49,7 +52,7 @@ export interface AnswerRecord {
 }
 
 export const SIGNUP_COLUMNS =
-  `id, leader_id, name, phone, email, consent_checkins, created_at, practice_area, practice_text, practice2_area, practice2_text, practice_note, practices, ${REPLACED_COLUMN}`;
+  `id, leader_id, name, phone, email, consent_checkins, created_at, practice_area, practice_text, practice2_area, practice2_text, practice_note, practices, ${REPLACED_COLUMN}, ${UNSUBSCRIBED_COLUMN}, ${UNSUBSCRIBED_BY_COLUMN}`;
 export const ANSWER_COLUMNS = 'id, signup_id, leader_id, kind, answer, created_at';
 /** The kind a leader's test uses, whatever the weekday. */
 export const TEST_CHECKIN_KIND = 'tue';

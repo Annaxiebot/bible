@@ -6,11 +6,14 @@
  * (Twilio toll-free verification pending). Rows with neither, or without
  * consent, are skipped — the skip reasons are returned so the caller logs
  * them instead of dropping them silently. A row replaced by a later sign-up
- * (same pack + email, replaced.ts) is skipped as 'replaced'.
+ * (same pack + email, replaced.ts) is skipped as 'replaced'; a row the
+ * member or the leader stopped (optout.ts, ADR-0009) as 'unsubscribed' —
+ * which also keeps the welcome from going to it.
  */
 import type { MemberContext } from './templates.ts';
 import { practiceTexts, ownVersionLine, PracticeColumns } from './practices.ts';
 import { isLive } from './replaced.ts';
+import { isUnsubscribed } from './optout.ts';
 
 export type Channel = 'email' | 'sms';
 
@@ -27,6 +30,7 @@ export interface SignupRow extends PracticeColumns {
   practice_note: string | null;  // the member's own version, when written
   created_at?: string;           // ISO; the welcome window is checked against it
   replaced_at?: string | null;   // set when a later sign-up (same pack + email) replaced this row
+  unsubscribed_at?: string | null; // set when the member (stop page / one-click) or the leader stopped reminders
 }
 
 export interface Recipient {
@@ -35,7 +39,7 @@ export interface Recipient {
   to: string;
 }
 
-export type SkipReason = 'replaced' | 'no-consent' | 'no-contact' | 'sms-disabled';
+export type SkipReason = 'replaced' | 'unsubscribed' | 'no-consent' | 'no-contact' | 'sms-disabled';
 
 export interface Selection {
   recipients: Recipient[];
@@ -47,6 +51,8 @@ export function selectRecipients(rows: SignupRow[], options: { smsEnabled: boole
   for (const signup of rows) {
     if (!isLive(signup)) {
       selection.skipped.push({ signup, reason: 'replaced' });
+    } else if (isUnsubscribed(signup)) {
+      selection.skipped.push({ signup, reason: 'unsubscribed' });
     } else if (!signup.consent_checkins) {
       selection.skipped.push({ signup, reason: 'no-consent' });
     } else if (signup.email) {

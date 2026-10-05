@@ -8,6 +8,8 @@
  * Commitments and 反馈 Shared feedback (LeaderSections), CSV export with
  * practice + answers, and a dry-run test check-in to the leader's own
  * email; opening the page also refreshes the pack's pack_summaries row.
+ * Each row can stop/resume that member's reminders and the study can be
+ * paused (LeaderOptOut, ADR-0009).
  * A demo pack or someone else's pack shows a bilingual line instead
  * (ADR-0004); an unclaimed local pack is re-read once the sign-in claims it.
  * Every failure renders inline (role=alert).
@@ -26,6 +28,7 @@ import {
   SignupRecord, AnswerRecord, fetchSignups, fetchAnswers, foldReplaced, signupsToCsv, csvFilename, sendTestCheckin,
 } from './leaderData';
 import { Commitments, Feedback } from './LeaderSections';
+import { SubscriptionCell, PauseToggle } from './LeaderOptOut';
 import {
   LD_TITLE, LD_SIGNIN, LD_LOADING, LD_NONE, LD_NOT_OWNER, countLine, LD_COL_NAME, LD_COL_PHONE, LD_COL_EMAIL,
   LD_COL_CONSENT, LD_COL_TIME, LD_YES, LD_NO, LD_EXPORT, LD_TEST, LD_TEST_SENDING, LD_TEST_OK, LD_TEST_NO_EMAIL, LD_BACK,
@@ -74,7 +77,7 @@ const SignupTable: React.FC<{ rows: SignupRecord[] }> = ({ rows }) => (
       {rows.map(r => (
         <tr key={r.id} data-testid="leader-row" className="border-t border-slate-800 text-slate-100">
           <td className={cell}>{r.name}</td><td className={cell}>{r.phone ?? ''}</td><td className={cell}>{r.email ?? ''}</td>
-          <td className={cell}>{r.consent_checkins ? LD_YES : LD_NO}</td>
+          <td className={cell}>{r.consent_checkins ? LD_YES : LD_NO}<SubscriptionCell row={r} /></td>
           <td className={cell}>{new Date(r.created_at).toLocaleString()}</td>
         </tr>
       ))}
@@ -128,6 +131,7 @@ const OwnerView: React.FC<{ pack: StudyPack; leaderId: string }> = ({ pack, lead
         </button>
         <TestButton pack={pack} />
       </div>
+      <PauseToggle packId={pack.id} leaderId={leaderId} />
       {rows.rows.length === 0 ? <p className="text-slate-500" style={textStyle}>{LD_NONE}</p> : <SignupTable rows={rows.rows} />}
       {rows.rows.length > 0 && <Commitments rows={rows.rows} />}
       {rows.rows.length > 0 && <Feedback rows={rows.rows} answers={rows.answers} />}

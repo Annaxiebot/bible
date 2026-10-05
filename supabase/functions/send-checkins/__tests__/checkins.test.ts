@@ -39,7 +39,7 @@ describe('renderCheckin', () => {
   it('is greeting, the member\'s own practice, the prompt, then the personal check-in link — Chinese first on every line', () => {
     const m = renderCheckin('tue', PACK, MEMBER);
     const lines = m.text.split('\n');
-    expect(lines).toHaveLength(4);
+    expect(lines).toHaveLength(5);   // + the stop line (ADR-0009, optout.test.ts)
     expect(lines[0]).toBe(greeting('小明'));
     expect(lines[0].indexOf('平安')).toBeLessThan(lines[0].indexOf('Peace'));
     expect(lines[1]).toBe(practiceLine(MEMBER.practices[0]));
@@ -243,7 +243,7 @@ describe('loadCheckinPack (packSource)', () => {
 describe('replaced sign-ups in the function', () => {
   it('loadSignups reads replaced_at and asks only for live rows (replaced_at IS NULL)', () => {
     const source = readFileSync(path.resolve(__dirname, '../index.ts'), 'utf-8');
-    expect(source).toMatch(/const SIGNUP_COLUMNS = `[^`]*\$\{REPLACED_COLUMN\}`;/);
+    expect(source).toMatch(/const SIGNUP_COLUMNS = `[^`]*\$\{REPLACED_COLUMN\}, \$\{UNSUBSCRIBED_COLUMN\}`;/);
     const load = source.slice(source.indexOf('async function loadSignups('), source.indexOf('async function loadSignup('));
     expect(load).toContain(".is(REPLACED_COLUMN, null)");
   });

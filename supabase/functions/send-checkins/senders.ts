@@ -7,6 +7,7 @@
  * is swallowed.
  */
 import { CHECKIN_FROM_EMAIL, CheckinMessage } from './templates.ts';
+import { listUnsubscribeHeaders } from './optout.ts';
 
 export const RESEND_EMAILS_URL = 'https://api.resend.com/emails';
 
@@ -43,10 +44,15 @@ export function emailConfig(env: (name: string) => string): EmailConfig {
   return { apiKey: env('RESEND_API_KEY'), from: from || CHECKIN_FROM_EMAIL, replyTo: replyTo || null };
 }
 
-/** The Resend request body; `reply_to` is present only when configured. */
+/**
+ * The Resend request body; `reply_to` is present only when configured, and
+ * the List-Unsubscribe / List-Unsubscribe-Post headers (RFC 8058) only when
+ * the message carries a member's one-click URL.
+ */
 export function resendBody(config: EmailConfig, to: string, message: CheckinMessage): Record<string, unknown> {
   const body: Record<string, unknown> = { from: config.from, to: [to], subject: message.subject, text: message.text };
   if (config.replyTo) body.reply_to = config.replyTo;
+  if (message.oneClickUrl) body.headers = listUnsubscribeHeaders(message.oneClickUrl);
   return body;
 }
 

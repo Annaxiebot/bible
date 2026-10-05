@@ -5,11 +5,14 @@
  * signup uuid as the only credential. "Keep private" writes localStorage
  * on this device and never touches the network; "Share with leader" calls
  * share_checkin_answer() (SECURITY DEFINER copies pack/leader from the
- * signup row, database/signups-schema.sql). Errors carry bilingual labels.
+ * signup row, database/signups-schema.sql). Stop/Resume call
+ * unsubscribe_signup / resubscribe_signup with the same token
+ * (database/checkin-optout-schema.sql). Errors carry bilingual labels.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { CHECKIN_CONTEXT_FN, SHARE_ANSWER_FN } from '../signup/signupSchema';
-import { CK_ERR_LOAD, CK_ERR_SHARE, CK_DEFAULT_QUESTION } from './checkinStrings';
+import { CK_ERR_LOAD, CK_ERR_SHARE, CK_DEFAULT_QUESTION, CK_ERR_STOP } from './checkinStrings';
+import { UNSUBSCRIBE_FN, RESUBSCRIBE_FN } from '../../supabase/functions/send-checkins/optout';
 import { CheckinKind, CHECKIN_KINDS } from './checkinRoute';
 import type { ChosenPractice } from '../../supabase/functions/send-checkins/practices';
 import { promptWithoutKindLabel } from '../../supabase/functions/send-checkins/promptText';
@@ -24,6 +27,7 @@ export interface CheckinContext {
   practices?: ChosenPractice[] | null;   // every chosen practice; null on rows from before multi-select
   reflection_lines: string[];
   feedback_form_url: string | null;
+  unsubscribed_at?: string | null;       // set when this person's reminders for the study are stopped (ADR-0009)
 }
 
 /** Which reflection line carries each kind's prompt (same as the edge function's REFLECTION_LINE_INDEX). */
@@ -46,6 +50,13 @@ export async function fetchCheckinContext(client: SupabaseClient, signupId: stri
 export async function shareAnswer(client: SupabaseClient, signupId: string, kind: CheckinKind, answer: string): Promise<void> {
   const { error } = await client.rpc(SHARE_ANSWER_FN, { p_signup_id: signupId, p_kind: kind, p_answer: answer });
   if (error) throw new Error(`${CK_ERR_SHARE}: ${error.message}`);
+}
+
+/** Stop (true) or resume (false) this person's reminders for the study. Throws when the RPC fails or the token matches nothing. */
+export async function setMemberSubscription(client: SupabaseClient, signupId: string, stop: boolean): Promise<void> {
+  const { data, error } = await client.rpc(stop ? UNSUBSCRIBE_FN : RESUBSCRIBE_FN, { p_id: signupId });
+  if (error) throw new Error(`${CK_ERR_STOP}: ${error.message}`);
+  if (data !== true) throw new Error(CK_ERR_LOAD);
 }
 
 // ---- private answers: this device only ----

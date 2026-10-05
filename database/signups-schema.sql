@@ -215,8 +215,8 @@ REVOKE ALL ON FUNCTION public.share_checkin_answer(UUID, TEXT, TEXT) FROM PUBLIC
 GRANT EXECUTE ON FUNCTION public.share_checkin_answer(UUID, TEXT, TEXT) TO anon, authenticated;
 
 -- checkin_context(p_signup_id) — what the check-in page may know about its
--- token — lives in database/signup-practices-schema.sql (apply it after this
--- file); it returns the practices column that file adds.
+-- token — lives in database/checkin-optout-schema.sql (apply it after this
+-- file); it returns the practices and unsubscribed_at columns.
 
 -- =====================================================
 -- SCHEDULE — pg_cron calls the send-checkins edge function via pg_net
@@ -230,8 +230,10 @@ GRANT EXECUTE ON FUNCTION public.share_checkin_answer(UUID, TEXT, TEXT) TO anon,
 --    leaderId; re-import the local john3 pack while signed in to own it).
 --    Then open #/leader/<packId> once (or show its QR) so pack_summaries
 --    holds the pack's check-in text; the sender has nothing else to read.
--- 1. Deploy the function:
---      supabase functions deploy send-checkins
+-- 1. Deploy the function (verify_jwt off — pinned in supabase/config.toml; the
+--    one-click unsubscribe POST from mail providers carries no JWT, and every
+--    other path checks its own caller, ADR-0009):
+--      supabase functions deploy send-checkins --no-verify-jwt
 -- 2. Secrets (dashboard → Edge Functions → Secrets, or the CLI):
 --      supabase secrets set RESEND_API_KEY=re_...            # resend.com → API keys
 --      supabase secrets set CHECKIN_SMS_ENABLED=0            # flip to 1 after Twilio toll-free verification
@@ -240,6 +242,8 @@ GRANT EXECUTE ON FUNCTION public.share_checkin_answer(UUID, TEXT, TEXT) TO anon,
 --      supabase secrets set CHECKIN_FROM='Scripture to Life <checkins@scripturetolife.org>'   # optional; email From
 --      supabase secrets set CHECKIN_REPLY_TO='...@agentmail.to'                                # optional; email Reply-To
 --      supabase secrets set CHECKIN_CRON_SECRET=<long random>    # trusted-caller header for pg_cron / owner shell
+--      supabase secrets set CHECKIN_PAUSED=1      # site-wide pause: nothing is sent (scheduled, manual, welcome)
+--      supabase secrets set CHECKIN_PAUSED=0      # resume; per-pack pause is the leader page's toggle (ADR-0009)
 --    SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are injected automatically
 --    (the function uses them only for its own DB client, never to trust a caller).
 -- 3. Verify the sending domain in Resend (DNS: SPF + DKIM) so mail from

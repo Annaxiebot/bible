@@ -13,7 +13,7 @@ import LeaderPage from '../LeaderPage';
 import { signupsToCsv, csvFilename, SignupRecord, AnswerRecord, TEST_CHECKIN_KIND } from '../leaderData';
 import {
   LD_TITLE, LD_SIGNIN, LD_NONE, LD_NOT_OWNER, countLine, LD_YES, LD_NO, LD_EXPORT, LD_TEST, LD_TEST_OK, LD_TEST_FAILED,
-  LD_COMMITMENTS, LD_FEEDBACK, answeredLine, areaCountLine,
+  LD_COMMITMENTS, LD_FEEDBACK, answeredLine, areaCountLine, LD_STOP, LD_RESUME, LD_BY_MEMBER, LD_PAUSE,
 } from '../leaderStrings';
 import { SU_ERR_NOT_CONFIGURED, SU_DEMO_LINE, SU_SUMMARY_FAILED } from '../../signup/signupStrings';
 import { packSummaryFrom } from '../../signup/packSummary';
@@ -37,7 +37,8 @@ vi.mock('../../../services/supabase', () => ({
   get supabase() {
     return configured
       ? {
-        from: (table: string) => (table === 'pack_summaries' ? { upsert: upsertMock }
+        from: (table: string) => (table === 'pack_summaries'
+          ? { upsert: upsertMock, select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { checkins_paused: false }, error: null }) }) }) }
           : table === 'checkin_answers' ? { select: () => ({ eq: answersEqMock }) } : { select: () => ({ eq: eqMock }) }),
         functions: { invoke: invokeMock },
       }
@@ -219,6 +220,17 @@ describe('LeaderPage', () => {
     const body = invokeMock.mock.calls[0][1].body;
     expect(body).toEqual({ pack_id: PACK_ID, kind: TEST_CHECKIN_KIND, test_to: 'lead@example.org', test_name: 'lead@example.org' });
     expect(body.pack).toBeUndefined();  // text comes from pack_summaries, never the request
+  });
+
+  it('each live roster row carries its Stop/Unsubscribed cell, and the study has the pause switch (ADR-0009)', async () => {
+    signIn();
+    orderMock.mockResolvedValue({ data: [ROWS[0], { ...ROWS[1], unsubscribed_at: '2026-10-03T00:00:00Z', unsubscribed_by: 'member' }], error: null });
+    render(<LeaderPage packId={PACK_ID} />);
+    const rows = within(await screen.findByTestId('leader-table')).getAllByTestId('leader-row');
+    expect(within(rows[0]).getByRole('button', { name: LD_STOP })).toBeInTheDocument();
+    expect(within(rows[1]).getByTestId('leader-unsubscribed-by')).toHaveTextContent(LD_BY_MEMBER);
+    expect(within(rows[1]).queryByRole('button', { name: LD_RESUME })).toBeNull();
+    expect(screen.getByRole('switch', { name: LD_PAUSE })).toBeInTheDocument();
   });
 
   it('a failed test call is shown as an alert', async () => {

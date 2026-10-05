@@ -21,27 +21,7 @@ ALTER TABLE study_signups DROP CONSTRAINT IF EXISTS study_signups_practices_arra
 ALTER TABLE study_signups ADD CONSTRAINT study_signups_practices_array
   CHECK (practices IS NULL OR jsonb_typeof(practices) = 'array');
 
--- What the check-in page may know about its token: the pack title, the
--- member's first name and commitment (every chosen practice + the legacy
--- first-practice columns), the three check-in prompt lines and the optional
--- feedback form. Never phone or email. The return type changed (practices
--- added), which CREATE OR REPLACE cannot do, hence the DROP first.
-DROP FUNCTION IF EXISTS public.checkin_context(UUID);
-CREATE FUNCTION public.checkin_context(p_signup_id UUID)
-RETURNS TABLE (
-  pack_id TEXT, pack_title TEXT, name TEXT,
-  practice_area TEXT, practice_text TEXT, practice_note TEXT,
-  reflection_lines TEXT[], feedback_form_url TEXT,
-  practices JSONB
-)
-LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
-  SELECT s.pack_id, s.pack_title, s.name,
-         s.practice_area, s.practice_text, s.practice_note,
-         COALESCE(p.reflection_lines, '{}'), p.feedback_form_url,
-         s.practices
-  FROM study_signups s
-  LEFT JOIN pack_summaries p ON p.pack_id = s.pack_id
-  WHERE s.id = p_signup_id;
-$$;
-REVOKE ALL ON FUNCTION public.checkin_context(UUID) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.checkin_context(UUID) TO anon, authenticated;
+-- checkin_context(p_signup_id) — what the check-in page may know about its
+-- token, now including practices — lives in database/checkin-optout-schema.sql
+-- (apply it after this file); its return type grew again there
+-- (unsubscribed_at), so it has exactly one definition.
