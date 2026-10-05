@@ -25,7 +25,7 @@ import { SEND_CHECKINS_FUNCTION } from '../../../../components/signup/signupSche
 const ID = '7d4e8b2a-1c3f-4a5b-9e6d-0f1a2b3c4d5e';
 const BASE = 'https://lafipstknsudjtfxbkkn.supabase.co';
 const PACK: CheckinPack = {
-  id: 'p1', title: 'T', leaderId: 'L', prompts: { tue: 'a · A', thu: 'b · B', weekend: 'c · C' }, feedbackFormUrl: null, feedbackFormEntries: null,
+  id: 'p1', title: 'T', leaderId: 'L', prompts: { tue: 'a · A', thu: 'b · B', weekend: 'c · C' },
 };
 const row = (over: Partial<SignupRow>): SignupRow => ({
   id: ID, pack_id: 'p1', leader_id: 'L', name: 'N', phone: null, email: 'n@example.org', consent_checkins: true,

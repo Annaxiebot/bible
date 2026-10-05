@@ -9,6 +9,7 @@ import {
   StudyPack,
   PackVerse,
   MAX_VERSES_PER_SLIDE,
+  LEGACY_PACK_KEYS,
 } from '../packTypes';
 import {
   MAX_BODY_LINES_PER_SLIDE, MAX_LIFE_MENU_ROWS_PER_SLIDE, VERSE_LINE_EMS, estimateBodyLines,
@@ -23,6 +24,16 @@ function loadRealPack(): StudyPack {
 }
 
 describe('parseStudyPack', () => {
+  it('accepts an old pack carrying Google Forms keys (removed 2026-10-05) and drops them; its slides link no form', () => {
+    const raw = { ...loadRealPack(), feedbackFormUrl: 'https://docs.google.com/forms/d/e/old/viewform', feedbackFormEntries: { name: 'bad id' } };
+    const pack = parseStudyPack(raw);
+    expect([...LEGACY_PACK_KEYS]).toEqual(['feedbackFormUrl', 'feedbackFormEntries']);
+    for (const key of LEGACY_PACK_KEYS) expect(Object.keys(pack)).not.toContain(key);
+    expect(buildSlides(pack).length).toBeGreaterThan(0);
+    expect(JSON.stringify(buildSlides(pack))).not.toContain('docs.google.com');
+  });
+
+
   it('parses the shipped 2026-10-02-matt6 pack', () => {
     const pack = loadRealPack();
     expect(pack.id).toBe('2026-10-02-matt6');

@@ -106,8 +106,10 @@ GRANT EXECUTE ON FUNCTION public.leader_set_signup_subscription(UUID, BOOLEAN) T
 
 -- What the check-in page may know about its token: the pack title, the
 -- member's first name and commitment (every chosen practice + the legacy
--- first-practice columns), the three check-in prompt lines, the optional
--- feedback form, and whether reminders are stopped. Never phone or email.
+-- first-practice columns), the three check-in prompt lines, the retired
+-- feedback_form_url (Google Forms removed 2026-10-05, ADR-0004 §9; the app
+-- ignores it — removing it is the owner-approved later cleanup), and
+-- whether reminders are stopped. Never phone or email.
 -- Single definition (moved here from signup-practices-schema.sql); the
 -- return type changed (unsubscribed_at added), which CREATE OR REPLACE
 -- cannot do, hence the DROP first.

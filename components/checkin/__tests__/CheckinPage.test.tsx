@@ -25,7 +25,6 @@ const CONTEXT = {
   pack_id: 'local-2026-10-02-jhn3', pack_title: '祂必兴旺 He Must Increase', name: '小明',
   practice_area: '健康 Health', practice_text: '睡前程序 · Wind-down', practice_note: null,
   reflection_lines: ['周二跟进：做了吗？ · Tue: did it happen?', '周四跟进 · Thu', '周末回顾 · Weekend', '隐私 · privacy'],
-  feedback_form_url: null,
 };
 
 describe('CheckinPage', () => {

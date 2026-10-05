@@ -8,7 +8,6 @@
  */
 
 import { currentSignupUrl } from '../signup/signupRoute';
-import { isGoogleFormUrl, isFormEntryId } from './feedbackForm';
 import { ContentLanguage, CONTENT_LANGUAGES, isContentLanguage, LEGACY_CONTENT_LANGUAGE } from './principles';
 import {
   chunkBalanced, chunkBody, estimateLines, KEY_PHRASE_RESERVE_ROWS,
@@ -67,13 +66,11 @@ export interface PackSection {
 export const PACK_SCHEMA_VERSION = 2;
 
 /**
- * Prefill field ids of the leader's optional Google Form ("entry.123456");
- * without them the plain form is linked (ADR-0004 §9).
+ * Keys an older pack may still carry from the removed Google Forms feature
+ * (ADR-0004 §9, removed 2026-10-05): parsed without complaint and dropped,
+ * so nothing links to a form and the next save no longer writes them.
  */
-export interface FeedbackFormEntries {
-  name?: string;
-  practice?: string;
-}
+export const LEGACY_PACK_KEYS = ['feedbackFormUrl', 'feedbackFormEntries'] as const;
 
 export interface StudyPack {
   id: string;
@@ -82,8 +79,6 @@ export interface StudyPack {
   passageRef: string;  // e.g. "马太福音 6:25–34 · Matthew 6:25–34"
   enVersion: string;   // display label of the English translation, e.g. "BSB"
   leaderId?: string;   // Supabase auth uid of the owning leader; absent = demo pack, no sign-up
-  feedbackFormUrl?: string;              // when set, check-in links point at this Google Form instead of #/checkin
-  feedbackFormEntries?: FeedbackFormEntries;
   contentLanguage?: ContentLanguage;     // how much English the generated lines carry; absent = legacy "中文 · English"
   updatedAt?: string;  // ISO time of the leader's last save (packSync newer-wins, ADR-0006); absent on older packs
   sections: PackSection[];
@@ -192,26 +187,10 @@ export function parseStudyPack(raw: unknown): StudyPack {
   if (p.contentLanguage !== undefined && !isContentLanguage(p.contentLanguage)) {
     throw new Error(`StudyPack contentLanguage must be one of ${CONTENT_LANGUAGES.join(' | ')}, got: ${String(p.contentLanguage)}`);
   }
-  parseFeedbackForm(p);
   const sections = p.sections.map(parseSection);
-  return { ...(p as StudyPack), sections };
-}
-
-/** The optional Google Form: a docs.google.com/forms URL; entry ids, when present, "entry.<digits>". */
-function parseFeedbackForm(p: Partial<StudyPack>): void {
-  if (p.feedbackFormUrl !== undefined && !isGoogleFormUrl(p.feedbackFormUrl)) {
-    throw new Error('StudyPack feedbackFormUrl must be a https://docs.google.com/forms/... URL');
-  }
-  if (p.feedbackFormEntries === undefined) return;
-  if (typeof p.feedbackFormEntries !== 'object' || p.feedbackFormEntries === null) {
-    throw new Error('StudyPack feedbackFormEntries must be an object');
-  }
-  for (const key of ['name', 'practice'] as const) {
-    const id = p.feedbackFormEntries[key];
-    if (id !== undefined && !isFormEntryId(id)) {
-      throw new Error(`StudyPack feedbackFormEntries.${key} must look like "entry.123456"`);
-    }
-  }
+  const kept: Record<string, unknown> = { ...p };
+  for (const key of LEGACY_PACK_KEYS) delete kept[key];
+  return { ...(kept as unknown as StudyPack), sections };
 }
 
 /**

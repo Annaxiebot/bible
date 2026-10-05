@@ -28,7 +28,6 @@ import { SU_ERR_NOT_CONFIGURED, SU_PACK_ASK_LEADER, SU_PACK_INVALID } from '../s
 const LOCAL_ID = 'local-2026-10-02-pro1';
 const LEADER = 'uid-lead';
 const MENU = [{ area: '健康 Health', practice: '早睡 · Sleep early' }];
-const FORM = 'https://docs.google.com/forms/d/e/x/viewform';
 const FULL: StudyPack = {
   id: LOCAL_ID, title: '箴言 Proverbs 1', date: '2026-10-02', passageRef: '箴言 1 · Proverbs 1', enVersion: 'BSB', leaderId: LEADER,
   sections: [
@@ -36,7 +35,7 @@ const FULL: StudyPack = {
     { kind: 'lifeMenu', heading: '生活 Life', rows: MENU },
   ],
 };
-const PROJECTION = { id: LOCAL_ID, title: FULL.title, passageRef: FULL.passageRef, leaderId: LEADER, lifeMenu: MENU, feedbackFormUrl: null, feedbackFormEntries: null };
+const PROJECTION = { id: LOCAL_ID, title: FULL.title, passageRef: FULL.passageRef, leaderId: LEADER, lifeMenu: MENU };
 
 async function failure(promise: Promise<unknown>): Promise<SignupPackError> {
   const err = await promise.then(() => null, (e: unknown) => e);
@@ -71,7 +70,7 @@ describe('loadSignupPack', () => {
     rpc.mockResolvedValue({ data: PROJECTION, error: null });
     const pack = await loadSignupPack(LOCAL_ID);
     expect(rpc).toHaveBeenCalledWith(SIGNUP_PACK_FN, { p_pack_id: LOCAL_ID });
-    expect(pack).toEqual({ ...PROJECTION, feedbackFormUrl: undefined, feedbackFormEntries: undefined });
+    expect(pack).toEqual(PROJECTION);
     expect(pack.leaderId).toBe(LEADER);
   });
 
@@ -101,17 +100,15 @@ describe('loadSignupPack', () => {
 });
 
 describe('parseSignupPack', () => {
-  it('keeps the form link and its prefill ids', () => {
-    const pack = parseSignupPack({ ...PROJECTION, feedbackFormUrl: FORM, feedbackFormEntries: { name: 'entry.1' } }, LOCAL_ID);
-    expect(pack.feedbackFormUrl).toBe(FORM);
-    expect(pack.feedbackFormEntries).toEqual({ name: 'entry.1' });
+  it('ignores Google Form keys an old server function might still return (removed 2026-10-05)', () => {
+    const pack = parseSignupPack({ ...PROJECTION, feedbackFormUrl: 'https://evil.example/x', feedbackFormEntries: 7 }, LOCAL_ID);
+    expect(pack).toEqual(PROJECTION);
   });
 
   it.each([
     ['id', { ...PROJECTION, id: 'local-other' }],
     ['leaderId', { ...PROJECTION, leaderId: null }],
     ['lifeMenu', { ...PROJECTION, lifeMenu: [{ area: 1 }] }],
-    ['feedbackFormUrl', { ...PROJECTION, feedbackFormUrl: 'https://evil.example/x' }],
   ])('rejects a bad %s as invalid', (field, raw) => {
     expect(() => parseSignupPack(raw, LOCAL_ID)).toThrow(`${SU_PACK_INVALID} (${field})`);
   });

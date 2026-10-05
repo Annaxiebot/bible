@@ -33,7 +33,7 @@ describe('promptWithoutKindLabel', () => {
 
   it('the email template uses it (one helper, R3): the body prompt has no kind label', () => {
     const pack: CheckinPack = {
-      id: 'p', title: 'T', leaderId: 'uid', feedbackFormUrl: null, feedbackFormEntries: null,
+      id: 'p', title: 'T', leaderId: 'uid',
       prompts: { tue: 'TUE', thu: 'THU', weekend: '周末回顾：周末:回顾本周… · End of week: Weekend: Looking back…' },
     };
     const lines = renderCheckin('weekend', pack, { name: 'n', signupId: 's', practices: [] }).text.split('\n');

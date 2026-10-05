@@ -39,7 +39,8 @@ import {
 } from './helpers/signup';
 
 const LOCAL_ID = 'local-2026-10-02-matt6';
-const FORM = 'https://docs.google.com/forms/d/e/1FAIpQLSd_e2e/viewform';
+/** A Google Form an old pack may still carry (the feature was removed 2026-10-05); nothing may link to it. */
+const OLD_FORM = 'https://docs.google.com/forms/d/e/1FAIpQLSd_e2e/viewform';
 
 async function openSignup(page: Page, reply = okInsert, owned = true): Promise<Mocks> {
   if (owned) await routeOwnedSamplePack(page);
@@ -178,10 +179,10 @@ test.describe('Sign-up page', () => {
     expect(bodies()[0].practice_note).toBe(E2E_CHECKIN_NOTE);
   });
 
-  test('an owned pack with a Google Form: the thank-you link points at the form (prefilled with name + practice)', async ({ page }) => {
+  test('an old owned pack that still carries a Google Form renders, and the thank-you link is the built-in check-in page', async ({ page }) => {
     const sample = await fetchSamplePack(page);
     const mocks = await mockBackend(page, okInsert);
-    await seedLocalPack(page, { ...sample, id: LOCAL_ID, leaderId: E2E_LEADER_ID, feedbackFormUrl: FORM, feedbackFormEntries: { name: 'entry.1', practice: 'entry.2' } });
+    await seedLocalPack(page, { ...sample, id: LOCAL_ID, leaderId: E2E_LEADER_ID, feedbackFormUrl: OLD_FORM, feedbackFormEntries: { name: 'entry.1', practice: 'entry.2' } });
     await page.goto(`./${signupHash(LOCAL_ID)}`);
     await choosePractice(page);
     await page.getByTestId('su-name').fill('小明');
@@ -189,11 +190,8 @@ test.describe('Sign-up page', () => {
     await page.getByRole('button', { name: SU_SUBMIT }).click();
     await expect(page.getByTestId('signup-thanks')).toContainText(SU_THANKS);
     const href = (await page.getByTestId('signup-checkin-link').getAttribute('href'))!;
-    expect(href.startsWith(`${FORM}?`)).toBe(true);
-    const params = new URL(href).searchParams;
-    expect(params.get('entry.1')).toBe('小明');
-    expect(params.get('entry.2')).toBe(mocks.bodies()[0].practice_text);
-    expect(params.get('usp')).toBe('pp_url');
+    expect(href.endsWith(checkinHash(mocks.bodies()[0].id))).toBe(true);
+    expect(await page.content()).not.toContain('docs.google.com');
   });
 
   test('a signed-out member phone with an empty IndexedDB loads a leader pack from public_signup_pack and signs up under its leader', async ({ page }) => {
@@ -202,7 +200,7 @@ test.describe('Sign-up page', () => {
     const { bodies } = await mockBackend(page, okInsert);
     const rpcCalls = await mockSignupPackRpc(page, {
       id: LOCAL_ID, title: sample.title, passageRef: sample.passageRef, leaderId: E2E_LEADER_ID,
-      lifeMenu, feedbackFormUrl: null, feedbackFormEntries: null,
+      lifeMenu,
     });
     await page.goto(`./${signupHash(LOCAL_ID)}`);
     await expect(page.getByTestId('signup-pack')).toContainText(String(sample.title));

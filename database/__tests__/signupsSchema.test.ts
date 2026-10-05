@@ -60,7 +60,7 @@ describe('signups-schema.sql', () => {
     expect(sql).not.toMatch(new RegExp(`ON ${PACK_SUMMARIES_TABLE} [^;]*TO anon`));
   });
 
-  it('study_signups carries the commitment columns; pack_summaries the optional feedback form', () => {
+  it('study_signups carries the commitment columns; pack_summaries keeps the retired form columns (checkin_context still selects one)', () => {
     for (const col of ['practice_area', 'practice_text', 'practice2_area', 'practice2_text', 'practice_note']) {
       expect(sql).toContain(`ALTER TABLE ${SIGNUPS_TABLE} ADD COLUMN IF NOT EXISTS ${col} TEXT;`);
     }

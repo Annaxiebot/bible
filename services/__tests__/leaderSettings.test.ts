@@ -68,10 +68,10 @@ beforeEach(() => {
 afterEach(() => { stop?.(); stop = null; vi.useRealTimers(); });
 
 describe('synced keys', () => {
-  it('are the five leader preferences — never the API key or the provider (ADR-0005)', () => {
+  it('are the four leader preferences — never the API key or the provider (ADR-0005)', () => {
     expect([...LEADER_SYNCED_KEYS]).toEqual([
       STORAGE_KEYS.AI_MODEL, STORAGE_KEYS.AI_PACK_MODEL, STORAGE_KEYS.AI_FALLBACK_MODELS,
-      STORAGE_KEYS.CONTENT_LANGUAGE_DEFAULT, STORAGE_KEYS.FEEDBACK_FORM_DEFAULT_URL,
+      STORAGE_KEYS.CONTENT_LANGUAGE_DEFAULT,
     ]);
     expect(LEADER_SYNCED_KEYS).not.toContain(STORAGE_KEYS.OPENROUTER_API_KEY);
     expect(LEADER_SYNCED_KEYS).not.toContain(STORAGE_KEYS.AI_PROVIDER);
@@ -114,13 +114,13 @@ describe('pullLeaderSettings (server wins)', () => {
 describe('pushLeaderSettings', () => {
   it('upserts exactly the synced keys that are set locally, keyed by leader_id', async () => {
     storage.setItem(STORAGE_KEYS.AI_MODEL, 'google/gemini-2.5-flash');
-    storage.setItem(STORAGE_KEYS.FEEDBACK_FORM_DEFAULT_URL, 'https://docs.google.com/forms/d/e/x/viewform');
+    storage.setItem(STORAGE_KEYS.CONTENT_LANGUAGE_DEFAULT, 'bilingual');
     storage.setItem(STORAGE_KEYS.AI_PACK_MODEL, '  ');
     storage.setItem(STORAGE_KEYS.OPENROUTER_API_KEY, 'sk-or-secret');
     storage.setItem(STORAGE_KEYS.AI_PROVIDER, 'openrouter');
     expect(readLocalLeaderSettings()).toEqual({
       [STORAGE_KEYS.AI_MODEL]: 'google/gemini-2.5-flash',
-      [STORAGE_KEYS.FEEDBACK_FORM_DEFAULT_URL]: 'https://docs.google.com/forms/d/e/x/viewform',
+      [STORAGE_KEYS.CONTENT_LANGUAGE_DEFAULT]: 'bilingual',
     });
     expect(await pushLeaderSettings()).toEqual({ ok: true, skipped: false });
     expect(upsertMock).toHaveBeenCalledTimes(1);

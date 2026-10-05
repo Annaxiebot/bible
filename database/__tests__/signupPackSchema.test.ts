@@ -1,7 +1,7 @@
 /**
  * signupPackSchema.test.ts — the public projection exposes only what sign-up reads · 报名投影测试
  *
- * Grep-level pins on database/signup-pack-schema.sql (ADR-0006): the
+ * Grep-level pins on database/remove-forms-schema.sql (ADR-0006): the
  * function name the client calls, SECURITY DEFINER with a pinned
  * search_path, EXECUTE revoked from PUBLIC and granted to anon +
  * authenticated, and the top-level jsonb_build_object keys are exactly
@@ -13,7 +13,7 @@ import { readFileSync } from 'fs';
 import path from 'path';
 import { SIGNUP_PACK_FN, SIGNUP_PACK_KEYS } from '../../components/signup/signupSchema';
 
-const sql = readFileSync(path.resolve(__dirname, '../signup-pack-schema.sql'), 'utf-8');
+const sql = readFileSync(path.resolve(__dirname, '../remove-forms-schema.sql'), 'utf-8');
 const code = sql.split('\n').filter(line => !line.trimStart().startsWith('--')).join('\n');
 const body = code.slice(code.indexOf('AS $$') + 'AS $$'.length, code.indexOf('$$;'));
 
@@ -36,7 +36,7 @@ function objectKeys(text: string): string[] {
   return keys;
 }
 
-describe('signup-pack-schema.sql', () => {
+describe('remove-forms-schema.sql (public_signup_pack)', () => {
   it('defines the function the client calls: SECURITY DEFINER, pinned search_path, idempotent', () => {
     expect(code).toContain(`CREATE OR REPLACE FUNCTION public.${SIGNUP_PACK_FN}(p_pack_id TEXT)`);
     expect(code).toMatch(/RETURNS JSONB\s+LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE/);
@@ -59,7 +59,7 @@ describe('signup-pack-schema.sql', () => {
 
   it('reads only the lifeMenu section and the listed top-level fields from the pack JSON', () => {
     const packFields = [...body.matchAll(/sp\.pack(?:->>|->|\s\?\s)'(\w+)'/g)].map(m => m[1]);
-    expect(new Set(packFields)).toEqual(new Set(['passageRef', 'feedbackFormUrl', 'feedbackFormEntries', 'sections']));
+    expect(new Set(packFields)).toEqual(new Set(['passageRef', 'sections']));
     const kinds = [...body.matchAll(/->>'kind' = '(\w+)'/g)].map(m => m[1]);
     expect(kinds).toEqual(['lifeMenu']);
     for (const hidden of ['discussion', 'reflection', 'closing', 'scripture', 'verses', 'questions', 'context']) {

@@ -100,41 +100,39 @@ hand. Supabase was already in the stack (auth, sync, `ai-chat` edge function).
    every leaderless local pack with the uid and syncs its summary; pages
    re-read the pack on the claim event, so the QR appears without a reload.
    `packSource.packSignupState` is the single decision helper.
-9. **Feedback vehicle: the built-in check-in page by default; Google Forms
-   is an explicit opt-in.** (Amended 2026-10-02, owner decision: Supabase is
-   the single backend. The first cut of this section auto-created a Google
-   Form per pack and had the ordinary sign-in request `forms.body`; that is
-   withdrawn.) A pack with no `feedbackFormUrl` uses `#/checkin/<signupId>`
-   for every check-in link (welcome, scheduled sends) — silently, with no
-   notice, because it is the default, not a fallback. The ordinary Google
-   sign-in (AuthPanel, leader page, sign-up claim) requests identity only
-   (`openid email profile`, `googleForms.GOOGLE_SIGN_IN_SCOPES`): no
-   sensitive scope, so no Google app verification and no Testing-mode
-   test-user list for leaders who never use Forms. The Forms scope with
-   offline access + consent is requested only by
-   `authManager.signInWithGoogle({ withForms: true })`, whose single caller
-   is the editor's "连接 Google 表单（可选）Connect Google Forms (optional)"
-   button (`useFeedbackForm.connect`; a source-scan test pins the single
-   caller). Connect creates the form in the leader's own Google account
-   (five items: name; practice as a choice from the pack's seven practices
-   + Other; what I did; what changed in me; OK to share) with the session's
-   `provider_token` (browser session only; never logged, never sent to our
-   backend); without a token it remembers the pack id, re-runs the sign-in
-   with the Forms scope, returns to the same editor and creates the form
-   then. The responder link is stored as `StudyPack.feedbackFormUrl` and in
-   `pack_summaries` (`feedback_form_url`, `feedback_form_entries`). Pasting
-   an existing form link (generation form, with "用于我所有的查经 · Use for
-   all my studies" as the leader's default; or the editor's per-pack field)
-   needs no Google permission. Typed failures of the opt-in (permission not
-   granted / Forms API not enabled / API error / network) are a bilingual
-   notice naming the cause; the pack keeps the built-in page; never a
-   throw. Prefill: `?usp=pp_url&entry.<id>=<value>` with the ids the leader
-   pastes; the API's hexadecimal questionIds are not documented as
-   convertible to entry ids, so created forms are linked plain. Owner setup
-   (only if a leader opts in): `docs/guides/google-forms-setup.md`. Landing
-   and setup copy do not promise Google Forms. Reading responses back via
-   the API (another sensitive scope) is not planned; the built-in page
-   already shows shared answers on the leader page.
+9. **Feedback vehicle: the built-in check-in page only.** SUPERSEDED
+   2026-10-05 (owner decision): "Google Forms removed 2026-10-05;
+   built-in pages only." Every feedback link — the sign-up thank-you, the
+   welcome email, the Tue/Thu/weekend check-ins — is `#/checkin/<signupId>`
+   (sharing via #/checkin and the leader page). Removed: the generation
+   form's form-link field and "用于我所有的查经 Use for all my studies"
+   box (and its synced `feedback_form_default_url` key, ADR-0005), the
+   editor's form field and "连接 Google 表单 Connect Google Forms" button,
+   `services/googleForms.ts`, the `withForms` option of
+   `authManager.signInWithGoogle` (Google sign-in now always requests
+   identity only, `openid email profile`),
+   the prefill helpers in the app and in send-checkins, and
+   `docs/guides/google-forms-setup.md`. Old packs that still carry
+   `feedbackFormUrl` / `feedbackFormEntries` parse without error;
+   `parseStudyPack` drops both keys (`LEGACY_PACK_KEYS`), so nothing links
+   to the form and the next save no longer writes them.
+   `public_signup_pack` no longer returns them
+   (`database/remove-forms-schema.sql`, applied live 2026-10-05).
+   Later cleanup, needs the owner (destructive): `pack_summaries.feedback_form_url`
+   and `feedback_form_entries` are no longer written or read by the app
+   or the edge function but still exist; `checkin_context()` still
+   selects `feedback_form_url` (the app ignores it). Drop the column from
+   `checkin_context` (DROP + CREATE FUNCTION, return type changes), then
+   `ALTER TABLE pack_summaries DROP COLUMN feedback_form_url, DROP COLUMN
+   feedback_form_entries`; old `leader_settings.settings` rows may still
+   hold `feedback_form_default_url` until the leader's next push replaces
+   the map. The Forms API can be disabled in the owner's Google Cloud
+   console.
+   History (2026-10-02 version, now withdrawn): the built-in page was the
+   default and Google Forms an explicit opt-in — Connect created a form in
+   the leader's Google account with a `forms.body` token, or a leader
+   pasted a form link; check-in links then pointed at the form, prefilled
+   with name + first practice.
 10. **A pack is never lost.** The editor auto-saves (first sight at once,
     edits after 500 ms, flush on Back/Preview/unmount; `useAutoSave`), the
     URL follows the pack (`#/new/<packId>`, reload restores), and TV mode
@@ -169,8 +167,8 @@ shows all practices: the leader roster (one line each), the per-area counts
 CSV (`practices` column), `checkin_context()` (now also returns
 `practices`; it moved to the new file, dropped and re-created because its
 return type changed), the check-in page, and the welcome + Tue/Thu/weekend
-messages (one "你选的操练：…" line per practice). The Google Form prefill
-still carries only the first practice.
+messages (one "你选的操练：…" line per practice). (The Google Form prefill,
+which carried only the first practice, was removed 2026-10-05, §9.)
 
 **Amendment (2026-10-04): email is required.** Email is the check-in channel, so the contact step requires it (`signupClient.validateSignup`; client-side only — no database constraint, older rows may lack it); phone stays optional.
 
@@ -218,5 +216,5 @@ existed, never its content or link.
 - `database/signups-schema.sql` gained columns, `checkin_answers`, two
   SECURITY DEFINER functions, the `welcome` kind; re-run the file (idempotent).
 - The edge function's `renderCheckin` takes a member context (name, signup
-  id, practice); `prefillFormUrl` is duplicated in Deno and pinned equal to
-  the app's copy by a test.
+  id, practice). (`prefillFormUrl`, once duplicated in Deno, was removed
+  with Google Forms on 2026-10-05, §9.)

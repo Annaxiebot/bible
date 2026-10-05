@@ -4,7 +4,7 @@
  * Packs live only in the leader's browser (IndexedDB), so the send-checkins
  * edge function cannot read them. The owning leader's client upserts a
  * small summary row — title, passage, the three reflection lines, the
- * closing question, the optional feedback form — into pack_summaries (RLS:
+ * closing question — into pack_summaries (RLS:
  * leader_id = auth.uid()). The full pack is stored owner-only in
  * study_packs (ADR-0006); anon sees only this row's check-in wording via
  * the function and the sign-up projection public_signup_pack (ADR-0006 §9). One
@@ -12,7 +12,7 @@
  * editor save and the sign-in claim.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { StudyPack, FeedbackFormEntries } from '../studypack/packTypes';
+import type { StudyPack } from '../studypack/packTypes';
 import { supabase, authManager } from '../../services/supabase';
 import { SU_SUMMARY_FAILED } from './signupStrings';
 
@@ -25,8 +25,6 @@ export interface PackSummaryRow {
   passage_ref: string;
   reflection_lines: string[];
   closing_question: string | null;
-  feedback_form_url: string | null;
-  feedback_form_entries: FeedbackFormEntries | null;
 }
 
 /** The summary row for an owned pack; null for a demo pack (nothing to send for). */
@@ -41,8 +39,6 @@ export function packSummaryFrom(pack: StudyPack): PackSummaryRow | null {
     passage_ref: pack.passageRef,
     reflection_lines: reflection?.body ?? [],
     closing_question: closing?.body?.[closing.body.length - 1] ?? null,
-    feedback_form_url: pack.feedbackFormUrl ?? null,
-    feedback_form_entries: pack.feedbackFormUrl ? (pack.feedbackFormEntries ?? null) : null,
   };
 }
 

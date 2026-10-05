@@ -30,15 +30,11 @@ describe('packSummaryFrom', () => {
     expect(packSummaryFrom(demo)).toBeNull();
     const row = packSummaryFrom(owned)!;
     expect(Object.keys(row).sort()).toEqual([
-      'closing_question', 'feedback_form_entries', 'feedback_form_url', 'leader_id', 'pack_id', 'passage_ref', 'reflection_lines', 'title',
+      'closing_question', 'leader_id', 'pack_id', 'passage_ref', 'reflection_lines', 'title',
     ]);
-    expect(row.feedback_form_url).toBeNull();
-    expect(row.feedback_form_entries).toBeNull();
-    const FORM = 'https://docs.google.com/forms/d/e/x/viewform';
-    const withForm = packSummaryFrom({ ...owned, feedbackFormUrl: FORM, feedbackFormEntries: { name: 'entry.1' } })!;
-    expect(withForm.feedback_form_url).toBe(FORM);
-    expect(withForm.feedback_form_entries).toEqual({ name: 'entry.1' });
-    expect(packSummaryFrom({ ...owned, feedbackFormEntries: { name: 'entry.1' } })!.feedback_form_entries).toBeNull();  // ids without a form mean nothing
+    // An old pack that still carries a Google Form (removed 2026-10-05): the retired columns are not written.
+    const legacy = parseStudyPack({ ...owned, feedbackFormUrl: 'https://docs.google.com/forms/d/e/x/viewform', feedbackFormEntries: { name: 'entry.1' } });
+    expect(packSummaryFrom(legacy)).toEqual(row);
     expect(row.pack_id).toBe(owned.id);
     expect(row.leader_id).toBe('uid-lead');
     expect(row.title).toBe(owned.title);

@@ -21,10 +21,8 @@ import { canMoveUp, canMoveDown, canRemove, moveItem, removeItem, insertItem } f
 import {
   validateEdited, withTitle, withSection, withMovedSection, withoutSection, withAddedSection,
 } from './packEdits';
-import FeedbackFormField from './FeedbackFormField';
 import SharingControl from '../sharing/SharingControl';
 import type { AutoSaveStatus } from './useAutoSave';
-import type { FormNotice, FeedbackFormState } from './useFeedbackForm';
 import {
   NS_EDIT_TITLE, NS_EDIT_HINTS, NS_PACK_TITLE, NS_SAVE, NS_SAVED, NS_AUTOSAVED, NS_SAVING, NS_PREVIEW, NS_BACK,
 } from './newStudyStrings';
@@ -41,17 +39,7 @@ interface Props {
   onBack: () => void;
   /** Auto-save state from useAutoSave (NewStudyPage); absent in isolated renders. */
   autosave?: { status: AutoSaveStatus; error: string | null };
-  /** The Google Forms opt-in (useFeedbackForm): the Connect action and its outcome notice; absent in isolated renders. */
-  form?: FeedbackFormState;
 }
-
-const FormNoticeLine: React.FC<{ notice: FormNotice }> = ({ notice }) => (
-  <p role={notice.ok ? 'status' : 'alert'} data-testid="ns-form-notice"
-    className={notice.ok ? 'text-emerald-300' : 'text-amber-300'} style={textStyle}>
-    {notice.text}
-    {notice.link && <>{' '}<a href={notice.link} target="_blank" rel="noreferrer" className="break-all underline underline-offset-4">{notice.link}</a></>}
-  </p>
-);
 
 /** The single status line: explicit Save wins, then the quiet auto-save indicator. */
 function statusLine(explicit: 'idle' | 'saved' | 'error', autosave?: Props['autosave']): string | null {
@@ -97,7 +85,7 @@ const Footer: React.FC<{ invalid: boolean; onBack: () => void; onSave: () => voi
   </div>
 );
 
-const NewStudyEditor: React.FC<Props> = ({ pack, onChange, onSave, onPreview, onBack, autosave, form }) => {
+const NewStudyEditor: React.FC<Props> = ({ pack, onChange, onSave, onPreview, onBack, autosave }) => {
   const [status, setStatus] = useState<'idle' | 'saved' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
   const edit = (nextPack: StudyPack) => { setStatus('idle'); onChange(nextPack); };
@@ -140,8 +128,6 @@ const NewStudyEditor: React.FC<Props> = ({ pack, onChange, onSave, onPreview, on
         </div>
       ))}
       <AddSectionMenu sections={pack.sections} onAdd={add} />
-      <FeedbackFormField pack={pack} onEdit={edit} onConnect={form?.connect} connecting={form?.busy} />
-      {form?.notice && <FormNoticeLine notice={form.notice} />}
       {shownError && <p role="alert" className="text-red-300" style={textStyle}>{shownError}</p>}
       {shownStatus && (
         <p role="status" data-testid="ns-status" className="text-emerald-300" style={textStyle}>{shownStatus}</p>

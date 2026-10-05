@@ -24,7 +24,6 @@ import PackList from './PackList';
 import { useLocalPacks } from './useLocalPacks';
 import { useGeneration } from './useGeneration';
 import { useAutoSave } from './useAutoSave';
-import { useFeedbackForm } from './useFeedbackForm';
 import { NS_TITLE, NS_INTRO, NS_PRIVACY, NS_BACK, NS_ERR_STORAGE } from './newStudyStrings';
 import { textStyle, controlStyle, quietButtonClass, pageTitleStyle } from './newStudyStyles';
 
@@ -80,10 +79,6 @@ const NewStudyPage: React.FC = () => {
   }, []);
   const { generate, cancel } = useGeneration(setPhase);
 
-  // Google Forms opt-in: a form created on Connect flows through setPhase → auto-save; nothing happens by default.
-  const applyForm = useCallback((patched: StudyPack) => setPhase({ kind: 'editor', pack: patched }), [setPhase]);
-  const form = useFeedbackForm(editing, applyForm);
-
   const { markClean, flush } = autosave;
   const openSaved = useCallback((pack: StudyPack) => {
     markClean(pack);
@@ -132,7 +127,7 @@ const NewStudyPage: React.FC = () => {
           onBack={() => void back().catch(() => undefined /* shown by the editor via autosave.error */)}
           onChange={pack => setPhase({ kind: 'editor', pack })}
           onSave={flush} onPreview={preview}
-          autosave={{ status: autosave.status, error: autosave.error }} form={form}
+          autosave={{ status: autosave.status, error: autosave.error }}
         />
         {phase.kind === 'form' && <PackList packs={packs} onOpen={openSaved} />}
         <p className="text-slate-500" style={textStyle}>{NS_PRIVACY}</p>

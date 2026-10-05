@@ -5,20 +5,19 @@
  * pack, or a leader pack this device already holds (or the signed-in
  * leader's own study_packs row), the same seam TV mode uses answers
  * (packSource). Otherwise a `local-` id falls back to the anon RPC
- * public_signup_pack (database/signup-pack-schema.sql), which returns only
+ * public_signup_pack (database/remove-forms-schema.sql), which returns only
  * the slice this page reads: SignupPack. #/pack (TV) never uses this.
  * Every failure is a SignupPackError with a kind, rendered by SignupPage.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { findLeaderPack, isLocalPackId, loadPack } from '../studypack/packSource';
-import { isGoogleFormUrl } from '../studypack/feedbackForm';
 import { isLifeMenuRows, type LifeMenuRow, type StudyPack } from '../studypack/packTypes';
 import { getSignupClient } from './signupClient';
 import { SIGNUP_PACK_FN } from './signupSchema';
 import { SU_ERR_NOT_CONFIGURED, SU_PACK_ASK_LEADER, SU_PACK_INVALID } from './signupStrings';
 
 /** What the sign-up page reads from a pack — and all the public projection returns. */
-export interface SignupPack extends Pick<StudyPack, 'id' | 'title' | 'passageRef' | 'leaderId' | 'feedbackFormUrl' | 'feedbackFormEntries'> {
+export interface SignupPack extends Pick<StudyPack, 'id' | 'title' | 'passageRef' | 'leaderId'> {
   lifeMenu: LifeMenuRow[];
 }
 
@@ -37,8 +36,6 @@ export function toSignupPack(pack: StudyPack): SignupPack {
     title: pack.title,
     passageRef: pack.passageRef,
     leaderId: pack.leaderId,
-    feedbackFormUrl: pack.feedbackFormUrl,
-    feedbackFormEntries: pack.feedbackFormEntries,
     lifeMenu: pack.sections.find(s => s.kind === 'lifeMenu')?.rows ?? [],
   };
 }
@@ -53,19 +50,12 @@ export function parseSignupPack(raw: unknown, packId: string): SignupPack {
   if (!isText(p.title)) throw bad('title');
   if (!isText(p.leaderId)) throw bad('leaderId');
   if (!isLifeMenuRows(p.lifeMenu)) throw bad('lifeMenu');
-  const formUrl = p.feedbackFormUrl ?? undefined;
-  if (formUrl !== undefined && !(isText(formUrl) && isGoogleFormUrl(formUrl))) throw bad('feedbackFormUrl');
-  const feedbackFormUrl = formUrl as string | undefined;   // narrowed by the check above
-  const entries = p.feedbackFormEntries;
-  if (entries != null && typeof entries !== 'object') throw bad('feedbackFormEntries');
   return {
     id: packId,
     title: p.title,
     passageRef: typeof p.passageRef === 'string' ? p.passageRef : '',
     leaderId: p.leaderId,
     lifeMenu: p.lifeMenu,
-    feedbackFormUrl,
-    feedbackFormEntries: (entries ?? undefined) as SignupPack['feedbackFormEntries'],
   };
 }
 
