@@ -162,6 +162,15 @@ describe('augmentNotabilityJSON', () => {
       .toBe(JSON.stringify({ version: 1, foo: 'bar' }));
   });
 
+  it('keeps payload fields the type does not list (pages, paperType) through the round trip', () => {
+    const raw = JSON.stringify({
+      version: 2, yNormBase: Y_NORM_PAGE_HEIGHT, strokes: [{ points: [{ x: 0, y: 1.5 }] }],
+      paperType: 'grid', pages: [{ id: 'p1' }],
+    });
+    const out = JSON.parse(augmentNotabilityJSON(raw)!);
+    expect(out).toMatchObject({ canvasHeightPages: 2, paperType: 'grid', pages: [{ id: 'p1' }] });
+  });
+
   it('returns input unchanged for non-object JSON (arrays, primitives)', () => {
     expect(augmentNotabilityJSON('[1, 2, 3]')).toBe('[1, 2, 3]');
     expect(augmentNotabilityJSON('42')).toBe('42');
@@ -231,6 +240,14 @@ describe('resolveCanvasHeightPages', () => {
     // The resolver must not let that become a runtime canvas-height of
     // 1.2 billion pixels.
     expect(resolveCanvasHeightPages({ canvasHeightPages: 999_999 })).toBeLessThanOrEqual(20);
+  });
+
+  it('accepts an interface-typed payload with no index signature (the editor\'s ExtendedCanvasData)', () => {
+    // Type-level regression: `npx tsc --noEmit` fails here if the parameter
+    // type regains a `[key: string]: unknown` index signature (TS2345).
+    interface EditorPayload { version: number; paperType: string; strokes: Array<{ points: Array<{ x: number; y: number }> }> }
+    const parsed: EditorPayload = { version: 2, paperType: 'blank', strokes: [] };
+    expect(resolveCanvasHeightPages(parsed)).toBe(1);
   });
 
   it('floors fractional hints (defensive against rogue producers)', () => {
