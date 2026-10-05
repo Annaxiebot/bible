@@ -30,7 +30,8 @@ hand. Supabase was already in the stack (auth, sync, `ai-chat` edge function).
    back to the public pack JSON only for committed packs. Verses, context,
    questions and the life menu never leave the browser. (Superseded by
    ADR-0006: full packs sync owner-only to study_packs, and §9 there makes
-   the title, passage and life menu public for the sign-up page.)
+   the title, passage and life menu public for the sign-up page; §12 adds
+   the passage verses to the summary for the email.)
 4. **The QR is drawn in the browser from the pack id**
    (`signupRoute.currentSignupUrl` → `SignupQr`, the `qrcode` package, SVG).
    The pack JSON stores no image or URL; `buildSlides` attaches `signupUrl`
@@ -142,6 +143,29 @@ hand. Supabase was already in the stack (auth, sync, `ai-chat` edge function).
     `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_FROM`, `DRY_RUN`,
     `CHECKIN_CRON_SECRET` (the trusted-caller header value, see §6)
     (runbook: `database/signups-schema.sql`). SMS is unaffected.
+12. **The email carries the studied verses (2026-10-05).** So a member is
+    reminded of the passage, `pack_summaries` gained `verses` (JSONB
+    `[{num, cuv, en}]`, every verse of the scripture section(s), copied from
+    the pack — the bundled 和合本 + BSB, never regenerated, ADR-0003) and
+    `key_verse` (the keyPhrase's "(v.N)", NULL when it names no verse in the
+    passage); `packSummary.ts` writes them on save/QR/leader page, and
+    `database/summary-verses-schema.sql` added the columns and backfilled
+    existing rows once from `study_packs`. `renderCheckin` (every kind,
+    welcome included) puts "本周经文 · This week's passage: <ref>" and the key
+    verse (和合本 then BSB) after the prompt, and the whole passage, one
+    verse per line, after the check-in link and before the stop line — both
+    translations in every content mode. SMS keeps the passage line and key
+    verse but never the whole passage. A row without verses renders exactly
+    as before. The summary still holds no discussion, context or notes, and
+    the anon projections (`public_signup_pack`, `checkin_context`) do not
+    return the verses. The same day every email also gained an HTML part
+    (`emailHtml.ts`, sent with the text part through Resend): the site's
+    paper style with colours pinned to `styles/stlTheme.css`
+    (`emailStyle.ts`), table layout with inline styles, no images or
+    webfonts, every value escaped, and no raw URLs — the check-in link is a
+    gold button, the stop link a small text link; the text part keeps the
+    URLs on their own lines. Wording shared by both lives in
+    `messageStrings.ts`. SMS stays text only.
 
 **Amendment (2026-10-04): any number of practices.** The commitment step
 is a multi-select: a tap toggles a row, any number may be chosen (at least
