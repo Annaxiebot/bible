@@ -9,7 +9,7 @@ import { STORAGE_KEYS } from '../../../constants/storageKeys';
 
 export const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
-/** Open the sample pack in TV mode (optionally with a query after the hash, e.g. "?verseFont=wenkai") and wait for the title slide. */
+/** Open the sample pack in TV mode (optionally with a query after the hash) and wait for the title slide. */
 export async function openTV(page: Page, hashQuery = '') {
   await page.goto(`${SAMPLE_PACK_HASH}${hashQuery}`);
   await expect(page.getByTestId('tv-presentation')).toBeVisible();
