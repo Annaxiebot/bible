@@ -46,7 +46,8 @@ describe('LandingNextStudy', () => {
     render(<LandingNextStudy packId={PACK_ID} />);
     expect(screen.getByTestId('next-study-empty')).toHaveTextContent(NEXT_LOADING);
     const block = await screen.findByTestId('next-study-pack');
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+    // One pack fetch; the other calls are the key verse's bundled chapters (LandingVerse).
+    expect((fetchMock.mock.calls as unknown[][]).filter(([url]) => String(url).includes('/packs/'))).toHaveLength(1);
     expect(fetchMock).toHaveBeenCalledWith(
       `/packs/${PACK_ID}.json?schema=${PACK_SCHEMA_VERSION}`, expect.objectContaining({ cache: 'no-cache' })
     );

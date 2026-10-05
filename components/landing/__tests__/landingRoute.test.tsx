@@ -3,18 +3,17 @@
  *
  * Covers the resolution table (root → landing, #app → app, #/pack/<id> → TV,
  * unknown hash → app fallback) and the LandingGate component's rendering of
- * the landing vs the app branch. Strings come from landingStrings (R3).
+ * the landing vs the app branch, plus the landing's structure: Chinese-first
+ * headings, decorative rings, photos (size + alt), the bundled verse card. Strings come from landingStrings (R3).
  */
 import React from 'react';
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, within, cleanup, fireEvent } from '@testing-library/react';
-import { STAR_COUNT } from '../themes/StarsTheme';
-import { HERO_THEMES } from '../heroThemes';
 import { resolveRootView, APP_HASH, SAMPLE_PACK_HASH, SETUP_HASH, NEW_STUDY_HASH, newStudyHash, getNewStudyPackIdFromHash } from '../landingRoute';
 import {
-  BRAND_EN, BRAND_ZH, GROUP_CTA, PERSONAL_CTA,
-  GROUP_TITLE_ZH, GROUP_TITLE_EN, PERSONAL_TITLE_ZH, PERSONAL_TITLE_EN, LOOP_STEPS, SETUP_LINE,
-  NEW_STUDY_LINE,
+  BRAND_EN, BRAND_ZH, GROUP_CTA, PERSONAL_CTA, GROUP_HEADING_EN, GROUP_PHOTOS, PHOTO_CREDIT,
+  GROUP_TITLE_ZH, PERSONAL_TITLE_ZH, PERSONAL_TITLE_EN, LOOP_STEPS, SETUP_LINE,
+  NEW_STUDY_LINE, PERSONAL_VERSE_REF,
 } from '../landingStrings';
 import { SETUP_TITLE, SETUP_CLOSE } from '../../setup/setupStrings';
 import { signupHash, qrHash } from '../../signup/signupRoute';
@@ -22,6 +21,8 @@ import { leaderHash } from '../../leader/leaderRoute';
 import { SU_TITLE } from '../../signup/signupStrings';
 import { LD_TITLE } from '../../leader/leaderStrings';
 import LandingGate, { preloadLandingPages } from '../LandingGate';
+import { photoSrc } from '../LandingGroup';
+import { clearExternalVerseCache } from '../../studypack/externalVerses';
 
 // The pages are React.lazy; their first import is load-dependent (several
 // seconds under heavy CPU load) and must not count against a 1 s findBy.
@@ -97,77 +98,87 @@ describe('LandingGate', () => {
     render(<LandingGate app={app} />);
     expect(await screen.findByTestId('landing-page')).toBeInTheDocument();
     expect(screen.queryByTestId('the-app')).toBeNull();
-    expect(screen.getByRole('heading', { level: 1, name: BRAND_EN })).toBeInTheDocument();
-    expect(screen.getAllByText(BRAND_ZH).length).toBeGreaterThan(0);
+    expect(screen.getByRole('heading', { level: 1 }).textContent).toBe(BRAND_ZH);
+    expect(screen.getAllByText(BRAND_EN).length).toBeGreaterThan(0);
   });
 
-  it('card titles and loop labels are Chinese first, English second (ADR-0003)', async () => {
+  it('loop cards and section headings are Chinese first, English second (ADR-0003)', async () => {
     window.location.hash = '';
     render(<LandingGate app={app} />);
     await screen.findByTestId('landing-page');
-    const group = screen.getByTestId('card-group');
-    const personal = screen.getByTestId('card-personal');
-    expect(group.querySelector('h2')?.textContent).toBe(`${GROUP_TITLE_ZH} ${GROUP_TITLE_EN}`);
-    expect(personal.querySelector('h2')?.textContent).toBe(`${PERSONAL_TITLE_ZH} ${PERSONAL_TITLE_EN}`);
-    const labels = within(screen.getByTestId('loop-labels'));
-    for (const step of LOOP_STEPS) {
-      expect(labels.getByText(step.zh).nextElementSibling?.textContent).toBe(step.en);
-    }
+    LOOP_STEPS.forEach((step, i) => {
+      const title = within(screen.getByTestId(`loop-card-${i + 1}`)).getByRole('heading', { level: 3 });
+      expect(title.textContent).toBe(`${step.zh}${step.en}`);
+    });
+    expect(within(screen.getByTestId('section-group')).getByRole('heading', { level: 2 }).textContent)
+      .toBe(`${GROUP_TITLE_ZH}${GROUP_HEADING_EN}`);
+    expect(within(screen.getByTestId('section-personal')).getByRole('heading', { level: 2 }).textContent)
+      .toBe(`${PERSONAL_TITLE_ZH}${PERSONAL_TITLE_EN}`);
   });
 
-  it('renders the stars sky behind the hero: 40 stars, pointer-events none, decorative, captioned', async () => {
-    window.history.replaceState(null, '', '?theme=stars');
+  it('the rings sit behind the hero: decorative, click-through, no sky themes left', async () => {
+    window.location.hash = '';
     render(<LandingGate app={app} />);
     await screen.findByTestId('landing-page');
-    const sky = screen.getByTestId('landing-sky');
-    expect(sky).toHaveStyle({ pointerEvents: 'none' });
-    expect(sky).toHaveAttribute('aria-hidden', 'true');
-    expect(sky).toHaveAttribute('data-theme', 'stars');
-    const stars = screen.getByTestId('theme-stars').querySelectorAll('circle.ld-star');
-    expect(stars).toHaveLength(STAR_COUNT);
-    expect(screen.getByTestId('theme-stars').querySelectorAll('.ld-star-named')).toHaveLength(4);
-    expect(screen.getByTestId('layer-birds')).toBeInTheDocument();
-    const starsTheme = HERO_THEMES.find(t => t.id === 'stars')!;
-    expect(screen.getByTestId('theme-caption').textContent).toBe(`${starsTheme.verseZh} · ${starsTheme.verseEn}`);
+    const rings = screen.getByTestId('hero-rings');
+    expect(rings).toHaveAttribute('aria-hidden', 'true');
+    expect(rings.querySelectorAll('.ld-rings-wave circle')).toHaveLength(4);
+    expect(screen.queryByTestId('landing-sky')).toBeNull();
   });
 
-  it('the caption verse refs are interactive: hover opens the bundled-verse popup, 和合本 first', async () => {
-    window.history.replaceState(null, '', '?theme=stars');
+  it('the three photos carry width/height, Chinese-first alt text, and lazy loading after the first', async () => {
+    window.location.hash = '';
+    render(<LandingGate app={app} />);
+    await screen.findByTestId('landing-page');
+    const imgs = within(screen.getByTestId('group-photos')).getAllByRole('img');
+    expect(imgs).toHaveLength(GROUP_PHOTOS.length);
+    imgs.forEach((img, i) => {
+      const photo = GROUP_PHOTOS[i];
+      expect(img).toHaveAttribute('src', photoSrc(photo.file));
+      expect(img).toHaveAttribute('width', String(photo.width));
+      expect(img).toHaveAttribute('height', String(photo.height));
+      expect(img.getAttribute('alt')).toBe(photo.alt);
+      expect(photo.alt).toMatch(/^[\u4e00-\u9fff]/);
+      expect(img).toHaveAttribute('loading', i === 0 ? 'eager' : 'lazy');
+    });
+    expect(screen.getByTestId('photo-credit')).toHaveTextContent(PHOTO_CREDIT);
+  });
+
+  it('the personal verse card loads Matthew 6:34 from the bundled data; its refs open the popup, 和合本 first', async () => {
+    window.location.hash = '';
+    clearExternalVerseCache();  // earlier renders cached the unstubbed (failed) chapter loads
     vi.stubGlobal('fetch', vi.fn(async (url: string) => ({
-      ok: true,
+      ok: !url.includes('/packs/'),
+      status: url.includes('/packs/') ? 404 : 200,
       json: async () => ({
         reference: 'x',
-        verses: [{ book_id: 'PSA', book_name: 'x', chapter: 147, verse: 4,
-          text: url.includes('/cuv/') ? '他数点星宿的数目' : 'He determines the number of the stars' }],
+        verses: [33, 34].map(verse => ({ book_id: 'MAT', book_name: 'x', chapter: 6, verse,
+          text: url.includes('/cuv/') ? `和合本经文${verse}` : `BSB text ${verse}` })),
       }),
     })));
     render(<LandingGate app={app} />);
     await screen.findByTestId('landing-page');
-    const refs = within(screen.getByTestId('theme-caption')).getAllByTestId('verse-ref');
-    expect(refs.map(r => r.textContent)).toEqual(['诗篇 147:4', 'Psalm 147:4']);
+    const card = screen.getByTestId('personal-verse');
+    expect(await within(card).findByText('和合本经文34')).toBeInTheDocument();
+    expect(within(card).getByText('BSB text 34')).toBeInTheDocument();
+    const refs = within(card).getAllByTestId('verse-ref');
+    expect(refs.map(r => r.textContent)).toEqual([PERSONAL_VERSE_REF.zh, PERSONAL_VERSE_REF.en]);
     fireEvent.mouseEnter(refs[0]);
     const tooltip = await screen.findByRole('tooltip');
-    expect(screen.getByTestId('verse-tooltip-title')).toHaveTextContent('诗篇 147:4 · Psalm 147:4');
-    await within(tooltip).findByText(/他数点星宿的数目/);
+    await within(tooltip).findByText(/和合本经文34/);
     const text = tooltip.textContent ?? '';
-    expect(text.indexOf('他数点星宿的数目')).toBeLessThan(text.indexOf('He determines the number of the stars'));
+    expect(text.indexOf('和合本经文34')).toBeLessThan(text.indexOf('BSB text 34'));
     vi.unstubAllGlobals();
   });
 
-  it('renders the dawn theme on ?theme=dawn', async () => {
-    window.history.replaceState(null, '', '?theme=dawn');
-    render(<LandingGate app={app} />);
-    await screen.findByTestId('landing-page');
-    expect(screen.getByTestId('landing-sky')).toHaveAttribute('data-theme', 'dawn');
-    expect(screen.getByTestId('theme-dawn')).toBeInTheDocument();
-    expect(screen.queryByTestId('theme-stars')).toBeNull();
-  });
-
-  it('landing CTAs point at the sample pack and the app hash', async () => {
+  it('landing CTAs point at the sample pack, New study and the app hash', async () => {
     window.location.hash = '';
     render(<LandingGate app={app} />);
-    const sample = await screen.findByRole('link', { name: GROUP_CTA });
-    expect(sample).toHaveAttribute('href', SAMPLE_PACK_HASH);
+    await screen.findByTestId('landing-page');
+    const samples = screen.getAllByRole('link', { name: GROUP_CTA });
+    expect(samples.map(l => l.getAttribute('data-testid'))).toEqual(['hero-sample', 'group-sample']);
+    for (const sample of samples) expect(sample).toHaveAttribute('href', SAMPLE_PACK_HASH);
+    expect(screen.getByTestId('hero-new-study')).toHaveAttribute('href', NEW_STUDY_HASH);
     const open = screen.getByRole('link', { name: PERSONAL_CTA });
     expect(open).toHaveAttribute('href', APP_HASH);
   });

@@ -1,116 +1,68 @@
 /**
- * LandingHero.tsx — wordmark, animated loop diagram, sub-line · 首页主视觉
+ * LandingHero.tsx — headline over concentric rings · 首页主视觉
  *
- * The three-step loop is an inline SVG: three nodes that light up in
- * sequence while an amber glow travels along the arrows (CSS-only, see
- * landing.css). Labels sit in an HTML grid beneath so they stay readable
- * and scale with zoom. Static under prefers-reduced-motion.
+ * Paper hero, style "醒目 Bold": a mono eyebrow, the "Scripture to Life"
+ * line, the 活出神的话 headline (霞鹜文楷, 神的话 in the deep-gold gradient),
+ * the bilingual sub-line, two gold pills (the sample pack; 新建查经) and the
+ * loop line. Behind it, static rings plus four gold waves that ripple out
+ * (CSS only, landing.css); the waves are hidden under prefers-reduced-motion
+ * and the page reads the same without them (ADR-0003 §16).
  */
 import React from 'react';
-import type { HeroTheme } from './heroThemes';
-import { findVerseRefs } from '../studypack/verseRefs';
-import { planExternalRef } from '../studypack/externalVerses';
-import { bilingualRefLabel } from '../studypack/refLabel';
-import VerseTooltip from '../studypack/VerseTooltip';
+import { SAMPLE_PACK_HASH, NEW_STUDY_HASH } from './landingRoute';
 import {
-  BRAND_EN, BRAND_ZH, LOOP_STEPS, LOOP_LINE_ZH, LOOP_LINE_EN, HERO_SUB_ZH, HERO_SUB_EN,
+  BRAND_EN, BRAND_ZH_LEAD, BRAND_ZH_HIGHLIGHT, HERO_EYEBROW, HERO_SUB_ZH, HERO_SUB_EN,
+  GROUP_CTA, NEW_STUDY_LINE, LOOP_LINE_ZH,
 } from './landingStrings';
+import LandingPill from './LandingPill';
 
-const NODE_X = [50, 300, 550] as const;
-const NODE_Y = 40;
-const NODE_R = 22;
+const CENTER = 750;
+const STATIC_RADII = [140, 210, 290, 380, 480, 590, 710] as const;
+const WAVE_COUNT = 4;
+const WAVE_RADIUS = 740;
+const CJK_DASH = '——';
 
-const ARROWS = [
-  { from: NODE_X[0] + NODE_R + 6, to: NODE_X[1] - NODE_R - 6 },
-  { from: NODE_X[1] + NODE_R + 6, to: NODE_X[2] - NODE_R - 6 },
-] as const;
-
-const LoopDiagram: React.FC = () => (
-  <svg
-    viewBox="0 0 600 80"
-    className="mx-auto h-auto w-full max-w-xl"
-    role="img"
-    aria-label={`${LOOP_LINE_ZH} · ${LOOP_LINE_EN}`}
-    data-testid="loop-diagram"
-  >
-    {ARROWS.map((a, i) => (
-      <g key={a.from}>
-        <path d={`M${a.from} ${NODE_Y}H${a.to}`} stroke="var(--stl-text-3)" strokeOpacity="0.55" strokeWidth="3" strokeLinecap="round" />
-        <path d={`M${a.to - 12} ${NODE_Y - 9}L${a.to} ${NODE_Y}l-12 9`} stroke="var(--stl-text-3)" strokeOpacity="0.55" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-        <path
-          d={`M${a.from} ${NODE_Y}H${a.to}`}
-          className={`ld-arrow-glow ld-arrow-glow-${i + 1}`}
-          stroke="var(--stl-gold)" strokeWidth="4" strokeLinecap="round"
-        />
-      </g>
-    ))}
-    {NODE_X.map((x, i) => (
-      <circle
-        key={x} cx={x} cy={NODE_Y} r={NODE_R}
-        className={`ld-node ld-node-${i + 1}`}
-        strokeWidth="3"
-        data-testid={`loop-node-${i + 1}`}
-      />
-    ))}
+const Rings: React.FC = () => (
+  <svg className="ld-rings" viewBox="0 0 1500 1500" aria-hidden="true" data-testid="hero-rings">
+    <g className="ld-rings-static">
+      {STATIC_RADII.map(r => <circle key={r} cx={CENTER} cy={CENTER} r={r} />)}
+    </g>
+    <g className="ld-rings-wave">
+      {Array.from({ length: WAVE_COUNT }, (_, i) => <circle key={i} cx={CENTER} cy={CENTER} r={WAVE_RADIUS} />)}
+    </g>
   </svg>
 );
 
-const LoopLabels: React.FC = () => (
-  <ol
-    className="mx-auto mt-3 grid w-full max-w-xl grid-cols-3 gap-2 text-center"
-    data-testid="loop-labels"
-  >
-    {LOOP_STEPS.map((step, i) => (
-      <li key={step.zh} className={`ld-step-label ld-step-label-${i + 1}`}>
-        <span className="ld-step-zh block font-serif-sc font-bold">{step.zh}</span>
-        <span className="ld-step-en block text-stl-text-2">{step.en}</span>
-      </li>
-    ))}
-  </ol>
-);
-
-/**
- * A caption reference as a VerseTooltip (ADR-0003 §8: every reference is
- * interactive) — the same popup as slide refs, resolved from the bundled
- * Bible data. Falls back to plain text if the ref cannot be parsed.
- */
-const CaptionRef: React.FC<{ text: string }> = ({ text }) => {
-  const ref = findVerseRefs(text)[0];
-  const plan = ref ? planExternalRef(ref) : null;
-  if (!plan) return <>{text}</>;
-  return <VerseTooltip label={text} title={bilingualRefLabel(ref)} load={plan.load} />;
+/** The Chinese sub-line with its —— drawn by a CJK face (Inter leaves a gap in it). */
+const SubZh: React.FC = () => {
+  const [before, after] = HERO_SUB_ZH.split(CJK_DASH);
+  return (
+    <span className="ld-sub-zh">
+      {before}{after !== undefined && <><span className="ld-cjk">{CJK_DASH}</span>{after}</>}
+    </span>
+  );
 };
 
-/** Tiny low-contrast corner caption naming the theme's verse, Chinese first. */
-const ThemeCaption: React.FC<{ theme: HeroTheme }> = ({ theme }) => (
-  <p
-    className="absolute right-0 top-4 text-base text-stl-text-2 sm:top-6"
-    data-testid="theme-caption"
-  >
-    <span className="font-serif-sc"><CaptionRef text={theme.verseZh} /></span>
-    {' · '}
-    <CaptionRef text={theme.verseEn} />
-  </p>
-);
-
-const LandingHero: React.FC<{ theme: HeroTheme }> = ({ theme }) => (
-  <header className="relative pt-14 pb-10 text-center sm:pt-20">
-    <ThemeCaption theme={theme} />
-    <h1 className="ld-wordmark ld-fade ld-fade-1 font-bold tracking-tight text-stl-text">
-      {BRAND_EN}
-    </h1>
-    <p className="ld-wordmark-zh ld-fade ld-fade-2 mt-1 font-serif-sc text-stl-gold">
-      {BRAND_ZH}
-    </p>
-    <div className="ld-fade ld-fade-3 mt-10">
-      <LoopDiagram />
-      <LoopLabels />
+const LandingHero: React.FC = () => (
+  <section className="ld-hero" aria-labelledby="hero-h" data-testid="landing-hero">
+    <Rings />
+    <div className="ld-wrap">
+      <p className="ld-eyebrow">{HERO_EYEBROW}</p>
+      <p className="ld-brand-line">{BRAND_EN}</p>
+      <h1 id="hero-h" className="ld-headline" data-testid="hero-headline">
+        {BRAND_ZH_LEAD}<span className="ld-hl">{BRAND_ZH_HIGHLIGHT}</span>
+      </h1>
+      <p className="ld-sub">
+        <SubZh />
+        <span className="ld-en">{HERO_SUB_EN}</span>
+      </p>
+      <div className="ld-ctas">
+        <LandingPill href={SAMPLE_PACK_HASH} label={GROUP_CTA} arrow testId="hero-sample" />
+        <LandingPill href={NEW_STUDY_HASH} label={NEW_STUDY_LINE} ghost testId="hero-new-study" />
+      </div>
+      <p className="ld-loop-line">{LOOP_LINE_ZH}</p>
     </div>
-    <p className="ld-body ld-fade ld-fade-4 mx-auto mt-8 max-w-xl text-stl-text">
-      <span className="block font-serif-sc">{HERO_SUB_ZH}</span>
-      <span className="block text-stl-text-2">{HERO_SUB_EN}</span>
-    </p>
-  </header>
+  </section>
 );
 
 export default LandingHero;

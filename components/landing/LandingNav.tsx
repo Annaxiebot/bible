@@ -1,19 +1,17 @@
 /**
- * LandingNav.tsx — sticky two-link top nav · 页内导航
+ * LandingNav.tsx — sticky top nav · 页内导航
  *
- * Two large tap targets (≥48px) that scroll to the group card, the
- * personal card, plus one context-aware leader control (LandingLeaderLink:
- * "带领者登录 Leader sign-in" signed out, the leader's name → #/leader signed
- * in). The section links are buttons, not hash
- * links: any hash other than the bare root routes away from the landing
- * (landingRoute.ts), so navigation stays in-page via scrollIntoView. The
- * scroll is smooth unless the user prefers reduced motion (decided here, in
- * JS, so wheel/touch scrolling stays native); the nav itself is always
- * visible — it is content, not decoration. No hamburger: three links fit a
- * phone width.
+ * The brand (活出神的话 Scripture to Life, hidden on phones), two ≥48px
+ * section links that scroll to the group band and personal study, and one
+ * context-aware leader pill (LandingLeaderLink: "带领者登录 Leader sign-in"
+ * signed out, the leader's name → #/leader signed in). The section links
+ * are buttons, not hash links: any hash other than the bare root routes
+ * away from the landing (landingRoute.ts), so navigation stays in-page via
+ * scrollIntoView. The scroll is smooth unless the user prefers reduced
+ * motion (decided here, in JS, so wheel/touch scrolling stays native).
  */
 import React from 'react';
-import { NAV_LINKS, NAV_LABEL, NavSectionId } from './landingStrings';
+import { NAV_LINKS, NAV_LABEL, NavSectionId, BRAND_ZH, BRAND_EN } from './landingStrings';
 import LandingLeaderLink from './LandingLeaderLink';
 
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';
@@ -24,24 +22,26 @@ export function scrollToSection(id: NavSectionId): void {
   document.getElementById(id)?.scrollIntoView({ block: 'start', behavior });
 }
 
+/** One section link: Chinese, then the English half (hidden below 860px). */
+export const SectionLink: React.FC<{ link: (typeof NAV_LINKS)[number]; className: string; testId?: string }> = ({
+  link, className, testId,
+}) => (
+  <button type="button" onClick={() => scrollToSection(link.id)} data-testid={testId} className={className}>
+    <span>{link.zh}</span><span className="ld-nav-en">{link.en}</span>
+  </button>
+);
+
 const LandingNav: React.FC = () => (
-  <nav aria-label={NAV_LABEL} data-testid="landing-nav" className="ld-nav sticky top-0 z-10">
-    <ul className="mx-auto flex max-w-4xl justify-center gap-1 px-2 sm:gap-4">
+  <nav aria-label={NAV_LABEL} data-testid="landing-nav" className="ld-nav">
+    <div className="ld-wrap">
+      <div className="ld-brand" aria-hidden="true">
+        <span className="ld-brand-zh">{BRAND_ZH}</span><span className="ld-brand-en">{BRAND_EN}</span>
+      </div>
       {NAV_LINKS.map(link => (
-        <li key={link.id}>
-          <button
-            type="button"
-            onClick={() => scrollToSection(link.id)}
-            data-testid={`nav-${link.id}`}
-            className="ld-nav-link rounded-xl text-stl-text hover:text-stl-gold-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-stl-gold"
-          >
-            <span className="font-serif-sc">{link.zh}</span>
-            <span className="text-stl-text-2">{link.en}</span>
-          </button>
-        </li>
+        <SectionLink key={link.id} link={link} className="ld-nav-link" testId={`nav-${link.id}`} />
       ))}
-      <li><LandingLeaderLink /></li>
-    </ul>
+      <LandingLeaderLink />
+    </div>
   </nav>
 );
 

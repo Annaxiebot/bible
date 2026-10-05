@@ -40,7 +40,7 @@ describe('LandingLeaderLink', () => {
     render(<LandingLeaderLink />);
     const button = screen.getByTestId('nav-leader-signin');
     expect(button.tagName).toBe('BUTTON');
-    expect(button.textContent).toBe(`${NAV_LEADER_SIGNIN.zh}${NAV_LEADER_SIGNIN.en}`);
+    expect(button.textContent).toBe(`${NAV_LEADER_SIGNIN.zh} ${NAV_LEADER_SIGNIN.en}`);
     fireEvent.click(button);
     await waitFor(() => expect(signInMock).toHaveBeenCalledTimes(1));
     expect(screen.queryByRole('link')).toBeNull();

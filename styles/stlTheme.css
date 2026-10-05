@@ -13,6 +13,12 @@
  * by components/studypack/__tests__/stlTheme.test.ts, which also fails if a
  * token is added here but not mapped in index.html.
  *
+ * Paper tokens (2026-10 landing redesign, "醒目 Bold"): the landing is a
+ * light paper page with dark bands; TV mode and the other pages stay on
+ * the dark tokens above. --stl-gold-mid is for LARGE text only (the
+ * headline gradient, big figures: ≥ 3:1 on paper); small gold text on
+ * paper uses --stl-gold-deep (≥ 4.5:1). stlTheme.test.ts pins the pairs.
+ *
  * Type sizes are NOT here (TYPE_SCALE in principles.ts, landing.css):
  * this pass changes colours only.
  */
@@ -29,4 +35,20 @@
   --stl-gold-glow: rgba(217, 191, 122, 0.4);   /* accent glow: shadows, dawn */
   --stl-border: rgba(228, 231, 236, 0.12); /* hairlines on any surface */
   --stl-glass: rgba(21, 26, 35, 0.88);     /* translucent bg: sticky nav, overlay backdrop */
+  /* ---- landing paper theme ---- */
+  --stl-paper: #faf8f2;                    /* landing page background */
+  --stl-paper-2: #f3efe4;                  /* tinted paper band, hover fills */
+  --stl-card: #ffffff;                     /* cards on paper */
+  --stl-ink: #1d2430;                      /* body text on paper; raised panels on the dark bands */
+  --stl-ink-2: #4a5260;                    /* secondary text on paper: English lines */
+  --stl-line: #e2dccb;                     /* hairlines and card borders on paper */
+  --stl-gold-mid: #a67c2e;                 /* headline gradient start: LARGE text only on paper */
+  --stl-gold-deep: #7a5518;                /* headline gradient end; small gold text on paper */
+  --stl-cta: #d4ad5c;                      /* gold pill fill */
+  --stl-cta-hover: #c99f48;                /* gold pill hover */
+  --stl-night-line: #2c3442;               /* hairlines on the dark bands */
+  --stl-on-night: #f3efe4;                 /* text on the dark bands */
+  --stl-on-night-2: #b8bfcc;               /* secondary text on the dark bands */
+  --stl-gold-pale: #e6cd8c;                /* gold text on the dark bands; gradient start there */
+  --stl-gold-warm: #c9a24f;                /* gradient end on the dark bands */
 }

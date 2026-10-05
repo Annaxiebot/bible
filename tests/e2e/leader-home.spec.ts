@@ -28,7 +28,7 @@ test.describe('Leader sign-in and home', () => {
   test('signed out: the landing nav shows the leader sign-in button; pressing it surfaces the auth error', async ({ page }) => {
     await page.goto('./');
     const button = page.getByTestId('nav-leader-signin');
-    await expect(button).toHaveText(`${NAV_LEADER_SIGNIN.zh}${NAV_LEADER_SIGNIN.en}`);
+    await expect(button).toHaveText(`${NAV_LEADER_SIGNIN.zh} ${NAV_LEADER_SIGNIN.en}`);
     expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(SETUP_MIN_TAP_PX);
     await expect(page.getByTestId('nav-leader')).toHaveCount(0);
     await button.click();

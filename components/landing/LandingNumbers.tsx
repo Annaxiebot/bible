@@ -1,9 +1,10 @@
 /**
- * LandingNumbers.tsx — "真实的数字 Honest numbers": four true figures · 真实的数字
+ * LandingNumbers.tsx — "随时可用 Ready anywhere": four honest figures · 真实的数字
  *
  * Exactly four figures, every one verifiable from the repo (HONEST_NUMBERS
  * in landingStrings carries the sources; LandingNumbers.test.tsx re-counts
  * the bundled Bible data). No user, visitor, or church counts of any kind.
+ * Big gold-gradient figures over a hairline grid, Chinese label first.
  */
 import React from 'react';
 import {
@@ -19,16 +20,14 @@ const LandingNumbers: React.FC = () => (
     headingEn={NUMBERS_HEADING_EN}
     description={NUMBERS_DESC}
   >
-    <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4" data-testid="honest-numbers">
+    <dl className="ld-nums" data-testid="honest-numbers">
       {HONEST_NUMBERS.map(figure => (
-        <div key={figure.en} className="rounded-3xl border border-stl-border bg-stl-surface p-5">
-          <dt className="ld-figure font-bold text-stl-gold">{figure.value}</dt>
-          <dd className="ld-body mt-1">
-            <span className="block font-serif-sc text-stl-text">{figure.zh}</span>
-            <span className="block text-stl-text-2">{figure.en}</span>
-            {'note' in figure && (
-              <span className="ld-footer mt-2 block text-stl-text-3">{figure.note}</span>
-            )}
+        <div key={figure.en}>
+          <dt className="ld-figure ld-hl">{figure.value}</dt>
+          <dd>
+            <span className="ld-figure-zh">{figure.zh}</span>
+            <span className="ld-en">{figure.en}</span>
+            {'note' in figure && <span className="ld-figure-note">{figure.note}</span>}
           </dd>
         </div>
       ))}
