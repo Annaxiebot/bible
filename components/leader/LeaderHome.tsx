@@ -12,7 +12,7 @@
 import React from 'react';
 import { useGoogleSignIn } from '../signup/useGoogleSignIn';
 import { SU_ERR_NOT_CONFIGURED, SU_SIGN_IN_GOOGLE, SU_SIGNING_IN } from '../signup/signupStrings';
-import { NEW_STUDY_HASH } from '../landing/landingRoute';
+import { NEW_STUDY_HASH, LANDING_HASH } from '../landing/landingRoute';
 import { NEW_STUDY_LINE } from '../landing/landingStrings';
 import { NS_NO_PACKS, NS_INVALID_RECORDS } from '../newstudy/newStudyStrings';
 import { PackSyncLine } from '../newstudy/PackSyncLine';
@@ -68,7 +68,7 @@ const LeaderHome: React.FC = () => {
       <div className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-8 sm:px-6">
         <header className="flex items-start justify-between gap-4">
           <h1 className="font-bold text-stl-gold" style={pageTitleStyle}>{LH_TITLE}</h1>
-          <a href="#" className="rounded-lg px-4 text-stl-text-2 hover:text-stl-text" style={controlStyle} aria-label={LD_BACK}>✕</a>
+          <a href={LANDING_HASH} className="rounded-lg px-4 text-stl-text-2 hover:text-stl-text" style={controlStyle} aria-label={LD_BACK}>✕</a>
         </header>
         {!session.configured && alert(SU_ERR_NOT_CONFIGURED)}
         {session.configured && !session.loading && !session.uid && <SignInPrompt />}

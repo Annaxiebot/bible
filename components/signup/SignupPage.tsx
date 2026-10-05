@@ -16,7 +16,8 @@
  * saying so (a failed replace is shown, never swallowed).
  * Every failure (pack missing, service unconfigured, insert rejected) is a
  * visible state, never a silent catch. Paper style like the landing
- * (shared/paperStyles.ts): WenKai headings, sans body, gold pills.
+ * (shared/paperStyles.ts): WenKai headings, sans body, gold pills; the brand
+ * link home (shared/PaperHeader) on top.
  */
 import React, { useState } from 'react';
 import { packSignupState } from '../studypack/packSource';
@@ -37,6 +38,7 @@ import { textStyle, headingStyle, pageTitleStyle, controlStyle } from '../newstu
 import {
   PAPER_PAGE_CLASS, PAPER_COLUMN_CLASS, PAPER_HEAD_CLASS, PAPER_MUTED_CLASS, PAPER_ACCENT_CLASS, PAPER_ERROR_CLASS, PAPER_CARD_CLASS,
 } from '../shared/paperStyles';
+import PaperHeader from '../shared/PaperHeader';
 
 const PackHeader: React.FC<{ state: SignupPackState }> = ({ state }) => {
   if (state.status === 'ready') {
@@ -116,6 +118,7 @@ const SignupPage: React.FC<{ packId: string }> = ({ packId }) => {
   return (
     <div data-testid="signup-page" className={PAPER_PAGE_CLASS}>
       <div className={PAPER_COLUMN_CLASS}>
+        <PaperHeader />
         <header>
           <h1 className={PAPER_HEAD_CLASS} style={pageTitleStyle}>{SU_TITLE}</h1>
           <p className={`mt-2 ${PAPER_MUTED_CLASS}`} style={textStyle}>{SU_INTRO}</p>

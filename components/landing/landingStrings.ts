@@ -13,6 +13,8 @@ export const BRAND_ZH = '活出神的话';
 export const BRAND_ZH_LEAD = BRAND_ZH.slice(0, 2);
 export const BRAND_ZH_HIGHLIGHT = BRAND_ZH.slice(2);
 export const SITE_LINE = 'Scripture to Life · scripturetolife.org';
+/** Accessible name of the member pages' brand link home (shared/PaperHeader.tsx). */
+export const HOME_LINK_LABEL = '返回首页 · Home';
 
 export const HERO_SUB_ZH = 'AI 查经不止于明白——它陪你走进一周的生活。';
 export const HERO_SUB_EN =

@@ -20,6 +20,7 @@ import { renderCheckin, stopLine, stopPageUrl, SITE_ORIGIN, WELCOME_KIND, Checki
 import { resendBody, EmailConfig } from '../senders.ts';
 import { packFromSummary, SUMMARY_COLUMNS } from '../packSource.ts';
 import { checkinStopHash } from '../../../../components/checkin/checkinRoute';
+import { bodyLines } from './textBody';
 import { SEND_CHECKINS_FUNCTION } from '../../../../components/signup/signupSchema';
 
 const ID = '7d4e8b2a-1c3f-4a5b-9e6d-0f1a2b3c4d5e';
@@ -50,9 +51,9 @@ describe('recipients skip stopped rows', () => {
 });
 
 describe('stop line + List-Unsubscribe headers', () => {
-  it('every member email (welcome + tue/thu/weekend) ends with the stop line to #/checkin/<id>/stop', () => {
+  it('every member email (welcome + tue/thu/weekend) ends with the stop line to #/checkin/<id>/stop (then the site line)', () => {
     for (const kind of [WELCOME_KIND, 'tue', 'thu', 'weekend'] as const) {
-      const lines = renderCheckin(kind, PACK, { name: 'N', signupId: ID, practices: [] }).text.split('\n');
+      const lines = bodyLines(renderCheckin(kind, PACK, { name: 'N', signupId: ID, practices: [] }).text);
       expect(lines[lines.length - 1]).toBe(stopLine(ID));
     }
     expect(stopLine(ID)).toBe(`不想再收到？退订 · Stop these emails: ${SITE_ORIGIN}/#/checkin/${ID}/stop`);

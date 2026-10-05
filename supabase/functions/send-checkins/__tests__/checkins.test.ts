@@ -18,6 +18,7 @@ import {
   selectRecipients, testRecipientRow, verifyLeader, memberContext, welcomeAllowed, WELCOME_WINDOW_MS, SignupRow,
 } from '../recipients.ts';
 import { checkinHash } from '../../../../components/checkin/checkinRoute';
+import { bodyLines } from './textBody';
 import { sendEmail, sendSms, emailConfig, resendBody, RESEND_EMAILS_URL, twilioMessagesUrl, EmailConfig } from '../senders.ts';
 import { loadCheckinPack, packFromSummary, PackSummaryRow, SUMMARY_COLUMNS } from '../packSource.ts';
 import { PACK_SCHEMA_VERSION as APP_SCHEMA_VERSION } from '../../../../components/studypack/packTypes';
@@ -37,7 +38,7 @@ const OLD_FORM = 'https://docs.google.com/forms/d/e/abc/viewform';
 describe('renderCheckin', () => {
   it('is greeting, the member\'s own practice, the prompt, then the personal check-in link — Chinese first on every line', () => {
     const m = renderCheckin('tue', PACK, MEMBER);
-    const lines = m.text.split('\n');
+    const lines = bodyLines(m.text);
     expect(lines).toHaveLength(5);   // + the stop line (ADR-0009, optout.test.ts)
     expect(lines[0]).toBe(greeting('小明'));
     expect(lines[0].indexOf('平安')).toBeLessThan(lines[0].indexOf('Peace'));
@@ -61,7 +62,7 @@ describe('renderCheckin', () => {
   it('without a practice (pre-commitment row) the line is omitted; the leader test (no signup id) links the pack', () => {
     const m = renderCheckin('weekend', PACK, { name: 'Ann', signupId: null, practices: [] });
     expect(m.subject).toBe(`${KIND_LABEL.weekend.zh}${BILINGUAL_SEPARATOR}${KIND_LABEL.weekend.en} — ${PACK.title}`);
-    const lines = m.text.split('\n');
+    const lines = bodyLines(m.text);
     expect(lines).toHaveLength(3);
     expect(lines[1]).toBe(PACK.prompts.weekend);
     expect(lines[2]).toBe(packUrl(PACK.id));

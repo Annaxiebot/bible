@@ -13,6 +13,9 @@ import { getSignupPackIdFromHash, getQrPackIdFromHash } from '../signup/signupRo
 import { getLeaderPackIdFromHash, isLeaderHomeHash } from '../leader/leaderRoute';
 import { getCheckinFromHash, getCheckinStopFromHash } from '../checkin/checkinRoute';
 
+/** Href of the landing home: a lone "#" resolves to 'landing' (resolveRootView); member pages and the leader home link here. */
+export const LANDING_HASH = '#';
+
 /** Hash the landing's "Open the app" CTA sets. */
 export const APP_HASH = '#app';
 

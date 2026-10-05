@@ -11,6 +11,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import CheckinPage from '../CheckinPage';
 import { PAPER_PAGE_CLASS } from '../../shared/paperStyles';
+import { PAPER_HOME_TEST_ID } from '../../shared/PaperHeader';
+import { LANDING_HASH } from '../../landing/landingRoute';
 import { CHECKIN_CONTEXT_FN, SHARE_ANSWER_FN } from '../../signup/signupSchema';
 import { privateAnswerKey, promptFor, kindForToday } from '../checkinClient';
 import {
@@ -50,9 +52,10 @@ describe('CheckinPage', () => {
     expect(['tue', 'thu', 'weekend']).toContain(kindForToday());
   });
 
-  it('paper style like the landing: WenKai h1, gold pills for Keep/Share, paper tokens only', async () => {
+  it('paper style like the landing: brand link home, WenKai h1, gold pills for Keep/Share, paper tokens only', async () => {
     render(<CheckinPage signupId={ID} kind="tue" />);
     await screen.findByTestId('checkin-form');
+    expect(screen.getByTestId(PAPER_HOME_TEST_ID)).toHaveAttribute('href', LANDING_HASH);
     expect(screen.getByTestId('checkin-page').className).toContain(PAPER_PAGE_CLASS);
     expect(screen.getByRole('heading', { level: 1 }).className).toContain('stl-head');
     expect(screen.getByTestId('checkin-keep').className).toContain('stl-pill stl-pill-ghost');

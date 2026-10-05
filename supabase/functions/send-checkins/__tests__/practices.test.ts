@@ -10,6 +10,7 @@ import { describe, it, expect } from 'vitest';
 import { chosenPractices, practiceItems, practiceTexts, practiceColumns, ownVersionLine, OWN_VERSION_LABEL } from '../practices.ts';
 import { memberContext, SignupRow } from '../recipients.ts';
 import { renderCheckin, practiceLine, WELCOME_KIND, CHECKIN_KINDS, CheckinPack } from '../templates.ts';
+import { bodyLines } from './textBody';
 
 const A = { area: '家庭 Family', practice: '一起吃饭 · Eat together' };
 const B = { area: '工作 Work', practice: '写下忧虑 · Write it down' };
@@ -77,7 +78,7 @@ describe('emails list every practice', () => {
   it('a new row: welcome and every scheduled kind carry one practiceLine per practice, Chinese first, in order', () => {
     const member = memberContext(row(NEW));
     for (const kind of [WELCOME_KIND, ...CHECKIN_KINDS] as const) {
-      const lines = renderCheckin(kind, PACK, member).text.split('\n');
+      const lines = bodyLines(renderCheckin(kind, PACK, member).text);
       expect(lines.slice(1, 4)).toEqual([practiceLine(A.practice), practiceLine(B.practice), practiceLine(C.practice)]);
       expect(lines[1].indexOf('你选的操练')).toBe(0);
       expect(lines).toHaveLength(7);   // greeting, 3 practices, prompt, link, stop line

@@ -13,6 +13,8 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import QrPage from '../QrPage';
 import { PAPER_PAGE_CLASS } from '../../shared/paperStyles';
+import { PAPER_HOME_TEST_ID } from '../../shared/PaperHeader';
+import { LANDING_HASH } from '../../landing/landingRoute';
 import { currentSignupUrl } from '../signupRoute';
 import { LEADER_HOME_HASH } from '../../leader/leaderRoute';
 import { saveLocalPack } from '../../studypack/packSource';
@@ -60,9 +62,10 @@ describe('QrPage', () => {
     expect(screen.queryByTestId('qr-demo')).toBeNull();
   });
 
-  it('on screen: paper style like the landing (WenKai title, gold Print pill)', async () => {
+  it('on screen: paper style like the landing (brand link home, WenKai title, gold Print pill)', async () => {
     render(<QrPage packId={PACK_ID} />);
     await screen.findByTestId('qr-pack');
+    expect(screen.getByTestId(PAPER_HOME_TEST_ID)).toHaveAttribute('href', LANDING_HASH);
     expect(screen.getByTestId('qr-page').className).toContain(PAPER_PAGE_CLASS);
     expect(screen.getByRole('heading', { level: 1 }).className).toContain('stl-head');
     expect(screen.getByTestId('qr-print').className).toContain('stl-pill');
@@ -76,6 +79,7 @@ describe('QrPage', () => {
     expect(print).toHaveBeenCalledTimes(1);
     expect(button.className).toContain('print:hidden');
     expect(screen.getByTestId('qr-back').className).toContain('print:hidden');
+    expect(screen.getByTestId(PAPER_HOME_TEST_ID).className).toContain('print:hidden');
     expect(screen.getByText(SU_QR_BODY).className).toContain('print:hidden');
     expect(screen.getByTestId('qr-page').className).toContain('print:bg-white');
     for (const kept of [screen.getByTestId('qr-pack'), screen.getByTestId('qr-url'), screen.getByTestId('signup-qr')]) {

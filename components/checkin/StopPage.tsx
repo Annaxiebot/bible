@@ -8,7 +8,8 @@
  * "恢复 · Resume" button (resubscribe_signup). CheckinSubscription is the
  * small version the check-in page shows: a link here while subscribed, the
  * stopped state with Resume once stopped. Every failure is a visible line.
- * Paper style like the landing (shared/paperStyles), gold pills.
+ * Paper style like the landing (shared/paperStyles), gold pills, the brand
+ * link home (shared/PaperHeader) on top.
  */
 import React, { useState } from 'react';
 import { getSignupClient } from '../signup/signupClient';
@@ -18,6 +19,7 @@ import {
   PAPER_PAGE_CLASS, PAPER_COLUMN_CLASS, PAPER_HEAD_CLASS, PAPER_MUTED_CLASS, PAPER_ERROR_CLASS, PAPER_LINK_CLASS,
 } from '../shared/paperStyles';
 import Pill from '../shared/Pill';
+import PaperHeader from '../shared/PaperHeader';
 import { setMemberSubscription } from './checkinClient';
 import { checkinHash, checkinStopHash } from './checkinRoute';
 import { CK_TITLE, CK_STOP, CK_STOP_BUSY, CK_STOPPED, CK_RESUME, CK_RESUMED } from './checkinStrings';
@@ -62,6 +64,7 @@ const StopPage: React.FC<{ signupId: string }> = ({ signupId }) => {
   return (
     <div data-testid="stop-page" className={PAPER_PAGE_CLASS}>
       <div className={PAPER_COLUMN_CLASS}>
+        <PaperHeader />
         <h1 className={PAPER_HEAD_CLASS} style={pageTitleStyle}>{CK_TITLE}</h1>
         {stopped ? (
           <>
