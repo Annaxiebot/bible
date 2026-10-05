@@ -60,12 +60,12 @@ describe('signups-schema.sql', () => {
     expect(sql).not.toMatch(new RegExp(`ON ${PACK_SUMMARIES_TABLE} [^;]*TO anon`));
   });
 
-  it('study_signups carries the commitment columns; pack_summaries keeps the retired form columns (checkin_context still selects one)', () => {
+  it('study_signups carries the commitment columns; the retired Google Forms columns are dropped', () => {
     for (const col of ['practice_area', 'practice_text', 'practice2_area', 'practice2_text', 'practice_note']) {
       expect(sql).toContain(`ALTER TABLE ${SIGNUPS_TABLE} ADD COLUMN IF NOT EXISTS ${col} TEXT;`);
     }
-    expect(sql).toContain(`ALTER TABLE ${PACK_SUMMARIES_TABLE} ADD COLUMN IF NOT EXISTS feedback_form_url TEXT;`);
-    expect(sql).toContain(`ALTER TABLE ${PACK_SUMMARIES_TABLE} ADD COLUMN IF NOT EXISTS feedback_form_entries JSONB;`);
+    expect(sql).toContain(`ALTER TABLE ${PACK_SUMMARIES_TABLE} DROP COLUMN IF EXISTS feedback_form_url, DROP COLUMN IF EXISTS feedback_form_entries;`);
+    expect(sql).not.toContain('ADD COLUMN IF NOT EXISTS feedback_form');
     expect(sql).toContain("CHECK (kind IN ('tue', 'thu', 'weekend', 'welcome'))");
   });
 

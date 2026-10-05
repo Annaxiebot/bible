@@ -70,10 +70,11 @@ describe('checkin-optout-schema.sql', () => {
     expect(fn).toContain('SET search_path = public');
     expect(fn).toContain('WHERE s.id = p_signup_id');
     expect(fn).not.toMatch(/\b(phone|email)\b/);
-    for (const col of ['practice_area TEXT', 'practice_text TEXT', 'practice_note TEXT', 'feedback_form_url TEXT', 'practices JSONB', `${UNSUBSCRIBED_COLUMN} TIMESTAMPTZ`]) {
+    for (const col of ['practice_area TEXT', 'practice_text TEXT', 'practice_note TEXT', 'practices JSONB', `${UNSUBSCRIBED_COLUMN} TIMESTAMPTZ`]) {
       expect(fn).toContain(col);
     }
     expect(fn).toContain(`s.practices, s.${UNSUBSCRIBED_COLUMN}`);
+    expect(fn).not.toContain('feedback_form'); // dropped with Google Forms (2026-10-05)
     expect(sql).toContain(`REVOKE ALL ON FUNCTION public.${CHECKIN_CONTEXT_FN}(UUID) FROM PUBLIC;`);
     expect(sql).toContain(`GRANT EXECUTE ON FUNCTION public.${CHECKIN_CONTEXT_FN}(UUID) TO anon, authenticated;`);
   });

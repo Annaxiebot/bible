@@ -106,25 +106,24 @@ GRANT EXECUTE ON FUNCTION public.leader_set_signup_subscription(UUID, BOOLEAN) T
 
 -- What the check-in page may know about its token: the pack title, the
 -- member's first name and commitment (every chosen practice + the legacy
--- first-practice columns), the three check-in prompt lines, the retired
--- feedback_form_url (Google Forms removed 2026-10-05, ADR-0004 §9; the app
--- ignores it — removing it is the owner-approved later cleanup), and
--- whether reminders are stopped. Never phone or email.
+-- first-practice columns), the three check-in prompt lines and whether
+-- reminders are stopped. Never phone or email. (feedback_form_url was
+-- dropped 2026-10-05 with Google Forms, ADR-0004 §9.)
 -- Single definition (moved here from signup-practices-schema.sql); the
--- return type changed (unsubscribed_at added), which CREATE OR REPLACE
--- cannot do, hence the DROP first.
+-- return type changes (unsubscribed_at added, feedback_form_url removed),
+-- which CREATE OR REPLACE cannot do, hence the DROP first.
 DROP FUNCTION IF EXISTS public.checkin_context(UUID);
 CREATE FUNCTION public.checkin_context(p_signup_id UUID)
 RETURNS TABLE (
   pack_id TEXT, pack_title TEXT, name TEXT,
   practice_area TEXT, practice_text TEXT, practice_note TEXT,
-  reflection_lines TEXT[], feedback_form_url TEXT,
+  reflection_lines TEXT[],
   practices JSONB, unsubscribed_at TIMESTAMPTZ
 )
 LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
   SELECT s.pack_id, s.pack_title, s.name,
          s.practice_area, s.practice_text, s.practice_note,
-         COALESCE(p.reflection_lines, '{}'), p.feedback_form_url,
+         COALESCE(p.reflection_lines, '{}'),
          s.practices, s.unsubscribed_at
   FROM study_signups s
   LEFT JOIN pack_summaries p ON p.pack_id = s.pack_id

@@ -118,13 +118,9 @@ hand. Supabase was already in the stack (auth, sync, `ai-chat` edge function).
    to the form and the next save no longer writes them.
    `public_signup_pack` no longer returns them
    (`database/remove-forms-schema.sql`, applied live 2026-10-05).
-   Later cleanup, needs the owner (destructive): `pack_summaries.feedback_form_url`
-   and `feedback_form_entries` are no longer written or read by the app
-   or the edge function but still exist; `checkin_context()` still
-   selects `feedback_form_url` (the app ignores it). Drop the column from
-   `checkin_context` (DROP + CREATE FUNCTION, return type changes), then
-   `ALTER TABLE pack_summaries DROP COLUMN feedback_form_url, DROP COLUMN
-   feedback_form_entries`; old `leader_settings.settings` rows may still
+   Cleanup done 2026-10-05 with the owner's approval: `checkin_context()`
+   re-created without `feedback_form_url`, then `pack_summaries.feedback_form_url`
+   and `feedback_form_entries` dropped (signups-schema.sql). Old `leader_settings.settings` rows may still
    hold `feedback_form_default_url` until the leader's next push replaces
    the map. The Forms API can be disabled in the owner's Google Cloud
    console.
