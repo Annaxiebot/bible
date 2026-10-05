@@ -55,7 +55,6 @@ export const E2E_CHECKIN_CONTEXT = {
   pack_id: SAMPLE_PACK_ID, pack_title: '不要忧虑 Do Not Be Anxious', name: '小明', practice_area: '健康 Health',
   practice_text: '固定的睡前程序 · Fixed wind-down', practice_note: E2E_CHECKIN_NOTE, practices: E2E_CHECKIN_PRACTICES,
   reflection_lines: ['周二跟进：做了吗？ · Tue: did it happen?', '周四 · Thu', E2E_WEEKEND_LINE],
-  feedback_form_url: null,   // the live RPC still returns this retired column (see checkin-optout-schema.sql); the app ignores it
   unsubscribed_at: null as string | null,
 };
 

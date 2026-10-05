@@ -86,12 +86,11 @@ CREATE TABLE IF NOT EXISTS pack_summaries (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- RETIRED (Google Forms removed 2026-10-05, ADR-0004 §9): nothing writes or
--- reads these two columns any more. Kept only because checkin_context
--- (checkin-optout-schema.sql) still selects feedback_form_url; dropping them
--- is a later owner-approved cleanup.
-ALTER TABLE pack_summaries ADD COLUMN IF NOT EXISTS feedback_form_url TEXT;
-ALTER TABLE pack_summaries ADD COLUMN IF NOT EXISTS feedback_form_entries JSONB;
+-- Google Forms removed 2026-10-05 (ADR-0004 §9); its two columns dropped with
+-- the owner's approval the same day. Idempotent: a fresh install never had them.
+-- Apply AFTER checkin-optout-schema.sql on an existing database (its
+-- checkin_context no longer selects feedback_form_url).
+ALTER TABLE pack_summaries DROP COLUMN IF EXISTS feedback_form_url, DROP COLUMN IF EXISTS feedback_form_entries;
 
 CREATE INDEX IF NOT EXISTS idx_pack_summaries_leader_id ON pack_summaries(leader_id);
 
