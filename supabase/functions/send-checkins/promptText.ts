@@ -28,6 +28,27 @@ function stripHalf(half: string): string {
   return text.trim() ? text : half;
 }
 
+/** One half without any leading kind label ("周末:回顾…" → "回顾…"); used before the pack builder adds its own label. */
+export function halfWithoutKindLabel(half: string): string {
+  return stripHalf(half);
+}
+
+/**
+ * For display of a labelled reflection line: keep the FIRST label of each
+ * half and drop any label right after it ("周末回顾：周末:回顾…" →
+ * "周末回顾：回顾…", "End of week: Weekend: Looking…" → "End of week: Looking…").
+ * Packs built before the builder stripped the AI's own label still carry both.
+ */
+export function collapseRepeatedKindLabel(line: string): string {
+  return line.split(SEPARATOR).map(half => {
+    const m = ZH_LABEL.exec(half) ?? EN_LABEL.exec(half);
+    if (!m) return half;
+    const rest = half.slice(m[0].length);
+    const stripped = stripHalf(rest);
+    return stripped === rest ? half : m[0] + stripped;
+  }).join(SEPARATOR);
+}
+
 /** The prompt line with any leading kind label removed from each half ("中文 · English"). */
 export function promptWithoutKindLabel(line: string): string {
   return line.split(SEPARATOR).map(stripHalf).join(SEPARATOR);
