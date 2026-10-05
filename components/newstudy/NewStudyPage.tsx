@@ -32,10 +32,12 @@ import { textStyle, controlStyle, quietButtonClass, pageTitleStyle } from './new
  * Keep the editor in step with the hash: "#/new/<id>" opens that stored
  * pack — this browser first, then the signed-in leader's account (ADR-0006) —
  * (reload, browser back/forward, the Edit link); a bare "#/new" while
- * editing closes the editor. A missing or unreadable pack is a visible error.
+ * editing closes the editor. A missing or unreadable pack is a visible error,
+ * tagged with the id it is about (see RouteError).
  */
 function useEditorRoute(
-  currentId: string | null, open: (pack: StudyPack) => void, close: () => void, onError: (message: string) => void,
+  currentId: string | null, open: (pack: StudyPack) => void, close: () => void,
+  onError: (error: RouteError) => void,
 ): void {
   useEffect(() => {
     let cancelled = false;
@@ -44,8 +46,10 @@ function useEditorRoute(
       if (id === currentId) return;
       if (!id) { close(); return; }
       findLeaderPack(id)
-        .then(pack => { if (!cancelled) (pack ? open(pack) : onError(LOCAL_PACK_NOT_FOUND)); })
-        .catch((err: unknown) => { if (!cancelled) onError(`${NS_ERR_STORAGE}: ${err instanceof Error ? err.message : String(err)}`); });
+        .then(pack => { if (!cancelled) (pack ? open(pack) : onError({ id, message: LOCAL_PACK_NOT_FOUND })); })
+        .catch((err: unknown) => {
+          if (!cancelled) onError({ id, message: `${NS_ERR_STORAGE}: ${err instanceof Error ? err.message : String(err)}` });
+        });
     };
     sync();
     window.addEventListener('hashchange', sync);
@@ -53,11 +57,18 @@ function useEditorRoute(
   }, [currentId, open, close, onError]);
 }
 
+/**
+ * A failed "#/new/<id>" lookup. It names its id because a freshly generated
+ * pack sets the hash before auto-save stores it: the lookup can answer "not
+ * found" for the very pack the editor already shows. Such an error is not shown.
+ */
+interface RouteError { id: string; message: string }
+
 const NewStudyPage: React.FC = () => {
   const access = useAIAccess();
   const configured = access.available;
   const [phase, setPhaseRaw] = useState<Phase>({ kind: 'form' });
-  const [routeError, setRouteError] = useState<string | null>(null);
+  const [routeError, setRouteError] = useState<RouteError | null>(null);
   const packs = useLocalPacks();
   const editing = phase.kind === 'editor' ? phase.pack : null;
   const autosave = useAutoSave(editing, packs.save);
@@ -112,7 +123,9 @@ const NewStudyPage: React.FC = () => {
             <QuickAISetupForm onSaved={access.refresh} ownKeyOption={false} />
           </div>
         )}
-        {routeError && <p role="alert" className="text-red-300" style={textStyle}>{routeError}</p>}
+        {routeError && routeError.id !== editing?.id && (
+          <p role="alert" className="text-red-300" style={textStyle}>{routeError.message}</p>
+        )}
         <PhaseView
           phase={phase} configured={configured}
           onGenerate={req => void generate(req)} onCancel={cancel}
