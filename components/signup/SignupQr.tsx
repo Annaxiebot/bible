@@ -25,11 +25,14 @@ interface Props {
   className?: string;
   /** When given, showing the QR also refreshes the owner's pack_summaries row (ADR-0004). */
   pack?: StudyPack;
+  /** Paper pages (landing, #/qr) need a dark error red; the dark TV slide keeps the light one. */
+  tone?: 'dark' | 'paper';
 }
 
 type QrState = { status: 'drawing' } | { status: 'ready'; svg: string } | { status: 'failed'; message: string };
 
-const SignupQr: React.FC<Props> = ({ url, size, className, pack }) => {
+const SignupQr: React.FC<Props> = ({ url, size, className, pack, tone = 'dark' }) => {
+  const errorClass = tone === 'paper' ? 'text-red-700' : 'text-red-300';
   const [state, setState] = useState<QrState>({ status: 'drawing' });
   const summary = useSummarySync(pack ?? null);
 
@@ -46,7 +49,7 @@ const SignupQr: React.FC<Props> = ({ url, size, className, pack }) => {
   }, [url]);
 
   if (state.status === 'failed') {
-    return <p role="alert" className="text-red-300">{SU_QR_FAILED}: {state.message}</p>;
+    return <p role="alert" className={errorClass}>{SU_QR_FAILED}: {state.message}</p>;
   }
   return (
     <>
@@ -60,7 +63,7 @@ const SignupQr: React.FC<Props> = ({ url, size, className, pack }) => {
         dangerouslySetInnerHTML={state.status === 'ready' ? { __html: state.svg } : undefined}
       />
       {summary.status === 'failed' && (
-        <p role="alert" data-testid="summary-failed" className="text-red-300">{summary.message}</p>
+        <p role="alert" data-testid="summary-failed" className={errorClass}>{summary.message}</p>
       )}
     </>
   );

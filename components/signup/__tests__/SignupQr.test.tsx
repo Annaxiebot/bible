@@ -33,5 +33,12 @@ describe('SignupQr', () => {
     render(<SignupQr url={URL_TEXT} size="10rem" />);
     const alert = await screen.findByRole('alert');
     expect(alert).toHaveTextContent(`${SU_QR_FAILED}: too long`);
+    expect(alert).toHaveClass('text-red-300'); // dark TV slide
+  });
+
+  it('on paper pages the failure is a dark red that reads on the light background', async () => {
+    vi.spyOn(QRCode, 'toString').mockRejectedValueOnce(new Error('too long'));
+    render(<SignupQr url={URL_TEXT} size="10rem" tone="paper" />);
+    expect(await screen.findByRole('alert')).toHaveClass('text-red-700');
   });
 });
