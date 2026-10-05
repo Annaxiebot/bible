@@ -123,7 +123,7 @@ function twilioConfig(): TwilioConfig {
 }
 
 async function deliver(recipient: Recipient, kind: MessageKind, pack: CheckinPack, dryRun: boolean): Promise<SendResult> {
-  const rendered = renderCheckin(kind, pack, memberContext(recipient.signup));
+  const rendered = renderCheckin(kind, pack, memberContext(recipient.signup), recipient.channel);
   const id = recipient.signup.id;
   const message = id ? { ...rendered, oneClickUrl: oneClickUrl(env('SUPABASE_URL'), id) } : rendered;
   const base = { signup_id: recipient.signup.id, channel: recipient.channel, to: recipient.to };

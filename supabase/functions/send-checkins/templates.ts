@@ -9,9 +9,22 @@
  * removed 2026-10-05, §9), then — for a real
  * member — the stop line to #/checkin/<id>/stop (ADR-0009). The kind is named
  * once, in the subject; the prompt drops a repeated leading label
- * (promptText.ts, shared with the check-in page).
+ * (promptText.ts, shared with the check-in page). When the pack summary
+ * carries its verses (ADR-0004 §12), the passage line and the key verse sit
+ * between the prompt and the link, and the whole passage (email only — never
+ * SMS) between the link and the stop line; blank lines separate the blocks.
+ * Verses are the pack's own 和合本 + BSB text, both in every content mode.
+ * checkinContent builds the parts once; checkinText renders the plain-text
+ * part (URLs on their own lines) and emailHtml.ts the HTML part (buttons, no
+ * raw URLs). Email sends both; SMS gets the text only.
  */
 import { promptWithoutKindLabel } from './promptText.ts';
+import { renderCheckinHtml } from './emailHtml.ts';
+import {
+  SITE_ORIGIN, BILINGUAL_SEPARATOR, PRACTICE_LABEL, PASSAGE_LABEL, FULL_PASSAGE_HEADING, LINK_LABEL,
+} from './messageStrings.ts';
+
+export { SITE_ORIGIN, BILINGUAL_SEPARATOR, PRACTICE_LABEL, PASSAGE_LABEL, FULL_PASSAGE_HEADING, LINK_LABEL };
 
 export type CheckinKind = 'tue' | 'thu' | 'weekend';
 export const CHECKIN_KINDS: readonly CheckinKind[] = ['tue', 'thu', 'weekend'];
@@ -19,15 +32,11 @@ export const CHECKIN_KINDS: readonly CheckinKind[] = ['tue', 'thu', 'weekend'];
 export const WELCOME_KIND = 'welcome';
 export type MessageKind = CheckinKind | typeof WELCOME_KIND;
 
-/** Public site; pack JSON and TV links are served from here. */
-export const SITE_ORIGIN = 'https://scripturetolife.org';
 /** Resend sender. The domain must be verified in Resend before real sends. */
 export const CHECKIN_FROM_EMAIL = 'Scripture to Life <checkins@scripturetolife.org>';
 export const CHECKIN_TIMEZONE = 'America/Los_Angeles';
 /** Local hour at which the scheduled job is allowed to send (two UTC cron lines bracket DST). */
 export const CHECKIN_HOUR_LA = 9;
-
-export const BILINGUAL_SEPARATOR = ' · ';
 
 export const KIND_LABEL: Record<MessageKind, { zh: string; en: string }> = {
   tue: { zh: '周二跟进', en: 'Tuesday check-in' },
@@ -45,11 +54,28 @@ export interface CheckinPack {
   leaderId: string | null;  // owning leader's auth uid; null = demo pack, nobody to send for
   prompts: Record<CheckinKind, string>;
   paused?: boolean;   // pack_summaries.checkins_paused; a public pack is never paused (ADR-0009)
+  passage?: CheckinPassage;  // the studied verses (pack_summaries.verses); absent on an older summary row
 }
+
+export interface PassageVerse {
+  num: number;
+  cuv: string;  // 和合本, copied from the pack (bundled text)
+  en: string;   // BSB, copied from the pack (bundled text)
+}
+
+export interface CheckinPassage {
+  ref: string;               // pack_summaries.passage_ref, e.g. "箴言 1:1–33 · Proverbs 1:1–33"
+  verses: PassageVerse[];    // non-empty
+  keyVerse: number | null;   // pack_summaries.key_verse; null → no key-verse line
+}
+
+/** Which channel a message is rendered for; mirrors recipients.Channel. */
+export type MessageChannel = 'email' | 'sms';
 
 export interface CheckinMessage {
   subject: string;
   text: string;
+  html?: string;   // email only (emailHtml.ts); Resend sends it with `text` as the alternative
   /** RFC 8058 one-click URL (index.ts adds it per member; senders.resendBody turns it into List-Unsubscribe headers). */
   oneClickUrl?: string;
 }
@@ -80,9 +106,11 @@ export function stopPageUrl(signupId: string): string {
   return `${SITE_ORIGIN}/#/checkin/${signupId}/stop`;
 }
 
+const STOP_TEXT = `不想再收到？退订${BILINGUAL_SEPARATOR}Stop these emails: `;
+
 /** Last line of every member email: "不想再收到？退订 · Stop these emails: <url>". */
 export function stopLine(signupId: string): string {
-  return `不想再收到？退订${BILINGUAL_SEPARATOR}Stop these emails: ${stopPageUrl(signupId)}`;
+  return `${STOP_TEXT}${stopPageUrl(signupId)}`;
 }
 
 /** The feedback link for one member: the in-app check-in page, else (no signup id) the pack. */
@@ -122,27 +150,87 @@ export function greeting(name: string): string {
   return `${name} 平安${BILINGUAL_SEPARATOR}Peace, ${name}`;
 }
 
-/** "你选的操练：… · Your practice: …" — one line per committed practice. */
+/** "你选的操练 · Your practice：…" — one line per committed practice. */
 export function practiceLine(practice: string): string {
-  return `你选的操练${BILINGUAL_SEPARATOR}Your practice：${practice}`;
+  return `${PRACTICE_LABEL}：${practice}`;
 }
 
 const WELCOME_LINE = `周中我们会再提醒你${BILINGUAL_SEPARATOR}We will remind you mid-week`;
 
-/** Greeting, one line per practice (+ the own version), prompt (or the welcome line), link, stop line (members only); subject is bilingual with the pack title. */
-export function renderCheckin(kind: MessageKind, pack: CheckinPack, member: MemberContext): CheckinMessage {
+/** "本周经文 · This week's passage: 箴言 1:1–33 · Proverbs 1:1–33". */
+export function passageLine(ref: string): string {
+  return `${PASSAGE_LABEL}: ${ref}`;
+}
+
+/** The key verse in full, 和合本 then BSB: "「…」(v.7) · “…” (v.7)". */
+export function keyVerseLine(verse: PassageVerse): string {
+  return `「${verse.cuv}」(v.${verse.num})${BILINGUAL_SEPARATOR}“${verse.en}” (v.${verse.num})`;
+}
+
+/** One verse of the whole passage: "1 以色列王…… · 1 These are the proverbs…". */
+export function passageVerseLine(verse: PassageVerse): string {
+  return `${verse.num} ${verse.cuv}${BILINGUAL_SEPARATOR}${verse.num} ${verse.en}`;
+}
+
+/** One message's parts, rendered as plain text here and as HTML by emailHtml.ts. */
+export interface CheckinContent {
+  subject: string;
+  greeting: string;
+  practices: string[];         // the member's practice texts
+  ownVersion: string | null;   // already a full bilingual line
+  prompt: string;              // the question (or the welcome line); also the HTML preheader
+  passage: { ref: string; keyVerse: PassageVerse | null; verses: PassageVerse[] } | null;  // verses: [] for SMS
+  link: { url: string; label: string };
+  stopUrl: string | null;      // members only
+}
+
+/** The parts of a message; the whole passage only for email (33 verses would be dozens of SMS segments). */
+export function checkinContent(
+  kind: MessageKind, pack: CheckinPack, member: MemberContext, channel: MessageChannel,
+): CheckinContent {
   const label = KIND_LABEL[kind];
   const checkinKind = kind === WELCOME_KIND ? null : kind;
-  const lines = [greeting(member.name)];
-  for (const practice of member.practices) lines.push(practiceLine(practice));
-  if (member.ownVersion) lines.push(member.ownVersion);
-  lines.push(kind === WELCOME_KIND ? WELCOME_LINE : promptWithoutKindLabel(pack.prompts[kind]));
-  lines.push(feedbackUrl(pack, member, checkinKind));
-  if (member.signupId) lines.push(stopLine(member.signupId));
+  const passage = pack.passage;
+  const linkLabel = !member.signupId ? LINK_LABEL.pack : checkinKind ? LINK_LABEL.checkin : LINK_LABEL.welcome;
   return {
     subject: `${label.zh}${BILINGUAL_SEPARATOR}${label.en} — ${pack.title}`,
-    text: lines.join('\n'),
+    greeting: greeting(member.name),
+    practices: member.practices,
+    ownVersion: member.ownVersion ?? null,
+    prompt: checkinKind ? promptWithoutKindLabel(pack.prompts[checkinKind]) : WELCOME_LINE,
+    passage: passage ? {
+      ref: passage.ref,
+      keyVerse: passage.verses.find(v => v.num === passage.keyVerse) ?? null,
+      verses: channel === 'email' ? passage.verses : [],
+    } : null,
+    link: { url: feedbackUrl(pack, member, checkinKind), label: linkLabel },
+    stopUrl: member.signupId ? stopPageUrl(member.signupId) : null,
   };
+}
+
+/**
+ * Plain text: greeting, one line per practice (+ the own version), prompt,
+ * [blank, passage line, key verse, blank], link, [blank, whole passage],
+ * [blank], stop line. Without verses there are no blank lines (as before).
+ */
+export function checkinText(c: CheckinContent): string {
+  const lines = [c.greeting, ...c.practices.map(practiceLine), ...(c.ownVersion ? [c.ownVersion] : []), c.prompt];
+  const head = c.passage ? [...(c.passage.ref ? [passageLine(c.passage.ref)] : []), ...(c.passage.keyVerse ? [keyVerseLine(c.passage.keyVerse)] : [])] : [];
+  if (head.length) lines.push('', ...head, '');
+  lines.push(c.link.url);
+  const tail = c.passage?.verses.length ? [FULL_PASSAGE_HEADING, ...c.passage.verses.map(passageVerseLine)] : [];
+  if (tail.length) lines.push('', ...tail);
+  if (c.stopUrl) lines.push(...(tail.length ? [''] : []), `${STOP_TEXT}${c.stopUrl}`);
+  return lines.join('\n');
+}
+
+/** Text + (email only) HTML for one recipient; subject is bilingual with the pack title. */
+export function renderCheckin(
+  kind: MessageKind, pack: CheckinPack, member: MemberContext, channel: MessageChannel = 'email',
+): CheckinMessage {
+  const content = checkinContent(kind, pack, member, channel);
+  const text = checkinText(content);
+  return channel === 'email' ? { subject: content.subject, text, html: renderCheckinHtml(content) } : { subject: content.subject, text };
 }
 
 /**

@@ -45,12 +45,14 @@ export function emailConfig(env: (name: string) => string): EmailConfig {
 }
 
 /**
- * The Resend request body; `reply_to` is present only when configured, and
+ * The Resend request body: `text` always, `html` when the message has one
+ * (Resend sends both as multipart/alternative); `reply_to` only when configured, and
  * the List-Unsubscribe / List-Unsubscribe-Post headers (RFC 8058) only when
  * the message carries a member's one-click URL.
  */
 export function resendBody(config: EmailConfig, to: string, message: CheckinMessage): Record<string, unknown> {
   const body: Record<string, unknown> = { from: config.from, to: [to], subject: message.subject, text: message.text };
+  if (message.html) body.html = message.html;
   if (config.replyTo) body.reply_to = config.replyTo;
   if (message.oneClickUrl) body.headers = listUnsubscribeHeaders(message.oneClickUrl);
   return body;
