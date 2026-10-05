@@ -1,82 +1,86 @@
 /**
  * Landing.tsx — scripturetolife.org home page · 首页
  *
- * Minimalist, mobile-first, dark (charcoal/muted gold tokens in styles/stlTheme.css, matching TV mode), with
- * large type for adults and seniors. Shown only at the bare root URL; the
- * two door-card CTAs set the hash that LandingGate routes on. Static
- * content except the next-study block's pack fetch. Strings live in landingStrings.ts (ADR-0003:
- * Chinese first, English second). The hero background theme is chosen once
- * per session (heroThemeSession.ts). A one-line entry under the cards (and
- * the #/setup hash) opens the quick AI key dialog. Below the cards, two
- * sections (next study · honest numbers) share one shell
- * (LandingSection); a sticky two-link nav scrolls to the cards.
- * The next-study block takes a pack id so a later "current
- * pack" setting can drive it; today it is the sample pack.
+ * Style "醒目 Bold" (approved mockup, 2026-10): a light paper page with
+ * dark bands, 霞鹜文楷 headings and Inter body text, gold pills, large type
+ * for adults and seniors (tokens: styles/stlTheme.css; layout: landing.css
+ * + landingSections.css). Shown only at the bare root URL. Order: sticky
+ * nav · hero · the loop (01 02 03) · group band (photos) · personal study ·
+ * next study (+ 新建查经 and the AI line) · honest numbers · footer.
+ * Strings live in landingStrings.ts (ADR-0003: Chinese first). The AI
+ * line (and the #/setup hash) opens the AI service dialog. The next-study
+ * block takes a pack id so a later "current pack" setting can drive it;
+ * today it is the sample pack.
  */
 import React, { useState, useEffect, useCallback } from 'react';
 import './landing.css';
-import LandingSky from './LandingSky';
+import './landingSections.css';
+import LandingNav, { SectionLink } from './LandingNav';
 import LandingHero from './LandingHero';
 import LandingCards from './LandingCards';
-import LandingNav from './LandingNav';
+import LandingGroup from './LandingGroup';
+import LandingPersonal from './LandingPersonal';
 import LandingNextStudy from './LandingNextStudy';
 import LandingNumbers from './LandingNumbers';
-import { resolveSessionThemeFromWindow } from './heroThemeSession';
+import LandingPill from './LandingPill';
 import { SETUP_HASH, NEW_STUDY_HASH, SAMPLE_PACK_ID } from './landingRoute';
 import {
-  LEADER_ZH, LEADER_EN, SITE_LINE, LOOP_LINE_ZH, LOOP_LINE_EN, SETUP_LINE, SETUP_DONE_LINE,
-  NEW_STUDY_LINE, NEW_STUDY_SUB,
+  SITE_LINE, LOOP_LINE_ZH, LOOP_LINE_EN, SETUP_LINE, SETUP_DONE_LINE, NEW_STUDY_LINE, NEW_STUDY_SUB,
+  BRAND_EN, BRAND_ZH_LEAD, BRAND_ZH_HIGHLIGHT, NAV_LINKS, PHOTO_CREDIT, splitLabel,
 } from './landingStrings';
 import { useAIAccess } from '../setup/useAIAccess';
 import QuickAISetupDialog from '../setup/QuickAISetup';
 
-const LeaderLine: React.FC = () => (
-  <p className="ld-body mx-auto mt-12 max-w-2xl text-center text-stl-text-2" data-testid="leader-line">
-    <span className="block font-serif-sc text-stl-text">{LEADER_ZH}</span>
-    <span className="block">{LEADER_EN}</span>
-  </p>
-);
+/** Third door: "新建查经 New study" → #/new, with its one-line description. */
+const NewStudyBlock: React.FC = () => {
+  const { zh, en } = splitLabel(NEW_STUDY_LINE);
+  return (
+    <div className="ld-new-study">
+      <div>
+        <div className="ld-new-study-t">{zh} <span className="ld-new-study-en">{en}</span></div>
+        <div className="ld-new-study-s">{NEW_STUDY_SUB}</div>
+      </div>
+      <LandingPill ghost href={NEW_STUDY_HASH} label={NEW_STUDY_LINE} testId="landing-new-study-line" />
+    </div>
+  );
+};
 
 const SetupLine: React.FC<{ configured: boolean; onOpen: () => void }> = ({ configured, onOpen }) => (
-  <p className="mt-8 text-center">
-    <button
-      type="button"
-      onClick={onOpen}
-      data-testid="landing-setup-line"
-      className="ld-body ld-setup-line text-stl-gold underline underline-offset-4 hover:text-stl-gold-hover"
-    >
+  <p className="ld-ai-line">
+    <button type="button" onClick={onOpen} data-testid="landing-setup-line">
       {configured ? SETUP_DONE_LINE : SETUP_LINE}
     </button>
   </p>
 );
 
-/** Third door: "新建查经 New study" → #/new (≥48px tap target via .ld-setup-line). */
-const NewStudyLine: React.FC = () => (
-  <p className="mt-6 text-center">
-    <a
-      href={NEW_STUDY_HASH}
-      data-testid="landing-new-study-line"
-      className="ld-body ld-setup-line inline-block text-stl-gold underline underline-offset-4 hover:text-stl-gold-hover"
-    >
-      {NEW_STUDY_LINE}
-    </a>
-    <span className="ld-body block text-stl-text-2">{NEW_STUDY_SUB}</span>
-  </p>
-);
-
-const Footer: React.FC = () => (
-  <footer className="ld-footer mt-16 border-t border-stl-border pb-12 pt-8 text-center text-stl-text-2">
-    <p>{SITE_LINE}</p>
-    <p className="mt-2">
-      <span className="font-serif-sc">{LOOP_LINE_ZH}</span>
-      <span className="mx-2 text-stl-text-3">·</span>
-      <span>{LOOP_LINE_EN}</span>
-    </p>
-  </footer>
-);
+const Footer: React.FC = () => {
+  const newStudy = splitLabel(NEW_STUDY_LINE);
+  return (
+    <footer className="ld-footer ld-dark" data-testid="landing-footer">
+      <div className="ld-wrap">
+        <div className="ld-foot-grid">
+          <div>
+            <div className="ld-foot-brand" aria-hidden="true">{BRAND_ZH_LEAD}<span className="ld-hl">{BRAND_ZH_HIGHLIGHT}</span></div>
+            <div className="ld-foot-en">{BRAND_EN}</div>
+            <div className="ld-foot-loop">{LOOP_LINE_ZH}<br />{LOOP_LINE_EN}</div>
+          </div>
+          <div className="ld-foot-links">
+            {NAV_LINKS.map(link => <SectionLink key={link.id} link={link} className="ld-foot-link" />)}
+            <a className="ld-foot-link" href={NEW_STUDY_HASH}>
+              {newStudy.zh}<span className="ld-nav-en">{newStudy.en}</span>
+            </a>
+          </div>
+        </div>
+        <div className="ld-foot-bottom">
+          <p>{SITE_LINE}</p>
+          <p data-testid="photo-credit">{PHOTO_CREDIT}</p>
+        </div>
+      </div>
+    </footer>
+  );
+};
 
 const Landing: React.FC<{ setupOpen?: boolean }> = ({ setupOpen = false }) => {
-  const [theme] = useState(resolveSessionThemeFromWindow);
   const [open, setOpen] = useState(setupOpen);
   const ai = useAIAccess();
   useEffect(() => { setOpen(setupOpen); }, [setupOpen]);
@@ -88,19 +92,20 @@ const Landing: React.FC<{ setupOpen?: boolean }> = ({ setupOpen = false }) => {
   }, []);
 
   return (
-    <div data-testid="landing-page" className="ld-root bg-stl-bg text-stl-text">
-      <LandingSky theme={theme} />
+    <div data-testid="landing-page" className="ld-root" lang="zh-Hans">
       <LandingNav />
-      <div className="mx-auto max-w-4xl px-4 sm:px-6">
-        <LandingHero theme={theme} />
+      <main>
+        <LandingHero />
         <LandingCards />
-        <SetupLine configured={ai.available} onOpen={() => setOpen(true)} />
-        <NewStudyLine />
-        <LeaderLine />
-        <LandingNextStudy packId={SAMPLE_PACK_ID} />
+        <LandingGroup />
+        <LandingPersonal />
+        <LandingNextStudy packId={SAMPLE_PACK_ID}>
+          <NewStudyBlock />
+          <SetupLine configured={ai.available} onOpen={() => setOpen(true)} />
+        </LandingNextStudy>
         <LandingNumbers />
-        <Footer />
-      </div>
+      </main>
+      <Footer />
       <QuickAISetupDialog open={open} onClose={close} onSaved={ai.refresh} />
     </div>
   );

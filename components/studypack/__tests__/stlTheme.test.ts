@@ -38,6 +38,22 @@ const EXPECTED_TOKENS: Record<string, string> = {
   'stl-gold-glow': 'rgba(217, 191, 122, 0.4)',
   'stl-border': 'rgba(228, 231, 236, 0.12)',
   'stl-glass': 'rgba(21, 26, 35, 0.88)',
+  // landing paper theme (2026-10 redesign)
+  'stl-paper': '#faf8f2',
+  'stl-paper-2': '#f3efe4',
+  'stl-card': '#ffffff',
+  'stl-ink': '#1d2430',
+  'stl-ink-2': '#4a5260',
+  'stl-line': '#e2dccb',
+  'stl-gold-mid': '#a67c2e',
+  'stl-gold-deep': '#7a5518',
+  'stl-cta': '#d4ad5c',
+  'stl-cta-hover': '#c99f48',
+  'stl-night-line': '#2c3442',
+  'stl-on-night': '#f3efe4',
+  'stl-on-night-2': '#b8bfcc',
+  'stl-gold-pale': '#e6cd8c',
+  'stl-gold-warm': '#c9a24f',
 };
 
 // WCAG 2.1 §1.4.3: 4.5:1 for normal text, 3:1 for large text (≥24px / ≥19px bold).
@@ -105,15 +121,40 @@ describe('stlTheme contrast (WCAG AA)', () => {
   });
 });
 
+describe('landing paper theme contrast (WCAG AA)', () => {
+  // Body and small text on the paper page, its cards and tinted band; text on the dark bands.
+  const bodyPairs: Array<[string, string]> = [
+    ['stl-ink', 'stl-paper'], ['stl-ink', 'stl-paper-2'], ['stl-ink', 'stl-card'],
+    ['stl-ink-2', 'stl-paper'], ['stl-ink-2', 'stl-paper-2'], ['stl-ink-2', 'stl-card'],
+    ['stl-gold-deep', 'stl-paper'], ['stl-gold-deep', 'stl-paper-2'], ['stl-gold-deep', 'stl-card'], // eyebrows, refs, AI line
+    ['stl-ink', 'stl-cta'], ['stl-ink', 'stl-cta-hover'],             // gold pill labels
+    ['stl-on-night', 'stl-bg'], ['stl-on-night-2', 'stl-bg'], ['stl-gold-pale', 'stl-bg'],
+    ['stl-gold-warm', 'stl-bg'], ['stl-on-night-2', 'stl-ink'],
+  ];
+  it.each(bodyPairs)('%s on %s ≥ 4.5:1 (body text)', (fg, on) => {
+    expect(contrastRatio(TOKENS[fg], TOKENS[on])).toBeGreaterThanOrEqual(AA_NORMAL);
+  });
+
+  // The headline gradient (88px), big figures (≥ 44px) and the 22px semibold passage ref
+  // run gold-mid → gold-deep: large text, so its lighter end needs 3:1.
+  it('stl-gold-mid on paper and card ≥ 3:1 (large text only), and it is NOT body-safe', () => {
+    for (const on of ['stl-paper', 'stl-paper-2', 'stl-card']) {
+      expect(contrastRatio(TOKENS['stl-gold-mid'], TOKENS[on])).toBeGreaterThanOrEqual(AA_LARGE);
+    }
+    expect(contrastRatio(TOKENS['stl-gold-mid'], TOKENS['stl-paper'])).toBeLessThan(AA_NORMAL);
+  });
+});
+
 describe('themed views use tokens only', () => {
   const VIEW_FILES = [
     'components/landing/Landing.tsx', 'components/landing/LandingCards.tsx',
     'components/landing/LandingGate.tsx', 'components/landing/LandingHero.tsx',
     'components/landing/LandingNav.tsx', 'components/landing/LandingNextStudy.tsx',
     'components/landing/LandingNumbers.tsx', 'components/landing/LandingSection.tsx',
-    'components/landing/landingIllustrations.tsx', 'components/landing/landing.css',
-    'components/landing/themes/birds.css', 'components/landing/themes/stars.css',
-    'components/landing/themes/dawn.css',
+    'components/landing/LandingGroup.tsx', 'components/landing/LandingPersonal.tsx',
+    'components/landing/LandingPill.tsx', 'components/landing/LandingVerse.tsx',
+    'components/landing/LandingLeaderLink.tsx', 'components/landing/landing.css',
+    'components/landing/landingSections.css',
     'components/studypack/TVPresentationView.tsx', 'components/studypack/TVSlide.tsx',
     'components/studypack/AskAIOverlay.tsx', 'components/studypack/AskAnswer.tsx',
     'components/studypack/VerseTooltip.tsx',

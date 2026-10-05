@@ -1,19 +1,22 @@
 /**
  * landing.spec.ts — landing page in a real browser · 首页端到端测试
  *
- * The bare root URL shows the landing; its two CTAs set the hash and route
- * to TV mode and to the app; a bookmarked hash bypasses it; type meets the
- * senior-friendly thresholds at phone and desktop widths; reduced motion
- * renders the same layout with all animation off. The sticky nav scrolls to
- * its sections; the next-study block shows the real sample pack and opens
- * it in TV mode; sign-up shows the demo line for the sample pack and the
- * per-pack QR + #/signup link for an owned pack. The saved-key state of the
- * setup dialog (model rows) lives in quick-ai-setup.spec.ts.
+ * The bare root URL shows the landing (style "醒目 Bold": paper hero with
+ * rings, loop cards, the dark group band with photos, personal study, next
+ * study, honest numbers); its CTAs set the hash and route to TV mode, the
+ * app and #/new; a bookmarked hash bypasses it; type and tap targets meet
+ * the senior-friendly thresholds at phone and desktop widths with no
+ * horizontal scroll; the headline is set in 霞鹜文楷; reduced motion stops
+ * the rings. The sticky nav scrolls to its sections; the next-study block
+ * shows the real sample pack and opens it in TV mode; sign-up shows the
+ * demo line for the sample pack and the per-pack QR + #/signup link for an
+ * owned pack. The saved-key state of the setup dialog (model rows) lives in
+ * quick-ai-setup.spec.ts.
  */
 import { test, expect, Page } from '@playwright/test';
 import {
-  BRAND_EN, GROUP_CTA, PERSONAL_CTA, GROUP_TITLE_ZH, PERSONAL_TITLE_ZH, SITE_LINE,
-  SETUP_LINE, SETUP_DONE_LINE, NAV_LINKS, NEXT_OPEN_CTA, NEXT_SIGNUP_CTA, HONEST_NUMBERS,
+  BRAND_ZH, GROUP_CTA, PERSONAL_CTA, GROUP_TITLE_ZH, PERSONAL_TITLE_ZH, SITE_LINE, LOOP_STEPS,
+  SETUP_LINE, SETUP_DONE_LINE, NAV_LINKS, NEXT_OPEN_CTA, NEXT_SIGNUP_CTA, HONEST_NUMBERS, GROUP_PHOTOS,
 } from '../../components/landing/landingStrings';
 import { SETUP_HASH, SAMPLE_PACK_ID } from '../../components/landing/landingRoute';
 import { signupHash } from '../../components/signup/signupRoute';
@@ -23,12 +26,14 @@ import { SETUP_TITLE, SETUP_KEY_LABEL, SETUP_SAVE, SETUP_GET_KEY, SETUP_OWN_KEY_
 import { OPENROUTER_KEYS_URL } from '../../services/aiDefaults';
 import { STORAGE_KEYS } from '../../constants/storageKeys';
 
-const PHONE = { width: 375, height: 812 };
-const DESKTOP = { width: 1280, height: 800 };
-const MIN_BODY_PX = { phone: 18, desktop: 20 };
+const PHONE = { width: 390, height: 844 };
+const DESKTOP = { width: 1440, height: 900 };
+const MIN_BODY_PX = 20;
 const MIN_TITLE_PX = 28;
 const MIN_CTA_PX = 20;
-const MIN_CTA_HEIGHT = 56;
+const MIN_TAP_PX = 48;
+const MIN_HEADLINE_PX = { phone: 52, desktop: 80 };
+const WENKAI = 'LXGW WenKai';
 
 async function openLanding(page: Page) {
   await page.goto('./');
@@ -40,18 +45,30 @@ async function fontSizePx(page: Page, selector: string): Promise<number> {
 }
 
 test.describe('Landing page', () => {
-  test('bare root renders the landing, Chinese first, with both door cards', async ({ page }) => {
+  test('bare root renders the landing, Chinese first: headline, loop cards, group and personal sections', async ({ page }) => {
     await openLanding(page);
-    await expect(page.getByRole('heading', { level: 1, name: BRAND_EN })).toBeVisible();
-    await expect(page.getByTestId('loop-diagram')).toBeVisible();
-    await expect(page.getByTestId('card-group').getByText(GROUP_TITLE_ZH)).toBeVisible();
-    await expect(page.getByTestId('card-personal').getByText(PERSONAL_TITLE_ZH)).toBeVisible();
+    await expect(page.getByTestId('hero-headline')).toHaveText(BRAND_ZH);
+    for (const [i, step] of LOOP_STEPS.entries()) {
+      await expect(page.getByTestId(`loop-card-${i + 1}`).getByRole('heading', { level: 3 })).toHaveText(`${step.zh}${step.en}`);
+    }
+    await expect(page.getByTestId('section-group').getByRole('heading', { level: 2 })).toContainText(GROUP_TITLE_ZH);
+    await expect(page.getByTestId('section-personal').getByRole('heading', { level: 2 })).toContainText(PERSONAL_TITLE_ZH);
     await expect(page.getByText(SITE_LINE)).toBeVisible();
   });
 
-  test('sample pack CTA navigates to TV presentation mode', async ({ page }) => {
+  test('the headline is set in 霞鹜文楷 LXGW WenKai (system serif while it loads)', async ({ page }) => {
     await openLanding(page);
-    await page.getByRole('link', { name: GROUP_CTA }).click();
+    const family = await page.getByTestId('hero-headline').evaluate(el => getComputedStyle(el).fontFamily);
+    expect(family).toContain(WENKAI);
+    expect(family.trim().endsWith('serif')).toBe(true);
+    // Only the landing names the family: the app shell does not.
+    await page.goto('./#app');
+    expect(await page.locator('body').evaluate(el => getComputedStyle(el).fontFamily)).not.toContain(WENKAI);
+  });
+
+  test('hero sample pack CTA navigates to TV presentation mode', async ({ page }) => {
+    await openLanding(page);
+    await page.getByTestId('hero-sample').click();
     await expect(page).toHaveURL(/#\/pack\/2026-10-02-matt6$/);
     await expect(page.getByTestId('tv-presentation')).toBeVisible();
     await expect(page.getByTestId('landing-page')).toHaveCount(0);
@@ -101,72 +118,64 @@ test.describe('Landing page', () => {
     await expect(page).not.toHaveURL(/#\/setup/);
   });
 
-  for (const [name, size, minBody] of [
-    ['phone', PHONE, MIN_BODY_PX.phone],
-    ['desktop', DESKTOP, MIN_BODY_PX.desktop],
-  ] as const) {
-    test(`type meets senior-friendly thresholds at ${name} width`, async ({ page }) => {
+  for (const [name, size] of [['phone', PHONE], ['desktop', DESKTOP]] as const) {
+    test(`type and tap targets meet senior-friendly thresholds at ${name} width`, async ({ page }) => {
       await page.setViewportSize(size);
       await openLanding(page);
-      expect(await fontSizePx(page, '.ld-body')).toBeGreaterThanOrEqual(minBody);
+      for (const body of ['.ld-sub .ld-en', '.ld-card p', '.ld-lede', '.ld-points .ld-en']) {
+        expect(await fontSizePx(page, body), body).toBeGreaterThanOrEqual(MIN_BODY_PX);
+      }
+      expect(await fontSizePx(page, '.ld-h2')).toBeGreaterThanOrEqual(MIN_TITLE_PX);
       expect(await fontSizePx(page, '.ld-card-title')).toBeGreaterThanOrEqual(MIN_TITLE_PX);
-      expect(await fontSizePx(page, '.ld-cta')).toBeGreaterThanOrEqual(MIN_CTA_PX);
-      expect(await fontSizePx(page, '.ld-wordmark')).toBeGreaterThan(await fontSizePx(page, '.ld-card-title'));
-      for (const label of [GROUP_CTA, PERSONAL_CTA]) {
-        const cta = page.getByRole('link', { name: label });
-        await cta.scrollIntoViewIfNeeded();
-        const box = await cta.boundingBox();
-        expect(box).not.toBeNull();
-        expect(box!.height).toBeGreaterThanOrEqual(MIN_CTA_HEIGHT);
+      expect(await fontSizePx(page, '.ld-hero .ld-pill')).toBeGreaterThanOrEqual(MIN_CTA_PX);
+      expect(await fontSizePx(page, '.ld-headline')).toBeGreaterThanOrEqual(MIN_HEADLINE_PX[name]);
+      const targets = page.locator('.ld-pill:visible, .ld-nav-link:visible, [data-testid="landing-setup-line"]');
+      expect(await targets.count()).toBeGreaterThan(8);
+      for (const box of await targets.evaluateAll(els => els.map(el => el.getBoundingClientRect().height))) {
+        expect(box).toBeGreaterThanOrEqual(MIN_TAP_PX);
       }
     });
-  }
 
-  for (const [id, layer, animationName] of [
-    ['stars', 'theme-stars', 'ld-star-breathe'],
-    ['dawn', 'theme-dawn', 'ld-ripple-drift'],
-  ] as const) {
-    test(`?theme=${id} renders that layer, click-through, animated by default`, async ({ page }) => {
-      await page.goto(`./?theme=${id}`);
-      await expect(page.getByTestId('landing-page')).toBeVisible();
-      const sky = page.getByTestId('landing-sky');
-      await expect(sky).toHaveAttribute('data-theme', id);
-      await expect(page.getByTestId(layer)).toHaveCount(1);
-      expect(await sky.evaluate(el => getComputedStyle(el).pointerEvents)).toBe('none');
-      const names = await page.locator(`[data-testid="${layer}"], [data-testid="${layer}"] .ld-star`)
-        .evaluateAll(els => els.map(el => getComputedStyle(el).animationName));
-      expect(names).toContain(animationName);
-      await expect(page.getByTestId('theme-caption')).toContainText(' · ');
-    });
-
-    test(`?theme=${id} under prefers-reduced-motion is static, layout intact`, async ({ page }) => {
-      await page.emulateMedia({ reducedMotion: 'reduce' });
-      await page.goto(`./?theme=${id}`);
-      await expect(page.getByTestId('landing-page')).toBeVisible();
-      await expect(page.getByRole('heading', { level: 1, name: BRAND_EN })).toBeVisible();
-      await expect(page.getByTestId('card-group')).toBeVisible();
-      const animated = '.ld-node, .ld-fade, .ld-arrow-glow, .ld-dawn, .ld-ripples, .ld-star, .ld-bird-flight';
-      const animations = await page.locator(animated).evaluateAll(els =>
-        els.map(el => getComputedStyle(el).animationName)
-      );
-      expect(animations.length).toBeGreaterThan(0);
-      expect(animations.every(a => a === 'none')).toBe(true);
-      expect(await page.locator('.ld-wordmark').evaluate(el => getComputedStyle(el).opacity)).toBe('1');
+    test(`no horizontal scroll at ${name} width (${size.width}px)`, async ({ page }) => {
+      await page.setViewportSize(size);
+      await openLanding(page);
+      const root = page.getByTestId('landing-page');
+      expect(await root.evaluate(el => el.scrollWidth - el.clientWidth)).toBe(0);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(size.width);
+      // Nothing visible pokes out past the right edge (the rings and watermark are clipped by their sections).
+      const overflow = await page.locator('.ld-wrap').evaluateAll((els, w) =>
+        els.filter(el => el.getBoundingClientRect().right > w + 0.5).length, size.width);
+      expect(overflow).toBe(0);
     });
   }
 
-  test('?theme=stars: hovering the verse caption shows 诗篇 text first, then BSB', async ({ page }) => {
-    await page.goto('./?theme=stars');
-    await expect(page.getByTestId('landing-page')).toBeVisible();
-    const zhRef = page.getByTestId('theme-caption').getByTestId('verse-ref').first();
-    await expect(zhRef).toHaveText('诗篇 147:4');
-    await zhRef.hover();
-    const tooltip = page.getByRole('tooltip');
-    await expect(page.getByTestId('verse-tooltip-title')).toHaveText('诗篇 147:4 · Psalm 147:4');
-    await expect(tooltip).toContainText('星宿');                          // 和合本 Ps 147:4
-    await expect(tooltip).toContainText('number of the stars');          // BSB
-    const text = await tooltip.innerText();
-    expect(text.indexOf('星宿')).toBeLessThan(text.indexOf('number of the stars'));
+  test('the rings ripple by default and stop under prefers-reduced-motion; the page reads the same', async ({ page }) => {
+    await openLanding(page);
+    const waves = page.locator('[data-testid="hero-rings"] .ld-rings-wave circle');
+    expect(await waves.evaluateAll(els => els.map(el => getComputedStyle(el).animationName))).toEqual(Array(4).fill('ld-ripple'));
+    expect(await page.getByTestId('hero-rings').evaluate(el => getComputedStyle(el).pointerEvents)).toBe('none');
+    await page.emulateMedia({ reducedMotion: 'reduce' });
+    await openLanding(page);
+    expect(await page.locator('.ld-rings-wave').evaluate(el => getComputedStyle(el).display)).toBe('none');
+    expect(await waves.evaluateAll(els => els.map(el => getComputedStyle(el).animationName))).toEqual(Array(4).fill('none'));
+    await expect(page.locator('.ld-rings-static circle').first()).toBeAttached();
+    await expect(page.getByTestId('hero-headline')).toBeVisible();
+    await expect(page.getByTestId('hero-sample')).toBeVisible();
+  });
+
+  test('the three photos load from public/landing with width/height and Chinese-first alt text', async ({ page }) => {
+    await openLanding(page);
+    const imgs = page.getByTestId('group-photos').locator('img');
+    await expect(imgs).toHaveCount(GROUP_PHOTOS.length);
+    for (const [i, photo] of GROUP_PHOTOS.entries()) {
+      const img = imgs.nth(i);
+      await img.scrollIntoViewIfNeeded();
+      await expect(img).toHaveAttribute('width', String(photo.width));
+      await expect(img).toHaveAttribute('height', String(photo.height));
+      await expect(img).toHaveAttribute('alt', photo.alt);
+      await expect(img).toHaveAttribute('loading', i === 0 ? 'eager' : 'lazy');
+      await expect.poll(() => img.evaluate(el => (el as HTMLImageElement).naturalWidth)).toBe(photo.width);
+    }
   });
 
   for (const [name, size] of [['desktop', { width: 1280, height: 768 }], ['phone', PHONE]] as const) {
@@ -195,22 +204,6 @@ test.describe('Landing page', () => {
     });
   }
 
-  test('motion is on by default: the loop nodes animate', async ({ page }) => {
-    await openLanding(page);
-    const names = await page.locator('.ld-node').evaluateAll(els =>
-      els.map(el => getComputedStyle(el).animationName)
-    );
-    expect(names).toHaveLength(3);
-    expect(names.every(n => n === 'ld-node-glow')).toBe(true);
-  });
-
-  test('the theme is pinned for the session across a reload', async ({ page }) => {
-    await page.goto('./?theme=dawn');
-    await expect(page.getByTestId('landing-sky')).toHaveAttribute('data-theme', 'dawn');
-    await page.goto('./');
-    await expect(page.getByTestId('landing-sky')).toHaveAttribute('data-theme', 'dawn');
-  });
-
   test('the sticky nav has one ≥48px button per NAV_LINKS entry that scrolls its section into view', async ({ page }) => {
     await page.setViewportSize(PHONE);
     await openLanding(page);
@@ -235,7 +228,7 @@ test.describe('Landing page', () => {
     await expect(block).toContainText(pack.date);
     const cta = page.getByRole('link', { name: NEXT_OPEN_CTA });
     await cta.scrollIntoViewIfNeeded();
-    expect((await cta.boundingBox())!.height).toBeGreaterThanOrEqual(MIN_CTA_HEIGHT);
+    expect((await cta.boundingBox())!.height).toBeGreaterThanOrEqual(MIN_TAP_PX);
     await cta.click();
     await expect(page).toHaveURL(new RegExp(`#/pack/${SAMPLE_PACK_ID}$`));
     await expect(page.getByTestId('tv-presentation')).toBeVisible();
@@ -263,5 +256,7 @@ test.describe('Landing page', () => {
     await expect(figures).toHaveCount(HONEST_NUMBERS.length);
     await expect(figures).toHaveText(HONEST_NUMBERS.map(f => f.value));
     expect(await fontSizePx(page, '.ld-figure')).toBeGreaterThan(await fontSizePx(page, '.ld-card-title'));
+    // Big figures use the gold gradient (large text: gold-mid ≥ 3:1 on paper, stlTheme.test.ts).
+    expect(await figures.first().evaluate(el => getComputedStyle(el).backgroundImage)).toContain('linear-gradient');
   });
 });
