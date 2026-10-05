@@ -89,10 +89,11 @@ describe('signups-schema.sql', () => {
     expect(sql).toContain('database/signup-practices-schema.sql');
   });
 
-  it('checkin_sends: owner-scoped SELECT, no app-role INSERT; the cron body marks itself scheduled', () => {
+  it('checkin_sends: owner-scoped SELECT, no app-role INSERT; the schedule lives in checkin-cron-schema.sql', () => {
     expect(policy('Leaders can view their own send log')).toBe(
       'ON checkin_sends FOR SELECT TO authenticated USING (auth.uid() = leader_id)');
     expect(sql).not.toMatch(/ON checkin_sends FOR INSERT/);
-    expect(sql).toContain("'scheduled', true");
+    expect(sql).toContain('database/checkin-cron-schema.sql');
+    expect(sql).not.toContain('cron.schedule(');
   });
 });

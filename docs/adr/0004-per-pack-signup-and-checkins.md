@@ -238,3 +238,15 @@ existed, never its content or link.
 - The edge function's `renderCheckin` takes a member context (name, signup
   id, practice). (`prefillFormUrl`, once duplicated in Deno, was removed
   with Google Forms on 2026-10-05, §9.)
+
+13. **Automatic schedule switched on (2026-10-05, owner-approved).**
+    `database/checkin-cron-schema.sql`: pg_cron runs `call_send_checkins`
+    Tue / Thu / Sat at 16:00 and 17:00 UTC; send-checkins keeps only the 09:00
+    Los Angeles hour. There is no "current study": every pack with a live,
+    opted-in sign-up made in the last 8 days is called, so Friday's sign-ups
+    get that week's reminders and then age out. The call carries the
+    trusted-caller header; the anon key, cron secret and project URL live in
+    Vault. Stop paths are ADR-0009 (member, leader, per-study pause,
+    `CHECKIN_PAUSED=1`). Keep-alive: `.github/workflows/keep-supabase-alive.yml`
+    pings daily (the old one had been failing and was auto-disabled by GitHub,
+    the likely cause of the previous project's loss).
