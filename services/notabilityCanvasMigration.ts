@@ -87,7 +87,10 @@ interface NotabilityPayloadLike {
    * notabilityStrokeMigration so the literal exists in exactly one place.
    */
   yNormBase?: typeof Y_NORM_PAGE_HEIGHT;
-  [key: string]: unknown;
+  // No `[key: string]: unknown` index signature: an interface such as the
+  // editor's ExtendedCanvasData has none, so the signature made it unassignable
+  // (TS2345). Other payload fields still survive augmentNotabilityJSON's
+  // parse → stringify round trip; the type just does not list them.
 }
 
 /** Max y in a list of stroke-point arrays (height-normalized in [0, 1]). */

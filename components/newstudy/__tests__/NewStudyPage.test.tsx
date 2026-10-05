@@ -179,6 +179,20 @@ describe('NewStudyPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('找不到这个查经包');
   });
 
+  // Regression (CI, 2026-10-04): a freshly generated pack sets #/new/<id> before auto-save stores it, so the
+  // route lookup could answer "not found" and that alert stayed above the editor showing the very same pack.
+  it('never shows "pack not found" next to an editor that shows that pack', async () => {
+    withKey('k');
+    generateMock.mockResolvedValue(generatedPack());
+    window.location.hash = newStudyHash('local-2026-10-02-jhn3');
+    render(<NewStudyPage />);
+    expect(await screen.findByRole('alert')).toHaveTextContent('找不到这个查经包');
+    await fillAndGenerate();
+    await waitFor(() => expect(screen.getByText(NS_EDIT_TITLE)).toBeInTheDocument());
+    await rangeReady();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
   it('shows the bilingual error with Retry when generation fails, and retries the same request', async () => {
     withKey('k');
     generateMock.mockRejectedValueOnce(new Error(NS_ERR_NO_JSON)).mockResolvedValueOnce(generatedPack());
