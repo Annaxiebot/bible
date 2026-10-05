@@ -2,7 +2,7 @@
  * checkins.test.ts — the pure parts of send-checkins · 周中提醒单元测试
  *
  * Templates (Chinese first: greeting, practice, prompt, personal link; the
- * welcome; the Google Form path), kind-from-date in Los Angeles
+ * welcome; old packs' Google Form keys ignored), kind-from-date in Los Angeles
  * time across DST, the 09:00 send-hour gate, recipient selection by consent
  * and channel, prompt extraction from the real sample pack, the schema-
  * version pin, and the two REST senders against a stubbed fetch.
@@ -12,14 +12,14 @@ import { readFileSync } from 'fs';
 import path from 'path';
 import {
   renderCheckin, kindFromDate, isSendHour, promptsFromPack, packUrl, greeting, practiceLine, checkinPageUrl, feedbackUrl,
-  prefillFormUrl, KIND_LABEL, BILINGUAL_SEPARATOR, SITE_ORIGIN, CHECKIN_FROM_EMAIL, WELCOME_KIND, CheckinPack, MemberContext,
+  KIND_LABEL, BILINGUAL_SEPARATOR, SITE_ORIGIN, CHECKIN_FROM_EMAIL, WELCOME_KIND, CheckinPack, MemberContext,
 } from '../templates.ts';
 import {
   selectRecipients, testRecipientRow, verifyLeader, memberContext, welcomeAllowed, WELCOME_WINDOW_MS, SignupRow,
 } from '../recipients.ts';
 import { checkinHash } from '../../../../components/checkin/checkinRoute';
 import { sendEmail, sendSms, emailConfig, resendBody, RESEND_EMAILS_URL, twilioMessagesUrl, EmailConfig } from '../senders.ts';
-import { loadCheckinPack, packFromSummary, PackSummaryRow } from '../packSource.ts';
+import { loadCheckinPack, packFromSummary, PackSummaryRow, SUMMARY_COLUMNS } from '../packSource.ts';
 import { PACK_SCHEMA_VERSION as APP_SCHEMA_VERSION } from '../../../../components/studypack/packTypes';
 import { TEST_PACK_PATH } from '../../../../components/studypack/__tests__/fixtures';
 
@@ -28,12 +28,11 @@ const PACK: CheckinPack = {
   title: '不要忧虑 Do Not Be Anxious',
   leaderId: 'uid-lead',
   prompts: { tue: '周二跟进：操练做了吗？ · Tuesday check-in: did it happen?', thu: '周四 · Thu', weekend: '周末 · Weekend' },
-  feedbackFormUrl: null,
-  feedbackFormEntries: null,
 };
 const SIGNUP_ID = '7d4e8b2a-1c3f-4a5b-9e6d-0f1a2b3c4d5e';
 const MEMBER: MemberContext = { name: '小明', signupId: SIGNUP_ID, practices: ['睡前程序 · Wind-down'] };
-const FORM = 'https://docs.google.com/forms/d/e/abc/viewform';
+/** A Google Form an old pack may still carry (feature removed 2026-10-05, ADR-0004 §9); no message may link it. */
+const OLD_FORM = 'https://docs.google.com/forms/d/e/abc/viewform';
 
 describe('renderCheckin', () => {
   it('is greeting, the member\'s own practice, the prompt, then the personal check-in link — Chinese first on every line', () => {
@@ -68,14 +67,12 @@ describe('renderCheckin', () => {
     expect(lines[2]).toBe(packUrl(PACK.id));
   });
 
-  it('a pack with a Google Form links the form (prefilled when entry ids exist) for every kind, welcome included', () => {
-    const withForm = { ...PACK, feedbackFormUrl: FORM, feedbackFormEntries: { name: 'entry.1', practice: 'entry.2' } };
-    const link = feedbackUrl(withForm, MEMBER, 'thu');
-    expect(link).toBe(prefillFormUrl(FORM, withForm.feedbackFormEntries, { name: '小明', practice: MEMBER.practices[0] }));
-    expect(new URL(link).searchParams.get('entry.2')).toBe('睡前程序 · Wind-down');
-    expect(renderCheckin(WELCOME_KIND, withForm, MEMBER).text.split('\n')[3]).toBe(link);
-    expect(feedbackUrl({ ...PACK, feedbackFormUrl: FORM }, MEMBER, 'tue')).toBe(FORM);   // no ids: plain form
-    expect(feedbackUrl(PACK, MEMBER, 'tue')).toBe(checkinPageUrl(SIGNUP_ID, 'tue'));
+  it('every kind, welcome included, links the built-in check-in page — never a Google Form', () => {
+    for (const kind of ['tue', 'thu', 'weekend'] as const) {
+      expect(feedbackUrl(PACK, MEMBER, kind)).toBe(checkinPageUrl(SIGNUP_ID, kind));
+      expect(renderCheckin(kind, PACK, MEMBER).text).not.toContain('docs.google.com');
+    }
+    expect(renderCheckin(WELCOME_KIND, PACK, MEMBER).text.split('\n')[3]).toBe(checkinPageUrl(SIGNUP_ID, null));
   });
 });
 
@@ -196,10 +193,10 @@ describe('promptsFromPack', () => {
     expect(pack.prompts.tue).toMatch(/^周二跟进/);
     expect(pack.prompts.thu).toMatch(/^周四跟进/);
     expect(pack.prompts.weekend).toMatch(/^周末回顾/);
-    expect(pack.feedbackFormUrl).toBeNull();
     const raw = JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8'));
-    expect(promptsFromPack({ ...raw, feedbackFormUrl: FORM, feedbackFormEntries: { name: 'entry.1' } }))
-      .toMatchObject({ feedbackFormUrl: FORM, feedbackFormEntries: { name: 'entry.1' } });
+    const legacy = promptsFromPack({ ...raw, feedbackFormUrl: OLD_FORM, feedbackFormEntries: { name: 'entry.1' } });
+    expect(legacy).toEqual(pack);   // an old pack's form keys are ignored
+    expect(Object.keys(pack)).toEqual(['id', 'title', 'leaderId', 'prompts']);
   });
 
   it('throws with context when the reflection section is missing or short', () => {
@@ -222,12 +219,11 @@ describe('loadCheckinPack (packSource)', () => {
     expect(pack).toEqual(packFromSummary(summary));
     expect(pack.leaderId).toBe('uid-lead');
     expect(pack.prompts).toEqual({ tue: '周二 · Tue', thu: '周四 · Thu', weekend: '周末 · Weekend' });
-    expect(pack.feedbackFormUrl).toBeNull();
     expect(fetchPublic).not.toHaveBeenCalled();
-    const withForm = await loadCheckinPack(summary.pack_id, {
-      readSummary: async () => ({ ...summary, feedback_form_url: FORM, feedback_form_entries: { practice: 'entry.2' } }), fetchPublic,
-    });
-    expect(withForm).toMatchObject({ feedbackFormUrl: FORM, feedbackFormEntries: { practice: 'entry.2' } });
+    // A row that still holds the retired columns (pack summarised before 2026-10-05): ignored.
+    const legacyRow = { ...summary, feedback_form_url: OLD_FORM, feedback_form_entries: { practice: 'entry.2' } } as PackSummaryRow;
+    expect(await loadCheckinPack(summary.pack_id, { readSummary: async () => legacyRow, fetchPublic })).toEqual(pack);
+    expect(SUMMARY_COLUMNS).not.toContain('feedback_form');
   });
 
   it('falls back to the public pack JSON only when there is no summary; errors when neither exists', async () => {

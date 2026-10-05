@@ -7,18 +7,16 @@
  * scripturetolife.org second, for committed packs that have no summary
  * (the sample). Neither → a contextual error.
  */
-import { CheckinPack, FeedbackFormEntries, promptsFromPack, REFLECTION_LINE_INDEX, CHECKIN_KINDS } from './templates.ts';
+import { CheckinPack, promptsFromPack, REFLECTION_LINE_INDEX, CHECKIN_KINDS } from './templates.ts';
 
 export const PACK_SUMMARIES_TABLE = 'pack_summaries';
-export const SUMMARY_COLUMNS = 'pack_id, leader_id, title, reflection_lines, feedback_form_url, feedback_form_entries, checkins_paused';
+export const SUMMARY_COLUMNS = 'pack_id, leader_id, title, reflection_lines, checkins_paused';
 
 export interface PackSummaryRow {
   pack_id: string;
   leader_id: string;
   title: string;
   reflection_lines: string[];
-  feedback_form_url?: string | null;
-  feedback_form_entries?: FeedbackFormEntries | null;
   checkins_paused?: boolean | null;   // the leader's per-pack pause (ADR-0009)
 }
 
@@ -42,8 +40,6 @@ export function packFromSummary(row: PackSummaryRow): CheckinPack {
       thu: lines[REFLECTION_LINE_INDEX.thu],
       weekend: lines[REFLECTION_LINE_INDEX.weekend],
     },
-    feedbackFormUrl: row.feedback_form_url ?? null,
-    feedbackFormEntries: row.feedback_form_entries ?? null,
     paused: row.checkins_paused === true,
   };
 }

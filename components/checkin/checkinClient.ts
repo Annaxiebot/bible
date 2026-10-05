@@ -26,7 +26,6 @@ export interface CheckinContext {
   practice_note: string | null;
   practices?: ChosenPractice[] | null;   // every chosen practice; null on rows from before multi-select
   reflection_lines: string[];
-  feedback_form_url: string | null;
   unsubscribed_at?: string | null;       // set when this person's reminders for the study are stopped (ADR-0009)
 }
 

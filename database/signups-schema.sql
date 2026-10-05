@@ -75,7 +75,7 @@ ALTER TABLE study_signups ADD COLUMN IF NOT EXISTS practice_note TEXT;
 -- the pack. The edge function reads it with the service role to word the
 -- check-ins. Nothing here is readable by anon. Full packs live owner-only in
 -- study_packs; the sign-up page's public fields come from public_signup_pack
--- (database/signup-pack-schema.sql, ADR-0006 §9).
+-- (database/remove-forms-schema.sql, ADR-0006 §9).
 CREATE TABLE IF NOT EXISTS pack_summaries (
   pack_id TEXT PRIMARY KEY,
   leader_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
@@ -86,8 +86,10 @@ CREATE TABLE IF NOT EXISTS pack_summaries (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Optional Google Form for feedback (ADR-0004 §9): the edge function links
--- check-ins to it instead of #/checkin when present; entries = prefill ids.
+-- RETIRED (Google Forms removed 2026-10-05, ADR-0004 §9): nothing writes or
+-- reads these two columns any more. Kept only because checkin_context
+-- (checkin-optout-schema.sql) still selects feedback_form_url; dropping them
+-- is a later owner-approved cleanup.
 ALTER TABLE pack_summaries ADD COLUMN IF NOT EXISTS feedback_form_url TEXT;
 ALTER TABLE pack_summaries ADD COLUMN IF NOT EXISTS feedback_form_entries JSONB;
 

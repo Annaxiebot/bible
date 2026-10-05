@@ -11,7 +11,6 @@ import NewStudyForm from './NewStudyForm';
 import NewStudyEditor from './NewStudyEditor';
 import { StudyRequest } from './packAssembly';
 import type { AutoSaveStatus } from './useAutoSave';
-import type { FeedbackFormState } from './useFeedbackForm';
 import { NS_CANCEL, NS_RETRY, NS_BACK } from './newStudyStrings';
 import { textStyle, controlStyle, headingStyle, secondaryButtonClass, quietButtonClass } from './newStudyStyles';
 
@@ -50,12 +49,10 @@ export interface PhaseViewProps {
   onSave: (pack: StudyPack) => Promise<void>;
   onPreview: (pack: StudyPack) => Promise<void>;
   autosave: { status: AutoSaveStatus; error: string | null };
-  /** The Google Forms opt-in (useFeedbackForm). */
-  form: FeedbackFormState;
 }
 
 const PhaseView: React.FC<PhaseViewProps> = ({
-  phase, configured, onGenerate, onCancel, onBack, onChange, onSave, onPreview, autosave, form,
+  phase, configured, onGenerate, onCancel, onBack, onChange, onSave, onPreview, autosave,
 }) => {
   switch (phase.kind) {
     case 'form':
@@ -67,7 +64,7 @@ const PhaseView: React.FC<PhaseViewProps> = ({
     case 'editor':
       return (
         <NewStudyEditor pack={phase.pack} onChange={onChange} onSave={onSave} onPreview={onPreview} onBack={onBack}
-          autosave={autosave} form={form} />
+          autosave={autosave} />
       );
   }
 };

@@ -12,11 +12,10 @@ import { BIBLE_BOOKS, getBookById } from '../../services/bibleBookData';
 import { StudyRequest } from './packAssembly';
 import {
   NS_BOOK, NS_LESSON_TITLE, NS_LESSON_NUMBER, NS_DATE, NS_GENERATE, NS_GENERATING, NS_ERR_RANGE, NS_ERR_CHAPTER,
-  NS_FEEDBACK_FORM_LINK, NS_FEEDBACK_FORM_DEFAULT, NS_CONTENT_LANGUAGE, NS_CONTENT_LANGUAGE_OPTIONS,
+  NS_CONTENT_LANGUAGE, NS_CONTENT_LANGUAGE_OPTIONS,
 } from './newStudyStrings';
 import { textStyle, controlStyle, inputClass, primaryButtonClass, labelClass } from './newStudyStyles';
 import { useVerseRange, RangeSelects } from './verseRangeFields';
-import { validateFeedbackFormUrl, readDefaultFormUrl, rememberDefaultFormUrl } from './feedbackFormDefault';
 import { readDefaultContentLanguage, rememberContentLanguage } from './contentLanguageDefault';
 import { CONTENT_LANGUAGES, DEFAULT_CONTENT_LANGUAGE, isContentLanguage } from '../studypack/principles';
 
@@ -36,27 +35,8 @@ export function validateRequest(req: StudyRequest): string | null {
   const book = getBookById(req.bookId);
   if (!book || req.chapter < 1 || req.chapter > book.chapters) return NS_ERR_CHAPTER;
   if (req.verseFrom < 1 || req.verseTo < req.verseFrom) return NS_ERR_RANGE;
-  return validateFeedbackFormUrl(req.feedbackFormUrl ?? '');
+  return null;
 }
-
-/** Optional Google Form link + "use for all my studies" (feedbackFormDefault remembers the default). */
-const FeedbackLinkFields: React.FC<{
-  url: string; useForAll: boolean; onUrl: (url: string) => void; onUseForAll: (on: boolean) => void;
-}> = ({ url, useForAll, onUrl, onUseForAll }) => (
-  <>
-    <label className={labelClass} style={textStyle}>
-      <span>{NS_FEEDBACK_FORM_LINK}</span>
-      <input type="url" inputMode="url" value={url} aria-label={NS_FEEDBACK_FORM_LINK} data-testid="ns-feedback-link"
-        placeholder="https://docs.google.com/forms/d/e/…/viewform" onChange={e => onUrl(e.target.value)}
-        className={inputClass} style={controlStyle} />
-    </label>
-    <label className="flex items-center gap-3 text-slate-100" style={controlStyle}>
-      <input type="checkbox" data-testid="ns-feedback-default" checked={useForAll} onChange={e => onUseForAll(e.target.checked)}
-        style={{ width: 28, height: 28, accentColor: '#f59e0b' }} />
-      <span>{NS_FEEDBACK_FORM_DEFAULT}</span>
-    </label>
-  </>
-);
 
 /** "内容语言 Content language": the three modes in UI order, Chinese-first labels, large type (≥48px). */
 const ContentLanguageField: React.FC<{ req: StudyRequest; update: (patch: Partial<StudyRequest>) => void }> = ({ req, update }) => (
@@ -101,14 +81,9 @@ const LessonFields: React.FC<{ req: StudyRequest; update: (patch: Partial<StudyR
 );
 
 const NewStudyForm: React.FC<Props> = ({ busy, onGenerate }) => {
-  const [req, setReq] = useState<StudyRequest>(() => {
-    const feedbackFormUrl = readDefaultFormUrl();
-    return {
-      ...DEFAULT_REQUEST, date: todayIso(), contentLanguage: readDefaultContentLanguage(),
-      ...(feedbackFormUrl ? { feedbackFormUrl } : {}),
-    };
-  });
-  const [useForAll, setUseForAll] = useState(() => readDefaultFormUrl() !== '');
+  const [req, setReq] = useState<StudyRequest>(() => ({
+    ...DEFAULT_REQUEST, date: todayIso(), contentLanguage: readDefaultContentLanguage(),
+  }));
   const [error, setError] = useState<string | null>(null);
   const update = (patch: Partial<StudyRequest>) => { setReq(r => ({ ...r, ...patch })); setError(null); };
   const range = useVerseRange(req, update);
@@ -117,10 +92,8 @@ const NewStudyForm: React.FC<Props> = ({ busy, onGenerate }) => {
     e.preventDefault();
     const problem = validateRequest(req);
     if (problem) { setError(problem); return; }
-    const feedbackFormUrl = req.feedbackFormUrl?.trim() || undefined;
-    rememberDefaultFormUrl(feedbackFormUrl ?? '', useForAll);
     rememberContentLanguage(req.contentLanguage);
-    onGenerate({ ...req, lessonTitle: req.lessonTitle?.trim() || undefined, feedbackFormUrl });
+    onGenerate({ ...req, lessonTitle: req.lessonTitle?.trim() || undefined });
   };
 
   return (
@@ -138,8 +111,6 @@ const NewStudyForm: React.FC<Props> = ({ busy, onGenerate }) => {
       <RangeSelects value={req} control={range} prefix="ns" />
       <ContentLanguageField req={req} update={update} />
       <LessonFields req={req} update={update} />
-      <FeedbackLinkFields url={req.feedbackFormUrl ?? ''} useForAll={useForAll}
-        onUrl={url => update({ feedbackFormUrl: url })} onUseForAll={setUseForAll} />
       {error && <p role="alert" className="text-red-300" style={textStyle}>{error}</p>}
       <button type="submit" disabled={busy} className={primaryButtonClass} style={controlStyle} data-testid="ns-generate">
         {busy ? NS_GENERATING : NS_GENERATE}

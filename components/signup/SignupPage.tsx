@@ -4,7 +4,7 @@
  * The page a member lands on after scanning the TV QR. Loads the pack
  * through signupPack.loadSignupPack (TV mode's packSource first; for a
  * leader pack this phone does not hold, the anon public_signup_pack
- * projection — title, passage, leader, life menu, form link only), shows
+ * projection — title, passage, leader, life menu only), shows
  * its title + passage, then the two-step
  * form (commitment, then contact) — only for a pack with an owning leader.
  * An unclaimed local pack shows the sign-in block (the leader's own device);
@@ -27,7 +27,7 @@ import {
   SignupForm as SignupFormValues, getSignupClient, insertSignup, toInsertPayload, practiceLines, ownVersionOf, markReplaced, ReplaceResult,
 } from './signupClient';
 import { sendWelcome, WelcomeResult } from './welcomeEmail';
-import { currentCheckinLink } from '../checkin/checkinLink';
+import { checkinUrl } from '../checkin/checkinRoute';
 import { CK_YOUR_LINK } from '../checkin/checkinStrings';
 import {
   SU_TITLE, SU_INTRO, SU_PACK_LOADING, SU_ERR_PACK, SU_ERR_NOT_CONFIGURED, SU_THANKS, SU_NEXT, SU_NEXT_NO_CHECKINS,
@@ -107,8 +107,7 @@ const SignupPage: React.FC<{ packId: string }> = ({ packId }) => {
     const payload = toInsertPayload(state.pack, form);
     const signupId = await insertSignup(client, payload);
     const practices = practiceLines(form);
-    // The Google Form prefill carries the first practice (same as the edge function's feedbackUrl).
-    const link = currentCheckinLink({ pack: state.pack, signupId, name: payload.name, practice: practices[0] ?? '' });
+    const link = checkinUrl(signupId, undefined, window.location.origin, import.meta.env.BASE_URL);
     const replace = await markReplaced(client, signupId);
     const welcome = await sendWelcome(client, signupId, payload.email);
     setDone({ consent: form.consent, practices, ownVersion: ownVersionOf(form), link, welcome, replace });

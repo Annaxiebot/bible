@@ -31,7 +31,7 @@ async function fakeRpc(fn: string, args: Record<string, unknown>) {
     const id = args.p_signup_id as string;
     if (!stoppedAt.has(id)) return { data: [], error: null };
     return { data: [{ pack_id: 'p', pack_title: 'T', name: 'N', practice_area: null, practice_text: 'P', practice_note: null,
-      reflection_lines: ['a', 'b', 'c'], feedback_form_url: null, unsubscribed_at: stoppedAt.get(id) }], error: null };
+      reflection_lines: ['a', 'b', 'c'], unsubscribed_at: stoppedAt.get(id) }], error: null };
   }
   if (fn !== UNSUBSCRIBE_FN && fn !== RESUBSCRIBE_FN) throw new Error(`unexpected rpc ${fn}`);
   expect(Object.keys(args)).toEqual(['p_id']);

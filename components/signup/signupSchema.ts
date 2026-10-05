@@ -40,7 +40,7 @@ export const CHECKIN_ANSWERS_TABLE = 'checkin_answers';
 export const SHARE_ANSWER_FN = 'share_checkin_answer';
 /** RPC the member page reads its context with: checkin_context(p_signup_id) → one row (no contact details). */
 export const CHECKIN_CONTEXT_FN = 'checkin_context';
-/** RPC a signed-out member's phone reads a leader pack's sign-up slice with: public_signup_pack(p_pack_id) → jsonb | null (database/signup-pack-schema.sql). */
+/** RPC a signed-out member's phone reads a leader pack's sign-up slice with: public_signup_pack(p_pack_id) → jsonb | null (database/remove-forms-schema.sql). */
 export const SIGNUP_PACK_FN = 'public_signup_pack';
 /** Exactly the keys public_signup_pack returns (the privacy boundary, ADR-0006). */
-export const SIGNUP_PACK_KEYS = ['id', 'title', 'passageRef', 'leaderId', 'lifeMenu', 'feedbackFormUrl', 'feedbackFormEntries'] as const;
+export const SIGNUP_PACK_KEYS = ['id', 'title', 'passageRef', 'leaderId', 'lifeMenu'] as const;

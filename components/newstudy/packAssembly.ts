@@ -30,8 +30,6 @@ export interface StudyRequest extends VerseRange {
   lessonTitle?: string;
   lessonNumber?: number;
   date: string; // ISO yyyy-mm-dd
-  /** Optional Google Form pasted by the leader (ADR-0004 §9); overrides the auto-created one. */
-  feedbackFormUrl?: string;
   /** How much English the model-drafted lines carry (ADR-0003 §1 note). */
   contentLanguage: ContentLanguage;
 }
@@ -163,7 +161,6 @@ export function assemblePack(req: StudyRequest, verses: PackVerse[], gen: Genera
     passageRef: label.ref,
     enVersion: TRANSLATIONS.en.label,
     contentLanguage: mode,
-    ...(req.feedbackFormUrl ? { feedbackFormUrl: req.feedbackFormUrl } : {}),
     sections,
   });
 }

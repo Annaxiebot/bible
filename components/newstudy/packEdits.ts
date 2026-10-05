@@ -7,8 +7,7 @@
  * change (scriptureRange) import it without rendering.
  */
 import { StudyPack, PackSection, SectionKind, parseStudyPack } from '../studypack/packTypes';
-import { isGoogleFormUrl } from '../studypack/feedbackForm';
-import { NS_ERR_EMPTY_QUESTION, NS_ERR_INVALID, NS_ERR_FEEDBACK_FORM } from './newStudyStrings';
+import { NS_ERR_EMPTY_QUESTION, NS_ERR_INVALID } from './newStudyStrings';
 import {
   validateSectionOrder, moveItem, removeItem, insertItem, insertPosition, defaultSection,
 } from './sectionRules';
@@ -17,7 +16,6 @@ import {
 export function validateEdited(pack: StudyPack): string | null {
   const discussions = pack.sections.filter(s => s.kind === 'discussion');
   if (discussions.some(d => d.questions?.some(q => q.trim().length === 0))) return NS_ERR_EMPTY_QUESTION;
-  if (pack.feedbackFormUrl !== undefined && !isGoogleFormUrl(pack.feedbackFormUrl)) return NS_ERR_FEEDBACK_FORM;
   const order = validateSectionOrder(pack.sections);
   if (order) return order;
   try {
@@ -44,21 +42,6 @@ export function withMovedSection(pack: StudyPack, index: number, dir: -1 | 1): S
 
 export function withoutSection(pack: StudyPack, index: number): StudyPack {
   return { ...pack, sections: removeItem(pack.sections, index) };
-}
-
-/**
- * The optional feedback form (ADR-0004 §9): an empty URL removes it; entry
- * ids are kept only when non-empty. The URL is validated by parseStudyPack
- * (validateEdited), so a half-typed link blocks Save with the bilingual reason.
- */
-export function withFeedbackForm(pack: StudyPack, url: string, entries: { name: string; practice: string }): StudyPack {
-  const { feedbackFormUrl: _url, feedbackFormEntries: _entries, ...rest } = pack;
-  const trimmed = url.trim();
-  if (!trimmed) return rest;
-  const name = entries.name.trim();
-  const practice = entries.practice.trim();
-  const ids = { ...(name ? { name } : {}), ...(practice ? { practice } : {}) };
-  return { ...rest, feedbackFormUrl: trimmed, ...(Object.keys(ids).length ? { feedbackFormEntries: ids } : {}) };
 }
 
 /** Add a default section of `kind` at its allowed position; returns that position too (for stable keys). */

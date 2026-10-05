@@ -67,7 +67,7 @@ describe('practiceColumns (the insert)', () => {
 
 describe('emails list every practice', () => {
   const PACK: CheckinPack = {
-    id: 'p', title: 'T', leaderId: 'uid', prompts: { tue: 'TUE', thu: 'THU', weekend: 'WKND' }, feedbackFormUrl: null, feedbackFormEntries: null,
+    id: 'p', title: 'T', leaderId: 'uid', prompts: { tue: 'TUE', thu: 'THU', weekend: 'WKND' },
   };
   const row = (over: Partial<SignupRow>): SignupRow => ({
     id: 's', pack_id: 'p', leader_id: 'uid', name: '小明', phone: null, email: 'a@x.org', consent_checkins: true,

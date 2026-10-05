@@ -4,8 +4,7 @@
  * The generation form's "内容语言 Content language" select opens on the
  * leader's last choice (localStorage under STORAGE_KEYS.CONTENT_LANGUAGE_DEFAULT),
  * falling back to DEFAULT_CONTENT_LANGUAGE on a first visit or an unknown
- * stored value. Same shape as feedbackFormDefault; storage is injectable
- * for tests.
+ * stored value. Storage is injectable for tests.
  */
 import { STORAGE_KEYS } from '../../constants/storageKeys';
 import { noteLeaderSettingChanged } from '../../services/leaderSettingsKeys';

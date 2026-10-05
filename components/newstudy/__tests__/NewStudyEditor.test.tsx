@@ -8,14 +8,13 @@
 import React, { useState } from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
-import { StudyPack } from '../../studypack/packTypes';
+import { StudyPack, parseStudyPack } from '../../studypack/packTypes';
 import { assemblePack, SECTION_HEADINGS } from '../packAssembly';
 import { validateGenerated } from '../generatedPack';
 import NewStudyEditor from '../NewStudyEditor';
 import { JOHN3_GENERATED, JOHN3_REQUEST } from './fixtures';
 import {
-  NS_SECTION_REMOVE_CONFIRM, NS_ERR_EMPTY_QUESTION, NS_SECTION_UP, NS_SECTION_DOWN, NS_SECTION_REMOVE, NS_FORM_CONNECT,
-  NS_FORM_CREATED,
+  NS_SECTION_REMOVE_CONFIRM, NS_ERR_EMPTY_QUESTION, NS_SECTION_UP, NS_SECTION_DOWN, NS_SECTION_REMOVE,
 } from '../newStudyStrings';
 
 vi.mock('../../../services/bibleDataSource', () => ({
@@ -117,35 +116,22 @@ describe('NewStudyEditor section toolbar', () => {
   });
 });
 
-describe('NewStudyEditor Google Forms opt-in', () => {
-  it('no form state: the URL field is empty, no Connect button, no notice (the built-in check-in page is the default)', async () => {
-    await renderHost();
-    expect(screen.getByTestId('ns-feedback-url')).toHaveValue('');
-    expect(screen.queryByTestId('ns-form-connect')).toBeNull();
-    expect(screen.queryByTestId('ns-form-notice')).toBeNull();
-  });
-
-  it('with form state: Connect (≥48px) calls connect, is disabled while busy, hides once a URL is set; the notice renders', async () => {
-    const connect = vi.fn();
-    const Opt: React.FC<{ busy: boolean }> = ({ busy }) => {
-      const [pack, setPack] = useState(original);
-      return (
-        <NewStudyEditor pack={pack} onChange={setPack} onSave={async () => {}} onPreview={async () => {}} onBack={() => {}}
-          form={{ notice: { ok: true, text: NS_FORM_CREATED, link: 'https://docs.google.com/forms/d/e/x/viewform' }, busy, connect }} />
-      );
-    };
-    const { rerender } = render(<Opt busy={false} />);
+describe('NewStudyEditor without Google Forms (removed 2026-10-05, ADR-0004 §9)', () => {
+  it('an old pack that still carries a form URL opens, saves, and shows no form field, Connect button or form link', async () => {
+    const legacy = parseStudyPack({
+      ...original,
+      feedbackFormUrl: 'https://docs.google.com/forms/d/e/old/viewform',
+      feedbackFormEntries: { name: 'entry.1', practice: 'entry.2' },
+    });
+    const onSave = vi.fn(async () => {});
+    render(<NewStudyEditor pack={legacy} onChange={() => {}} onSave={onSave} onPreview={async () => {}} onBack={() => {}} />);
     await waitFor(() => expect(screen.getByTestId('ns-range-verse-to')).toBeEnabled());
-    const button = screen.getByRole('button', { name: NS_FORM_CONNECT });
-    expect(button).toHaveAttribute('data-testid', 'ns-form-connect');
-    expect(parseFloat(getComputedStyle(button).minHeight)).toBeGreaterThanOrEqual(48);
-    fireEvent.click(button);
-    expect(connect).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId('ns-form-notice')).toHaveTextContent(NS_FORM_CREATED);
-    expect(within(screen.getByTestId('ns-form-notice')).getByRole('link')).toHaveAttribute('href', 'https://docs.google.com/forms/d/e/x/viewform');
-    rerender(<Opt busy={true} />);
-    expect(screen.getByTestId('ns-form-connect')).toBeDisabled();
-    fireEvent.change(screen.getByTestId('ns-feedback-url'), { target: { value: 'https://docs.google.com/forms/d/e/y/viewform' } });
-    expect(screen.queryByTestId('ns-form-connect')).toBeNull();
+    for (const id of ['ns-feedback-form', 'ns-feedback-url', 'ns-form-connect', 'ns-form-notice']) {
+      expect(screen.queryByTestId(id), id).toBeNull();
+    }
+    expect(document.body.innerHTML).not.toContain('docs.google.com');
+    fireEvent.click(screen.getByTestId('ns-save'));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    expect(JSON.stringify(onSave.mock.calls[0])).not.toMatch(/feedbackForm|docs\.google\.com/);
   });
 });

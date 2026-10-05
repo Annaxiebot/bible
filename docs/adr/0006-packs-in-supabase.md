@@ -64,13 +64,15 @@ no single place listing their packs with sign-ups and shared answers.
    on their own phone, signed out, with nothing in IndexedDB, so
    `#/signup/<local-id>` found nothing ("找不到这个查经包"). The anon-callable
    SECURITY DEFINER function `public_signup_pack(p_pack_id)`
-   (`database/signup-pack-schema.sql`, applied live 2026-10-03) returns, as
+   (`database/remove-forms-schema.sql`; first applied 2026-10-03 from the
+   former `signup-pack-schema.sql`, current version applied 2026-10-05) returns, as
    JSONB, exactly what the sign-up page reads (`SignupPack`,
    `components/signup/signupPack.ts`): `id`, `title`, `passageRef` (the
    header), `leaderId` (taken from the row's `leader_id`; the insert must
    carry it), `lifeMenu` (area + practice per row: the choices the member
-   commits to), `feedbackFormUrl` and `feedbackFormEntries` (the thank-you
-   link and its prefill field ids); NULL for an unknown id. Never verses,
+   commits to); NULL for an unknown id. (`feedbackFormUrl` and
+   `feedbackFormEntries` were dropped 2026-10-05 with Google Forms,
+   ADR-0004 §9.) Never verses,
    context, original language, cross references, discussion questions,
    reflection or closing lines, dates or timestamps. This narrows ADR-0004
    §3 ("the life menu never leaves the browser"): the life menu is now

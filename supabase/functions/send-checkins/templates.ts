@@ -5,8 +5,8 @@
  * Deno-specific file. Chinese first, English second on every line
  * (ADR-0003 §1). A message is: greeting, the member's practices (one line each), the
  * prompt (or the welcome line), then the feedback link — the in-app
- * check-in page keyed by the signup uuid, or the pack's Google Form
- * (prefilled) when the leader set one (ADR-0004 §7, §9), then — for a real
+ * check-in page keyed by the signup uuid (ADR-0004 §7; Google Forms was
+ * removed 2026-10-05, §9), then — for a real
  * member — the stop line to #/checkin/<id>/stop (ADR-0009). The kind is named
  * once, in the subject; the prompt drops a repeated leading label
  * (promptText.ts, shared with the check-in page).
@@ -39,18 +39,11 @@ export const KIND_LABEL: Record<MessageKind, { zh: string; en: string }> = {
 /** Which reflection body line (0-based) carries each kind's prompt in a pack. */
 export const REFLECTION_LINE_INDEX: Record<CheckinKind, number> = { tue: 0, thu: 1, weekend: 2 };
 
-export interface FeedbackFormEntries {
-  name?: string;
-  practice?: string;
-}
-
 export interface CheckinPack {
   id: string;
   title: string;
   leaderId: string | null;  // owning leader's auth uid; null = demo pack, nobody to send for
   prompts: Record<CheckinKind, string>;
-  feedbackFormUrl: string | null;          // the leader's Google Form, when set (ADR-0004 §9)
-  feedbackFormEntries: FeedbackFormEntries | null;
   paused?: boolean;   // pack_summaries.checkins_paused; a public pack is never paused (ADR-0009)
 }
 
@@ -92,26 +85,8 @@ export function stopLine(signupId: string): string {
   return `不想再收到？退订${BILINGUAL_SEPARATOR}Stop these emails: ${stopPageUrl(signupId)}`;
 }
 
-/**
- * Google Forms prefill: <form>?usp=pp_url&entry.<id>=<value>. Must stay
- * byte-identical to components/studypack/feedbackForm.prefillFormUrl
- * (Deno cannot import the app's extensionless modules; a test pins both).
- */
-export function prefillFormUrl(formUrl: string, entries: FeedbackFormEntries | null | undefined, values: { name: string; practice: string }): string {
-  const params = new URLSearchParams();
-  if (entries?.name) params.set(entries.name, values.name);
-  if (entries?.practice) params.set(entries.practice, values.practice);
-  if ([...params.keys()].length === 0) return formUrl;
-  params.set('usp', 'pp_url');
-  const joiner = formUrl.includes('?') ? '&' : '?';
-  return `${formUrl}${joiner}${params.toString()}`;
-}
-
-/** The feedback link for one member: the form (prefilled with the first practice) when the pack has one, else the in-app page, else the pack. */
+/** The feedback link for one member: the in-app check-in page, else (no signup id) the pack. */
 export function feedbackUrl(pack: CheckinPack, member: MemberContext, kind: CheckinKind | null): string {
-  if (pack.feedbackFormUrl) {
-    return prefillFormUrl(pack.feedbackFormUrl, pack.feedbackFormEntries, { name: member.name, practice: member.practices[0] ?? '' });
-  }
   return member.signupId ? checkinPageUrl(member.signupId, kind) : packUrl(pack.id);
 }
 
@@ -177,7 +152,7 @@ export function renderCheckin(kind: MessageKind, pack: CheckinPack, member: Memb
  */
 export function promptsFromPack(raw: unknown): CheckinPack {
   const pack = raw as {
-    id?: unknown; title?: unknown; leaderId?: unknown; sections?: unknown; feedbackFormUrl?: unknown; feedbackFormEntries?: unknown;
+    id?: unknown; title?: unknown; leaderId?: unknown; sections?: unknown;
   };
   if (typeof pack?.id !== 'string' || typeof pack.title !== 'string' || !Array.isArray(pack.sections)) {
     throw new Error('Pack JSON needs id, title and sections[]');
@@ -197,8 +172,5 @@ export function promptsFromPack(raw: unknown): CheckinPack {
       thu: lines[REFLECTION_LINE_INDEX.thu],
       weekend: lines[REFLECTION_LINE_INDEX.weekend],
     },
-    feedbackFormUrl: typeof pack.feedbackFormUrl === 'string' ? pack.feedbackFormUrl : null,
-    feedbackFormEntries: typeof pack.feedbackFormEntries === 'object' && pack.feedbackFormEntries !== null
-      ? (pack.feedbackFormEntries as FeedbackFormEntries) : null,
   };
 }
