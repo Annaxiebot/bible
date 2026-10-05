@@ -247,6 +247,12 @@ describe('getPackIdFromHash', () => {
     expect(getPackIdFromHash('#/pack/2026-10-02-matt6')).toBe('2026-10-02-matt6');
   });
 
+  it('ignores a query after the id (the verse-font experiment: #/pack/<id>?verseFont=wenkai)', () => {
+    expect(getPackIdFromHash('#/pack/local-2026-10-02-pro1?verseFont=wenkai')).toBe('local-2026-10-02-pro1');
+    expect(getPackIdFromHash('#/pack/?verseFont=wenkai')).toBeNull();
+    expect(getPackIdFromHash('#/pack/a/b?x=1')).toBeNull();
+  });
+
   it('returns null for non-pack hashes', () => {
     expect(getPackIdFromHash('')).toBeNull();
     expect(getPackIdFromHash('#/')).toBeNull();

@@ -22,11 +22,12 @@ import LandingGroup from './LandingGroup';
 import LandingPersonal from './LandingPersonal';
 import LandingNextStudy from './LandingNextStudy';
 import LandingNumbers from './LandingNumbers';
-import LandingPill from './LandingPill';
+import Pill from '../shared/Pill';
+import { splitLabel } from '../studypack/principles';
 import { SETUP_HASH, NEW_STUDY_HASH, SAMPLE_PACK_ID } from './landingRoute';
 import {
   SITE_LINE, LOOP_LINE_ZH, LOOP_LINE_EN, SETUP_LINE, SETUP_DONE_LINE, NEW_STUDY_LINE, NEW_STUDY_SUB,
-  BRAND_EN, BRAND_ZH_LEAD, BRAND_ZH_HIGHLIGHT, NAV_LINKS, PHOTO_CREDIT, splitLabel,
+  BRAND_EN, BRAND_ZH_LEAD, BRAND_ZH_HIGHLIGHT, NAV_LINKS, PHOTO_CREDIT,
 } from './landingStrings';
 import { useAIAccess } from '../setup/useAIAccess';
 import QuickAISetupDialog from '../setup/QuickAISetup';
@@ -40,7 +41,7 @@ const NewStudyBlock: React.FC = () => {
         <div className="ld-new-study-t">{zh} <span className="ld-new-study-en">{en}</span></div>
         <div className="ld-new-study-s">{NEW_STUDY_SUB}</div>
       </div>
-      <LandingPill ghost href={NEW_STUDY_HASH} label={NEW_STUDY_LINE} testId="landing-new-study-line" />
+      <Pill ghost href={NEW_STUDY_HASH} label={NEW_STUDY_LINE} testId="landing-new-study-line" />
     </div>
   );
 };

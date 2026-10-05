@@ -15,7 +15,8 @@
  * sign-up replaced the member's earlier one (same pack + email) — a line
  * saying so (a failed replace is shown, never swallowed).
  * Every failure (pack missing, service unconfigured, insert rejected) is a
- * visible state, never a silent catch.
+ * visible state, never a silent catch. Paper style like the landing
+ * (shared/paperStyles.ts): WenKai headings, sans body, gold pills.
  */
 import React, { useState } from 'react';
 import { packSignupState } from '../studypack/packSource';
@@ -33,20 +34,23 @@ import {
   SU_DEMO_LINE, SU_REPLACED, commitmentLine,
 } from './signupStrings';
 import { textStyle, headingStyle, pageTitleStyle, controlStyle } from '../newstudy/newStudyStyles';
+import {
+  PAPER_PAGE_CLASS, PAPER_COLUMN_CLASS, PAPER_HEAD_CLASS, PAPER_MUTED_CLASS, PAPER_ACCENT_CLASS, PAPER_ERROR_CLASS, PAPER_CARD_CLASS,
+} from '../shared/paperStyles';
 
 const PackHeader: React.FC<{ state: SignupPackState }> = ({ state }) => {
   if (state.status === 'ready') {
     return (
       <div data-testid="signup-pack">
-        <p className="font-semibold text-slate-50" style={headingStyle}>{state.pack.title}</p>
-        <p className="mt-1 text-amber-300" style={textStyle}>{state.pack.passageRef}</p>
+        <p className={PAPER_HEAD_CLASS} style={headingStyle}>{state.pack.title}</p>
+        <p className={`mt-1 font-semibold ${PAPER_ACCENT_CLASS}`} style={textStyle}>{state.pack.passageRef}</p>
       </div>
     );
   }
   if (state.status === 'failed') {
-    return <p role="alert" className="text-red-300" style={textStyle}>{SU_ERR_PACK}: {state.message}</p>;
+    return <p role="alert" className={PAPER_ERROR_CLASS} style={textStyle}>{SU_ERR_PACK}: {state.message}</p>;
   }
-  return <p className="text-slate-400" style={textStyle}>{SU_PACK_LOADING}</p>;
+  return <p className={PAPER_MUTED_CLASS} style={textStyle}>{SU_PACK_LOADING}</p>;
 };
 
 export interface SignupDone {
@@ -59,25 +63,25 @@ export interface SignupDone {
 }
 
 const Thanks: React.FC<{ done: SignupDone }> = ({ done }) => (
-  <div data-testid="signup-thanks" className="rounded-2xl border border-amber-400/60 bg-slate-900 p-6">
-    <p className="font-bold text-amber-300" style={headingStyle}>{SU_THANKS}</p>
+  <div data-testid="signup-thanks" className={PAPER_CARD_CLASS}>
+    <p className={PAPER_HEAD_CLASS} style={headingStyle}>{SU_THANKS}</p>
     {done.practices.map((line, i) => (
-      <p key={i} data-testid="signup-commitment" className="mt-3 text-slate-50" style={textStyle}>{commitmentLine(line)}</p>
+      <p key={i} data-testid="signup-commitment" className={`mt-3 ${PAPER_ACCENT_CLASS}`} style={textStyle}>{commitmentLine(line)}</p>
     ))}
-    {done.ownVersion && <p data-testid="signup-own-version" className="mt-3 text-slate-50" style={textStyle}>{done.ownVersion}</p>}
+    {done.ownVersion && <p data-testid="signup-own-version" className={`mt-3 ${PAPER_ACCENT_CLASS}`} style={textStyle}>{done.ownVersion}</p>}
     {done.replace.status === 'done' && done.replace.replaced > 0 && (
-      <p data-testid="signup-replaced" className="mt-3 text-slate-100" style={textStyle}>{SU_REPLACED}</p>
+      <p data-testid="signup-replaced" className="mt-3" style={textStyle}>{SU_REPLACED}</p>
     )}
-    <p className="mt-3 text-slate-100" style={textStyle}>{done.consent ? SU_NEXT : SU_NEXT_NO_CHECKINS}</p>
-    <p className="mt-3 text-slate-400" style={textStyle}>{CK_YOUR_LINK}</p>
-    <a data-testid="signup-checkin-link" href={done.link} className="break-all text-amber-300 underline underline-offset-4" style={textStyle}>
+    <p className="mt-3" style={textStyle}>{done.consent ? SU_NEXT : SU_NEXT_NO_CHECKINS}</p>
+    <p className={`mt-3 ${PAPER_MUTED_CLASS}`} style={textStyle}>{CK_YOUR_LINK}</p>
+    <a data-testid="signup-checkin-link" href={done.link} className={`break-all underline underline-offset-4 ${PAPER_ACCENT_CLASS}`} style={textStyle}>
       {done.link}
     </a>
     {done.replace.status === 'failed' && (
-      <p role="alert" data-testid="replace-failed" className="mt-3 text-red-300" style={textStyle}>{done.replace.message}</p>
+      <p role="alert" data-testid="replace-failed" className={`mt-3 ${PAPER_ERROR_CLASS}`} style={textStyle}>{done.replace.message}</p>
     )}
     {done.welcome.status === 'failed' && (
-      <p role="alert" data-testid="welcome-failed" className="mt-3 text-red-300" style={textStyle}>{done.welcome.message}</p>
+      <p role="alert" data-testid="welcome-failed" className={`mt-3 ${PAPER_ERROR_CLASS}`} style={textStyle}>{done.welcome.message}</p>
     )}
   </div>
 );
@@ -87,8 +91,8 @@ const Body: React.FC<{ state: SignupPackState; done: SignupDone | null; onSubmit
   ({ state, done, onSubmit }) => {
     if (state.status !== 'ready') return null;
     const signup = packSignupState(state.pack);
-    if (signup === 'unclaimed') return <UnclaimedSignIn packId={state.pack.id} lineStyle={textStyle} buttonStyle={controlStyle} />;
-    if (signup === 'demo') return <p data-testid="signup-demo" className="text-slate-300" style={textStyle}>{SU_DEMO_LINE}</p>;
+    if (signup === 'unclaimed') return <UnclaimedSignIn packId={state.pack.id} lineStyle={textStyle} buttonStyle={controlStyle} paper />;
+    if (signup === 'demo') return <p data-testid="signup-demo" style={textStyle}>{SU_DEMO_LINE}</p>;
     return done ? <Thanks done={done} /> : <SignupForm rows={state.pack.lifeMenu} onSubmit={onSubmit} />;
   };
 
@@ -111,11 +115,11 @@ const SignupPage: React.FC<{ packId: string }> = ({ packId }) => {
   };
 
   return (
-    <div data-testid="signup-page" className="fixed inset-0 overflow-y-auto bg-slate-950 text-slate-100">
-      <div className="mx-auto flex max-w-xl flex-col gap-6 px-4 py-8 sm:px-6">
+    <div data-testid="signup-page" className={PAPER_PAGE_CLASS}>
+      <div className={PAPER_COLUMN_CLASS}>
         <header>
-          <h1 className="font-bold text-amber-300" style={pageTitleStyle}>{SU_TITLE}</h1>
-          <p className="mt-2 text-slate-400" style={textStyle}>{SU_INTRO}</p>
+          <h1 className={PAPER_HEAD_CLASS} style={pageTitleStyle}>{SU_TITLE}</h1>
+          <p className={`mt-2 ${PAPER_MUTED_CLASS}`} style={textStyle}>{SU_INTRO}</p>
         </header>
         <PackHeader state={state} />
         <Body state={state} done={done} onSubmit={submit} />

@@ -15,7 +15,7 @@ import {
   GROUP_CTA, GROUP_QR_CTA, LEADER_ZH, LEADER_EN,
 } from './landingStrings';
 import LandingSection, { Bilingual } from './LandingSection';
-import LandingPill from './LandingPill';
+import Pill from '../shared/Pill';
 import { scrollToSection } from './LandingNav';
 
 /** Public URL of a landing photo under the app's base path. */
@@ -44,8 +44,8 @@ const LandingGroup: React.FC = () => (
       ))}
     </div>
     <div className="ld-band-foot">
-      <LandingPill href={SAMPLE_PACK_HASH} label={GROUP_CTA} arrow testId="group-sample" />
-      <LandingPill ghost label={GROUP_QR_CTA} onClick={() => scrollToSection(NEXT_SECTION_ID)} testId="group-qr" />
+      <Pill href={SAMPLE_PACK_HASH} label={GROUP_CTA} arrow testId="group-sample" />
+      <Pill ghost label={GROUP_QR_CTA} onClick={() => scrollToSection(NEXT_SECTION_ID)} testId="group-qr" />
     </div>
   </LandingSection>
 );

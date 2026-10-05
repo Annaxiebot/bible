@@ -25,7 +25,7 @@ import {
 } from './landingStrings';
 import { TRANSLATIONS } from '../studypack/principles';
 import LandingSection, { splitBilingual } from './LandingSection';
-import LandingPill from './LandingPill';
+import Pill from '../shared/Pill';
 import { useBundledVerse, BilingualRef } from './LandingVerse';
 
 type PackState =
@@ -113,8 +113,8 @@ const LandingNextStudy: React.FC<{ packId: string; children?: React.ReactNode }>
         <div className="ld-next-main">
           <PackSummary state={state} />
           <div className="ld-next-ctas">
-            <LandingPill href={packHash(packId)} label={NEXT_OPEN_CTA} arrow testId="next-study-open" />
-            <LandingPill ghost onClick={() => setSignupOpen(open => !open)} expanded={signupOpen}
+            <Pill href={packHash(packId)} label={NEXT_OPEN_CTA} arrow testId="next-study-open" />
+            <Pill ghost onClick={() => setSignupOpen(open => !open)} expanded={signupOpen}
               testId="next-study-signup-toggle" label={signupOpen ? NEXT_SIGNUP_CLOSE : NEXT_SIGNUP_CTA} />
           </div>
           {signupOpen && <SignupPanel state={state} />}

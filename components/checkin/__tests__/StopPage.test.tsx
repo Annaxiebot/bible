@@ -13,6 +13,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import StopPage from '../StopPage';
 import CheckinPage from '../CheckinPage';
+import { PAPER_PAGE_CLASS } from '../../shared/paperStyles';
 import { checkinStopHash } from '../checkinRoute';
 import { CHECKIN_CONTEXT_FN } from '../../signup/signupSchema';
 import { UNSUBSCRIBE_FN, RESUBSCRIBE_FN } from '../../../supabase/functions/send-checkins/optout';
@@ -61,6 +62,16 @@ describe('StopPage', () => {
     expect(rpcMock).toHaveBeenLastCalledWith(RESUBSCRIBE_FN, { p_id: ID });
     expect(stoppedAt.get(ID)).toBeNull();
     expect(screen.getByRole('button', { name: CK_STOP })).toBeInTheDocument();   // can stop again
+  });
+
+  it('paper style like the landing: WenKai h1, Stop a full-width gold pill, Resume a ghost pill', async () => {
+    render(<StopPage signupId={ID} />);
+    expect(screen.getByTestId('stop-page').className).toContain(PAPER_PAGE_CLASS);
+    expect(screen.getByRole('heading', { level: 1 }).className).toContain('stl-head');
+    expect(screen.getByTestId('stop-button').className).toContain('stl-pill');
+    expect(screen.getByTestId('stop-button').className).toContain('w-full');
+    fireEvent.click(screen.getByTestId('stop-button'));
+    expect((await screen.findByTestId('stop-resume')).className).toContain('stl-pill-ghost');
   });
 
   it('an unknown token is a visible alert, never a false confirmation', async () => {

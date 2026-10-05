@@ -5,7 +5,7 @@
  * the identity-only Google sign-in (useGoogleSignIn, the same hook as every
  * other sign-in button); an auth error renders under it. Signed in → the
  * leader's first name (or email local part) as a pill link to the leader
- * home (#/leader, ADR-0006). ≥ 48px either way (.ld-pill-sm).
+ * home (#/leader, ADR-0006). ≥ 48px either way (.stl-pill-sm).
  */
 import React from 'react';
 import { useGoogleSignIn } from '../signup/useGoogleSignIn';
@@ -14,7 +14,7 @@ import { useLeaderSession, leaderDisplayName } from '../leader/useLeaderSession'
 import { LEADER_HOME_HASH } from '../leader/leaderRoute';
 import { NAV_LEADER_SIGNIN } from './landingStrings';
 import { SETUP_MIN_FONT_PX } from '../setup/setupStrings';
-import LandingPill from './LandingPill';
+import Pill from '../shared/Pill';
 
 const SIGNIN_LABEL = `${NAV_LEADER_SIGNIN.zh} ${NAV_LEADER_SIGNIN.en}`;
 
@@ -23,13 +23,13 @@ const LandingLeaderLink: React.FC = () => {
   const { signIn, busy, error } = useGoogleSignIn();
   if (session.uid) {
     return (
-      <LandingPill small href={LEADER_HOME_HASH} testId="nav-leader"
+      <Pill small href={LEADER_HOME_HASH} testId="nav-leader"
         label={leaderDisplayName(session.name, session.email)} />
     );
   }
   return (
     <>
-      <LandingPill small testId="nav-leader-signin" onClick={() => void signIn()}
+      <Pill small testId="nav-leader-signin" onClick={() => void signIn()}
         disabled={busy || session.loading} label={busy ? SU_SIGNING_IN : SIGNIN_LABEL} />
       {error && (
         <p role="alert" data-testid="nav-leader-error" className="ld-nav-error text-red-700" style={{ fontSize: SETUP_MIN_FONT_PX }}>

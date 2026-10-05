@@ -30,6 +30,10 @@ import {
   SU_SIGN_IN_GOOGLE, SU_PRACTICE_TITLE, SU_NEXT_STEP, SU_REPLACED, SU_REPLACE_FAILED, commitmentLine,
 } from '../signupStrings';
 import { SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../../setup/setupStrings';
+import { PAPER_PAGE_CLASS } from '../../shared/paperStyles';
+
+const WENKAI_HEAD = 'stl-head';
+const PILL = 'stl-pill';
 
 /** The anon insert result; reading the row back (.select → RETURNING) fails RLS, as live (anon has no SELECT policy). */
 const insertResult = vi.fn();
@@ -106,6 +110,25 @@ describe('SignupPage', () => {
     expect(screen.queryByTestId('su-name')).toBeNull();
   });
 
+  it('paper style like the landing on both steps and the thank-you: WenKai headings, gold pills, paper tokens', async () => {
+    await renderWithPack();
+    const page = screen.getByTestId('signup-page');
+    expect(page.className).toContain(PAPER_PAGE_CLASS);
+    expect(screen.getByRole('heading', { level: 1 }).className).toContain(WENKAI_HEAD);
+    expect(screen.getByText(SU_PRACTICE_TITLE).className).toContain(WENKAI_HEAD);
+    expect(screen.getByTestId('su-next').className).toContain(PILL);
+    choosePractice();
+    expect(screen.getByRole('heading', { level: 2 }).className).toContain(WENKAI_HEAD);
+    expect(screen.getByTestId('su-submit').className).toContain(PILL);
+    expect(screen.getByTestId('su-submit')).toHaveAttribute('type', 'submit');
+    expect(screen.getByTestId('su-prev').className).toContain('stl-pill-ghost');
+    fill({ name: '小明', email: 'ming@example.org' });
+    fireEvent.click(screen.getByTestId('su-submit'));
+    const thanks = await screen.findByTestId('signup-thanks');
+    expect(within(thanks).getByText(SU_THANKS).className).toContain(WENKAI_HEAD);
+    expect(page.innerHTML).not.toMatch(/\b(bg|text|border)-(slate|amber)-/);
+  });
+
   it('Next without a practice shows the bilingual reason; taps toggle any number of practices, kept in tap order', async () => {
     await renderWithPack();
     fireEvent.click(screen.getByTestId('su-next'));
@@ -125,7 +148,8 @@ describe('SignupPage', () => {
       expect(screen.getByText(label)).toBeInTheDocument();
     }
     expect(screen.getByTestId('su-name')).toHaveStyle({ fontSize: `${SETUP_MIN_FONT_PX}px`, minHeight: `${SETUP_MIN_TAP_PX}px` });
-    expect(screen.getByTestId('su-submit')).toHaveStyle({ minHeight: `${SETUP_MIN_TAP_PX}px` });
+    // The gold pill's ≥ 48px comes from .stl-pill (styles/stlShared.css; jsdom loads no CSS): measured in tests/e2e/member-pages.spec.ts.
+    expect(screen.getByTestId('su-submit').className).toContain(PILL);
     expect(screen.getByTestId('su-consent')).toBeChecked();
   });
 

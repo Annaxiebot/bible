@@ -10,6 +10,8 @@
  * useTVNavigation / TVPresentationView.
  * When the pack is provided, verse references in body lines become
  * interactive popups (ADR-0003 §8). Bilingual text is Chinese-first (§1).
+ * Headings, the title and the key phrase carry .stl-tv-head: Chinese in
+ * 霞鹜文楷 WenKai bold, the English half in the TV's Latin face (stlShared.css).
  */
 import React from 'react';
 import { Slide, StudyPack } from './packTypes';
@@ -20,10 +22,13 @@ import { HEADING_DETAIL_SEPARATOR, emphasisSegments, keyPhraseFragments, splitHe
 import SignupQr from '../signup/SignupQr';
 import NoSignupNotice from '../signup/NoSignupNotice';
 import { isQuoteLine } from '../sharing/sharingStrings';
+import { VerseFont, VERSE_FONT_WENKAI, VERSE_FONT_WENKAI_CLASS } from './verseFontExperiment';
 
 interface SlideProps {
   slide: Slide;
   pack?: StudyPack;
+  /** TEMPORARY verse-font experiment (verseFontExperiment.ts): the 和合本 column's face. */
+  verseFont?: VerseFont;
 }
 
 /** "n/m" when the section spans several slides, otherwise nothing. */
@@ -40,12 +45,12 @@ const Heading: React.FC<{ text: string; counter?: string }> = ({ text, counter }
   const t = useSlideTypography();
   const { main, detail } = splitHeading(text);
   return (
-    <h1 className="font-bold text-stl-gold mb-[4vh]" style={t.heading}>
+    <h1 className="stl-tv-head font-bold text-stl-gold mb-[4vh]" style={t.heading}>
       {main}
       {(detail || counter) && (
         // The space before the tail is the break point; inline-block keeps the tail whole on a
         // narrow phone instead of splitting "马 / 太福音". Text stays "<main> — <detail> · n/m".
-        <>{' '}<span className="inline-block font-normal" style={t.headingTail}>
+        <>{' '}<span className="stl-tv-tail inline-block font-normal" style={t.headingTail}>
           {detail && <span className="text-stl-text-2">{HEADING_DETAIL_SEPARATOR.trimStart()}{detail}</span>}
           {counter && <span className="text-stl-text-3">{detail ? ` · ${counter}` : `· ${counter}`}</span>}
         </span></>
@@ -75,17 +80,17 @@ const TitleSlide: React.FC<SlideProps> = ({ slide }) => {
   const t = useSlideTypography();
   return (
     <div className="flex flex-col items-center justify-center text-center h-full">
-      <h1 className="font-bold text-stl-gold mb-[5vh]" style={t.title}>{slide.heading}</h1>
+      <h1 className="stl-tv-head font-bold text-stl-gold mb-[5vh]" style={t.title}>{slide.heading}</h1>
       <BodyLines lines={slide.body} />
     </div>
   );
 };
 
 /** Verse text with the key phrase (where it occurs) set in gold. */
-const VerseText: React.FC<{ num: number; text: string; emphasis: string[] }> = ({ num, text, emphasis }) => {
+const VerseText: React.FC<{ num: number; text: string; emphasis: string[]; fontClass?: string }> = ({ num, text, emphasis, fontClass }) => {
   const t = useSlideTypography();
   return (
-    <p className="text-stl-text" style={t.verse}>
+    <p className={fontClass ? `text-stl-text ${fontClass}` : 'text-stl-text'} style={t.verse}>
       <span className="text-stl-text-3 mr-[0.35em]" style={t.verseNumber}>{num}</span>
       {emphasisSegments(text, emphasis).map((seg, i) => seg.emphasis
         ? <span key={i} data-testid="verse-emphasis" className="text-stl-gold">{seg.text}</span>
@@ -95,14 +100,15 @@ const VerseText: React.FC<{ num: number; text: string; emphasis: string[] }> = (
 };
 
 /** Bilingual passage from the pack's embedded verses, split into parts. */
-const ScriptureSlide: React.FC<SlideProps> = ({ slide, pack }) => {
+const ScriptureSlide: React.FC<SlideProps> = ({ slide, pack, verseFont }) => {
   const t = useSlideTypography();
   const emphasis = keyPhraseFragments(slide.emphasis);
+  const cuvFont = verseFont === VERSE_FONT_WENKAI ? VERSE_FONT_WENKAI_CLASS : undefined;
   return (
     <div className="h-full flex flex-col">
       <Heading text={slide.heading} counter={partCounter(slide.partIndex, slide.partTotal)} />
       {slide.keyPhrase && (
-        <p data-testid="key-phrase" className="text-stl-gold font-semibold mb-[3.5vh]" style={t.keyPhrase}>{slide.keyPhrase}</p>
+        <p data-testid="key-phrase" className="stl-tv-head text-stl-gold font-semibold mb-[3.5vh]" style={t.keyPhrase}>{slide.keyPhrase}</p>
       )}
       <div className="grid grid-cols-1 md:grid-cols-2 md:gap-[4vw] text-stl-text-3 mb-[1.5vh]" style={t.columnLabel}>
         <span className="hidden md:block">{bilingual(TRANSLATIONS.zh.label, 'CUV')}</span>
@@ -112,7 +118,7 @@ const ScriptureSlide: React.FC<SlideProps> = ({ slide, pack }) => {
       <div className="overflow-y-auto flex-1 space-y-[3vh]">
         {(slide.verses || []).map(v => (
           <div key={v.num} data-verse={v.num} className="grid grid-cols-1 gap-[0.5vh] md:grid-cols-2 md:gap-[4vw]">
-            <VerseText num={v.num} text={v.cuv} emphasis={emphasis} />
+            <VerseText num={v.num} text={v.cuv} emphasis={emphasis} fontClass={cuvFont} />
             <VerseText num={v.num} text={v.en} emphasis={emphasis} />
           </div>
         ))}
@@ -182,9 +188,9 @@ const QrSlide: React.FC<SlideProps> = ({ slide, pack }) => {
   );
 };
 
-const TVSlide: React.FC<SlideProps> = ({ slide, pack }) => {
+const TVSlide: React.FC<SlideProps> = ({ slide, pack, verseFont }) => {
   if (slide.kind === 'title') return <TitleSlide slide={slide} />;
-  if (slide.kind === 'scripture') return <ScriptureSlide slide={slide} pack={pack} />;
+  if (slide.kind === 'scripture') return <ScriptureSlide slide={slide} pack={pack} verseFont={verseFont} />;
   if (slide.kind === 'discussion') return <DiscussionSlide slide={slide} pack={pack} />;
   if (slide.kind === 'lifeMenu') return <LifeMenuSlide slide={slide} pack={pack} />;
   if (slide.kind === 'qr') return <QrSlide slide={slide} pack={pack} />;

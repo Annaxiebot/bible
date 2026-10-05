@@ -4,6 +4,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App';
 import LandingGate from './components/landing/LandingGate';
 import './styles/stlTheme.css'; // --stl-* colour tokens (landing + TV mode); mapped to Tailwind in index.html
+import './styles/stlShared.css'; // font stacks, paper page shell, gold pill (landing, member pages, TV headings)
 import { startLeaderSettingsSync } from './services/leaderSettings';
 
 // A signed-in leader's settings follow them across devices (ADR-0005); no-op signed out / unconfigured.

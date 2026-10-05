@@ -16,13 +16,15 @@ interface Props {
   pack?: Pick<StudyPack, 'id' | 'leaderId'>;
   lineStyle: React.CSSProperties;
   buttonStyle: React.CSSProperties;
+  /** On the paper #/qr page: ink text (the TV slide is dark). */
+  paper?: boolean;
 }
 
-const NoSignupNotice: React.FC<Props> = ({ pack, lineStyle, buttonStyle }) => {
+const NoSignupNotice: React.FC<Props> = ({ pack, lineStyle, buttonStyle, paper }) => {
   if (pack && packSignupState(pack) === 'unclaimed') {
-    return <UnclaimedSignIn packId={pack.id} lineStyle={lineStyle} buttonStyle={buttonStyle} />;
+    return <UnclaimedSignIn packId={pack.id} lineStyle={lineStyle} buttonStyle={buttonStyle} paper={paper} />;
   }
-  return <p data-testid="qr-demo" className="text-stl-text" style={lineStyle}>{SU_DEMO_LINE}</p>;
+  return <p data-testid="qr-demo" className={paper ? 'text-stl-ink' : 'text-stl-text'} style={lineStyle}>{SU_DEMO_LINE}</p>;
 };
 
 export default NoSignupNotice;

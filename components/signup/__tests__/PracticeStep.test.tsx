@@ -9,7 +9,7 @@
 import React, { useState } from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import PracticeStep, { toggleChoice, PracticeChoice } from '../PracticeStep';
+import PracticeStep, { toggleChoice, PracticeChoice, CHOICE_ON_CLASS, CHOICE_OFF_CLASS } from '../PracticeStep';
 import { validatePractice } from '../signupClient';
 import { SU_PRACTICE_INTRO, SU_ERR_PRACTICE } from '../signupStrings';
 import { SETUP_MIN_TAP_PX } from '../../setup/setupStrings';
@@ -62,8 +62,9 @@ describe('PracticeStep', () => {
     expect(choices.map(c => c.getAttribute('aria-checked'))).toEqual(['true', 'false', 'true', 'true']);
     const checks = screen.getAllByTestId('su-practice-check');
     expect(checks.map(c => c.textContent)).toEqual(['✓', '', '✓', '✓']);
-    expect(choices[0].className).toContain('border-amber-400');
-    expect(choices[1].className).not.toContain('bg-amber-400/15');
+    expect(choices[0].className).toBe(CHOICE_ON_CLASS);   // gold-deep border on paper
+    expect(choices[1].className).toBe(CHOICE_OFF_CLASS);
+    expect(CHOICE_ON_CLASS).toContain('border-stl-gold-deep');
     fireEvent.click(choices[3]);
     expect(choices.map(c => c.getAttribute('data-chosen'))).toEqual(['1', '', '2', '']);
   });

@@ -109,7 +109,7 @@
 @media (max-width: 860px) {
   .ld-next-card { grid-template-columns: 1fr; }
   .ld-next-main, .ld-next-verse { padding: 26px 22px; }
-  .ld-next-ctas .ld-pill, .ld-new-study .ld-pill { flex: 1 1 100%; }
+  .ld-next-ctas .stl-pill, .ld-new-study .stl-pill { flex: 1 1 100%; }
 }
 
 /* ---- honest numbers ---- */

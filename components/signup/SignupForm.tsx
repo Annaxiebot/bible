@@ -5,7 +5,7 @@
  * practices (at least one), an optional own version; Next is gated on a choice.
  * Step 2: name (required), email (required — the check-in channel), phone (optional, with the
  * SMS-not-yet hint), consent (default on). Large type and ≥48px targets
- * from newStudyStyles (ADR-0003 §15). Validation and submit errors render
+ * from newStudyStyles (ADR-0003 §15); paper style and gold pills (shared/). Validation and submit errors render
  * inline (role=alert); the parent owns the insert.
  */
 import React, { useState } from 'react';
@@ -16,9 +16,11 @@ import {
   SU_NAME, SU_PHONE, SU_PHONE_HINT, SU_EMAIL, SU_CONSENT, SU_SUBMIT, SU_SUBMITTING, SU_PRIVACY,
   SU_NEXT_STEP, SU_PREV_STEP, SU_CONTACT_TITLE, commitmentLine,
 } from './signupStrings';
+import { textStyle, controlStyle, headingStyle } from '../newstudy/newStudyStyles';
 import {
-  textStyle, controlStyle, headingStyle, inputClass, primaryButtonClass, quietButtonClass, labelClass,
-} from '../newstudy/newStudyStyles';
+  PAPER_HEAD_CLASS, PAPER_MUTED_CLASS, PAPER_ACCENT_CLASS, PAPER_ERROR_CLASS, PAPER_INPUT_CLASS, PAPER_LABEL_CLASS,
+} from '../shared/paperStyles';
+import Pill from '../shared/Pill';
 
 export { EMPTY_SIGNUP };
 
@@ -29,27 +31,27 @@ interface Props {
   onSubmit: (form: SignupFormValues) => Promise<void>;
 }
 
-const checkboxStyle: React.CSSProperties = { width: 28, height: 28, accentColor: '#f59e0b' };
+const checkboxStyle: React.CSSProperties = { width: 28, height: 28, accentColor: 'var(--stl-gold-deep)' };
 
 const ContactFields: React.FC<{ form: SignupFormValues; set: (patch: Partial<SignupFormValues>) => void }> = ({ form, set }) => (
   <>
-    <label className={labelClass} style={textStyle}>
+    <label className={PAPER_LABEL_CLASS} style={textStyle}>
       <span>{SU_NAME}</span>
-      <input data-testid="su-name" className={inputClass} style={controlStyle} autoComplete="name"
+      <input data-testid="su-name" className={PAPER_INPUT_CLASS} style={controlStyle} autoComplete="name"
         value={form.name} onChange={e => set({ name: e.target.value })} />
     </label>
-    <label className={labelClass} style={textStyle}>
+    <label className={PAPER_LABEL_CLASS} style={textStyle}>
       <span>{SU_EMAIL}</span>
-      <input data-testid="su-email" className={inputClass} style={controlStyle} type="email" inputMode="email" autoComplete="email" required
+      <input data-testid="su-email" className={PAPER_INPUT_CLASS} style={controlStyle} type="email" inputMode="email" autoComplete="email" required
         value={form.email} onChange={e => set({ email: e.target.value })} />
     </label>
-    <label className={labelClass} style={textStyle}>
+    <label className={PAPER_LABEL_CLASS} style={textStyle}>
       <span>{SU_PHONE}</span>
-      <input data-testid="su-phone" className={inputClass} style={controlStyle} type="tel" inputMode="tel" autoComplete="tel"
+      <input data-testid="su-phone" className={PAPER_INPUT_CLASS} style={controlStyle} type="tel" inputMode="tel" autoComplete="tel"
         value={form.phone} onChange={e => set({ phone: e.target.value })} />
-      <span className="text-slate-500">{SU_PHONE_HINT}</span>
+      <span className={PAPER_MUTED_CLASS}>{SU_PHONE_HINT}</span>
     </label>
-    <label className="flex items-center gap-3 text-slate-100" style={controlStyle}>
+    <label className="flex items-center gap-3 text-stl-ink" style={controlStyle}>
       <input data-testid="su-consent" type="checkbox" style={checkboxStyle}
         checked={form.consent} onChange={e => set({ consent: e.target.checked })} />
       <span>{SU_CONSENT}</span>
@@ -91,30 +93,24 @@ const SignupForm: React.FC<Props> = ({ rows, onSubmit }) => {
       {step === 'practice' ? (
         <>
           <PracticeStep rows={rows} value={form} onChange={choice => set(choice)} />
-          <button type="button" data-testid="su-next" onClick={next} className={primaryButtonClass} style={controlStyle}>
-            {SU_NEXT_STEP}
-          </button>
+          <Pill testId="su-next" onClick={next} label={SU_NEXT_STEP} className="self-start" />
         </>
       ) : (
         <>
           {practiceLines(form).map((line, i) => (
-            <p key={i} data-testid="su-commitment" className="text-amber-300" style={textStyle}>{commitmentLine(line)}</p>
+            <p key={i} data-testid="su-commitment" className={PAPER_ACCENT_CLASS} style={textStyle}>{commitmentLine(line)}</p>
           ))}
-          {ownVersionOf(form) && <p data-testid="su-own-version" className="text-amber-300" style={textStyle}>{ownVersionOf(form)}</p>}
-          <h2 className="font-bold text-amber-300" style={headingStyle}>{SU_CONTACT_TITLE}</h2>
+          {ownVersionOf(form) && <p data-testid="su-own-version" className={PAPER_ACCENT_CLASS} style={textStyle}>{ownVersionOf(form)}</p>}
+          <h2 className={PAPER_HEAD_CLASS} style={headingStyle}>{SU_CONTACT_TITLE}</h2>
           <ContactFields form={form} set={set} />
           <div className="flex flex-wrap gap-3">
-            <button type="button" data-testid="su-prev" onClick={() => setStep('practice')} className={quietButtonClass} style={controlStyle}>
-              {SU_PREV_STEP}
-            </button>
-            <button type="submit" data-testid="su-submit" disabled={busy} className={primaryButtonClass} style={controlStyle}>
-              {busy ? SU_SUBMITTING : SU_SUBMIT}
-            </button>
+            <Pill ghost testId="su-prev" onClick={() => setStep('practice')} label={SU_PREV_STEP} />
+            <Pill type="submit" testId="su-submit" disabled={busy} label={busy ? SU_SUBMITTING : SU_SUBMIT} />
           </div>
         </>
       )}
-      {error && <p role="alert" className="text-red-300" style={textStyle}>{error}</p>}
-      <p className="text-slate-500" style={textStyle}>{SU_PRIVACY}</p>
+      {error && <p role="alert" className={PAPER_ERROR_CLASS} style={textStyle}>{error}</p>}
+      <p className={PAPER_MUTED_CLASS} style={textStyle}>{SU_PRIVACY}</p>
     </form>
   );
 };

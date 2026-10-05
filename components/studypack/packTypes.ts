@@ -290,8 +290,8 @@ export function buildSlides(pack: StudyPack): Slide[] {
   return pack.sections.flatMap(section => sectionSlides(pack, section));
 }
 
-/** TV mode route: "#/pack/<id>" → pack id, anything else → null. */
+/** TV mode route: "#/pack/<id>" (optionally "?<query>" after it, e.g. ?verseFont=wenkai) → pack id, anything else → null. */
 export function getPackIdFromHash(hash: string): string | null {
-  const match = /^#\/pack\/([A-Za-z0-9._-]+)$/.exec(hash);
+  const match = /^#\/pack\/([A-Za-z0-9._-]+)(?:\?[^#]*)?$/.exec(hash);
   return match ? match[1] : null;
 }
