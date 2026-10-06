@@ -5,12 +5,11 @@
  * with a 3-second delay between requests to stay well under the API rate limit.
  * Resumes across sessions using IndexedDB metadata.
  */
-import { bibleStorage, BibleTranslation, DEFAULT_ENGLISH_VERSION } from './bibleStorage';
+import { bibleStorage, chosenEnglishVersion, BibleTranslation } from './bibleStorage';
 import { BIBLE_BOOKS } from './bibleBookData';
 import { buildChapterUrl } from './apiConfig';
 import { fetchBundledChapter } from './bibleDataSource';
 import { TIMING } from '../constants/appConfig';
-import { STORAGE_KEYS } from '../constants/storageKeys';
 
 export interface BgDownloadProgress {
   cached: number;
@@ -37,10 +36,6 @@ function buildChapterList(): Array<{ bookId: string; bookName: string; chapter: 
     }
   }
   return list;
-}
-
-function getEnglishVersion(): BibleTranslation {
-  return (localStorage.getItem(STORAGE_KEYS.ENGLISH_VERSION) as BibleTranslation) || DEFAULT_ENGLISH_VERSION;
 }
 
 class BackgroundBibleDownloadService {
@@ -137,7 +132,7 @@ class BackgroundBibleDownloadService {
 
   private async run() {
     const chapters = buildChapterList();
-    const englishVersion = getEnglishVersion();
+    const englishVersion = chosenEnglishVersion();
 
     // Count how many are already cached
     this.cachedCount = 0;

@@ -5,7 +5,7 @@
  * Uses chunked scanning with yielding to avoid blocking the UI.
  */
 
-import { bibleStorage } from './bibleStorage';
+import { bibleStorage, chosenEnglishVersion, BibleTranslation } from './bibleStorage';
 import { BIBLE_BOOKS, TOTAL_CHAPTERS, OT_BOOKS, NT_BOOKS } from './bibleBookData';
 import { toSimplifiedAsync } from './chineseConverter';
 
@@ -15,12 +15,23 @@ export interface SearchResult {
   chapter: number;
   verse: number;
   text: string;
-  translation: 'cuv' | 'web';
+  translation: BibleTranslation;
+}
+
+/** Which text to search: Chinese (CUV), the chosen English version, or both. */
+export type SearchScope = 'cuv' | 'english' | 'both';
+
+/** The stored translations a scope covers, English resolved to the reader's choice. */
+export function scopeTranslations(scope: SearchScope, english: BibleTranslation = chosenEnglishVersion()): BibleTranslation[] {
+  if (scope === 'cuv') return ['cuv'];
+  if (scope === 'english') return [english];
+  return ['cuv', english];
 }
 
 export interface SearchOptions {
   query: string;
-  translation?: 'cuv' | 'web' | 'both';
+  /** 'english' = the reader's chosen English version (BSB unless changed in the sidebar). */
+  translation?: SearchScope;
   testament?: 'all' | 'ot' | 'nt';
   maxResults?: number;
   onProgress?: (searched: number, total: number) => void;
@@ -42,7 +53,7 @@ class BibleSearchService {
     const queryNorm = (await toSimplifiedAsync(query)).toLowerCase();
     const results: SearchResult[] = [];
     const books = testament === 'ot' ? OT_BOOKS : testament === 'nt' ? NT_BOOKS : BIBLE_BOOKS;
-    const translations: Array<'cuv' | 'web'> = translation === 'both' ? ['cuv', 'web'] : [translation];
+    const translations = scopeTranslations(translation);
 
     let searched = 0;
     const totalToSearch = books.reduce((sum, b) => sum + b.chapters, 0);

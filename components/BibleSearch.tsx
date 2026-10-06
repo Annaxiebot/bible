@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { bibleSearchService, SearchResult } from '../services/bibleSearchService';
+import { bibleSearchService, SearchResult, SearchScope } from '../services/bibleSearchService';
 
 interface BibleSearchProps {
   onNavigate: (bookId: string, chapter: number, verses?: number[]) => void;
@@ -14,7 +14,7 @@ const BibleSearch: React.FC<BibleSearchProps> = ({ onNavigate, onClose, onDownlo
   const [isSearching, setIsSearching] = useState(false);
   const [progress, setProgress] = useState({ searched: 0, total: 0 });
   const [testament, setTestament] = useState<'all' | 'ot' | 'nt'>('all');
-  const [translation, setTranslation] = useState<'cuv' | 'web' | 'both'>('both');
+  const [translation, setTranslation] = useState<SearchScope>('both');
   const [downloadStatus, setDownloadStatus] = useState<{ downloaded: number; total: number } | null>(null);
   const [hasSearched, setHasSearched] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
@@ -146,7 +146,7 @@ const BibleSearch: React.FC<BibleSearchProps> = ({ onNavigate, onClose, onDownlo
           </div>
           <div className="flex items-center gap-1">
             <span className="opacity-75">Lang:</span>
-            {(['both', 'cuv', 'web'] as const).map(t => (
+            {(['both', 'cuv', 'english'] as const).map(t => (
               <button
                 key={t}
                 onClick={() => setTranslation(t)}

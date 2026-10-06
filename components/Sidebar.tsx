@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { DEFAULT_ENGLISH_VERSION } from '../services/bibleStorage';
+import { chosenEnglishVersion } from '../services/bibleStorage';
 import { useDataStats } from '../hooks/useDataStats';
 import { useGeneralResearch } from '../hooks/useGeneralResearch';
 import { bookmarkStorage, Bookmark } from '../services/bookmarkStorage';
@@ -113,9 +113,7 @@ const Sidebar: React.FC<SidebarProps> = ({
   const [autoSaveNotes, setAutoSaveNotes] = useState(() => autoSaveResearchService.isAutoSaveEnabled());
 
   // English version state
-  const [englishVersion, setEnglishVersionState] = useState(() => {
-    return localStorage.getItem(STORAGE_KEYS.ENGLISH_VERSION) || DEFAULT_ENGLISH_VERSION;
-  });
+  const [englishVersion, setEnglishVersionState] = useState<string>(chosenEnglishVersion);
 
   const handleEnglishVersionChange = (version: string) => {
     setEnglishVersionState(version);

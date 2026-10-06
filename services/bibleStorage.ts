@@ -1,5 +1,6 @@
 // Bible Storage Service using IndexedDB for large data storage
 import { idbService, ChapterStorageData, ChapterRecord } from './idbService';
+import { STORAGE_KEYS } from '../constants/storageKeys';
 
 export type { ChapterStorageData } from './idbService';
 
@@ -12,6 +13,11 @@ export const CHINESE_TRANSLATIONS: ReadonlySet<BibleTranslation> = new Set<Bible
 
 /** Default English version for users with no stored preference (BSB is bundled offline). */
 export const DEFAULT_ENGLISH_VERSION: BibleTranslation = 'bsb';
+
+/** The reader's chosen English version (sidebar setting), else the default — one reader for every caller. */
+export function chosenEnglishVersion(): BibleTranslation {
+  return (localStorage.getItem(STORAGE_KEYS.ENGLISH_VERSION) as BibleTranslation | null) || DEFAULT_ENGLISH_VERSION;
+}
 
 class BibleStorageService {
   /** No-op: retained for backward compatibility. DB is initialized by idbService. */
