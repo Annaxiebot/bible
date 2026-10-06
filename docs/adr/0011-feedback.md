@@ -5,7 +5,7 @@ Status: accepted.
 ## Context
 
 The owner wants a feedback link on every email and on the home page. Messages
-must reach the owner's inbox (csheargm@gmail.com) without that address
+must reach the owner's inbox (the address in the FEEDBACK_TO secret) without that address
 appearing anywhere public: not in the page source, not in a `mailto:`, not in
 an email footer. The page is public (members never sign in), so it is also a
 spam target.

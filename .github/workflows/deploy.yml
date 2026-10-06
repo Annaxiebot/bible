@@ -40,5 +40,8 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: ./dist
-          keep_files: true
+          # false: each deploy replaces gh-pages, so old bundles (which once carried
+          # build-time API keys) do not linger on the site. PR previews under
+          # preview/ are recreated by preview.yml on their next push.
+          keep_files: false
           cname: scripturetolife.org
