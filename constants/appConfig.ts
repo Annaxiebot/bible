@@ -61,17 +61,6 @@ export const TIMING = {
   DOWNLOAD_RETRY_LONG_DELAY_MS: 3000,
   /** Delay before auto-triggering window.print() in a print window */
   PRINT_WINDOW_DELAY_MS: 500,
-  /** Polling interval (ms) while waiting for a video generation operation */
-  VIDEO_POLL_MS: 10000,
-} as const;
-
-// ── Audio ───────────────────────────────────────────────────────────────────
-
-export const AUDIO = {
-  /** Sample rate (Hz) expected by the Gemini TTS audio decoder */
-  SAMPLE_RATE: 24000,
-  /** PCM int16 max amplitude; used for normalising to [-1, 1] float */
-  PCM_INT16_MAX: 32768,
 } as const;
 
 // ── Download / retry ────────────────────────────────────────────────────────
@@ -85,21 +74,6 @@ export const DOWNLOAD = {
   CACHE_KEEP_NEWEST: 100,
   /** Small inter-chapter delay (ms) in bibleCache download helpers */
   CACHE_DOWNLOAD_DELAY_MS: 100,
-} as const;
-
-// ── AI / Gemini ─────────────────────────────────────────────────────────────
-
-export const AI = {
-  /** Thinking token budget for the pro-preview model */
-  THINKING_BUDGET: 32768,
-  /** Base wait (ms) on first rate-limit retry */
-  RATE_LIMIT_WAIT_ATTEMPT_0: 2000,
-  /** Base wait (ms) on second rate-limit retry */
-  RATE_LIMIT_WAIT_ATTEMPT_1: 5000,
-  /** Base wait (ms) on third (final) rate-limit retry */
-  RATE_LIMIT_WAIT_ATTEMPT_2: 10000,
-  /** Maximum number of retry attempts on a rate-limited AI request */
-  MAX_RETRIES: 3,
 } as const;
 
 // ── Layout ──────────────────────────────────────────────────────────────────

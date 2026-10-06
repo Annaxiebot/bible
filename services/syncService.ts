@@ -552,10 +552,6 @@ export const SYNCED_SETTINGS_KEYS: string[] = [
   STORAGE_KEYS.CHINESE_MODE,
   STORAGE_KEYS.FONT_SIZE,
   STORAGE_KEYS.VIEW_LAYOUT,
-  'useFreeRouter',
-  'useServerAI',
-  'autoRaceAI',
-  'webSearchProvider',
 ];
 
 async function syncSettings(forceRemotePull = false): Promise<void> {

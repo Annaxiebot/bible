@@ -430,86 +430,6 @@ export async function getTimelineGroups(): Promise<TimelineGroup[]> {
     }));
 }
 
-// ─── 5. Reflection prompts (Phase 3) ──────────────────────────────────────
-
-// REFLECTION_PROMPT — see getPrompt('reflection')
-
-/**
- * Generate a contextual reflection prompt based on current entry,
- * Bible reading context, and recent entries.
- */
-export async function generateReflectionPrompt(
-  currentEntry: JournalEntry | null,
-  bibleContext: { bookId?: string; chapter?: number; bookName?: string } | null,
-  recentEntries: JournalEntry[]
-): Promise<string> {
-  const parts: string[] = [];
-
-  if (currentEntry?.plainText?.trim()) {
-    parts.push(`Current entry:\n${currentEntry.plainText.slice(0, 500)}`);
-  }
-
-  if (bibleContext?.bookName && bibleContext?.chapter) {
-    parts.push(`Currently reading: ${bibleContext.bookName} ${bibleContext.chapter}`);
-  }
-
-  if (recentEntries.length > 0) {
-    const recentText = recentEntries
-      .slice(0, 3)
-      .map((e, i) => `Recent entry ${i + 1}: ${(e.plainText || e.title).slice(0, 200)}`)
-      .join('\n');
-    parts.push(recentText);
-  }
-
-  if (parts.length === 0) {
-    parts.push('The user is starting a new journal entry with no previous context.');
-  }
-
-  const result = await chatStudyAI(
-    `${getPromptWithIdentity('reflection')}\n\n${parts.join('\n\n')}`,
-  );
-  return result.text.trim();
-}
-
-// ─── 6. Extend thinking (Phase 3) ─────────────────────────────────────────
-
-// EXTEND_PROMPT — see getPrompt('extend')
-
-/**
- * Extend the user's thinking on selected text or the full entry.
- */
-export async function extendThinking(
-  text: string,
-  bibleContext?: { bookId?: string; chapter?: number; bookName?: string }
-): Promise<string> {
-  if (!text.trim()) return '';
-
-  let prompt = `${getPromptWithIdentity('extend')}\n\nUser's writing:\n${text.slice(0, 2000)}`;
-
-  if (bibleContext?.bookName && bibleContext?.chapter) {
-    prompt += `\n\nThey are currently reading: ${bibleContext.bookName} ${bibleContext.chapter}`;
-  }
-
-  const result = await chatStudyAI(prompt);
-  return result.text.trim();
-}
-
-// ─── 7. Summarize (Phase 3) ───────────────────────────────────────────────
-
-// SUMMARIZE_PROMPT — see getPrompt('summarize')
-
-/**
- * Condense a journal entry into 2-3 key insights.
- */
-export async function summarizeEntry(text: string): Promise<string> {
-  if (!text.trim() || text.trim().length < 20) return '';
-
-  const result = await chatStudyAI(
-    `${getPromptWithIdentity('summarize')}\n\nJournal entry:\n${text.slice(0, 3000)}`,
-  );
-  return result.text.trim();
-}
-
 // ─── 8. Scripture finder (Phase 3) ────────────────────────────────────────
 
 // SCRIPTURE_PROMPT — see getPrompt('scripture')
@@ -606,41 +526,6 @@ function parseScriptureFromText(text: string): ScriptureSuggestion[] {
   }
 
   return results;
-}
-
-// ─── 9. Inline chat about entry (Phase 3) ─────────────────────────────────
-
-/**
- * Chat about the current entry. User asks a question, AI responds with
- * context of the entry + recent entries.
- */
-export async function chatAboutEntry(
-  question: string,
-  entryContent: string,
-  recentEntries: JournalEntry[]
-): Promise<string> {
-  if (!question.trim()) return '';
-
-  const context: string[] = [
-    getPromptWithIdentity('chat'),
-  ];
-
-  if (entryContent.trim()) {
-    context.push(`Current journal entry:\n${entryContent.slice(0, 1500)}`);
-  }
-
-  if (recentEntries.length > 0) {
-    const recentText = recentEntries
-      .slice(0, 3)
-      .map((e, i) => `Recent entry ${i + 1}: ${(e.plainText || e.title).slice(0, 300)}`)
-      .join('\n');
-    context.push(`Recent entries:\n${recentText}`);
-  }
-
-  context.push(`User's question: ${question}`);
-
-  const result = await chatStudyAI(context.join('\n\n'));
-  return result.text.trim();
 }
 
 // ─── 10. Memory extraction (Phase 4) ──────────────────────────────────────

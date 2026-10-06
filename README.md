@@ -29,10 +29,9 @@
 - Apple Pencil double-tap to toggle eraser
 
 ### 🤖 AI Scholar Research
-- Powered by **Google Gemini** — bilingual Chinese and English commentary
+- Bilingual Chinese and English commentary through the site's AI service (OpenRouter; signed in → hosted proxy, or your own OpenRouter key) — see `docs/adr/0007-hosted-ai.md`
 - Academic-quality verse analysis with scholarly sources
 - Save research notes per verse for later review
-- Voice session support for spoken study
 
 ### 🎨 Seasonal Themes
 - Background and accent colors change with the seasons:
@@ -85,9 +84,10 @@ This app was originally created in [Google AI Studio](https://ai.studio/apps/dri
    npm install
    ```
 
-3. Set your Gemini API key in `.env.local`:
+3. Set the Supabase project in `.env.local` (AI, sign-in and sync use it):
    ```
-   GEMINI_API_KEY=your_key_here
+   VITE_SUPABASE_URL=https://<project>.supabase.co
+   VITE_SUPABASE_ANON_KEY=<anon key>
    ```
 
 4. Run the dev server:
@@ -113,7 +113,7 @@ The app auto-deploys to GitHub Pages on push to `master` via the included GitHub
 
 - **React 19** + TypeScript
 - **Vite** for build tooling
-- **Google Gemini API** for AI research
+- **OpenRouter** (via the `ai-proxy` Supabase edge function, or the user's own key) for AI research
 - **IndexedDB** (via `idb`) for local storage
 - **Canvas API** with pointer events for handwriting
 - **Tailwind CSS** (CDN) for styling

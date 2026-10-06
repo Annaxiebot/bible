@@ -82,7 +82,7 @@ row in Supabase, so the site can vouch for them instead.
 - **Not done here:** the landing page's "一分钟设置 AI：粘贴密钥即可" line
   still reflects the key-first flow (owned by another session); the legacy
   `supabase/functions/ai-chat` (per-user provider keys, Scripture Scholar
-  app) is unrelated and unchanged.
+  app) is unrelated and unchanged. (Removed 2026-10-05 — see "Personal app".)
 
 ## Personal app (2026-10-05)
 
@@ -112,7 +112,14 @@ settings instead of its own.
   image attach / webcam (vision), web search (Perplexity, Tavily,
   Firecrawl, Exa, Brave), read-aloud (Gemini TTS, chat and notebook), the
   Voice Session (Gemini Live).
-- **Old code unreachable, not yet deleted.** `AIProviderSettings.tsx`,
-  `VoiceSession.tsx`, `services/aiProvider.ts` and the direct-provider
-  clients carry a TODO(R1) naming their removal session (no behaviour
-  change, R8).
+- **Old code removed (2026-10-05).** The multi-provider stack is deleted:
+  `AIProviderSettings.tsx`, `VoiceSession.tsx`, `TextToSpeech.tsx`,
+  `services/aiProvider.ts`, the direct clients (`gemini`, `claude`,
+  `openai`, `kimi`, `perplexity`) and web-search clients (`tavily`,
+  `firecrawl`, `exa`, `brave`), `utils/retryUtils.ts`, the unused parts of
+  `services/openrouter.ts` (model catalog, auto-detect, `chatWithAI`), and
+  the `supabase/functions/ai-chat` edge function (not deployed on this
+  project when removed). Their localStorage keys (provider API keys, web-search choice,
+  panel toggles) are removed on every app start by
+  `services/obsoleteStorageKeys.ts`; the own OpenRouter key is kept. The
+  build no longer receives `GEMINI_API_KEY` / `KIMI_API_KEY`.

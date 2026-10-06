@@ -87,7 +87,7 @@ Legend: 🔥 P0 (product-blocking) · 🟠 P1 (important) · 🟢 P2 (when ready
 - [x] 🔥 Create PLAN.md (this file)
 - [x] 🔥 Delete orphan files (`ChatInterface.tsx.backup`, stray HTML experiments — cleaned during parallel session)
 - [x] 🔥 Consolidate `[SPLIT]` system prompts into `services/systemPrompts.ts`; delete superseded `services/aiLanguageDirective.ts`; migrate all 5 providers (`openai`, `claude`, `gemini`, `kimi`, `perplexity`, `openrouter`) to import from one source
-- [ ] 🟠 Edge function (`supabase/functions/ai-chat/index.ts`) still has its own inline system prompt string — needs to import `BIBLE_SCHOLAR_SYSTEM_PROMPT` (Deno import path via relative URL or inline duplication with lint check — decide)
+- [x] ~~Edge function (`supabase/functions/ai-chat/index.ts`) system prompt~~ — moot: ai-chat deleted 2026-10-05 (ADR-0007 "Personal app")
 - [ ] 🟠 Split `components/NotabilityEditor.tsx` (2,700+ LOC) into:
   - `NotabilityEditor.tsx` (shell + state orchestration, ≤400 LOC)
   - `NotabilityCanvas.tsx` (drawing/stroke rendering)
@@ -155,7 +155,7 @@ Goal: Drive + IndexedDB replace Supabase entirely. User brings their own AI API 
 - [ ] Write ADR documenting the migration
 
 **Month 2 — Decommission Supabase**
-- [ ] Delete `supabase/functions/ai-chat/`
+- [x] Delete `supabase/functions/ai-chat/` (done 2026-10-05, ADR-0007)
 - [ ] Delete `services/syncService.ts` and Supabase client code
 - [ ] Delete Supabase-related tests
 - [ ] Update README; celebrate removing ~2,000 LOC

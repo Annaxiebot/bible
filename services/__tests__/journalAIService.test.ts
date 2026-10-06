@@ -6,11 +6,7 @@ import {
   findRelatedEntries,
   generateWeeklyDigest,
   getTimelineGroups,
-  generateReflectionPrompt,
-  extendThinking,
-  summarizeEntry,
   findRelatedScripture,
-  chatAboutEntry,
   extractMemoryItems,
   getMemoryContext,
   generateSpiritualProfile,
@@ -330,97 +326,6 @@ describe('journalAIService', () => {
     });
   });
 
-  // ── generateReflectionPrompt ────────────────────────────────────────
-
-  describe('generateReflectionPrompt', () => {
-    it('should generate a prompt from current entry and Bible context', async () => {
-      mockChatStudyAI.mockResolvedValueOnce({
-        text: 'What does grace mean to you in this season of life?',
-        model: 'test-model',
-      });
-
-      const entry = makeEntry({ plainText: 'Thinking about grace and forgiveness today.' });
-      const result = await generateReflectionPrompt(
-        entry,
-        { bookId: 'ROM', chapter: 8, bookName: 'Romans' },
-        []
-      );
-
-      expect(result).toBe('What does grace mean to you in this season of life?');
-      expect(mockChatStudyAI).toHaveBeenCalledOnce();
-    });
-
-    it('should work with no entry and no context', async () => {
-      mockChatStudyAI.mockResolvedValueOnce({
-        text: 'What is on your heart today?',
-        model: 'test-model',
-      });
-
-      const result = await generateReflectionPrompt(null, null, []);
-      expect(result).toBe('What is on your heart today?');
-    });
-
-    it('rethrows on AI failure (no canned fallback prompt)', async () => {
-      const failure = signInNeededError('m');
-      mockChatStudyAI.mockRejectedValueOnce(failure);
-      await expect(generateReflectionPrompt(null, null, [])).rejects.toBe(failure);
-    });
-  });
-
-  // ── extendThinking ──────────────────────────────────────────────────
-
-  describe('extendThinking', () => {
-    it('should extend the user text', async () => {
-      mockChatStudyAI.mockResolvedValueOnce({
-        text: 'This connects to a broader theme of surrender...',
-        model: 'test-model',
-      });
-
-      const result = await extendThinking('Letting go of control is hard.');
-      expect(result).toBe('This connects to a broader theme of surrender...');
-      expect(mockChatStudyAI).toHaveBeenCalledOnce();
-    });
-
-    it('should return empty string for empty text', async () => {
-      const result = await extendThinking('');
-      expect(result).toBe('');
-      expect(mockChatStudyAI).not.toHaveBeenCalled();
-    });
-
-    it('rethrows on AI failure', async () => {
-      const failure = signInNeededError('m');
-      mockChatStudyAI.mockRejectedValueOnce(failure);
-      await expect(extendThinking('Some text here about faith.')).rejects.toBe(failure);
-    });
-  });
-
-  // ── summarizeEntry ──────────────────────────────────────────────────
-
-  describe('summarizeEntry', () => {
-    it('should summarize entry text', async () => {
-      mockChatStudyAI.mockResolvedValueOnce({
-        text: '- Finding peace through prayer\n- Learning to trust God',
-        model: 'test-model',
-      });
-
-      const result = await summarizeEntry('A long journal entry about finding peace through prayer and trusting God in difficult times.');
-      expect(result).toContain('peace');
-      expect(mockChatStudyAI).toHaveBeenCalledOnce();
-    });
-
-    it('should return empty for short text', async () => {
-      const result = await summarizeEntry('Hi');
-      expect(result).toBe('');
-      expect(mockChatStudyAI).not.toHaveBeenCalled();
-    });
-
-    it('rethrows on AI failure', async () => {
-      const failure = signInNeededError('m');
-      mockChatStudyAI.mockRejectedValueOnce(failure);
-      await expect(summarizeEntry('A moderately long entry about spiritual growth and transformation.')).rejects.toBe(failure);
-    });
-  });
-
   // ── findRelatedScripture ────────────────────────────────────────────
 
   describe('findRelatedScripture', () => {
@@ -473,36 +378,6 @@ describe('journalAIService', () => {
       const { meta } = await findRelatedScripture('God loved the world so much today I felt grateful.');
       expect(meta.model).toBe('test-model');
       expect(meta.timestamp).toBeDefined();
-    });
-  });
-
-  // ── chatAboutEntry ──────────────────────────────────────────────────
-
-  describe('chatAboutEntry', () => {
-    it('should return AI answer', async () => {
-      mockChatStudyAI.mockResolvedValueOnce({
-        text: 'That is a wonderful question. Grace means...',
-        model: 'test-model',
-      });
-
-      const answer = await chatAboutEntry(
-        'What does grace mean?',
-        'Today I reflected on grace.',
-        []
-      );
-      expect(answer).toContain('Grace means');
-    });
-
-    it('should return empty for empty question', async () => {
-      const answer = await chatAboutEntry('', 'some content', []);
-      expect(answer).toBe('');
-      expect(mockChatStudyAI).not.toHaveBeenCalled();
-    });
-
-    it('rethrows on AI failure (no canned apology)', async () => {
-      const failure = signInNeededError('m');
-      mockChatStudyAI.mockRejectedValueOnce(failure);
-      await expect(chatAboutEntry('Help me understand this passage about faith.', 'some content', [])).rejects.toBe(failure);
     });
   });
 

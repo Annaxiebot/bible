@@ -1,5 +1,5 @@
 import path from "path";
-import { defineConfig, loadEnv, Plugin } from "vite";
+import { defineConfig, Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 
 // Custom plugin to redirect HTTP to HTTPS
@@ -34,8 +34,7 @@ const httpsRedirect = (): Plugin => ({
   }
 });
 
-export default defineConfig(({ mode }) => {
-    const env = loadEnv(mode, ".", "");
+export default defineConfig(() => {
     return {
       base: process.env.VITE_BASE_PATH || "/bible/",
       server: {
@@ -52,11 +51,6 @@ export default defineConfig(({ mode }) => {
         }
       },
       plugins: [react()],
-      define: {
-        "process.env.API_KEY": JSON.stringify(env.GEMINI_API_KEY),
-        "process.env.GEMINI_API_KEY": JSON.stringify(env.GEMINI_API_KEY),
-        "process.env.KIMI_API_KEY": JSON.stringify(env.KIMI_API_KEY)
-      },
       resolve: {
         alias: {
           "@": path.resolve(__dirname, "."),
@@ -75,8 +69,6 @@ export default defineConfig(({ mode }) => {
                 return 'vendor-react';
               }
               if (id.includes('node_modules/@supabase')) return 'vendor-supabase';
-              if (id.includes('node_modules/@anthropic-ai')) return 'vendor-anthropic';
-              if (id.includes('node_modules/@google')) return 'vendor-google';
             }
           }
         },

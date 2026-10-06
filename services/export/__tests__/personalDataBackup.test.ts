@@ -18,6 +18,9 @@ import {
 import { importCombinedBackup } from '../fullBackupImporter';
 import { parseBackupSummary } from '../backupSummaryParser';
 
+/** An API key from the removed multi-provider AI; old browsers may still hold one. */
+const OLD_PROVIDER_KEY = 'gemini_api_key';
+
 const store = new Map<string, string>();
 const ls = window.localStorage as unknown as Record<string, ReturnType<typeof vi.fn>>;
 
@@ -47,7 +50,7 @@ async function seed() {
   await idbService.put('readingPlans', { id: 'nt-90-days', planType: 'nt-90-days', startDate: '2026-01-01', completedDays: [], currentDay: 0, active: true });
   store.set(STORAGE_KEYS.FONT_SIZE, '18');
   store.set(STORAGE_KEYS.OPENROUTER_API_KEY, 'sk-or-secret');
-  store.set(STORAGE_KEYS.GEMINI_API_KEY, 'gm-secret');
+  store.set(OLD_PROVIDER_KEY, 'gm-secret');
 }
 
 beforeEach(async () => {
@@ -107,7 +110,7 @@ describe('Import (merge, newer wins, never deletes)', () => {
     backup.journal = [journal('j1', '2026-01-15T00:00:00Z', 'journal OLD')];
     backup.chatHistory = [chat('c1', 50, 'chat OLD'), chat('c2', 10, 'chat from file')];
     backup.spiritualMemory = [memory('mem_1', '2026-03-01T00:00:00Z', 'pray NEWER')];
-    backup.settings = { [STORAGE_KEYS.FONT_SIZE]: '30', [STORAGE_KEYS.GEMINI_API_KEY]: 'from-file' };
+    backup.settings = { [STORAGE_KEYS.FONT_SIZE]: '30', [OLD_PROVIDER_KEY]: 'from-file' };
     await idbService.put('journal', journal('j-local', '2026-02-02T00:00:00Z', 'local only'));
 
     const r = await importPersonalBackup(JSON.stringify(backup));
@@ -118,7 +121,7 @@ describe('Import (merge, newer wins, never deletes)', () => {
     expect((await idbService.get('chatHistory', 'c2'))?.title).toBe('chat from file');
     expect((await idbService.get('spiritualMemory', 'mem_1'))?.content).toBe('pray NEWER');
     expect(store.get(STORAGE_KEYS.FONT_SIZE)).toBe('18'); // present locally → kept
-    expect(store.get(STORAGE_KEYS.GEMINI_API_KEY)).toBe('gm-secret'); // keys are never imported
+    expect(store.get(OLD_PROVIDER_KEY)).toBe('gm-secret'); // keys are never imported
     expect(await idbService.getAll('bookmarks')).toHaveLength(1);
   });
 

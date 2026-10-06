@@ -1,10 +1,9 @@
 /**
  * Shared AI system prompts (R3 — single source of truth).
  *
- * ⚠️ DO NOT copy these strings into individual provider files. Every provider
- * (services/{openai,claude,gemini,kimi,perplexity,openrouter}.ts) and the
- * Supabase edge function (supabase/functions/ai-chat/index.ts) imports from
- * here.
+ * ⚠️ DO NOT copy these strings anywhere else — import them. Today the
+ * personal app's chat (components/ChatInterface.tsx) sends
+ * BIBLE_SCHOLAR_SYSTEM_PROMPT through the one AI path (ADR-0007).
  *
  * History:
  *  - Pre 2026-04 the bilingual [SPLIT] prompt was copy-pasted across 5
@@ -16,6 +15,8 @@
  *    the cost of a new cross-cutting concern.
  *  - This module consolidates both: the full Bible-scholar system prompt
  *    lives here as a single string that already embeds the language directive.
+ *  - 2026-10-05: the direct-provider clients and the ai-chat edge function
+ *    that also imported it were deleted (ADR-0007 "Personal app").
  */
 
 /**

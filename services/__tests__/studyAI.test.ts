@@ -30,7 +30,8 @@ vi.mock('../supabase', () => ({
 import { streamStudyAI, chatStudyAI, fitHistory, buildStudyBody, STUDY_AI_TITLE } from '../studyAI';
 import { AskAIError } from '../../components/studypack/askAIErrors';
 import { generateVibeCSS } from '../vibe';
-import { streamAI, extendThinking } from '../journalAIService';
+import { streamAI, suggestTags } from '../journalAIService';
+import type { JournalEntry } from '../idbService';
 
 const getItemMock = window.localStorage.getItem as ReturnType<typeof vi.fn>;
 const SERVED = 'google/gemini-2.5-flash';
@@ -134,9 +135,10 @@ describe('every personal-app caller goes through role "study"', () => {
     expect(meta.model).toBe(SERVED);
   });
 
-  it('journal one-shot calls (extendThinking)', async () => {
-    const fetchMock = stubFetch(streamReply(['more']));
-    expect(await extendThinking('my note')).toBe('more');
+  it('journal one-shot calls (suggestTags)', async () => {
+    const fetchMock = stubFetch(streamReply(['["faith"]']));
+    const entry = { plainText: 'Today I trusted God in a hard week.', title: '' } as JournalEntry;
+    expect(await suggestTags(entry)).toEqual(['faith']);
     expect(call(fetchMock).body.role).toBe('study');
   });
 

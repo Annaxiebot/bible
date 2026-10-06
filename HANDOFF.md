@@ -33,7 +33,7 @@ Merge suggestion order: **#14** (rules, trivial) → **#12** (architecture doc, 
 
 ## Already merged this session
 
-- **[PR #4](https://github.com/Annaxiebot/bible/pull/4)** — edge function R3 cleanup. **Still needs `supabase functions deploy ai-chat`** (manual, requires your access token).
+- **[PR #4](https://github.com/Annaxiebot/bible/pull/4)** — edge function R3 cleanup. (ai-chat was later deleted, 2026-10-05 — ADR-0007; do not deploy it.)
 - **[PR #6](https://github.com/Annaxiebot/bible/pull/6)** — test audit doc (`TEST-AUDIT.md`).
 - **[PR #8](https://github.com/Annaxiebot/bible/pull/8), [#9](https://github.com/Annaxiebot/bible/pull/9), [#10](https://github.com/Annaxiebot/bible/pull/10)** — iPad pencil bug fixes (palm rejection, finger swipe nav, horizontal-only single-page swipe, lasso-drag, text-tap).
 - **[PR #11](https://github.com/Annaxiebot/bible/pull/11)** — egress mitigation + cross-device sync bug fix. **~96% egress reduction** on journal sync cycle.
@@ -87,10 +87,7 @@ Full report: `docs/adr/0001-architecture-review.md` in PR #12.
 ## What to do next session
 
 ### If you have ~15 minutes
-**Merge PRs #14, #12, #13** in that order. Deploy the edge function:
-```
-SUPABASE_ACCESS_TOKEN=sbp_... npx supabase functions deploy ai-chat --no-verify-jwt
-```
+**Merge PRs #14, #12, #13** in that order. (The ai-chat edge function was deleted 2026-10-05 — ADR-0007.)
 
 ### If you have ~1 hour
 **Close the three high-value bugs from the architecture review:**
