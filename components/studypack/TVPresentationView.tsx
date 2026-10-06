@@ -7,6 +7,8 @@
  * Navigation: arrow keys / Space and touch swipe only (clicks are reserved
  * for text selection). "a", the Ask AI button, or selecting slide text opens
  * the Ask-AI overlay; Escape closes the overlay first, exits the app second.
+ * Full screen (useTVFullscreen): F toggles it, a one-time hint says so, and
+ * an Escape that only left full screen does not also leave TV mode.
  */
 import { FIRST_SLIDE_HINT, FIRST_SLIDE_HINT_SHORT, ASK_AI_LABEL, TV_LOADING } from './tvHints';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -15,6 +17,8 @@ import { loadPack } from './packSource';
 import { useLocalPackClaim } from '../newstudy/claimLocalPacks';
 import { questionForSelection } from './askAI';
 import { useTVNavigation } from './useTVNavigation';
+import { useTVFullscreen } from './useTVFullscreen';
+import { exitFullscreen } from './fullscreen';
 import { useSelectToAsk, selectionVerse } from './useSelectToAsk';
 import TVSlide from './TVSlide';
 import AskAIOverlay from './AskAIOverlay';
@@ -70,6 +74,8 @@ interface TVChromeProps {
   slideCount: number;
   index: number;
   onAskAI: () => void;
+  /** The one-time full-screen / sideways hint, shown above the first-slide hint. */
+  notice: string | null;
 }
 
 /** Accessible name of the progress bar (one use; 中文 first). */
@@ -95,7 +101,7 @@ const TVProgress: React.FC<{ slideCount: number; index: number }> = ({ slideCoun
 );
 
 /** Counter, progress bar, first-slide hints, and Ask AI button (exit stays in the view so it also shows on load/error). */
-const TVChrome: React.FC<TVChromeProps> = ({ slideCount, index, onAskAI }) => {
+const TVChrome: React.FC<TVChromeProps> = ({ slideCount, index, onAskAI, notice }) => {
   const compact = useCompactViewport();
   return (
   <>
@@ -103,10 +109,12 @@ const TVChrome: React.FC<TVChromeProps> = ({ slideCount, index, onAskAI }) => {
     <div data-testid="tv-counter" className="absolute bottom-[2.5vh] right-[3vw] text-stl-text-3" style={{ fontSize: '2.5vh' }}>
       {index + 1}/{slideCount}
     </div>
-    {index === 0 && (
+    {(index === 0 || notice) && (
       // A line of its own above the pill: at 1280×720 the full hint ran under the Ask AI pill.
+      // The one-time notice stacks above it, growing upward, never into the pill or counter.
       <div data-testid="tv-hint" className="absolute bottom-[7.5vh] inset-x-[3vw] text-center text-stl-text-3" style={{ fontSize: '2vh' }}>
-        {compact ? FIRST_SLIDE_HINT_SHORT : FIRST_SLIDE_HINT}
+        {notice && <p data-testid="tv-fullscreen-hint" className="text-stl-gold" role="status">{notice}</p>}
+        {index === 0 && <p>{compact ? FIRST_SLIDE_HINT_SHORT : FIRST_SLIDE_HINT}</p>}
       </div>
     )}
     <button
@@ -133,7 +141,12 @@ const TVPresentationView: React.FC<TVPresentationViewProps> = ({ packId, onExit 
   const [askOpen, setAskOpen] = useState(false);
   const [askInitial, setAskInitial] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
-  const nav = useTVNavigation(slides?.length ?? 0, onExit, !askOpen);
+  const fullscreen = useTVFullscreen(!!slides, !askOpen);
+  // Leaving TV mode leaves full screen too (it was entered for the deck).
+  const leave = useCallback(() => { exitFullscreen(); onExit(); }, [onExit]);
+  const { escapeOnlyLeavesFullscreen } = fullscreen;
+  const onEscape = useCallback(() => { if (!escapeOnlyLeavesFullscreen()) leave(); }, [escapeOnlyLeavesFullscreen, leave]);
+  const nav = useTVNavigation(slides?.length ?? 0, onEscape, !askOpen);
 
   const slide = slides?.[nav.index];
   const openAsk = () => {
@@ -188,10 +201,10 @@ const TVPresentationView: React.FC<TVPresentationViewProps> = ({ packId, onExit 
       </div>
 
       {slides && (
-        <TVChrome slideCount={slides.length} index={nav.index} onAskAI={openAsk} />
+        <TVChrome slideCount={slides.length} index={nav.index} onAskAI={openAsk} notice={fullscreen.hint} />
       )}
       <button
-        onClick={(e) => { e.stopPropagation(); onExit(); }}
+        onClick={(e) => { e.stopPropagation(); leave(); }}
         className="absolute top-[2vh] right-[2vw] text-stl-text-3 hover:text-stl-text px-3 py-1"
         style={{ fontSize: '2.5vh' }}
         aria-label="退出演示 Exit presentation"

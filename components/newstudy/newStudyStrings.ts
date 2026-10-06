@@ -82,7 +82,7 @@ export const NS_SAVED = bilingual('已保存', 'Saved');
 /** Quiet auto-save indicator: the pack is stored without the leader pressing anything. */
 export const NS_AUTOSAVED = bilingual('已自动保存', 'Saved');
 export const NS_SAVING = bilingual('保存中…', 'Saving…');
-export const NS_PREVIEW = bilingual('预览', 'Preview on TV');
+export const NS_PREVIEW = bilingual('放映', 'Preview');
 export const NS_ERR_EMPTY_QUESTION = bilingualLine('讨论题不能为空', 'A discussion question cannot be empty');
 
 // ---- editor: scripture range ----

@@ -31,6 +31,9 @@ export const STORAGE_KEYS = {
   // New study: the leader's last "内容语言 Content language" choice (the form's default next time)
   CONTENT_LANGUAGE_DEFAULT: 'content_language_default',
 
+  // TV mode: the one-time "按 F 全屏 Press F for full screen" / "横屏 sideways" hint was shown on this device
+  TV_FULLSCREEN_HINT_SEEN: 'tv_fullscreen_hint_seen',
+
   // Device/sync
   DEVICE_ID: 'bible_device_id',
   SYNC_STATE: 'bible-app-sync-state',

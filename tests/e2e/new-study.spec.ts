@@ -6,7 +6,7 @@
  * John 3:22–36 yields an editor holding the real bundled verses; the pack
  * is auto-saved the moment it appears (never lost), the URL becomes
  * #/new/<id>; Save then Preview opens TV mode from IndexedDB showing
- * 和合本|BSB verses and 18 slides, and Escape returns to the editor;
+ * 和合本|BSB verses and 18 slides in full screen; Escape leaves full screen, the next returns to the editor;
  * reloading #/new/<id> restores it; Export downloads the pack JSON. No
  * live AI call is made. The feedback-form tests live in
  * new-study-feedback.spec.ts, the content-language flow in
@@ -21,6 +21,7 @@ import {
   NS_CONTENT_LANGUAGE, NS_CONTENT_LANGUAGE_OPTIONS,
 } from '../../components/newstudy/newStudyStrings';
 import { newStudyHash } from '../../components/landing/landingRoute';
+import { ESCAPE_GRACE_MS } from '../../components/studypack/useTVFullscreen';
 import { PACK_CONTINUE_PROMPT } from '../../components/newstudy/packPrompt';
 import { JOHN3_REPLY_JSON } from '../../components/newstudy/__tests__/fixtures';
 import { LIFE_AREAS, DEFAULT_CONTENT_LANGUAGE } from '../../components/studypack/principles';
@@ -115,7 +116,13 @@ test.describe('New study', () => {
     await expect(page.getByText('20/20')).toBeVisible();
     await expect(page.getByText(/闭环 Closing/)).toBeVisible();
 
-    // Escape returns to the editor that opened the preview, content intact.
+    // Preview opened full screen: the first Escape only leaves full screen (the browser's),
+    // the next returns to the editor that opened the preview, content intact.
+    await expect.poll(() => page.evaluate(() => document.fullscreenElement !== null)).toBe(true);
+    await page.keyboard.press('Escape');
+    await expect.poll(() => page.evaluate(() => document.fullscreenElement !== null)).toBe(false);
+    await expect(page.getByTestId('tv-presentation')).toBeVisible();
+    await page.waitForTimeout(ESCAPE_GRACE_MS + 100);
     await page.keyboard.press('Escape');
     await expect(page).toHaveURL(new RegExp(`${newStudyHash(PACK_ID)}$`));
     await expect(page.getByTestId('new-study-editor')).toBeVisible();

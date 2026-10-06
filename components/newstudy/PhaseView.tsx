@@ -4,8 +4,9 @@
  * form → generating (streamed progress + Cancel) → failed (bilingual error +
  * Retry) → editor. The form is hidden until AI is available — signed in or
  * an own key (NewStudyPage renders the AI form above). State lives in NewStudyPage.
+ * generating → editor brings the editor's top into view (scrollToTop).
  */
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { StudyPack } from '../studypack/packTypes';
 import NewStudyForm from './NewStudyForm';
 import NewStudyEditor from './NewStudyEditor';
@@ -54,6 +55,10 @@ export interface PhaseViewProps {
 const PhaseView: React.FC<PhaseViewProps> = ({
   phase, configured, onGenerate, onCancel, onBack, onChange, onSave, onPreview, autosave,
 }) => {
+  // The last committed kind: the editor scrolls up only when it replaces the progress line.
+  const previous = useRef(phase.kind);
+  useEffect(() => { previous.current = phase.kind; });
+  const justGenerated = previous.current === 'generating' && phase.kind === 'editor';
   switch (phase.kind) {
     case 'form':
       return configured ? <NewStudyForm busy={false} onGenerate={onGenerate} /> : null;
@@ -64,7 +69,7 @@ const PhaseView: React.FC<PhaseViewProps> = ({
     case 'editor':
       return (
         <NewStudyEditor pack={phase.pack} onChange={onChange} onSave={onSave} onPreview={onPreview} onBack={onBack}
-          autosave={autosave} />
+          autosave={autosave} scrollToTop={justGenerated} />
       );
   }
 };

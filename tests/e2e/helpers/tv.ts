@@ -9,8 +9,21 @@ import { STORAGE_KEYS } from '../../../constants/storageKeys';
 
 export const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
+/**
+ * A typed URL carries no click, so a real browser opens TV mode windowed.
+ * Playwright's own page evaluations count as user gestures, which would let
+ * TV mode's "use the opening click" request full screen on every direct
+ * load; report "no gesture" the way a real browser would.
+ */
+export async function withoutCarriedGesture(page: Page) {
+  await page.addInitScript(() => {
+    Object.defineProperty(Navigator.prototype, 'userActivation', { get: () => ({ isActive: false, hasBeenActive: false }) });
+  });
+}
+
 /** Open the sample pack in TV mode (optionally with a query after the hash) and wait for the title slide. */
 export async function openTV(page: Page, hashQuery = '') {
+  await withoutCarriedGesture(page);
   await page.goto(`${SAMPLE_PACK_HASH}${hashQuery}`);
   await expect(page.getByTestId('tv-presentation')).toBeVisible();
   await expect(page.getByText('不要忧虑 Do Not Be Anxious')).toBeVisible();

@@ -15,6 +15,12 @@ export const FIRST_SLIDE_HINT =
 /** Compact first-slide hint for phone-sized viewports. */
 export const FIRST_SLIDE_HINT_SHORT = '← → / 滑动 · swipe · 选中文字问一问';
 
+/** One-time TV hint where the browser can go full screen (key F toggles it). */
+export const FULLSCREEN_HINT = bilingualLine('按 F 全屏', 'Press F for full screen');
+
+/** The same hint on a phone with no full-screen API (iPhone Safari), held upright. */
+export const SIDEWAYS_HINT = bilingualLine('横屏观看更佳', 'Turn the phone sideways');
+
 /** The Ask-AI button / panel title. */
 export const ASK_AI_LABEL = bilingual('问一问', 'Ask AI');
 

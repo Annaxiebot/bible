@@ -16,6 +16,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { StudyPack } from '../studypack/packTypes';
 import { findLeaderPack, LOCAL_PACK_NOT_FOUND } from '../studypack/packSource';
 import { rememberTvReturn } from '../studypack/tvReturn';
+import { requestFullscreen, exitFullscreen } from '../studypack/fullscreen';
 import { QuickAISetupForm } from '../setup/QuickAISetup';
 import { useAIAccess } from '../setup/useAIAccess';
 import { NEW_STUDY_HASH, newStudyHash, getNewStudyPackIdFromHash, packHash } from '../landing/landingRoute';
@@ -97,8 +98,15 @@ const NewStudyPage: React.FC = () => {
     window.location.hash = NEW_STUDY_HASH;
   };
 
+  /** Full screen is requested first, inside the click (the gesture is gone after the await). */
   const preview = async (pack: StudyPack) => {
-    await flush();
+    requestFullscreen();
+    try {
+      await flush();
+    } catch (err) {
+      exitFullscreen(); // the editor stays, showing the save error
+      throw err;
+    }
     rememberTvReturn(pack.id, newStudyHash(pack.id));
     window.location.hash = packHash(pack.id);
   };

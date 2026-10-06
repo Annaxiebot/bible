@@ -8,15 +8,20 @@
  * "添加段落 Add section" appends an allowed kind. Every edit is a pure
  * function in packEdits; validateEdited runs on every render and keeps
  * Save/Preview disabled with the bilingual reason shown while invalid.
- * Every edit is auto-saved by the page (useAutoSave; one status line here);
- * Save is the explicit confirmation, Preview flushes and opens TV mode.
+ * Every edit is auto-saved by the page (useAutoSave; one status line, in
+ * the action bar); Save is the explicit confirmation, Preview flushes and
+ * opens TV mode. Save / Preview sit in EditorActionBar, pinned to the
+ * bottom of the screen; Back sits beside the editor heading. A freshly
+ * generated pack (scrollToTop) brings the editor's top into view.
  */
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StudyPack, SectionKind, packContentLanguage } from '../studypack/packTypes';
 import SectionEditor from './SectionEditor';
 import SectionToolbar from './SectionToolbar';
 import ScriptureRangeEditor from './ScriptureRangeEditor';
 import AddSectionMenu from './AddSectionMenu';
+import EditorActionBar from './EditorActionBar';
+import { motionScrollBehavior } from '../shared/reducedMotion';
 import { canMoveUp, canMoveDown, canRemove, moveItem, removeItem, insertItem } from './sectionRules';
 import {
   validateEdited, withTitle, withSection, withMovedSection, withoutSection, withAddedSection,
@@ -24,12 +29,9 @@ import {
 import SharingControl from '../sharing/SharingControl';
 import type { AutoSaveStatus } from './useAutoSave';
 import {
-  NS_EDIT_TITLE, NS_EDIT_HINTS, NS_PACK_TITLE, NS_SAVE, NS_SAVED, NS_AUTOSAVED, NS_SAVING, NS_PREVIEW, NS_BACK,
+  NS_EDIT_TITLE, NS_EDIT_HINTS, NS_PACK_TITLE, NS_SAVED, NS_AUTOSAVED, NS_SAVING, NS_BACK,
 } from './newStudyStrings';
-import {
-  textStyle, controlStyle, headingStyle, inputClass, primaryButtonClass, secondaryButtonClass,
-  quietButtonClass, labelClass,
-} from './newStudyStyles';
+import { textStyle, controlStyle, headingStyle, inputClass, quietButtonClass, labelClass } from './newStudyStyles';
 
 interface Props {
   pack: StudyPack;
@@ -39,6 +41,8 @@ interface Props {
   onBack: () => void;
   /** Auto-save state from useAutoSave (NewStudyPage); absent in isolated renders. */
   autosave?: { status: AutoSaveStatus; error: string | null };
+  /** Scroll the editor's top into view on mount (set when generation has just finished). */
+  scrollToTop?: boolean;
 }
 
 /** The single status line: explicit Save wins, then the quiet auto-save indicator. */
@@ -72,20 +76,17 @@ function useSectionActions(pack: StudyPack, edit: (next: StudyPack) => void) {
   };
 }
 
-/** Back / Save / Preview; Save and Preview are disabled while the pack is invalid. */
-const Footer: React.FC<{ invalid: boolean; onBack: () => void; onSave: () => void; onPreview: () => void }> = ({
-  invalid, onBack, onSave, onPreview,
-}) => (
-  <div className="flex flex-wrap justify-end gap-3">
-    <button type="button" onClick={onBack} className={quietButtonClass} style={controlStyle}>{NS_BACK}</button>
-    <button type="button" onClick={onSave} disabled={invalid} className={secondaryButtonClass} style={controlStyle}
-      data-testid="ns-save">{NS_SAVE}</button>
-    <button type="button" onClick={onPreview} disabled={invalid} className={primaryButtonClass} style={controlStyle}
-      data-testid="ns-preview">{NS_PREVIEW}</button>
-  </div>
-);
+/** On mount only: the editor replaces the progress line wherever the page was scrolled to. */
+function useScrollToTopOnMount(ref: React.RefObject<HTMLDivElement | null>, enabled: boolean | undefined): void {
+  const initial = useRef(enabled);
+  useEffect(() => {
+    if (initial.current) ref.current?.scrollIntoView?.({ block: 'start', behavior: motionScrollBehavior() });
+  }, [ref]);
+}
 
-const NewStudyEditor: React.FC<Props> = ({ pack, onChange, onSave, onPreview, onBack, autosave }) => {
+const NewStudyEditor: React.FC<Props> = ({ pack, onChange, onSave, onPreview, onBack, autosave, scrollToTop }) => {
+  const rootRef = useRef<HTMLDivElement>(null);
+  useScrollToTopOnMount(rootRef, scrollToTop);
   const [status, setStatus] = useState<'idle' | 'saved' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
   const edit = (nextPack: StudyPack) => { setStatus('idle'); onChange(nextPack); };
@@ -109,8 +110,11 @@ const NewStudyEditor: React.FC<Props> = ({ pack, onChange, onSave, onPreview, on
   const shownError = problem ?? error ?? autosave?.error ?? null;
   const shownStatus = statusLine(status, autosave);
   return (
-    <div data-testid="new-study-editor" className="flex flex-col gap-6">
-      <h2 className="font-bold text-amber-300" style={headingStyle}>{NS_EDIT_TITLE}</h2>
+    <div ref={rootRef} data-testid="new-study-editor" className="flex scroll-mt-4 flex-col gap-6">
+      <div className="flex items-start justify-between gap-4">
+        <h2 className="font-bold text-amber-300" style={headingStyle}>{NS_EDIT_TITLE}</h2>
+        <button type="button" onClick={onBack} className={`${quietButtonClass} shrink-0 whitespace-nowrap`} style={controlStyle}>{NS_BACK}</button>
+      </div>
       <p className="text-slate-400" style={textStyle}>{NS_EDIT_HINTS[packContentLanguage(pack)]}</p>
       <label className={labelClass} style={textStyle}>
         <span>{NS_PACK_TITLE}</span>
@@ -128,11 +132,8 @@ const NewStudyEditor: React.FC<Props> = ({ pack, onChange, onSave, onPreview, on
         </div>
       ))}
       <AddSectionMenu sections={pack.sections} onAdd={add} />
-      {shownError && <p role="alert" className="text-red-300" style={textStyle}>{shownError}</p>}
-      {shownStatus && (
-        <p role="status" data-testid="ns-status" className="text-emerald-300" style={textStyle}>{shownStatus}</p>
-      )}
-      <Footer invalid={!!problem} onBack={onBack} onSave={() => void run(onSave, 'saved')} onPreview={() => void run(onPreview, 'idle')} />
+      <EditorActionBar invalid={!!problem} error={shownError} status={shownStatus}
+        onSave={() => void run(onSave, 'saved')} onPreview={() => void run(onPreview, 'idle')} />
     </div>
   );
 };

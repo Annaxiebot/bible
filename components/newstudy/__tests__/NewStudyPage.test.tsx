@@ -4,7 +4,7 @@
  * editor (editable questions, scripture read-only) → the pack is auto-saved
  * the moment generation completes and after edits (real fake-indexeddb),
  * the URL becomes #/new/<id> and reopening that hash restores the editor
- * → Preview remembers the editor as TV mode's exit and sets the TV hash; a
+ * → Preview asks for full screen in its click, remembers the editor as TV mode's exit and sets the TV hash; a
  * failed generation shows the bilingual error with Retry; My packs lists
  * each pack with Edit.
  */
@@ -25,6 +25,7 @@ import { newStudyHash, NEW_STUDY_HASH } from '../../landing/landingRoute';
 import { TV_RETURN_KEY } from '../../studypack/tvReturn';
 import { AUTOSAVE_DELAY_MS } from '../useAutoSave';
 import NewStudyPage from '../NewStudyPage';
+import { installFakeFullscreen } from '../../studypack/__tests__/fakeFullscreen';
 import { validateRequest, DEFAULT_REQUEST } from '../NewStudyForm';
 
 const generateMock = vi.fn();
@@ -127,7 +128,14 @@ describe('NewStudyPage', () => {
     expect((stored!.pack as { sections: Array<{ kind: string; questions?: string[] }> })
       .sections.find(s => s.kind === 'discussion')!.questions![0]).toBe('改过的题 · Edited question');
 
-    fireEvent.click(screen.getByTestId('ns-preview'));
+    // Preview asks for full screen inside the click (the gesture is gone after the save's await).
+    const fullscreen = installFakeFullscreen();
+    try {
+      fireEvent.click(screen.getByTestId('ns-preview'));
+      expect(fullscreen.request).toHaveBeenCalledTimes(1);
+    } finally {
+      fullscreen.uninstall();
+    }
     await waitFor(() => expect(window.location.hash).toBe('#/pack/local-2026-10-02-jhn3'));
     // TV mode's exit goes back to this editor (tvReturn), not to the app.
     expect(window.sessionStorage.setItem).toHaveBeenCalledWith(
