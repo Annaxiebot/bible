@@ -13,7 +13,7 @@
  */
 import { SCRUBBED } from './sharingStrings';
 
-/** Unanchored, global: finds an address inside free text (signupClient's EMAIL_RE validates a whole field instead). */
+/** Unanchored, global: finds an address inside free text (EMAIL_SHAPE in supabase/functions/_shared/feedback validates a whole field instead). */
 const EMAIL_IN_TEXT = /[^\s@，。、；：（）()]+@[^\s@，。、；：（）()]+\.[A-Za-z]{2,}/g;
 /** A run of digits with phone separators; replaced only when it holds at least MIN_PHONE_DIGITS digits. */
 const PHONE_LIKE = /\+?\(?\d[\d\s\-().]{4,}\d/g;

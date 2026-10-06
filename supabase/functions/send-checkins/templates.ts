@@ -16,8 +16,8 @@
  * Verses are the pack's own 和合本 + BSB text, both in every content mode.
  * checkinContent builds the parts once; checkinText renders the plain-text
  * part (URLs on their own lines) and emailHtml.ts the HTML part (buttons, no
- * raw URLs). Email sends both, the text ending with SITE_FOOTER_LINE; SMS
- * gets the text only, without that line.
+ * raw URLs). Email sends both, the text ending with the feedback line
+ * (ADR-0011) and SITE_FOOTER_LINE; SMS gets the text only, without them.
  */
 import { promptWithoutKindLabel } from './promptText.ts';
 import { renderCheckinHtml } from './emailHtml.ts';
@@ -25,6 +25,7 @@ import { EMAIL_BRAND_EN } from './emailStyle.ts';
 import {
   SITE_ORIGIN, SITE_HOST, BILINGUAL_SEPARATOR, PRACTICE_LABEL, PASSAGE_LABEL, FULL_PASSAGE_HEADING, LINK_LABEL,
 } from './messageStrings.ts';
+import { FEEDBACK_LABEL, feedbackHash } from '../_shared/feedback.ts';
 
 export { SITE_ORIGIN, BILINGUAL_SEPARATOR, PRACTICE_LABEL, PASSAGE_LABEL, FULL_PASSAGE_HEADING, LINK_LABEL };
 
@@ -108,6 +109,16 @@ export function stopPageUrl(signupId: string): string {
   return `${SITE_ORIGIN}/#/checkin/${signupId}/stop`;
 }
 
+/** The site's feedback page, tagged as followed from an email about this pack (ADR-0011). */
+export function feedbackPageUrl(packId: string): string {
+  return `${SITE_ORIGIN}/${feedbackHash('email', packId)}`;
+}
+
+/** Text part, above the site line: "意见反馈 · Feedback: <url>". */
+export function feedbackLine(packId: string): string {
+  return `${FEEDBACK_LABEL}: ${feedbackPageUrl(packId)}`;
+}
+
 const STOP_TEXT = `不想再收到？退订${BILINGUAL_SEPARATOR}Stop these emails: `;
 
 /** Last line of every member email: "不想再收到？退订 · Stop these emails: <url>". */
@@ -184,6 +195,7 @@ export interface CheckinContent {
   passage: { ref: string; keyVerse: PassageVerse | null; verses: PassageVerse[] } | null;  // verses: [] for SMS
   link: { url: string; label: string };
   stopUrl: string | null;      // members only
+  feedbackUrl: string;         // the site's feedback page (email footer)
 }
 
 /** The parts of a message; the whole passage only for email (33 verses would be dozens of SMS segments). */
@@ -207,6 +219,7 @@ export function checkinContent(
     } : null,
     link: { url: feedbackUrl(pack, member, checkinKind), label: linkLabel },
     stopUrl: member.signupId ? stopPageUrl(member.signupId) : null,
+    feedbackUrl: feedbackPageUrl(pack.id),
   };
 }
 
@@ -234,8 +247,8 @@ export function renderCheckin(
   kind: MessageKind, pack: CheckinPack, member: MemberContext, channel: MessageChannel = 'email',
 ): CheckinMessage {
   const content = checkinContent(kind, pack, member, channel);
-  if (channel === 'sms') return { subject: content.subject, text: checkinText(content) };   // SMS: no site line (length)
-  const text = `${checkinText(content)}\n\n${SITE_FOOTER_LINE}`;
+  if (channel === 'sms') return { subject: content.subject, text: checkinText(content) };   // SMS: no footer (length)
+  const text = `${checkinText(content)}\n\n${feedbackLine(pack.id)}\n${SITE_FOOTER_LINE}`;
   return { subject: content.subject, text, html: renderCheckinHtml(content) };
 }
 

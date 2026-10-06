@@ -5,7 +5,7 @@
  * app) and adds branches in front: a bare root URL renders the lazy-loaded
  * Landing page; "#/setup" renders it with the AI setup dialog open; "#/new"
  * (and "#/new/<id>") the New study page; "#/signup/<id>", "#/qr/<id>", "#/leader" (home),
- * "#/leader/<id>", "#/checkin/<signupId>" and "#/checkin/<signupId>/stop" their pages. Keeps the touch-point in
+ * "#/leader/<id>", "#/checkin/<signupId>", "#/checkin/<signupId>/stop" and "#/feedback" their pages. Keeps the touch-point in
  * index.tsx to a single wrapper line, same pattern as StudyPackGate. Also
  * the one place the sign-in claim hook is installed (claimLocalPacks).
  */
@@ -16,6 +16,7 @@ import { getSignupPackIdFromHash, getQrPackIdFromHash } from '../signup/signupRo
 import { getLeaderPackIdFromHash } from '../leader/leaderRoute';
 import { getCheckinFromHash, getCheckinStopFromHash } from '../checkin/checkinRoute';
 import { installClaimOnSignIn } from '../newstudy/claimLocalPacks';
+import { getFeedbackContextFromHash } from '../../supabase/functions/_shared/feedback';
 
 // One loader per page, shared by lazy() and preloadLandingPages().
 const pageLoaders = {
@@ -27,6 +28,7 @@ const pageLoaders = {
   leaderHome: () => import('../leader/LeaderHome'),
   checkin: () => import('../checkin/CheckinPage'),
   checkinStop: () => import('../checkin/StopPage'),
+  feedback: () => import('../feedback/FeedbackPage'),
 };
 
 /**
@@ -47,6 +49,7 @@ const LeaderPage = lazy(pageLoaders.leader);
 const LeaderHome = lazy(pageLoaders.leaderHome);
 const CheckinPage = lazy(pageLoaders.checkin);
 const StopPage = lazy(pageLoaders.checkinStop);
+const FeedbackPage = lazy(pageLoaders.feedback);
 
 const fallback = <div className="fixed inset-0 bg-stl-bg" />;
 
@@ -88,6 +91,10 @@ const LandingGate: React.FC<{ app: React.ReactElement }> = ({ app }) => {
   if (view === 'checkinStop') {
     const signupId = getCheckinStopFromHash(window.location.hash)!;
     return <Suspense fallback={fallback}><StopPage signupId={signupId} /></Suspense>;
+  }
+  if (view === 'feedback') {
+    const context = getFeedbackContextFromHash(window.location.hash)!;
+    return <Suspense fallback={fallback}><FeedbackPage context={context} /></Suspense>;
   }
   if (view !== 'landing' && view !== 'setup') return <StudyPackGate app={app} />;
   return (

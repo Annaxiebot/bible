@@ -6,3 +6,8 @@ port = 54321
 # JWT; every other send-checkins path checks its own caller (ADR-0009).
 [functions.send-checkins]
 verify_jwt = false
+
+# The public #/feedback page posts with no sign-in; the function enforces
+# its own guards (honeypot, validation, per-IP rate limit; ADR-0011).
+[functions.feedback]
+verify_jwt = false

@@ -10,7 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   renderCheckin, passageLine, keyVerseLine, passageVerseLine, stopLine, checkinPageUrl, greeting, practiceLine,
-  FULL_PASSAGE_HEADING, WELCOME_KIND, SITE_FOOTER_LINE, CheckinPack, MemberContext, MessageKind,
+  FULL_PASSAGE_HEADING, WELCOME_KIND, SITE_FOOTER_LINE, feedbackLine, CheckinPack, MemberContext, MessageKind,
 } from '../templates.ts';
 import { bodyLines } from './textBody';
 import { loadCheckinPack, packFromSummary, passageFromSummary, PackSummaryRow, SUMMARY_COLUMNS } from '../packSource.ts';
@@ -69,6 +69,7 @@ describe('renderCheckin with the passage', () => {
       '',
       stopLine(SIGNUP_ID),
       '',
+      feedbackLine(PACK.id),
       SITE_FOOTER_LINE,
     ]);
     expect(lines[4]).toBe(passageLine(REF));

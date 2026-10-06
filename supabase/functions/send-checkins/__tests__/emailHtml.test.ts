@@ -12,10 +12,11 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import path from 'path';
 import {
-  renderCheckin, checkinPageUrl, stopPageUrl, packUrl, SITE_ORIGIN, SITE_FOOTER_LINE, WELCOME_KIND, LINK_LABEL, PASSAGE_LABEL, FULL_PASSAGE_HEADING,
+  renderCheckin, checkinPageUrl, stopPageUrl, packUrl, SITE_ORIGIN, SITE_FOOTER_LINE, feedbackLine, feedbackPageUrl, WELCOME_KIND, LINK_LABEL, PASSAGE_LABEL, FULL_PASSAGE_HEADING,
   CheckinPack, MemberContext, MessageKind,
 } from '../templates.ts';
 import { escapeHtml } from '../emailHtml.ts';
+import { FEEDBACK_LABEL, FEEDBACK_HASH } from '../../_shared/feedback.ts';
 import { packFromSummary, PackSummaryRow } from '../packSource.ts';
 import { resendBody } from '../senders.ts';
 import { EMAIL_COLORS, EMAIL_BRAND_EN, EMAIL_BRAND_ZH, EMAIL_BODY_PX, EMAIL_MAX_WIDTH_PX, EMAIL_SCRIPTURE_FONT, EMAIL_HEAD_FONT, EMAIL_BODY_FONT } from '../emailStyle.ts';
@@ -79,9 +80,10 @@ describe('renderCheckinHtml: structure and email-client safety', () => {
     }
   });
 
-  it('the text part ends with the site line; SMS does not', () => {
+  it('the text part ends with the feedback line and the site line; SMS has neither', () => {
     for (const kind of KINDS) {
-      expect(renderCheckin(kind, PACK, MEMBER).text.endsWith(`\n\n${SITE_FOOTER_LINE}`)).toBe(true);
+      expect(renderCheckin(kind, PACK, MEMBER).text.endsWith(`\n\n${feedbackLine(PACK.id)}\n${SITE_FOOTER_LINE}`)).toBe(true);
+      expect(renderCheckin(kind, PACK, MEMBER, 'sms').text).not.toContain(FEEDBACK_HASH);
       expect(renderCheckin(kind, PACK, MEMBER, 'sms').text).not.toContain(SITE_FOOTER_LINE);
     }
   });
@@ -110,6 +112,27 @@ describe('renderCheckinHtml: structure and email-client safety', () => {
     expect(doc).toContain('&lt;i&gt;own&lt;/i&gt;');
     expect(doc).toContain('&lt;敬畏&gt;');
     expect(doc).toContain('fear &amp; &quot;love&quot;');
+  });
+});
+
+describe('the feedback link (ADR-0011)', () => {
+  it('every email links 意见反馈 · Feedback to #/feedback?from=email&pack=<id>: text as a URL line, HTML as a link (no raw URL)', () => {
+    expect(feedbackPageUrl(PACK.id)).toBe(`${SITE_ORIGIN}/#/feedback?from=email&pack=${PACK.id}`);
+    expect(feedbackLine(PACK.id)).toBe(`意见反馈 · Feedback: ${feedbackPageUrl(PACK.id)}`);
+    for (const kind of KINDS) {
+      for (const member of [MEMBER, { name: 'Ann', signupId: null, practices: [] }]) {
+        const message = renderCheckin(kind, PACK, member);
+        expect(message.text.split('\n')).toContain(feedbackLine(PACK.id));
+        const doc = message.html!;
+        expect(doc).toContain(`<a href="${escapeHtml(feedbackPageUrl(PACK.id))}" style="`);
+        expect(doc).toContain(`>${escapeHtml(FEEDBACK_LABEL)}</a>`);
+        expect(withoutHrefs(doc)).not.toContain(FEEDBACK_HASH);
+        // footer order: stop link (members), feedback, then the site link
+        const at = doc.indexOf(escapeHtml(FEEDBACK_LABEL));
+        expect(at).toBeLessThan(doc.indexOf('>scripturetolife.org</a>'));
+        if (member.signupId) expect(doc.indexOf(escapeHtml(LINK_LABEL.stop))).toBeLessThan(at);
+      }
+    }
   });
 });
 

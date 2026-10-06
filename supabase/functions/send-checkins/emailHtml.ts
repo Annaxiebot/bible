@@ -9,13 +9,15 @@
  * stop link a small text link, and the passage reference links nowhere (a
  * member has no public page for a leader's pack). The header wordmark links
  * home (SITE_HOME_URL); the footer's small "scripturetolife.org" link too —
- * the bare host as link text is the one place the domain shows.
+ * the bare host as link text is the one place the domain shows. Between the
+ * stop link and it, "意见反馈 · Feedback" links to the feedback page (ADR-0011).
  */
 import type { CheckinContent, PassageVerse } from './templates.ts';
 import {
   EMAIL_COLORS as C, EMAIL_HEAD_FONT, EMAIL_SCRIPTURE_FONT, EMAIL_BODY_FONT, EMAIL_BODY_PX, EMAIL_MAX_WIDTH_PX,
   EMAIL_BRAND_EN, EMAIL_BRAND_ZH,
 } from './emailStyle.ts';
+import { FEEDBACK_LABEL } from '../_shared/feedback.ts';
 import { FULL_PASSAGE_HEADING, PASSAGE_LABEL, PRACTICE_LABEL, SITE_HOME_URL, SITE_HOST, LINK_LABEL } from './messageStrings.ts';
 
 const ESCAPES: Record<string, string> = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -98,8 +100,9 @@ function footer(c: CheckinContent): string {
   const stop = c.stopUrl
     ? `<a href="${escapeHtml(c.stopUrl)}" style="color:${C['ink-2']};text-decoration:underline;">${escapeHtml(LINK_LABEL.stop)}</a><br>`
     : '';
+  const feedback = `<a href="${escapeHtml(c.feedbackUrl)}" style="color:${C['ink-2']};text-decoration:underline;">${escapeHtml(FEEDBACK_LABEL)}</a><br>`;
   return `<tr><td style="padding:18px 24px 28px;font-size:14px;line-height:1.7;color:${C['ink-2']};border-top:1px solid ${C.line};">`
-    + `${stop}${homeLink(SITE_HOST, `color:${C['gold-deep']};text-decoration:underline;`)}</td></tr>`;
+    + `${stop}${feedback}${homeLink(SITE_HOST, `color:${C['gold-deep']};text-decoration:underline;`)}</td></tr>`;
 }
 
 /** The whole HTML document for one message. */

@@ -23,6 +23,8 @@ import { LD_TITLE } from '../../leader/leaderStrings';
 import LandingGate, { preloadLandingPages } from '../LandingGate';
 import { photoSrc } from '../LandingGroup';
 import { clearExternalVerseCache } from '../../studypack/externalVerses';
+import { FEEDBACK_HASH, FEEDBACK_LABEL, feedbackHash } from '../../../supabase/functions/_shared/feedback';
+import { FEEDBACK_PAGE_TEST_ID } from '../../feedback/FeedbackPage';
 
 // The pages are React.lazy; their first import is load-dependent (several
 // seconds under heavy CPU load) and must not count against a 1 s findBy.
@@ -69,6 +71,14 @@ describe('resolveRootView', () => {
     expect(resolveRootView(qrHash('2026-10-02-matt6'))).toBe('qr');
     expect(resolveRootView('#/qr/')).toBe('app');
     expect(resolveRootView('#/qr/bad id')).toBe('app');
+  });
+
+  it('routes #/feedback (with or without ?from=…&pack=…) to the feedback page (ADR-0011)', () => {
+    expect(resolveRootView(FEEDBACK_HASH)).toBe('feedback');
+    expect(resolveRootView(feedbackHash('landing'))).toBe('feedback');
+    expect(resolveRootView(feedbackHash('email', 'local-2026-10-02-jhn3'))).toBe('feedback');
+    expect(resolveRootView('#/feedbackx')).toBe('app');
+    expect(resolveRootView('#/feedback/x')).toBe('app');
   });
 
   it('falls through to the app on any unrecognized hash (bookmarked deep state)', () => {
@@ -239,6 +249,20 @@ describe('LandingGate', () => {
     expect(await screen.findByTestId('qr-page')).toBeInTheDocument();
     expect(screen.queryByTestId('landing-page')).toBeNull();
     vi.unstubAllGlobals();
+  });
+
+  it('the footer links 意见反馈 · Feedback to #/feedback?from=landing, which renders the feedback page', async () => {
+    window.location.hash = '';
+    render(<LandingGate app={app} />);
+    await screen.findByTestId('landing-page');
+    const link = within(screen.getByTestId('landing-footer')).getByTestId('landing-feedback-link');
+    expect(link).toHaveAttribute('href', feedbackHash('landing'));
+    expect(link.textContent).toBe(FEEDBACK_LABEL.replace(' · ', ''));
+    cleanup();
+    window.location.hash = feedbackHash('landing');
+    render(<LandingGate app={app} />);
+    expect(await screen.findByTestId(FEEDBACK_PAGE_TEST_ID)).toHaveTextContent(FEEDBACK_LABEL);
+    expect(screen.queryByTestId('landing-page')).toBeNull();
   });
 
   it('renders the app at #app', () => {

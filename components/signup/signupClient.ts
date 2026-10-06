@@ -25,6 +25,7 @@ import {
 import { SIGNUPS_TABLE, SIGNUP_LOCALE, SignupInsert } from './signupSchema';
 import { practiceColumns, practiceTexts, ownVersionLine } from '../../supabase/functions/send-checkins/practices';
 import { MARK_REPLACED_FN } from '../../supabase/functions/send-checkins/replaced';
+import { EMAIL_SHAPE } from '../../supabase/functions/_shared/feedback';
 
 export { SIGNUPS_TABLE, SIGNUP_LOCALE };
 export type { SignupInsert };
@@ -40,7 +41,6 @@ export interface SignupForm {
 
 export const EMPTY_SIGNUP: SignupForm = { practices: [], note: '', name: '', phone: '', email: '', consent: true };
 
-const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** Digits with an optional leading +, 7–15 digits (E.164 range) after normalisation. */
 const PHONE_RE = /^\+?\d{7,15}$/;
 
@@ -63,7 +63,7 @@ export function validateSignup(form: SignupForm): string | null {
   const phone = normalizePhone(form.phone);
   if (!name) return SU_ERR_NAME;
   if (!email) return SU_ERR_EMAIL_REQUIRED;
-  if (!EMAIL_RE.test(email)) return SU_ERR_EMAIL;
+  if (!EMAIL_SHAPE.test(email)) return SU_ERR_EMAIL;
   if (phone && !PHONE_RE.test(phone)) return SU_ERR_PHONE;
   return null;
 }
