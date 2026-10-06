@@ -3,10 +3,11 @@
 -- Apply AFTER supabase-schema.sql: open the Supabase dashboard → SQL editor →
 -- paste this whole file → Run. Idempotent (IF NOT EXISTS / DROP POLICY IF
 -- EXISTS / CREATE OR REPLACE), so re-running is safe. Applied to the live
--- project through the management API on 2026-10-03.
+-- project through the management API on 2026-10-03; the 'study' role (the
+-- personal app, ADR-0007 "Personal app") widened the role CHECK on 2026-10-05.
 --
 -- What lives here: one counter per leader, per calendar month (UTC,
--- 'YYYY-MM'), per AI role ('ask' | 'pack' | 'adjust' | 'sharing'). The
+-- 'YYYY-MM'), per AI role ('ask' | 'pack' | 'adjust' | 'sharing' | 'study'). The
 -- ai-proxy Edge Function counts every call it forwards; message content is
 -- never stored. `monthly_limit` records the limit in force at the last call
 -- so #/setup can show "12/300" without knowing the server's secrets.
@@ -21,12 +22,19 @@
 CREATE TABLE IF NOT EXISTS ai_usage (
   leader_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   month TEXT NOT NULL CHECK (month ~ '^[0-9]{4}-[0-9]{2}$'),   -- UTC 'YYYY-MM'
-  role TEXT NOT NULL CHECK (role IN ('ask', 'pack', 'adjust', 'sharing')),
+  role TEXT NOT NULL,
   count INT NOT NULL DEFAULT 0,
   monthly_limit INT,                                           -- limit in force at the last call
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   PRIMARY KEY (leader_id, month, role)
 );
+
+-- The role list = supabase/functions/ai-proxy/policy AI_ROLES (pinned by
+-- database/__tests__/aiUsageSchema.test.ts). Dropped and re-added so a
+-- re-run widens the CHECK on a table created with an older list.
+ALTER TABLE ai_usage DROP CONSTRAINT IF EXISTS ai_usage_role_check;
+ALTER TABLE ai_usage ADD CONSTRAINT ai_usage_role_check
+  CHECK (role IN ('ask', 'pack', 'adjust', 'sharing', 'study'));
 
 ALTER TABLE ai_usage ENABLE ROW LEVEL SECURITY;
 

@@ -20,37 +20,31 @@ import { journalStorage } from '../journalStorage';
 import { spiritualMemory } from '../spiritualMemory';
 import type { JournalEntry, SpiritualMemoryItem } from '../idbService';
 
-// Mock the AI provider
-const { mockStreamViaEdgeFn } = vi.hoisted(() => ({
-  mockStreamViaEdgeFn: vi.fn(),
+// The journal's AI goes through the personal app's one AI path (services/studyAI, role 'study').
+const { mockStreamStudyAI } = vi.hoisted(() => ({
+  mockStreamStudyAI: vi.fn(),
 }));
 
-vi.mock('../aiProvider', () => ({
-  chatWithAI: vi.fn(),
-  streamViaEdgeFunction: mockStreamViaEdgeFn,
-  getCurrentModel: vi.fn(() => 'test-model'),
-  getCurrentProvider: vi.fn(() => 'test'),
+vi.mock('../studyAI', () => ({
+  chatStudyAI: vi.fn(),
+  streamStudyAI: mockStreamStudyAI,
 }));
 
-import { chatWithAI } from '../aiProvider';
-const mockChatWithAI = vi.mocked(chatWithAI);
+import { chatStudyAI } from '../studyAI';
+const mockChatStudyAI = vi.mocked(chatStudyAI);
 
-/** Helper: mock streamViaEdgeFunction to emit text and call onDone */
+/** Helper: the stream emits `text` and resolves with it */
 function mockStreamResponse(text: string) {
-  mockStreamViaEdgeFn.mockImplementationOnce(
-    async (_prompt: string, _history: any[], _options: any, onChunk: (t: string) => void, onDone: (m?: string, p?: string) => void) => {
+  mockStreamStudyAI.mockImplementationOnce(
+    async (_prompt: string, _history: unknown[], onChunk: (t: string) => void) => {
       onChunk(text);
-      onDone('test-model', 'test');
+      return { text, model: 'test-model' };
     }
   );
 }
 
 function mockStreamError(error: Error) {
-  mockStreamViaEdgeFn.mockImplementationOnce(
-    async (_prompt: string, _history: any[], _options: any, _onChunk: any, _onDone: any, onError: (e: Error) => void) => {
-      onError(error);
-    }
-  );
+  mockStreamStudyAI.mockRejectedValueOnce(error);
 }
 
 function makeEntry(overrides: Partial<JournalEntry> = {}): JournalEntry {
@@ -128,22 +122,22 @@ describe('journalAIService', () => {
 
   describe('suggestTags', () => {
     it('should return tags from AI response', async () => {
-      mockChatWithAI.mockResolvedValueOnce({
+      mockChatStudyAI.mockResolvedValueOnce({
         text: '["faith", "gratitude", "romans 8"]',
-        provider: 'test',
+        model: 'test-model',
       });
 
       const entry = makeEntry({ plainText: 'I am grateful for the faith described in Romans 8. God is so good.' });
       const tags = await suggestTags(entry);
 
       expect(tags).toEqual(['faith', 'gratitude', 'romans 8']);
-      expect(mockChatWithAI).toHaveBeenCalledOnce();
+      expect(mockChatStudyAI).toHaveBeenCalledOnce();
     });
 
     it('should handle AI returning markdown code block', async () => {
-      mockChatWithAI.mockResolvedValueOnce({
+      mockChatStudyAI.mockResolvedValueOnce({
         text: '```json\n["prayer", "peace"]\n```',
-        provider: 'test',
+        model: 'test-model',
       });
 
       const entry = makeEntry({ plainText: 'Prayer brought me such peace today in my reflection time.' });
@@ -155,11 +149,11 @@ describe('journalAIService', () => {
       const entry = makeEntry({ plainText: 'Hi' });
       const tags = await suggestTags(entry);
       expect(tags).toEqual([]);
-      expect(mockChatWithAI).not.toHaveBeenCalled();
+      expect(mockChatStudyAI).not.toHaveBeenCalled();
     });
 
     it('should return empty array on AI failure', async () => {
-      mockChatWithAI.mockRejectedValueOnce(new Error('API error'));
+      mockChatStudyAI.mockRejectedValueOnce(new Error('API error'));
 
       const entry = makeEntry({ plainText: 'Reflecting on the goodness of God today and always.' });
       const tags = await suggestTags(entry);
@@ -167,7 +161,7 @@ describe('journalAIService', () => {
     });
 
     it('should handle string response from AI', async () => {
-      mockChatWithAI.mockResolvedValueOnce('["hope", "strength"]');
+      mockChatStudyAI.mockResolvedValueOnce({ text: '["hope", "strength"]', model: 'test-model' });
 
       const entry = makeEntry({ plainText: 'Finding hope and strength in difficult times through prayer.' });
       const tags = await suggestTags(entry);
@@ -175,9 +169,9 @@ describe('journalAIService', () => {
     });
 
     it('should limit to 7 tags max', async () => {
-      mockChatWithAI.mockResolvedValueOnce({
+      mockChatStudyAI.mockResolvedValueOnce({
         text: '["a","b","c","d","e","f","g","h","i","j"]',
-        provider: 'test',
+        model: 'test-model',
       });
 
       const entry = makeEntry({ plainText: 'A long journal entry about many topics and themes in my daily walk.' });
@@ -271,16 +265,16 @@ describe('journalAIService', () => {
         plainText: 'Grateful for community and fellowship.',
       });
 
-      mockChatWithAI.mockResolvedValueOnce({
+      mockChatStudyAI.mockResolvedValueOnce({
         text: '- Recurring theme of patience\n- Gratitude for community\n- Growing in fellowship',
-        provider: 'test',
+        model: 'test-model',
       });
 
       const digest = await generateWeeklyDigest(true);
       expect(digest).not.toBeNull();
       expect(digest!.entryCount).toBe(2);
       expect(digest!.summary).toContain('patience');
-      expect(mockChatWithAI).toHaveBeenCalledOnce();
+      expect(mockChatStudyAI).toHaveBeenCalledOnce();
     });
 
     it('should return null on AI failure', async () => {
@@ -289,7 +283,7 @@ describe('journalAIService', () => {
         plainText: 'Some reflection content here for the weekly digest.',
       });
 
-      mockChatWithAI.mockRejectedValueOnce(new Error('API error'));
+      mockChatStudyAI.mockRejectedValueOnce(new Error('API error'));
 
       const digest = await generateWeeklyDigest(true);
       expect(digest).toBeNull();
@@ -333,9 +327,9 @@ describe('journalAIService', () => {
 
   describe('generateReflectionPrompt', () => {
     it('should generate a prompt from current entry and Bible context', async () => {
-      mockChatWithAI.mockResolvedValueOnce({
+      mockChatStudyAI.mockResolvedValueOnce({
         text: 'What does grace mean to you in this season of life?',
-        provider: 'test',
+        model: 'test-model',
       });
 
       const entry = makeEntry({ plainText: 'Thinking about grace and forgiveness today.' });
@@ -346,13 +340,13 @@ describe('journalAIService', () => {
       );
 
       expect(result).toBe('What does grace mean to you in this season of life?');
-      expect(mockChatWithAI).toHaveBeenCalledOnce();
+      expect(mockChatStudyAI).toHaveBeenCalledOnce();
     });
 
     it('should work with no entry and no context', async () => {
-      mockChatWithAI.mockResolvedValueOnce({
+      mockChatStudyAI.mockResolvedValueOnce({
         text: 'What is on your heart today?',
-        provider: 'test',
+        model: 'test-model',
       });
 
       const result = await generateReflectionPrompt(null, null, []);
@@ -360,7 +354,7 @@ describe('journalAIService', () => {
     });
 
     it('should return fallback on AI failure', async () => {
-      mockChatWithAI.mockRejectedValueOnce(new Error('API error'));
+      mockChatStudyAI.mockRejectedValueOnce(new Error('API error'));
 
       const result = await generateReflectionPrompt(null, null, []);
       expect(result).toBe('What is one thing you are grateful for today?');
@@ -371,24 +365,24 @@ describe('journalAIService', () => {
 
   describe('extendThinking', () => {
     it('should extend the user text', async () => {
-      mockChatWithAI.mockResolvedValueOnce({
+      mockChatStudyAI.mockResolvedValueOnce({
         text: 'This connects to a broader theme of surrender...',
-        provider: 'test',
+        model: 'test-model',
       });
 
       const result = await extendThinking('Letting go of control is hard.');
       expect(result).toBe('This connects to a broader theme of surrender...');
-      expect(mockChatWithAI).toHaveBeenCalledOnce();
+      expect(mockChatStudyAI).toHaveBeenCalledOnce();
     });
 
     it('should return empty string for empty text', async () => {
       const result = await extendThinking('');
       expect(result).toBe('');
-      expect(mockChatWithAI).not.toHaveBeenCalled();
+      expect(mockChatStudyAI).not.toHaveBeenCalled();
     });
 
     it('should return empty string on AI failure', async () => {
-      mockChatWithAI.mockRejectedValueOnce(new Error('API error'));
+      mockChatStudyAI.mockRejectedValueOnce(new Error('API error'));
       const result = await extendThinking('Some text here about faith.');
       expect(result).toBe('');
     });
@@ -398,24 +392,24 @@ describe('journalAIService', () => {
 
   describe('summarizeEntry', () => {
     it('should summarize entry text', async () => {
-      mockChatWithAI.mockResolvedValueOnce({
+      mockChatStudyAI.mockResolvedValueOnce({
         text: '- Finding peace through prayer\n- Learning to trust God',
-        provider: 'test',
+        model: 'test-model',
       });
 
       const result = await summarizeEntry('A long journal entry about finding peace through prayer and trusting God in difficult times.');
       expect(result).toContain('peace');
-      expect(mockChatWithAI).toHaveBeenCalledOnce();
+      expect(mockChatStudyAI).toHaveBeenCalledOnce();
     });
 
     it('should return empty for short text', async () => {
       const result = await summarizeEntry('Hi');
       expect(result).toBe('');
-      expect(mockChatWithAI).not.toHaveBeenCalled();
+      expect(mockChatStudyAI).not.toHaveBeenCalled();
     });
 
     it('should return empty on failure', async () => {
-      mockChatWithAI.mockRejectedValueOnce(new Error('API error'));
+      mockChatStudyAI.mockRejectedValueOnce(new Error('API error'));
       const result = await summarizeEntry('A moderately long entry about spiritual growth and transformation.');
       expect(result).toBe('');
     });
@@ -473,9 +467,9 @@ describe('journalAIService', () => {
 
   describe('chatAboutEntry', () => {
     it('should return AI answer', async () => {
-      mockChatWithAI.mockResolvedValueOnce({
+      mockChatStudyAI.mockResolvedValueOnce({
         text: 'That is a wonderful question. Grace means...',
-        provider: 'test',
+        model: 'test-model',
       });
 
       const answer = await chatAboutEntry(
@@ -489,11 +483,11 @@ describe('journalAIService', () => {
     it('should return empty for empty question', async () => {
       const answer = await chatAboutEntry('', 'some content', []);
       expect(answer).toBe('');
-      expect(mockChatWithAI).not.toHaveBeenCalled();
+      expect(mockChatStudyAI).not.toHaveBeenCalled();
     });
 
     it('should return fallback on failure', async () => {
-      mockChatWithAI.mockRejectedValueOnce(new Error('API error'));
+      mockChatStudyAI.mockRejectedValueOnce(new Error('API error'));
       const answer = await chatAboutEntry('Help me understand this passage about faith.', 'some content', []);
       expect(answer).toContain('could not process');
     });
@@ -507,9 +501,9 @@ describe('journalAIService', () => {
     });
 
     it('should extract and save memory items', async () => {
-      mockChatWithAI.mockResolvedValueOnce({
+      mockChatStudyAI.mockResolvedValueOnce({
         text: '[{"category":"theme","content":"Forgiveness"},{"category":"prayer","content":"Praying for healing"}]',
-        provider: 'test',
+        model: 'test-model',
       });
 
       const items = await extractMemoryItems(
@@ -532,15 +526,15 @@ describe('journalAIService', () => {
     });
 
     it('should return empty on failure', async () => {
-      mockChatWithAI.mockRejectedValueOnce(new Error('API error'));
+      mockChatStudyAI.mockRejectedValueOnce(new Error('API error'));
       const items = await extractMemoryItems('A moderately long entry about spiritual growth and learning.');
       expect(items).toEqual([]);
     });
 
     it('should filter invalid categories', async () => {
-      mockChatWithAI.mockResolvedValueOnce({
+      mockChatStudyAI.mockResolvedValueOnce({
         text: '[{"category":"theme","content":"Grace"},{"category":"invalid","content":"Bad"}]',
-        provider: 'test',
+        model: 'test-model',
       });
 
       const items = await extractMemoryItems('Reflecting on the grace of God in this time of testing and growth.');
@@ -574,9 +568,9 @@ describe('journalAIService', () => {
 
   describe('generateSpiritualProfile', () => {
     it('should generate profile from memory items', async () => {
-      mockChatWithAI.mockResolvedValueOnce({
+      mockChatStudyAI.mockResolvedValueOnce({
         text: '**Key Themes**: Forgiveness, Grace\n**Active Prayer Requests**: Healing for mother',
-        provider: 'test',
+        model: 'test-model',
       });
 
       const items: SpiritualMemoryItem[] = [
@@ -586,17 +580,17 @@ describe('journalAIService', () => {
 
       const profile = await generateSpiritualProfile(items);
       expect(profile).toContain('Forgiveness');
-      expect(mockChatWithAI).toHaveBeenCalledOnce();
+      expect(mockChatStudyAI).toHaveBeenCalledOnce();
     });
 
     it('should return default message when no items', async () => {
       const profile = await generateSpiritualProfile([]);
       expect(profile).toContain('No spiritual memory');
-      expect(mockChatWithAI).not.toHaveBeenCalled();
+      expect(mockChatStudyAI).not.toHaveBeenCalled();
     });
 
     it('should return fallback on failure', async () => {
-      mockChatWithAI.mockRejectedValueOnce(new Error('API error'));
+      mockChatStudyAI.mockRejectedValueOnce(new Error('API error'));
 
       const items: SpiritualMemoryItem[] = [
         { id: '1', category: 'theme', content: 'Grace', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
@@ -611,9 +605,9 @@ describe('journalAIService', () => {
 
   describe('generateProactiveSuggestion', () => {
     it('should generate suggestion with context', async () => {
-      mockChatWithAI.mockResolvedValueOnce({
+      mockChatStudyAI.mockResolvedValueOnce({
         text: 'You mentioned wanting to study forgiveness — consider reading Colossians 3:13 today.',
-        provider: 'test',
+        model: 'test-model',
       });
 
       const items: SpiritualMemoryItem[] = [
@@ -627,9 +621,9 @@ describe('journalAIService', () => {
     });
 
     it('should work with no context', async () => {
-      mockChatWithAI.mockResolvedValueOnce({
+      mockChatStudyAI.mockResolvedValueOnce({
         text: 'Welcome! Consider starting with what you are grateful for.',
-        provider: 'test',
+        model: 'test-model',
       });
 
       const suggestion = await generateProactiveSuggestion([], null, null);
@@ -637,7 +631,7 @@ describe('journalAIService', () => {
     });
 
     it('should return empty on failure', async () => {
-      mockChatWithAI.mockRejectedValueOnce(new Error('API error'));
+      mockChatStudyAI.mockRejectedValueOnce(new Error('API error'));
       const suggestion = await generateProactiveSuggestion([], null, null);
       expect(suggestion).toBe('');
     });

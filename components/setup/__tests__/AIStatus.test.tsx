@@ -73,13 +73,13 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllGlobals());
 
 describe('signed in, no own key — hosted AI status', () => {
-  it('shows only the ready line and this month\'s usage (ask + pack always); no key field, no model rows', async () => {
+  it('shows only the ready line and this month\'s usage (ask + pack + personal study always); no key field, no model rows', async () => {
     uid = 'uid-leader-1';
-    usageQuery.mockResolvedValue({ data: [{ role: 'ask', count: 12, monthly_limit: 300 }], error: null });
+    usageQuery.mockResolvedValue({ data: [{ role: 'ask', count: 12, monthly_limit: 300 }, { role: 'study', count: 3, monthly_limit: 100 }], error: null });
     render(<QuickAISetupForm onSaved={vi.fn()} />);
     expect(screen.getByText(SETUP_HOSTED_READY)).toBeInTheDocument();
     expect(SETUP_HOSTED_READY).toBe('已登录 · AI 已就绪（由本站提供） · Signed in · AI ready (provided by this site)');
-    await waitFor(() => expect(screen.getByTestId('ai-usage')).toHaveTextContent('本月 This month: 提问 12/300 · 查经包 0/10'));
+    await waitFor(() => expect(screen.getByTestId('ai-usage')).toHaveTextContent('本月 This month: 提问 12/300 · 查经包 0/10 · 个人研经 Personal Study 3/100'));
     expect(usageQuery).toHaveBeenCalledWith('ai_usage', 'role, count, monthly_limit');
     expect(eqCalls).toEqual([['leader_id', 'uid-leader-1'], ['month', currentUsageMonth()]]);
     expect(screen.queryByLabelText(SETUP_KEY_LABEL)).toBeNull();
@@ -141,14 +141,15 @@ describe('usage reader', () => {
     expect(currentUsageMonth(new Date('2026-01-01T00:00:00Z'))).toBe('2026-01');
   });
 
-  it('rows → ask and pack always, adjust/sharing once used, row limit over the default, junk roles ignored', () => {
+  it('rows → ask, pack and study always, adjust/sharing once used, row limit over the default, junk roles ignored', () => {
     const entries = usageEntries([
       { role: 'sharing', count: 2, monthly_limit: 10 }, { role: 'pack', count: 1, monthly_limit: 12 },
       { role: 'bogus', count: 9, monthly_limit: 9 },
     ]);
     expect(entries).toEqual([
-      { role: 'ask', count: 0, limit: 300 }, { role: 'pack', count: 1, limit: 12 }, { role: 'sharing', count: 2, limit: 10 },
+      { role: 'ask', count: 0, limit: 300 }, { role: 'pack', count: 1, limit: 12 }, { role: 'study', count: 0, limit: 100 },
+      { role: 'sharing', count: 2, limit: 10 },
     ]);
-    expect(usageLine(entries)).toBe('本月 This month: 提问 0/300 · 查经包 1/12 · 分享 2/10');
+    expect(usageLine(entries)).toBe('本月 This month: 提问 0/300 · 查经包 1/12 · 个人研经 Personal Study 0/100 · 分享 2/10');
   });
 });

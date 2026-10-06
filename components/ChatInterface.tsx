@@ -1,10 +1,15 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import LazyMarkdown from './LazyMarkdown';
-import { IMAGE, TIMING, LAYOUT } from '../constants/appConfig';
-import { ChatMessage, AspectRatio, ImageSize } from '../types';
-import * as aiService from '../services/aiProvider';
-import * as geminiService from '../services/gemini';
-import AIProviderSettings from './AIProviderSettings';
+import { TIMING, LAYOUT } from '../constants/appConfig';
+import { ChatMessage } from '../types';
+import { streamStudyAI } from '../services/studyAI';
+import { BIBLE_SCHOLAR_SYSTEM_PROMPT } from '../services/systemPrompts';
+import { askAIModel } from '../services/aiDefaults';
+import { QuickAISetupDialog } from './setup/QuickAISetup';
+import { SETUP_TITLE, PERSONAL_AI_UNAVAILABLE_NOTE } from './setup/setupStrings';
+import AIErrorLine from './studypack/AIErrorLine';
+import { asAskAIError, AskAIError } from './studypack/askAIErrors';
+import { modelLine } from './studypack/tvHints';
 import SaveResearchModal from './SaveResearchModal';
 import { BIBLE_BOOKS, CHINESE_ABBREV_TO_BOOK_ID } from '../constants';
 import { BOOK_ID_TO_CHINESE_NAME } from '../services/bibleBookData';
@@ -12,7 +17,6 @@ import { verseDataStorage } from '../services/verseDataStorage';
 import { backgroundBibleDownload } from '../services/backgroundBibleDownload';
 import { autoSaveResearchService } from '../services/autoSaveResearchService';
 import { ToastContainer, useToast } from './Toast';
-import { compressImage, compressImageFromUrl } from '../services/imageCompressionService';
 import {
   parseMessage,
   parseBibleReference,
@@ -21,13 +25,6 @@ import {
 } from '../services/messageParsingService';
 import { loadThreadMessages, saveThreadMessages, findChapterThread, getOrCreateChapterThread, createThread, deleteThread } from '../services/chatHistoryStorage';
 import ChatThreadList from './ChatThreadList';
-
-interface GroundingChunk {
-  web?: {
-    title?: string;
-    uri?: string;
-  };
-}
 
 interface ChatInterfaceProps {
   incomingText?: { text: string; id: number; clearChat?: boolean } | null;
@@ -104,9 +101,6 @@ const BibleLink: React.FC<BibleLinkProps> = ({ children, onNavigate }) => {
 interface MessageBubbleProps {
   m: ChatMessage;
   side: 'zh' | 'en';
-  isSpeaking: boolean;
-  onSpeak: (content: string) => void;
-  onStop: () => void;
   onSaveResearch?: (message: ChatMessage, side: 'zh' | 'en') => void;
   isSaved?: boolean;
   onNavigate?: (bookId: string, chapter: number, verses?: number[]) => void;
@@ -116,7 +110,7 @@ interface MessageBubbleProps {
   onDelete?: () => void;
 }
 
-const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpeaking, onSpeak, onStop, onSaveResearch, isSaved, onNavigate, currentBookId, onTextSelection, onQuote, onDelete }) => {
+const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, onSaveResearch, isSaved, onNavigate, currentBookId, onTextSelection, onQuote, onDelete }) => {
   const { zh, en } = parseMessage(m.content, m.role);
   const content = side === 'zh' ? zh : en;
   const [copied, setCopied] = useState(false);
@@ -278,17 +272,6 @@ const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, isSpe
             )}
             {m.role === 'assistant' && (
               <>
-                <button
-                  onClick={() => isSpeaking ? onStop() : onSpeak(content)}
-                  className={`shrink-0 transition-colors p-1 rounded-full ${isSpeaking ? 'bg-red-50 text-red-500' : 'text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50'}`}
-                  title={isSpeaking ? (side === 'zh' ? "\u505c\u6b62\u64ad\u653e" : "Stop") : (side === 'zh' ? "\u6717\u8bfb" : "Read aloud")}
-                >
-                  {isSpeaking ? (
-                    <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>
-                  ) : (
-                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" /></svg>
-                  )}
-                </button>
                 {onSaveResearch && (
                   <button
                     onClick={() => !isSaved && onSaveResearch(m, side)}
@@ -389,32 +372,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
   const [input, setInput] = useState('');
   const [userQuestion, setUserQuestion] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const [isThinking, setIsThinking] = useState(false);
-  const [webSearchProvider, setWebSearchProvider] = useState<string>(() => {
-    return localStorage.getItem('webSearchProvider') || 'off';
-  });
-  const webSearchEnabled = webSearchProvider !== 'off';
 
   // Toast notifications
   const toast = useToast();
-  const [imageAttachment, setImageAttachment] = useState<{ data: string; mimeType: string } | null>(null);
-  const [showImageMenu, setShowImageMenu] = useState(false);
-  const [showWebcam, setShowWebcam] = useState(false);
-  const webcamVideoRef = useRef<HTMLVideoElement>(null);
-  const webcamStreamRef = useRef<MediaStream | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const [showStudio, setShowStudio] = useState(false);
   const [vSplitOffset, setVSplitOffset] = useState<number>(LAYOUT.DEFAULT_SPLIT_OFFSET); // Default to 100% - show only conversation, hide English panel
   const [isResizing, setIsResizing] = useState(false);
-  const [speakingMsgIndex, setSpeakingMsgIndex] = useState<{zh?: number | null, en?: number | null}>({});
-  const [studioConfig, setStudioConfig] = useState<{ aspect: AspectRatio; size: ImageSize; type: 'image' | 'video' }>({
-    aspect: '1:1',
-    size: '1K',
-    type: 'image'
-  });
-  const [showProviderSettings, setShowProviderSettings] = useState(false);
-  const [currentProvider, setCurrentProvider] = useState(aiService.getCurrentProvider());
-  const [activeProviderLabel, setActiveProviderLabel] = useState<string | null>(null);
+  const [showAISettings, setShowAISettings] = useState(false);
+  const [aiError, setAiError] = useState<AskAIError | null>(null);
+  const [activeModel, setActiveModel] = useState<string | null>(null);
   const [contextMenu, setContextMenu] = useState<{
     position: { x: number; y: number };
     selectedText: string;
@@ -439,16 +404,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     return messages[messages.length - 1];
   }, [messages]);
   
-  const isWaitingForResponse = useMemo(() => {
-    return isTyping || isThinking;
-  }, [isTyping, isThinking]);
-  
-  // Memoize callbacks to prevent unnecessary re-renders
-  const handleProviderChange = useCallback((provider: aiService.AIProvider) => {
-    setCurrentProvider(provider);
-    aiService.setProvider(provider);
-  }, []);
-
   // Sync incoming verses while preserving the user's manual question
   useEffect(() => {
     if (incomingText && incomingText.id !== lastPayloadId.current) {
@@ -491,17 +446,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     } else {
       setUserQuestion(val);
     }
-  };
-
-  const handleSpeak = (content: string, index: number, side: 'zh' | 'en') => {
-    setSpeakingMsgIndex(prev => ({ ...prev, [side]: index }));
-    // TTS is Gemini-only for now
-    geminiService.speak(content, () => setSpeakingMsgIndex(prev => ({ ...prev, [side]: null })));
-  };
-
-  const handleStop = (side: 'zh' | 'en') => {
-    geminiService.stopSpeech();
-    setSpeakingMsgIndex(prev => ({ ...prev, [side]: null }));
   };
 
   const handleTextSelection = (selectedText: string, position: { x: number; y: number }) => {
@@ -688,66 +632,15 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     });
   }, []);
 
-  const handleImageSelect = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    try {
-      const compressed = await compressImage(file);
-      setImageAttachment({ data: `data:${compressed.mimeType};base64,${compressed.base64}`, mimeType: compressed.mimeType });
-    } catch (err) {
-      // Fallback: read as data URL directly without compression
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const data = ev.target?.result as string;
-        setImageAttachment({ data, mimeType: file.type || 'image/jpeg' });
-      };
-      reader.readAsDataURL(file);
-    }
-    // Reset input so the same file can be re-selected
-    e.target.value = '';
-  }, []);
-
-  const openWebcam = useCallback(async () => {
-    setShowImageMenu(false);
-    setShowWebcam(true);
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }
-      });
-      webcamStreamRef.current = stream;
-      if (webcamVideoRef.current) {
-        webcamVideoRef.current.srcObject = stream;
-      }
-    } catch (err) {
-      // silently handle — camera denied
-      setShowWebcam(false);
-    }
-  }, []);
-
-  const captureWebcam = useCallback(async () => {
-    const video = webcamVideoRef.current;
-    if (!video) return;
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext('2d')!.drawImage(video, 0, 0);
-    const dataUrl = canvas.toDataURL('image/jpeg', IMAGE.THUMBNAIL_QUALITY);
-    const compressed = await compressImageFromUrl(dataUrl);
-    setImageAttachment({ data: `data:${compressed.mimeType};base64,${compressed.base64}`, mimeType: compressed.mimeType });
-    closeWebcam();
-  }, []);
-
-  const closeWebcam = useCallback(() => {
-    if (webcamStreamRef.current) {
-      webcamStreamRef.current.getTracks().forEach(t => t.stop());
-      webcamStreamRef.current = null;
-    }
-    setShowWebcam(false);
-  }, []);
+  /** Put `next` in place of the trailing assistant message (the streaming placeholder). */
+  const replaceLastAssistant = (next: ChatMessage | null) => setMessages(prev => {
+    const last = prev[prev.length - 1];
+    if (last?.role !== 'assistant') return next ? [...prev, next] : prev;
+    return next ? [...prev.slice(0, -1), next] : prev.slice(0, -1);
+  });
 
   const handleSend = async () => {
-    if ((!input.trim() && !imageAttachment) || isTyping) return;
+    if (!input.trim() || isTyping) return;
 
     // Create thread on first message if none exists
     if (!activeThreadId && currentBookId && currentChapter != null) {
@@ -762,21 +655,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
 
     // Prepend quoted text to message content if present
     const quotePrefix = quotedText ? '> ' + quotedText + '\n\n' : '';
-    const messageContent = quotePrefix + (input || (imageAttachment ? '[Image attached]' : ''));
-
-    const userMessage: ChatMessage = {
-      role: 'user',
-      content: messageContent,
-      timestamp: new Date(),
-      ...(imageAttachment ? { type: 'image' as const, mediaUrl: imageAttachment.data } : {}),
-    };
-    setMessages(prev => [...prev, userMessage]);
     const currentInput = quotePrefix + input;
-    const currentImage = imageAttachment;
+    const userMessage: ChatMessage = { role: 'user', content: currentInput, timestamp: new Date() };
+    const history = messages.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content }));
+    setMessages(prev => [...prev, userMessage, { role: 'assistant', content: '', timestamp: new Date() }]);
     setInput('');
-    setImageAttachment(null);
     setQuotedText(null);
     setUserQuestion(''); // Reset manual part after sending
+    setAiError(null);
     setIsTyping(true);
 
     // Immediate scroll to bottom after sending message
@@ -790,211 +676,56 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     }, TIMING.SHORT_DELAY_MS);
 
     // Create new abort controller for this request
-    abortControllerRef.current = new AbortController();
+    const controller = new AbortController();
+    abortControllerRef.current = controller;
 
     let assistantMessage: ChatMessage | null = null;
     try {
       // Pause background Bible download while AI is active
       backgroundBibleDownload.notifyApiActivity();
-
-      const history = messages.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content }));
       const requestStartTime = Date.now();
-      // Web search mode — streaming: search results fetched, then AI synthesis streams
-      if (webSearchEnabled) {
-        let streamedText = '';
-        let searchModel: string | undefined;
-        let searchProvider: string | undefined;
-
-        // Add placeholder
-        const placeholderMsg: ChatMessage = { role: 'assistant', content: '🔍 Searching...', timestamp: new Date() };
-        setMessages(prev => [...prev, placeholderMsg]);
-
-        await aiService.streamWebSearch(
-          currentInput,
-          webSearchProvider as aiService.WebSearchProvider,
-          history,
-          { thinking: isThinking, fast: !isThinking },
-          // onChunk
-          (chunk: string) => {
-            streamedText += chunk;
-            setMessages(prev => {
-              const updated = [...prev];
-              const last = updated[updated.length - 1];
-              if (last?.role === 'assistant') {
-                updated[updated.length - 1] = { ...last, content: streamedText };
-              }
-              return updated;
-            });
-          },
-          // onDone
-          (model?: string, provider?: string) => {
-            searchModel = model;
-            searchProvider = provider;
-          },
-          // onError
-          (error: Error) => { throw error; },
-        );
-
-        const providerLabel = searchProvider || webSearchProvider;
-        assistantMessage = {
-          role: 'assistant',
-          content: streamedText || "我无法生成回应。",
-          model: `${providerLabel} · web search`,
-          timestamp: new Date(),
-          responseTime: Date.now() - requestStartTime,
-        };
-        setMessages(prev => {
-          const updated = [...prev];
-          updated[updated.length - 1] = assistantMessage!;
-          return updated;
-        });
-        localStorage.setItem('lastUsedModel', searchModel || webSearchProvider);
-        setActiveProviderLabel(`${providerLabel} · web search`);
-        setIsTyping(false);
-        abortControllerRef.current = null;
-      } else {
-
-      // Try streaming for faster perceived response (both single and race mode, no image)
-      const canStream = !currentImage && aiService.streamViaEdgeFunction && localStorage.getItem('useServerAI') !== 'false';
-
-      if (canStream) {
-        // Streaming path — user sees tokens as they arrive
-        let streamedText = '';
-        let streamModel: string | undefined;
-        let streamProvider: string | undefined;
-        let racePool: any;
-
-        // Add placeholder assistant message
-        const placeholderMsg: ChatMessage = { role: 'assistant', content: '', timestamp: new Date() };
-        setMessages(prev => [...prev, placeholderMsg]);
-
-        await aiService.streamViaEdgeFunction(
-          currentInput,
-          history,
-          { thinking: isThinking, search: true, fast: !isThinking },
-          // onChunk
-          (chunk: string) => {
-            streamedText += chunk;
-            setMessages(prev => {
-              const updated = [...prev];
-              const last = updated[updated.length - 1];
-              if (last?.role === 'assistant') {
-                updated[updated.length - 1] = { ...last, content: streamedText };
-              }
-              return updated;
-            });
-          },
-          // onDone
-          (model?: string, provider?: string, pool?: any[]) => {
-            streamModel = model;
-            streamProvider = provider;
-            if (pool) racePool = pool;
-          },
-          // onError — fall through to non-streaming
-          (error: Error) => { throw error; },
-        );
-
-        if (streamProvider) {
-          setActiveProviderLabel(streamModel ? `${streamProvider} · ${streamModel}` : streamProvider);
-        }
-
-        assistantMessage = {
-          role: 'assistant',
-          content: streamedText || "我无法生成回应。",
-          model: streamModel,
-          timestamp: new Date(),
-          responseTime: Date.now() - requestStartTime,
-          racePool,
-        };
-
-        // Replace placeholder with final message
-        setMessages(prev => {
-          const updated = [...prev];
-          updated[updated.length - 1] = assistantMessage!;
-          return updated;
-        });
-
-        if (streamModel) localStorage.setItem('lastUsedModel', streamModel);
-
-      } else {
-        // Non-streaming path (image attached, or server AI off)
-        const response = await aiService.chatWithAI(currentInput, history, {
-          thinking: isThinking,
-          search: true,
-          fast: !isThinking,
-          ...(currentImage ? { image: currentImage } : {}),
-        });
-
-        // Extract response text and model info
-        const responseObj = typeof response === 'string' ? null : response;
-        const responseText = typeof response === 'string' ? response : (response.text || "我无法生成回应。");
-        const modelUsed = responseObj?.model;
-        const providerUsed = responseObj && 'provider' in responseObj ? (responseObj as any).provider : null;
-
-        // Update header if provider changed (e.g. fallback)
-        if (providerUsed) {
-          setActiveProviderLabel(modelUsed ? `${providerUsed} · ${modelUsed}` : providerUsed);
-        } else if (modelUsed) {
-          setActiveProviderLabel(null);
-        }
-        const isGeminiResponse = responseObj && 'candidates' in responseObj;
-        const groundingChunks = isGeminiResponse ? ((responseObj as any).candidates?.[0] as any)?.groundingMetadata?.groundingChunks : undefined;
-        const references = Array.isArray(groundingChunks)
-          ? (groundingChunks as GroundingChunk[]).map((chunk) => ({ title: chunk.web?.title || '参考资料', uri: chunk.web?.uri || '' })).filter((c) => c.uri)
-          : undefined;
-
-        const racePool = responseObj && 'racePool' in responseObj ? (responseObj as any).racePool : undefined;
-
-        assistantMessage = {
-          role: 'assistant',
-          content: responseText,
-          model: modelUsed,
-          timestamp: new Date(),
-          responseTime: Date.now() - requestStartTime,
-          racePool,
-          references: references
-        };
-
-        setMessages(prev => [...prev, assistantMessage!]);
-
-        if (modelUsed) localStorage.setItem('lastUsedModel', modelUsed);
-      }
-      } // end else (non-webSearch)
-    } catch (error: any) {
-      // Don't show error message if request was aborted intentionally
-      if (error?.name !== 'AbortError') {
-        const errorDetail = error?.message || error?.status || String(error);
-        setMessages(prev => {
-          // Remove placeholder if it exists
-          const last = prev[prev.length - 1];
-          if (last?.role === 'assistant' && !last.content) {
-            return [...prev.slice(0, -1), { role: 'assistant' as const, content: `连接失败：${errorDetail}\nConnection failed. Please check your API key and try again.`, timestamp: new Date() }];
-          }
-          return [...prev, { role: 'assistant' as const, content: `连接失败：${errorDetail}\nConnection failed. Please check your API key and try again.`, timestamp: new Date() }];
-        });
+      let streamedText = '';
+      // One AI path (ADR-0007 "Personal app"): own key → OpenRouter, signed in → ai-proxy role 'study'.
+      const result = await streamStudyAI(currentInput, history, chunk => {
+        streamedText += chunk;
+        replaceLastAssistant({ role: 'assistant', content: streamedText, timestamp: new Date() });
+      }, { system: BIBLE_SCHOLAR_SYSTEM_PROMPT, signal: controller.signal });
+      if (!result.text) {
+        replaceLastAssistant(null); // aborted before the first token
         return;
       }
+      assistantMessage = {
+        role: 'assistant',
+        content: result.text,
+        model: result.model,
+        timestamp: new Date(),
+        responseTime: Date.now() - requestStartTime,
+      };
+      replaceLastAssistant(assistantMessage);
+      setActiveModel(result.model);
+      localStorage.setItem('lastUsedModel', result.model);
+    } catch (error) {
+      replaceLastAssistant(null);
+      // A user abort is a clean cancel; everything else is shown as the TV overlay shows it.
+      if ((error as Error)?.name !== 'AbortError') setAiError(asAskAIError(error, askAIModel()));
+      return;
     } finally {
       setIsTyping(false);
-      abortControllerRef.current = null;
+      if (abortControllerRef.current === controller) abortControllerRef.current = null;
     }
 
     // Auto-save research using new service
     if (assistantMessage && autoSaveResearchService.isAutoSaveEnabled()) {
       try {
-        // Add default question if image was uploaded without text
-        const finalQuery = currentInput.trim() || (currentImage ? 'Describe the attached picture' : '');
-        
+        const finalQuery = currentInput.trim();
         const result = await autoSaveResearchService.saveAIResearch({
           message: assistantMessage,
           query: finalQuery,
           bookId: currentBookId,
           chapter: currentChapter,
           verses: currentVerses,
-          aiProvider: currentProvider,
-          aiModel: aiService.getCurrentModel() ?? undefined,
-          imageData: currentImage?.data,
-          imageMimeType: currentImage?.mimeType,
+          aiProvider: 'openrouter',
+          aiModel: assistantMessage.model,
         });
 
         if (result.success) {
@@ -1020,35 +751,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
         toast.showError('Failed to auto-save research', TIMING.TOAST_ERROR_MS);
       }
     }
-  };
-
-  const startMediaGen = async () => {
-    if (!input.trim()) return;
-    setIsTyping(true);
-    setShowStudio(false);
-    try {
-      if (studioConfig.type === 'image') {
-        const url = await geminiService.generateImage(input, studioConfig.aspect, studioConfig.size);
-        setMessages(prev => [...prev, { 
-          role: 'assistant', 
-          content: `生成的图像：${input}\n[SPLIT]\nGenerated Image: ${input}`, 
-          mediaUrl: url, 
-          type: 'image', 
-          timestamp: new Date() 
-        }]);
-      } else {
-        const url = await geminiService.generateVideo(input, studioConfig.aspect as '16:9' | '9:16');
-        setMessages(prev => [...prev, { 
-          role: 'assistant', 
-          content: `生成的视频：${input}\n[SPLIT]\nGenerated Video: ${input}`, 
-          mediaUrl: url, 
-          type: 'video', 
-          timestamp: new Date() 
-        }]);
-      }
-      setInput('');
-      setUserQuestion('');
-    } catch (err) { /* silently handle */ } finally { setIsTyping(false); }
   };
 
   const startResizing = useCallback((e: React.MouseEvent | React.TouchEvent) => {
@@ -1119,20 +821,12 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
 
   return (
     <div className={`h-full flex flex-col relative bg-slate-50 ${vibeClassName || ''}`} ref={containerRef}>
-      {/* AI Provider Header */}
+      {/* AI header: the model that answered last (the server picks it when signed in) */}
       <div className="bg-gradient-to-r from-indigo-50 to-purple-50 border-b border-indigo-100 px-4 py-2 flex items-center justify-between flex-shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-          <span className="text-xs font-semibold text-slate-700">
-            AI Provider: <span className="text-indigo-600">
-              {activeProviderLabel
-                ? activeProviderLabel
-                : currentProvider === 'claude' ? 'Claude' :
-                  currentProvider === 'openai' ? 'ChatGPT' :
-                  currentProvider === 'kimi' ? 'Kimi' :
-                  currentProvider === 'openrouter' ? `OpenRouter · ${aiService.getCurrentModel() ?? 'Llama 3.3 70B'}` :
-                  'Gemini'}
-            </span>
+          <span className="text-xs font-semibold text-slate-700" data-testid="chat-ai-model">
+            {modelLine(activeModel ?? askAIModel())}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -1161,14 +855,14 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
             </button>
           )}
           <button
-            onClick={() => setShowProviderSettings(true)}
+            onClick={() => setShowAISettings(true)}
             className="text-xs px-3 py-1 bg-white border border-indigo-200 rounded-lg hover:bg-indigo-50 transition-colors flex items-center gap-1.5"
           >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
           </svg>
-          Settings
+          {SETUP_TITLE}
           </button>
         </div>
       </div>
@@ -1231,9 +925,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
               key={`${activeThreadId}-${idx}-${m.timestamp.getTime()}`}
               m={m}
               side="zh"
-              isSpeaking={speakingMsgIndex.zh === idx}
-              onSpeak={(c) => handleSpeak(c, idx, 'zh')}
-              onStop={() => handleStop('zh')}
               onSaveResearch={onSaveResearch}
               isSaved={savedMessageTimestamps.has(m.timestamp.getTime())}
               onNavigate={onNavigate}
@@ -1355,9 +1046,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
               key={`${activeThreadId}-${idx}-${m.timestamp.getTime()}`}
               m={m}
               side="en"
-              isSpeaking={speakingMsgIndex.en === idx}
-              onSpeak={(c) => handleSpeak(c, idx, 'en')}
-              onStop={() => handleStop('en')}
               onSaveResearch={onSaveResearch}
               isSaved={savedMessageTimestamps.has(m.timestamp.getTime())}
               onNavigate={onNavigate}
@@ -1387,18 +1075,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
       <div className="p-4 bg-white border-t border-slate-200 z-10 shadow-lg relative flex-shrink-0">
         <div className="max-w-5xl mx-auto flex flex-col gap-2">
           <div className="relative">
-            {/* Image preview */}
-            {imageAttachment && (
-              <div className="mb-2 relative inline-block">
-                <img src={imageAttachment.data} alt="Attachment" className="h-20 rounded-lg border border-slate-200 object-cover" />
-                <button
-                  onClick={() => setImageAttachment(null)}
-                  className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs shadow-md hover:bg-red-600"
-                >
-                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" /></svg>
-                </button>
-              </div>
-            )}
             <div className={`rounded-xl border bg-slate-50 shadow-inner transition-all ${quotedText ? 'border-indigo-300 ring-2 ring-indigo-500/20' : 'border-slate-200'} focus-within:ring-2 focus-within:ring-indigo-500`}>
               {/* Quoted text inside input box */}
               {quotedText && (
@@ -1425,160 +1101,23 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
                 rows={3}
               />
             </div>
-            {/* Off-screen file input for touch devices (iOS Safari + Chrome compatible) */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleImageSelect}
-              style={{ position: 'fixed', top: '-10000px', left: '-10000px' }}
-            />
-            {/* Image attach: on mobile, button triggers off-screen input (OS handles camera). On desktop/laptop, show menu with webcam + file picker. */}
-            {/Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 0 && /Macintosh/i.test(navigator.userAgent)) ? (
-              <button
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isTyping}
-                className={`absolute right-14 bottom-2 p-2.5 rounded-xl transition-all active:scale-95 ${
-                  isTyping ? 'opacity-30' : 'text-slate-400 hover:text-indigo-600'
-                }`}
-                title="Attach image 附加图片"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </button>
-            ) : (
-              <div className="absolute right-14 bottom-2">
-                <button
-                  onClick={() => setShowImageMenu(!showImageMenu)}
-                  disabled={isTyping}
-                  className={`p-2.5 rounded-xl transition-all active:scale-95 ${
-                    isTyping ? 'opacity-30' : 'text-slate-400 hover:text-indigo-600'
-                  }`}
-                  title="Attach image 附加图片"
-                >
-                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                  </svg>
-                </button>
-                {showImageMenu && (
-                  <>
-                  <div className="fixed inset-0 z-40" onClick={() => setShowImageMenu(false)} />
-                  <div className="absolute bottom-12 right-0 bg-white rounded-xl shadow-xl border border-slate-200 py-1 w-40 z-50">
-                    <button
-                      onClick={openWebcam}
-                      className="w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-indigo-50 flex items-center gap-2"
-                    >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                      </svg>
-                      Take Photo
-                    </button>
-                    <label className="w-full px-4 py-2.5 text-left text-sm text-slate-700 hover:bg-indigo-50 flex items-center gap-2 cursor-pointer">
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                      </svg>
-                      Choose Photo
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => { setShowImageMenu(false); handleImageSelect(e); }}
-                        className="hidden"
-                      />
-                    </label>
-                  </div>
-                  </>
-                )}
-              </div>
-            )}
             {/* Send button */}
-            <button onClick={handleSend} disabled={(!input.trim() && !imageAttachment) || isTyping} className="absolute right-2 bottom-2 p-2.5 bg-indigo-600 text-white rounded-xl shadow-md disabled:bg-slate-300 transition-all active:scale-95">
+            <button onClick={handleSend} disabled={!input.trim() || isTyping} className="absolute right-2 bottom-2 p-2.5 bg-indigo-600 text-white rounded-xl shadow-md disabled:bg-slate-300 transition-all active:scale-95">
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
             </button>
           </div>
-          {/* Thinking mode & Web Search toggles */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <button
-              onClick={() => setIsThinking(!isThinking)}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium transition-all ${
-                isThinking
-                  ? 'bg-indigo-100 text-indigo-700 border border-indigo-300'
-                  : 'bg-slate-100 text-slate-500 border border-slate-200 hover:bg-slate-200'
-              }`}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-              </svg>
-              {isThinking ? '深度思考 On' : '深度思考 Off'}
-            </button>
-            <div className="flex items-center gap-1.5">
-              <svg className={`w-3.5 h-3.5 ${webSearchEnabled ? 'text-emerald-600' : 'text-slate-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9" />
-              </svg>
-              <select
-                value={webSearchProvider}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setWebSearchProvider(val);
-                  localStorage.setItem('webSearchProvider', val);
-                }}
-                className={`text-xs font-medium rounded-lg px-2 py-1 border transition-all appearance-none cursor-pointer ${
-                  webSearchEnabled
-                    ? 'bg-emerald-100 text-emerald-700 border-emerald-300'
-                    : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
-                }`}
-                title="Select web search provider"
-              >
-                <option value="off">联网搜索 Off</option>
-                {aiService.isWebSearchProviderConfigured('perplexity') && <option value="perplexity">Perplexity</option>}
-                {aiService.isWebSearchProviderConfigured('tavily') && <option value="tavily">Tavily</option>}
-                {aiService.isWebSearchProviderConfigured('firecrawl') && <option value="firecrawl">Firecrawl</option>}
-                {aiService.isWebSearchProviderConfigured('exa') && <option value="exa">Exa</option>}
-                {aiService.isWebSearchProviderConfigured('brave') && <option value="brave">Brave</option>}
-              </select>
-            </div>
-            <span className="text-[10px] text-slate-400">
-              {webSearchEnabled
-                ? `${webSearchProvider.charAt(0).toUpperCase() + webSearchProvider.slice(1)} · web search with citations`
-                : isThinking ? 'Sonnet · slower, deeper analysis' : 'Haiku · fast responses'}
-            </span>
-          </div>
+          {aiError && (
+            <AIErrorLine
+              error={aiError}
+              onSetup={() => setShowAISettings(true)}
+              className="text-sm text-red-600"
+              buttonClassName="ml-2 rounded-lg border border-indigo-300 px-3 py-0.5 text-indigo-600 hover:bg-indigo-50"
+              linkClassName="ml-2 text-indigo-600 underline underline-offset-4"
+            />
+          )}
+          <p className="text-[10px] text-slate-400">{PERSONAL_AI_UNAVAILABLE_NOTE}</p>
         </div>
       </div>
-      
-      {/* Webcam capture modal */}
-      {showWebcam && (
-        <div className="fixed inset-0 bg-black/70 z-[80] flex flex-col items-center justify-center">
-          <div className="bg-black rounded-2xl overflow-hidden shadow-2xl max-w-lg w-full mx-4">
-            <video
-              ref={webcamVideoRef}
-              autoPlay
-              playsInline
-              muted
-              className="w-full aspect-video object-cover"
-            />
-            <div className="flex items-center justify-center gap-6 p-4 bg-slate-900">
-              <button
-                onClick={closeWebcam}
-                className="w-12 h-12 rounded-full bg-slate-700 text-white flex items-center justify-center hover:bg-slate-600 transition-colors"
-              >
-                <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-              <button
-                onClick={captureWebcam}
-                className="w-16 h-16 rounded-full bg-white border-4 border-slate-300 hover:border-indigo-400 transition-colors flex items-center justify-center"
-              >
-                <div className="w-12 h-12 rounded-full bg-red-500 hover:bg-red-600 transition-colors" />
-              </button>
-              <div className="w-12" /> {/* Spacer for centering */}
-            </div>
-          </div>
-        </div>
-      )}
-
 
       {showSaveModal && researchToSave && (() => {
         const parsed = parseMessage(researchToSave.message.content, researchToSave.message.role);
@@ -1620,14 +1159,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
         );
       })()}
 
-      <AIProviderSettings
-        isOpen={showProviderSettings}
-        onClose={() => {
-          setShowProviderSettings(false);
-          setCurrentProvider(aiService.getCurrentProvider());
-          setActiveProviderLabel(null);
-        }}
-      />
+      <QuickAISetupDialog open={showAISettings} onClose={() => setShowAISettings(false)} />
 
       {/* Context Menu for Text Selection */}
       {contextMenu && (

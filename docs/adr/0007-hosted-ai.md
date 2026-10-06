@@ -83,3 +83,36 @@ row in Supabase, so the site can vouch for them instead.
   still reflects the key-first flow (owned by another session); the legacy
   `supabase/functions/ai-chat` (per-user provider keys, Scripture Scholar
   app) is unrelated and unchanged.
+
+## Personal app (2026-10-05)
+
+Owner decision: the personal Bible app (#app) reuses the Scripture AI
+settings instead of its own.
+
+- **One settings screen.** #app's AI settings button (the chat header) opens
+  the same "AI 服务 AI service" dialog as the study pages
+  (`QuickAISetupDialog`). `components/AIProviderSettings.tsx` (the
+  multi-provider panel) and the web-search provider select and the
+  Sonnet/Haiku "深度思考" toggle are no longer reachable.
+- **One AI path.** `services/studyAI.ts` carries every #app AI call (the
+  chat, the journal's AI tools, vibe theming) through `askAIStream` →
+  `aiTransport`: own key → OpenRouter directly; signed in → ai-proxy; else
+  the chat shows the TV overlay's sign-in line with its "设置AI" button.
+  Always streamed; the chat sends `BIBLE_SCHOLAR_SYSTEM_PROMPT`, and the
+  history is trimmed newest-first to the proxy's message/character limits.
+- **Role `study`.** Default model `google/gemini-2.5-flash` on the Ask-AI
+  allowlist (the same list); `max_tokens` 4000 (bilingual long-form answers
+  write the content twice — twice ask's 2000); monthly limit
+  `AI_MONTHLY_STUDY`, default 100. The `ai_usage` role CHECK was widened to
+  include it. The AI page's usage line always shows
+  "个人研经 Personal Study n/100".
+- **Paused, not rerouted.** Features the hosted proxy cannot serve show
+  "图片、联网搜索、朗读暂不可用 · images, web search and read-aloud are
+  unavailable for now" (chat) or "暂不可用 Unavailable for now" (sidebar):
+  image attach / webcam (vision), web search (Perplexity, Tavily,
+  Firecrawl, Exa, Brave), read-aloud (Gemini TTS, chat and notebook), the
+  Voice Session (Gemini Live).
+- **Old code unreachable, not yet deleted.** `AIProviderSettings.tsx`,
+  `VoiceSession.tsx`, `services/aiProvider.ts` and the direct-provider
+  clients carry a TODO(R1) naming their removal session (no behaviour
+  change, R8).

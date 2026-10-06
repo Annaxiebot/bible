@@ -21,6 +21,9 @@ describe('ai-usage-schema.sql', () => {
     expect(flat).toContain('count INT NOT NULL DEFAULT 0');
     expect(flat).toContain('PRIMARY KEY (leader_id, month, role)');
     expect(flat).toContain(`CHECK (role IN (${AI_ROLES.map(r => `'${r}'`).join(', ')}))`);
+    // Re-runnable: the CHECK is dropped and re-added, so a table made with an older role list widens.
+    expect(flat).toContain(`ALTER TABLE ${AI_USAGE_TABLE} DROP CONSTRAINT IF EXISTS ai_usage_role_check;`);
+    expect(flat).toContain(`ALTER TABLE ${AI_USAGE_TABLE} ADD CONSTRAINT ai_usage_role_check CHECK (role IN (`);
   });
 
   it('RLS: one SELECT policy on own rows; no write policy; writes revoked from clients', () => {

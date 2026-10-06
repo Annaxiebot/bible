@@ -2,7 +2,7 @@
  * ai-proxy Edge Function · 本站AI代理 (ADR-0007)
  *
  * POST /ai-proxy
- * Body: { role: 'ask'|'pack'|'adjust'|'sharing', messages: [{role, content}],
+ * Body: { role: 'ask'|'pack'|'adjust'|'sharing'|'study', messages: [{role, content}],
  *         stream?, max_tokens?, temperature?, model?, reasoning? }
  *
  * Any signed-in leader may use AI with no key of their own: this function
