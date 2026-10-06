@@ -95,7 +95,7 @@ function getIdentityPrefix(): string {
 }
 
 /** Get prompt with agent identity prepended (for user-facing features) */
-function getPromptWithIdentity(key: keyof JournalPromptConfig): string {
+export function getPromptWithIdentity(key: keyof JournalPromptConfig): string {
   return getIdentityPrefix() + getPrompt(key);
 }
 
