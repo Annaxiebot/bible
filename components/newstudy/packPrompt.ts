@@ -30,6 +30,8 @@ export const PACK_SYSTEM_PROMPT =
 export const PACK_COMPACT_JSON_RULE = [
   'FORMAT: output COMPACT JSON on a single line — no indentation, no newlines',
   'inside the JSON, no markdown fences, no commentary before or after it.',
+  'Inside JSON strings NEVER use the straight double quote (\"): quote Chinese',
+  'with 「」 and English with “ ” (curly quotes).',
 ].join('\n');
 
 /**

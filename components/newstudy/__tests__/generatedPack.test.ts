@@ -4,7 +4,7 @@
  * all-invalid fails); the seven life areas enforced and reordered.
  */
 import { describe, it, expect } from 'vitest';
-import { extractJsonObject, validateGenerated, parseCrossRef } from '../generatedPack';
+import { extractJsonObject, validateGenerated, parseCrossRef, escapeStrayQuotes } from '../generatedPack';
 import { LIFE_AREAS } from '../../studypack/principles';
 import {
   NS_ERR_NO_JSON, NS_ERR_INVALID, NS_ERR_NO_CROSS_REFS, NS_ERR_LIFE_AREAS,
@@ -35,6 +35,30 @@ describe('extractJsonObject', () => {
   it('fails on no object at all, or a JSON array', () => {
     expect(() => extractJsonObject('Sorry, I cannot help with that.')).toThrow(NS_ERR_NO_JSON);
     expect(() => extractJsonObject('[1,2]')).toThrow(NS_ERR_NO_JSON);
+  });
+});
+
+describe('stray quotes inside strings (owner: 箴言 3 pack failed with "may have been cut off")', () => {
+  // The real reply was complete; the model quoted a Chinese phrase with ASCII quotes.
+  const broken = '{"tue":{"zh":"周二检视：你选的操练遇到什么阻力？是否仍"倚靠自己的聪明"（v.5）？"},"thu":{"zh":"操练中你如何经历神的"指引"（v.6）"}}';
+
+  it('the raw reply is not valid JSON, the repaired one is', () => {
+    expect(() => JSON.parse(broken)).toThrow();
+    expect(JSON.parse(escapeStrayQuotes(broken))).toEqual({
+      tue: { zh: '周二检视：你选的操练遇到什么阻力？是否仍"倚靠自己的聪明"（v.5）？' },
+      thu: { zh: '操练中你如何经历神的"指引"（v.6）' },
+    });
+  });
+
+  it('extractJsonObject repairs it; valid JSON and escaped quotes pass through unchanged', () => {
+    expect(extractJsonObject(broken)).toEqual(JSON.parse(escapeStrayQuotes(broken)));
+    const ok = '{"a":"He said \\"hi\\"","b":["x","y"],"c":{"d":1}}';
+    expect(escapeStrayQuotes(ok)).toBe(ok);
+    expect(extractJsonObject(ok)).toEqual(JSON.parse(ok));
+  });
+
+  it('a genuinely truncated reply still fails loudly', () => {
+    expect(() => extractJsonObject('{"tue":{"zh":"周二检视：是否仍"倚靠')).toThrow();
   });
 });
 

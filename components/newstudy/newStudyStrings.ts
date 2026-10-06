@@ -49,7 +49,7 @@ export const NS_ERR_VERSES_UNAVAILABLE = bilingualLine(
 );
 export const NS_ERR_VERSES_OUT_OF_RANGE = bilingualLine('这一章没有这些节', 'This chapter does not have those verses');
 export const NS_ERR_NO_JSON = bilingualLine(
-  'AI 没有返回完整的 JSON（可能被截断）', 'The AI did not return complete JSON (it may have been cut off)'
+  'AI 返回的内容格式有误，请重试', "The AI's reply was not in the expected format — please retry"
 );
 /** finish_reason "length" twice (first reply + one continuation); "{n}" is the character count received. */
 export const NS_ERR_OUTPUT_LIMIT = bilingualLine(

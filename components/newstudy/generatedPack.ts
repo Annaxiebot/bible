@@ -33,18 +33,44 @@ export interface GeneratedContent {
   closing: Bilingual;
 }
 
-/** First "{" … last "}" of the reply, parsed. Throws NS_ERR_NO_JSON on anything short of a complete object. */
+/**
+ * Escape straight double quotes that sit INSIDE a JSON string. Models quote
+ * Chinese phrases with ASCII quotes (是否仍"倚靠自己的聪明"（v.5）), which ends the
+ * string early and breaks the whole reply. Inside a string, a quote only
+ * closes it when the next non-space character could follow a string value
+ * (, } ] : or the end); any other quote is content and gets escaped.
+ */
+export function escapeStrayQuotes(json: string): string {
+  let out = '';
+  let inString = false;
+  for (let i = 0; i < json.length; i++) {
+    const ch = json[i];
+    if (inString && ch === '\\') { out += ch + (json[i + 1] ?? ''); i++; continue; }
+    if (ch !== '"') { out += ch; continue; }
+    if (!inString) { inString = true; out += ch; continue; }
+    const next = json.slice(i + 1).match(/\S/)?.[0];
+    if (next === undefined || ',}]:'.includes(next)) { inString = false; out += ch; } else { out += '\\"'; }
+  }
+  return out;
+}
+
+/** First "{" … last "}" of the reply, parsed (stray inner quotes repaired). Throws NS_ERR_NO_JSON on anything short of a complete object. */
 export function extractJsonObject(text: string): Record<string, unknown> {
   const start = text.indexOf('{');
   const end = text.lastIndexOf('}');
   if (start === -1 || end === -1 || end <= start) throw new Error(NS_ERR_NO_JSON);
+  const slice = text.slice(start, end + 1);
   let parsed: unknown;
   try {
-    parsed = JSON.parse(text.slice(start, end + 1));
+    parsed = JSON.parse(slice);
   } catch {
-    // Rethrown with the bilingual message: a truncated/malformed object is the
-    // user-facing failure here, the JSON parser's own text is not helpful.
-    throw new Error(NS_ERR_NO_JSON);
+    try {
+      parsed = JSON.parse(escapeStrayQuotes(slice));
+    } catch {
+      // Rethrown with the bilingual message: a truncated/malformed object is the
+      // user-facing failure here, the JSON parser's own text is not helpful.
+      throw new Error(NS_ERR_NO_JSON);
+    }
   }
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) throw new Error(NS_ERR_NO_JSON);
   return parsed as Record<string, unknown>;
