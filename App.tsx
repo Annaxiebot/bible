@@ -18,7 +18,6 @@ import LayoutToolbar, { LayoutMode, getLayoutMode, layoutModeToSplits, getSavedL
 // Lazy load heavy components for code splitting
 const BibleViewer = lazy(() => import('./components/BibleViewer'));
 const ChatInterface = lazy(() => import('./components/ChatInterface'));
-const VoiceSession = lazy(() => import('./components/VoiceSession'));
 const EnhancedNotebook = lazy(() => import('./components/EnhancedNotebook'));
 const Sidebar = lazy(() => import('./components/Sidebar'));
 const VibePanel = lazy(() => import('./components/VibePanel'));
@@ -126,7 +125,6 @@ const App: React.FC = () => {
   const [hasKey, setHasKey] = useState<boolean | null>(null);
   const [selectionPayload, setSelectionPayload] = useState<{ text: string; id: number; clearChat?: boolean } | null>(null);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isVoiceOpen, setIsVoiceOpen] = useState(false);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
   const [dataUpdateTrigger, setDataUpdateTrigger] = useState(0);
   const [showNotesList, setShowNotesList] = useState(false);
@@ -456,7 +454,6 @@ const App: React.FC = () => {
         onClear={() => { handleClearAll(); setIsSidebarOpen(false); }}
         onSearch={() => { setShowSearch(true); setIsSidebarOpen(false); }}
         onPrint={() => { setShowPrintOptions(true); setIsSidebarOpen(false); }}
-        onVoiceOpen={() => { setIsVoiceOpen(true); setIsSidebarOpen(false); }}
         onVibeOpen={() => { setShowVibePanel(true); setIsSidebarOpen(false); }}
         onNavigate={(bookId, chapter, verse) => {
           setNavigateTo({ bookId, chapter, verses: verse ? [verse] : undefined });
@@ -584,7 +581,6 @@ const App: React.FC = () => {
         </div>
       </main>
 
-      <VoiceSession isOpen={isVoiceOpen} onClose={() => setIsVoiceOpen(false)} />
       
       {showVibePanel && (
         <VibePanel

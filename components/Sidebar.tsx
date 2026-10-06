@@ -27,7 +27,6 @@ interface SidebarProps {
   onBackup: () => void;
   onRestore: () => void;
   onClear: () => void;
-  onVoiceOpen: () => void;
   onVibeOpen?: () => void;
   onViewNotes?: () => void;
   onSplitView?: () => void;
@@ -65,7 +64,6 @@ const Sidebar: React.FC<SidebarProps> = ({
   onBackup, 
   onRestore, 
   onClear,
-  onVoiceOpen,
   onVibeOpen,
   onViewNotes,
   onSplitView,
@@ -281,17 +279,16 @@ const Sidebar: React.FC<SidebarProps> = ({
             </button>
           )}
 
-          {/* Voice Session */}
-          <button 
-            onClick={onVoiceOpen}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg hover:bg-indigo-50 transition-colors group mb-2"
+          {/* Voice Session: Gemini Live, which the hosted AI cannot serve — paused (ADR-0007 "Personal app") */}
+          <button
+            type="button"
+            disabled
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg mb-2 opacity-60 cursor-not-allowed"
           >
-            <div className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-indigo-500"></span>
-            </div>
-            <span className="flex-1 text-left text-sm font-medium text-slate-700 group-hover:text-indigo-600">
+            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-slate-300"></span>
+            <span className="flex-1 text-left text-sm font-medium text-slate-500">
               语音学者 Voice Session
+              <span className="block text-xs font-normal text-slate-400">{PERSONAL_AI_FEATURE_PAUSED}</span>
             </span>
           </button>
 
