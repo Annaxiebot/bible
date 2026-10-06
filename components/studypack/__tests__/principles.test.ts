@@ -11,6 +11,7 @@ import {
   TRANSLATIONS,
   LIFE_AREAS,
   ASK_AI_ANSWER_CONTRACT,
+  ASK_AI_LANGUAGE_RULES,
   TYPE_SCALE,
   CONTENT_LANGUAGES,
   CONTENT_LANGUAGE_CONTRACTS,
@@ -48,14 +49,14 @@ describe('LIFE_AREAS', () => {
 
 describe('Ask AI language follows the pack setting (owner, 2026-10-04)', () => {
   it('zh-keywords: Chinese with English keywords, no second English version', () => {
-    expect(CONTENT_LANGUAGE_CONTRACTS['zh-keywords'].askAIRule).toContain('Do NOT add a second, English version');
+    expect(ASK_AI_LANGUAGE_RULES['zh-keywords']).toContain('Do NOT add a second, English version');
   });
   it('bilingual: Chinese first, then the same answer in English', () => {
-    expect(CONTENT_LANGUAGE_CONTRACTS.bilingual.askAIRule).toContain('Simplified Chinese first');
-    expect(CONTENT_LANGUAGE_CONTRACTS.bilingual.askAIRule).toContain('then the same answer in English');
+    expect(ASK_AI_LANGUAGE_RULES.bilingual).toContain('Simplified Chinese first');
+    expect(ASK_AI_LANGUAGE_RULES.bilingual).toContain('then the same answer in English');
   });
   it('en-keywords: English with Chinese keywords, no second Chinese version', () => {
-    expect(CONTENT_LANGUAGE_CONTRACTS['en-keywords'].askAIRule).toContain('Do NOT add a second, Chinese version');
+    expect(ASK_AI_LANGUAGE_RULES['en-keywords']).toContain('Do NOT add a second, Chinese version');
   });
 });
 
@@ -86,12 +87,12 @@ describe('content language (ADR-0003 §1 note)', () => {
     expect(isContentLanguage(null)).toBe(false);
   });
 
-  it('CONTENT_LANGUAGE_CONTRACTS is the single map of the three format contracts, each with a line rule, total target and Ask-AI rule', () => {
+  it('CONTENT_LANGUAGE_CONTRACTS is the single map of the three format contracts, each with a line rule and total target (+ the server Ask-AI rule per mode)', () => {
     expect(Object.keys(CONTENT_LANGUAGE_CONTRACTS).sort()).toEqual([...CONTENT_LANGUAGES].sort());
     for (const mode of CONTENT_LANGUAGES) {
       const c = CONTENT_LANGUAGE_CONTRACTS[mode];
       expect(c.lineRule).toMatch(/^CONTENT LANGUAGE:/);
-      expect(c.askAIRule).toMatch(/^CONTENT LANGUAGE \(the leader chose this for the pack\):/);
+      expect(ASK_AI_LANGUAGE_RULES[mode]).toMatch(/^CONTENT LANGUAGE \(the leader chose this for the pack\):/);
       expect(c.totalTarget.length).toBeGreaterThan(20);
     }
     // The shared contract no longer demands two halves — the mode's rule does.

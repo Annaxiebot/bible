@@ -16,6 +16,7 @@ import {
 import {
   isAllowedOrigin, corsHeaders, preAuthGate, quotaFailure, upstreamFailure, logLine, SITE_ORIGIN,
 } from '../responses.ts';
+import { buildFinalMessages } from '../../_shared/aiPrompts.ts';
 import * as appDefaults from '../../../../services/aiDefaults';
 import { PACK_MAX_TOKENS } from '../../../../components/newstudy/packPrompt';
 
@@ -91,7 +92,9 @@ describe('clampMaxTokens', () => {
 describe('validateRequest', () => {
   it('a good body → the forwarded request with server-chosen model and cap', () => {
     const req = valid({ role: 'ask', messages: [USER], stream: true, max_tokens: 300, temperature: 0.7, model: 'evil/model' });
-    expect(req).toEqual({ role: 'ask', messages: [USER], stream: true, maxTokens: 300, model: ASK_AI_MODEL, temperature: 0.7 });
+    expect(req).toEqual({
+      role: 'ask', messages: buildFinalMessages('ask', [USER]), stream: true, maxTokens: 300, model: ASK_AI_MODEL, temperature: 0.7,
+    });
   });
 
   it('role study (the personal app) is accepted: Ask-AI model, capped at 4000', () => {
@@ -124,7 +127,7 @@ describe('validateRequest', () => {
     const req = valid({
       role: 'ask', messages: [{ ...USER, name: 'x', extra: 1 }], temperature: 9, reasoning: { enabled: 'no', effort: 'high' },
     });
-    expect(req.messages).toEqual([USER]);
+    expect(req.messages.slice(1)).toEqual([USER]);
     expect(req).not.toHaveProperty('temperature');
     expect(req).not.toHaveProperty('reasoning');
     expect(req.stream).toBe(false);
@@ -133,7 +136,7 @@ describe('validateRequest', () => {
   it('keeps the Ask-AI retry\'s reasoning-off switch and forwards it upstream', () => {
     const req = valid({ role: 'ask', messages: [USER], reasoning: { enabled: false, exclude: true } });
     expect(upstreamBody(req)).toEqual({
-      model: ASK_AI_MODEL, messages: [USER], stream: false, max_tokens: 2000, reasoning: { enabled: false, exclude: true },
+      model: ASK_AI_MODEL, messages: buildFinalMessages('ask', [USER]), stream: false, max_tokens: 2000, reasoning: { enabled: false, exclude: true },
     });
   });
 });

@@ -2,15 +2,17 @@
  * policy.ts — what the hosted AI proxy will send upstream · 本站AI策略
  *
  * Pure (no Deno, no fetch), tested under vitest. The server — never the
- * caller — decides the model (per-role default + allowlist), the token cap
- * and the monthly limit. Nothing here imports the app bundle: the model ids
+ * caller — decides the model (per-role default + allowlist), the token cap,
+ * the monthly limit and the system message (../_shared/aiPrompts.ts,
+ * ADR-0014). Nothing here imports the app bundle: the model ids
  * and PACK_MAX_TOKENS are copies, pinned equal to services/aiDefaults.ts and
  * components/newstudy/packPrompt.ts by __tests__/aiProxy.test.ts.
  */
+import { AI_ROLES, AIRole, CONTENT_LANGUAGES, ContentLanguage, buildFinalMessages, isContentLanguage } from '../_shared/aiPrompts.ts';
 
 /** Pure enough for the browser too: services/aiTransport + components/setup/aiUsage import from here (one list, R3). */
-export const AI_ROLES = ['ask', 'pack', 'adjust', 'sharing', 'study'] as const;
-export type AIRole = typeof AI_ROLES[number];
+export { AI_ROLES };
+export type { AIRole };
 
 /** = services/aiDefaults ASK_AI_MODEL (pinned). */
 export const ASK_AI_MODEL = 'google/gemini-2.5-flash';
@@ -91,6 +93,7 @@ export interface ReasoningSwitch { enabled?: boolean; exclude?: boolean }
 
 export interface ProxyRequest {
   role: AIRole;
+  /** The final conversation: the server's system message first (aiPrompts.buildFinalMessages). */
   messages: ChatMessage[];
   stream: boolean;
   maxTokens: number;
@@ -135,7 +138,14 @@ export function messagesProblem(messages: unknown): string | null {
     if (typeof m.content !== 'string') return 'each message content must be a string';
     total += m.content.length;
   }
-  return total > MAX_TOTAL_CHARS ? `messages exceed ${MAX_TOTAL_CHARS} characters` : null;
+  if (total > MAX_TOTAL_CHARS) return `messages exceed ${MAX_TOTAL_CHARS} characters`;
+  return (messages as ChatMessage[]).some(m => m.role !== 'system') ? null : 'at least one user or assistant message';
+}
+
+/** Ask AI's pack mode (optional: a pre-ADR-0014 bundle omits it); present but unknown → a typed 400. */
+function contentLanguage(value: unknown): { ok: true; mode?: ContentLanguage } | { ok: false } {
+  if (value === undefined) return { ok: true };
+  return isContentLanguage(value) ? { ok: true, mode: value } : { ok: false };
 }
 
 function reasoningSwitch(value: unknown): ReasoningSwitch | undefined {
@@ -154,13 +164,15 @@ export function validateRequest(body: unknown): Validation {
   if (!isAIRole(b.role)) return invalid(`role must be one of ${AI_ROLES.join('|')}`);
   const problem = messagesProblem(b.messages);
   if (problem) return invalid(problem);
+  const language = contentLanguage(b.content_language);
+  if (!language.ok) return invalid(`content_language must be one of ${CONTENT_LANGUAGES.join('|')}`);
   const temperature = typeof b.temperature === 'number' && b.temperature >= 0 && b.temperature <= MAX_TEMPERATURE
     ? b.temperature : undefined;
   return {
     ok: true,
     request: {
       role: b.role,
-      messages: (b.messages as ChatMessage[]).map(m => ({ role: m.role, content: m.content })),
+      messages: buildFinalMessages(b.role, b.messages as ChatMessage[], language.mode),
       stream: b.stream === true,
       maxTokens: clampMaxTokens(b.role, b.max_tokens),
       model: chooseModel(b.role, b.model),

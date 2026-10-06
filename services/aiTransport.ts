@@ -4,8 +4,9 @@
  * The one branch point for every chat/completions request the app sends
  * (askAIStream.streamChatCompletionDetailed → Ask AI, pack generation, and
  * later the sharing slide / per-section adjust):
- *   1. an OpenRouter key stored in this browser → straight to OpenRouter,
- *      exactly as before (the key's owner pays, their model choice applies);
+ *   1. an OpenRouter key stored in this browser → straight to OpenRouter
+ *      (the key's owner pays, their model choice applies), with the SAME
+ *      final messages the proxy would build (ownKeyBody, ADR-0014);
  *   2. else a signed-in leader → the ai-proxy Edge Function with the user's
  *      access token (+ the anon apikey header); the body gains `role` and the
  *      server picks the model and counts the month's quota;
@@ -20,6 +21,7 @@
 import { getApiKey, OPENROUTER_API_URL } from './openrouter';
 import { authManager, supabase, type AuthState } from './supabase';
 import type { AIRole } from '../supabase/functions/ai-proxy/policy';
+import { buildFinalMessages, isContentLanguage, PromptMessage } from '../supabase/functions/_shared/aiPrompts';
 import { E2E_ACCESS_TOKEN, aiProxyUrl } from './aiProxyRoute';
 import { e2eLeader } from './e2eLeader';
 
@@ -71,8 +73,21 @@ async function hostedSession(): Promise<HostedSession | null> {
 }
 
 /**
- * Send one chat/completions body (an OpenRouter-shaped JSON string) by the
- * route above. Network failures reject (the caller wraps them); HTTP
+ * The OpenRouter body for an own-key request: the data form the proxy would
+ * receive, turned into the proxy's final messages by the same builder
+ * (server system message first; `content_language` consumed, not forwarded).
+ */
+export function ownKeyBody(role: AIRole, body: string): string {
+  const { content_language: mode, messages, ...rest } = JSON.parse(body) as Record<string, unknown>;
+  if (mode !== undefined && !isContentLanguage(mode)) throw new Error(`Unknown content_language: ${String(mode)}`);
+  const sent = Array.isArray(messages) ? messages as PromptMessage[] : [];
+  return JSON.stringify({ ...rest, messages: buildFinalMessages(role, sent, isContentLanguage(mode) ? mode : undefined) });
+}
+
+/**
+ * Send one chat/completions body (OpenRouter-shaped JSON in the data form:
+ * no system message of the app's own except the personal app's, plus
+ * `content_language` for Ask AI) by the route above. Network failures reject (the caller wraps them); HTTP
  * statuses come back in the Response for the caller to map.
  */
 export async function sendAIRequest(role: AIRole, body: string, signal: AbortSignal, title: string): Promise<AIRequestResult> {
@@ -87,7 +102,7 @@ export async function sendAIRequest(role: AIRole, body: string, signal: AbortSig
         'HTTP-Referer': window.location.origin,
         'X-Title': title,
       },
-      body,
+      body: ownKeyBody(role, body),
     });
     return { kind: 'own-key', response };
   }

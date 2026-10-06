@@ -22,10 +22,6 @@ export const PACK_MAX_TOKENS = 12000;
 /** Low temperature: structure and fidelity over flair. */
 export const PACK_TEMPERATURE = 0.3;
 
-export const PACK_SYSTEM_PROMPT =
-  'You draft small-group Bible study material for a Chinese-speaking congregation. ' +
-  'Reply with exactly one JSON object and nothing else: no prose, no markdown fences.';
-
 /** Compact output: every byte of indentation is a token that is not content. */
 export const PACK_COMPACT_JSON_RULE = [
   'FORMAT: output COMPACT JSON on a single line — no indentation, no newlines',

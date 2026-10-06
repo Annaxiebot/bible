@@ -10,9 +10,8 @@
  * throw an AskAIError; reasoning and finish_reason are reported so the
  * Ask-AI orchestrator (askAIFallback.ts) can retry sensibly.
  */
-import { ASK_AI_SYSTEM_PROMPT } from './principles';
 import { sendAIRequest, AIRole } from '../../services/aiTransport';
-import { StudyPack, Slide } from './packTypes';
+import { StudyPack, Slide, packContentLanguage } from './packTypes';
 import { AskAIMessage, ASK_AI_MAX_TOKENS, buildAskAIPrompt } from './askAI';
 import { signInNeededError, errorFromStatus, hostedErrorFromStatus, streamError, ErrorReply } from './askAIErrors';
 
@@ -88,6 +87,12 @@ export interface AskAIRequestOptions {
 /** Token cap for the no-reasoning retry: room for an answer after a model that used to think first. */
 export const ASK_AI_RETRY_MAX_TOKENS = 1000;
 
+/**
+ * The Ask-AI body in the data form (ADR-0014): no system message — the
+ * server (or, with an own key, services/aiTransport via the same builder)
+ * puts the scope guard, Ask AI's prompt, the answer contract and the
+ * `content_language` rule first.
+ */
 export function buildRequestBody(
   pack: StudyPack,
   slide: Slide,
@@ -101,8 +106,8 @@ export function buildRequestBody(
     max_tokens: opts.noReasoning ? ASK_AI_RETRY_MAX_TOKENS : ASK_AI_MAX_TOKENS,
     temperature: 0.7,
     ...(opts.noReasoning ? { reasoning: { enabled: false, exclude: true } } : {}),
+    content_language: packContentLanguage(pack),
     messages: [
-      { role: 'system', content: ASK_AI_SYSTEM_PROMPT },
       ...history.map(m => ({ role: m.role, content: m.content })),
       { role: 'user', content: buildAskAIPrompt(pack, slide, question) },
     ],

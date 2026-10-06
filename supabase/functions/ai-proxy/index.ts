@@ -3,7 +3,8 @@
  *
  * POST /ai-proxy
  * Body: { role: 'ask'|'pack'|'adjust'|'sharing'|'study', messages: [{role, content}],
- *         stream?, max_tokens?, temperature?, model?, reasoning? }
+ *         stream?, max_tokens?, temperature?, model?, reasoning?,
+ *         content_language? (Ask AI: the pack's mode) }
  *
  * Any signed-in leader may use AI with no key of their own: this function
  * calls OpenRouter with ONE server-side key (secret OPENROUTER_API_KEY).
@@ -11,6 +12,9 @@
  *   verify_jwt checks it; callerUid resolves the uid with an anon client).
  * - The server picks the model (policy.chooseModel: role default + per-role
  *   allowlist) and clamps max_tokens per role.
+ * - The server owns the system message (ADR-0014, _shared/aiPrompts): a
+ *   scope guard + the role's rules go first; a browser system message is
+ *   dropped (kept after the guard only for the personal app, role 'study').
  * - Per-leader monthly quota per role: consume_ai_quota (database/
  *   ai-usage-schema.sql) via the service client; limits from secrets
  *   AI_MONTHLY_* (policy.monthlyLimit). Over the limit → 429 quota.
