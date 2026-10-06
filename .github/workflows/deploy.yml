@@ -35,6 +35,13 @@ jobs:
           VITE_SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           VITE_SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
 
+      # A cached index.html (max-age=600) still asks for the previous bundles after a
+      # deploy; without them the site renders blank. Keeps exactly one generation.
+      - name: Keep the previous deploy's assets one more round
+        run: |
+          git fetch --depth=1 origin gh-pages:refs/remotes/origin/gh-pages || true
+          scripts/carry-previous-assets.sh dist refs/remotes/origin/gh-pages
+
       - name: Deploy to gh-pages branch
         uses: peaceiris/actions-gh-pages@v4
         with:
