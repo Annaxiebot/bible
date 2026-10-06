@@ -37,8 +37,12 @@ jobs:
       
       - name: Build (must succeed with zero warnings)
         run: |
+          # pipefail: a failed build fails this step even though tee succeeds.
+          set -o pipefail
           npm run build 2>&1 | tee build.log
-          if grep -iE "error|warning.*Duplicate|warning.*unused" build.log; then
+          # Skip the dist/ file listing (colour codes stripped first): asset names
+          # such as InlineAIError-*.js matched "error" and failed every build.
+          if perl -pe 's/\e\[[0-9;]*m//g' build.log | grep -v '^dist/' | grep -iE "error|warning.*Duplicate|warning.*unused"; then
             echo "❌ Build has errors or warnings. Fix them before merging."
             exit 1
           fi
