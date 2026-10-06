@@ -70,7 +70,7 @@ const Conversation: React.FC<{ ai: AskAI; pack: StudyPack }> = ({ ai, pack }) =>
       <div ref={latestRef} data-testid="ask-latest">
         {answer !== null && (
           <div data-testid={streaming ? 'streaming-answer' : undefined}>
-            <AskAnswer text={answer} pack={pack} fit />
+            <AskAnswer text={answer} pack={pack} fit complete={!streaming} />
           </div>
         )}
         {ai.loading && !streaming && (
