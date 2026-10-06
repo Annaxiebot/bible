@@ -88,7 +88,7 @@ export const TYPE_SCALE = {
   popup: 'max(16px, 3vh)',         // verse popup text ≥ 3vh
   answerShort: 'max(18px, 6vh)',   // Ask AI ≤120 chars
   answerMedium: 'max(16px, 5vh)',  // Ask AI ≤240 chars
-  answerLong: 'max(16px, 4vh)',    // Ask AI longer (scrolls)
+  answerLong: 'max(16px, 4vh)',    // Ask AI longer (shrinks to fit ≥ verse floor, then scrolls)
 } as const;
 
 /**

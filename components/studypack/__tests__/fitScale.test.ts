@@ -7,8 +7,10 @@
  */
 import { describe, it, expect } from 'vitest';
 import {
-  FIT_SEARCH_STEPS, FIT_VAR, MAX_SCALE, MIN_SCALE, applyFitScale, contentOverflows, largestFittingScale,
+  FIT_SEARCH_STEPS, FIT_VAR, MAX_ANSWER_SCALE, MAX_SCALE, MIN_ANSWER_SCALE, MIN_SCALE,
+  applyFitScale, contentOverflows, largestFittingScale,
 } from '../fitScale';
+import { TYPE_SCALE } from '../principles';
 
 /** Content that overflows once scale × size passes the area (a model of text growing with --fit). */
 const sizedContent = (size: number, room: number) => (scale: number) => scale * size > room;
@@ -88,5 +90,54 @@ describe('contentOverflows / applyFitScale', () => {
     const { area, content } = fakeLayout(100, 100, 150);
     expect(applyFitScale(area, content)).toBe(MIN_SCALE);
     expect(area.style.getPropertyValue(FIT_VAR)).toBe('1');
+  });
+});
+
+/** The vh term of a TYPE_SCALE size, e.g. 'max(16px, 4vh)' → 4. */
+const vhOf = (size: string) => Number(/([\d.]+)vh/.exec(size)![1]);
+
+describe('Ask-AI answer range [MIN_ANSWER_SCALE, MAX_ANSWER_SCALE] (scaling down)', () => {
+  const ANSWER = { min: MIN_ANSWER_SCALE, max: MAX_ANSWER_SCALE };
+
+  it('the floor keeps the long-answer size at the TV body/verse floor (ADR-0003 §15), never below', () => {
+    expect(MAX_ANSWER_SCALE).toBe(1);
+    expect(MIN_ANSWER_SCALE).toBeLessThan(1);
+    expect(vhOf(TYPE_SCALE.answerLong) * MIN_ANSWER_SCALE).toBeCloseTo(vhOf(TYPE_SCALE.verse), 6);
+    // 3.6vh in px: ~26px at 720p, ~39px at 1080p.
+    expect(vhOf(TYPE_SCALE.verse) * 7.2).toBeCloseTo(25.92, 2);
+    expect(vhOf(TYPE_SCALE.verse) * 10.8).toBeCloseTo(38.88, 2);
+  });
+
+  it('shrinks just enough: the largest fitting scale below 1, within one step', () => {
+    const scale = largestFittingScale(sizedContent(100, 95), ANSWER.min, ANSWER.max); // fits up to 0.95
+    expect(scale).toBeLessThanOrEqual(0.95);
+    expect(scale).toBeGreaterThan(0.95 - (ANSWER.max - ANSWER.min) / 2 ** FIT_SEARCH_STEPS);
+  });
+
+  it('stays at 1 when the answer fits, and stops at the floor when nothing fits (then it scrolls)', () => {
+    expect(largestFittingScale(sizedContent(100, 120), ANSWER.min, ANSWER.max)).toBe(1);
+    expect(largestFittingScale(sizedContent(100, 50), ANSWER.min, ANSWER.max)).toBe(MIN_ANSWER_SCALE);
+    expect(largestFittingScale(() => true, ANSWER.min, ANSWER.max)).toBe(MIN_ANSWER_SCALE);
+  });
+
+  it('is monotonic: a longer answer never gets a larger scale, and every result is in range', () => {
+    const scales = [90, 95, 100, 104, 108, 112, 200].map(size => largestFittingScale(sizedContent(size, 100), ANSWER.min, ANSWER.max));
+    for (let i = 1; i < scales.length; i++) expect(scales[i]).toBeLessThanOrEqual(scales[i - 1]);
+    for (const s of scales) {
+      expect(s).toBeGreaterThanOrEqual(MIN_ANSWER_SCALE);
+      expect(s).toBeLessThanOrEqual(MAX_ANSWER_SCALE);
+    }
+  });
+
+  it('applyFitScale honours the range and writes --fit on the given target, not the area', () => {
+    const { area, content } = fakeLayout(600, 1000, 400, 100);
+    const target = document.createElement('div');
+    expect(applyFitScale(area, content, ANSWER, target)).toBe(1); // 400 ≤ 600: never grows past 1
+    expect(target.style.getPropertyValue(FIT_VAR)).toBe('1');
+    expect(area.style.getPropertyValue(FIT_VAR)).toBe(''); // earlier turns in the area keep their size
+    const tall = fakeLayout(600, 1000, 640, 100); // fits at 0.9375
+    const scale = applyFitScale(tall.area, tall.content, ANSWER);
+    expect(scale).toBeCloseTo(0.9375, 2);
+    expect(scale).toBeLessThan(1);
   });
 });

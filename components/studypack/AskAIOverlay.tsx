@@ -14,12 +14,27 @@ import {
 import { useAskAI, AskAI } from './useAskAI';
 import AIErrorLine from './AIErrorLine';
 import AskAnswer from './AskAnswer';
+import { useAnswerFit } from './useAnswerFit';
 import { QuickAISetupForm } from '../setup/QuickAISetup';
 
-// Answers render through AskAnswer (markdown + verse tooltips, font scaled
-// by length). Overflow scrolls inside Conversation (flex-1 overflow-y-auto)
-// so the input/controls never leave the screen.
+// Layout (ADR-0003 §10): the header, the latest question and the input are
+// pinned; the conversation area between them takes all remaining height.
+// The latest answer shrinks to fit it (useAnswerFit, down to the senior
+// floor); earlier turns may scroll out above. Scrolling — a thin themed bar
+// — is the last resort when even the floor does not fit.
 const questionStyle: React.CSSProperties = { fontSize: '2.5vh', lineHeight: 1.4 };
+
+/** Messages before the latest question, the latest question, and its answer (streaming or stored). */
+function splitTurns(ai: AskAI) {
+  const lastUser = ai.messages.map(m => m.role).lastIndexOf('user');
+  const stored = ai.messages.slice(lastUser + 1).find(m => m.role === 'assistant')?.content ?? null;
+  return {
+    earlier: lastUser < 0 ? ai.messages : ai.messages.slice(0, lastUser),
+    question: lastUser < 0 ? null : ai.messages[lastUser].content,
+    answer: ai.streamingText ?? (lastUser < 0 ? null : stored),
+    turn: lastUser,
+  };
+}
 
 const Message: React.FC<{ m: AskAIMessage; pack: StudyPack }> = ({ m, pack }) =>
   m.role === 'user'
@@ -27,17 +42,22 @@ const Message: React.FC<{ m: AskAIMessage; pack: StudyPack }> = ({ m, pack }) =>
     : <AskAnswer text={m.content} pack={pack} />;
 
 const Conversation: React.FC<{ ai: AskAI; pack: StudyPack }> = ({ ai, pack }) => {
-  const endRef = useRef<HTMLDivElement>(null);
+  const areaRef = useRef<HTMLDivElement>(null);
+  const latestRef = useRef<HTMLDivElement>(null);
   const [setupOpen, setSetupOpen] = useState(false);
   const onSaved = () => { ai.markConfigured(); setSetupOpen(false); };
-  useEffect(() => {
-    // Guarded: jsdom (vitest) does not implement scrollIntoView.
-    if (typeof endRef.current?.scrollIntoView === 'function') {
-      endRef.current.scrollIntoView({ block: 'end' });
-    }
-  }, [ai.messages.length, ai.loading, ai.streamingText]);
+  const { earlier, answer, turn } = splitTurns(ai);
+  const streaming = ai.streamingText !== null;
+  // Keep the latest turn's end in view — after each fit too, since the block
+  // also changes height without a new token (lazy markdown, shrink, fonts).
+  const scrollToLatest = useCallback(() => {
+    // Guarded: jsdom (vitest) does not implement scrollIntoView. No spacer after the block: it would add scroll height.
+    if (typeof latestRef.current?.scrollIntoView === 'function') latestRef.current.scrollIntoView({ block: 'end' });
+  }, []);
+  useAnswerFit(areaRef, latestRef, { text: answer, streaming, turnKey: turn, onFitted: scrollToLatest });
+  useEffect(scrollToLatest, [scrollToLatest, ai.messages.length, ai.loading, ai.streamingText]);
   return (
-    <div className="flex-1 overflow-y-auto space-y-[2vh]">
+    <div ref={areaRef} className="flex-1 min-h-0 overflow-y-auto tv-thin-scroll space-y-[2vh]" data-testid="ask-conversation">
       {(!ai.configured || setupOpen) && (
         // No AI yet (or opened from an error line): the AI form inline — the
         // sign-in prompt, no key hints (ADR-0007). Signing in or a stored key
@@ -46,25 +66,34 @@ const Conversation: React.FC<{ ai: AskAI; pack: StudyPack }> = ({ ai, pack }) =>
           <QuickAISetupForm onSaved={onSaved} ownKeyOption={false} onCancel={setupOpen ? () => setSetupOpen(false) : undefined} />
         </div>
       )}
-      {ai.messages.map((m, i) => <Message key={i} m={m} pack={pack} />)}
-      {ai.streamingText !== null && (
-        <div data-testid="streaming-answer">
-          <AskAnswer text={ai.streamingText} pack={pack} />
-        </div>
-      )}
-      {ai.loading && ai.streamingText === null && (
-        <p className="text-stl-text-3" style={questionStyle} data-testid="ask-thinking">
-          {thinkingLine(ai.model ?? '')}
-        </p>
-      )}
-      {!ai.loading && ai.model && ai.messages.some(m => m.role === 'assistant') && (
-        <p className="text-stl-text-3" style={questionStyle} data-testid="ask-model">{modelLine(ai.model)}</p>
-      )}
-      {ai.error && (
-        <AIErrorLine error={ai.error} style={questionStyle} onSetup={() => setSetupOpen(true)} onRetry={() => { void ai.retry(); }} />
-      )}
-      <div ref={endRef} />
+      {earlier.map((m, i) => <Message key={i} m={m} pack={pack} />)}
+      <div ref={latestRef} data-testid="ask-latest">
+        {answer !== null && (
+          <div data-testid={streaming ? 'streaming-answer' : undefined}>
+            <AskAnswer text={answer} pack={pack} fit />
+          </div>
+        )}
+        {ai.loading && !streaming && (
+          <p className="text-stl-text-3" style={questionStyle} data-testid="ask-thinking">
+            {thinkingLine(ai.model ?? '')}
+          </p>
+        )}
+        {ai.error && (
+          <AIErrorLine error={ai.error} style={questionStyle} onSetup={() => setSetupOpen(true)} onRetry={() => { void ai.retry(); }} />
+        )}
+      </div>
     </div>
+  );
+};
+
+/** Pinned under the header: the question being answered, at most two lines (full text on hover). */
+const LatestQuestion: React.FC<{ ai: AskAI }> = ({ ai }) => {
+  const { question } = splitTurns(ai);
+  if (question === null) return null;
+  return (
+    <p className="text-stl-text-2 line-clamp-2 mb-[1vh] shrink-0" style={questionStyle} title={question} data-testid="ask-question">
+      {`Q: ${question}`}
+    </p>
   );
 };
 
@@ -78,7 +107,7 @@ const QuestionForm: React.FC<{ ai: AskAI }> = ({ ai }) => {
     setDraft('');
   };
   return (
-    <form onSubmit={submit} className="flex gap-[1vw] mt-[2vh]">
+    <form onSubmit={submit} className="flex gap-[1vw] mt-[1vh] shrink-0">
       <input
         ref={inputRef}
         value={draft}
@@ -86,13 +115,13 @@ const QuestionForm: React.FC<{ ai: AskAI }> = ({ ai }) => {
         disabled={!ai.configured || ai.loading}
         placeholder={ASK_INPUT_PLACEHOLDER}
         aria-label="问一问 Ask AI question"
-        className="flex-1 bg-stl-surface text-stl-text rounded-lg px-4 border border-stl-border focus:outline-none focus:border-stl-gold"
+        className="flex-1 min-w-0 bg-stl-surface text-stl-text rounded-lg px-4 border border-stl-border focus:outline-none focus:border-stl-gold"
         style={questionStyle}
       />
       <button
         type="submit"
         disabled={!ai.configured || ai.loading || draft.trim().length === 0}
-        className="bg-stl-gold disabled:bg-stl-surface-2 text-stl-bg disabled:text-stl-text-3 font-semibold rounded-lg px-6"
+        className="bg-stl-gold disabled:bg-stl-surface-2 text-stl-bg disabled:text-stl-text-3 font-semibold rounded-lg px-6 whitespace-nowrap shrink-0"
         style={questionStyle}
       >
         {ASK_SUBMIT_LABEL}
@@ -146,9 +175,13 @@ const AskAIOverlay: React.FC<AskAIOverlayProps> = ({ pack, slide, initialQuestio
       onTouchStart={e => e.stopPropagation()}
       onTouchEnd={e => e.stopPropagation()}
     >
-      <div className="bg-stl-surface border border-stl-border rounded-xl w-[80vw] h-[80vh] p-[3vh] flex flex-col">
-        <div className="flex items-center justify-between mb-[2vh]">
-          <h2 className="text-stl-gold font-bold" style={{ fontSize: '3.5vh' }}>{ASK_AI_LABEL}</h2>
+      {/* TV: the panel takes nearly the whole screen (2vh/2vw frame over the dim backdrop). */}
+      <div className="bg-stl-surface border border-stl-border rounded-xl absolute inset-y-[2vh] inset-x-[2vw] p-[2vh] flex flex-col" data-testid="ask-panel">
+        <div className="flex items-center gap-[1vw] mb-[1vh] shrink-0">
+          <h2 className="text-stl-gold font-bold mr-auto" style={{ fontSize: '3.5vh' }}>{ASK_AI_LABEL}</h2>
+          {!ai.loading && ai.model && ai.messages.some(m => m.role === 'assistant') && (
+            <p className="text-stl-text-3 truncate" style={questionStyle} data-testid="ask-model">{modelLine(ai.model)}</p>
+          )}
           <button
             onClick={close}
             className="text-stl-text-2 hover:text-stl-text px-3 py-1"
@@ -158,6 +191,7 @@ const AskAIOverlay: React.FC<AskAIOverlayProps> = ({ pack, slide, initialQuestio
             ✕
           </button>
         </div>
+        <LatestQuestion ai={ai} />
         <Conversation ai={ai} pack={pack} />
         <QuestionForm ai={ai} />
       </div>

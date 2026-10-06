@@ -4,7 +4,8 @@ import { readFileSync } from 'fs';
 import path from 'path';
 import React from 'react';
 import { parseStudyPack, StudyPack } from '../packTypes';
-import AskAnswer, { answerFontSize } from '../AskAnswer';
+import AskAnswer, { answerFontSize, fittedAnswerFontSize } from '../AskAnswer';
+import { FIT_VAR } from '../fitScale';
 import { preloadMarkdown } from '../../LazyMarkdown';
 import { TYPE_SCALE } from '../principles';
 
@@ -20,6 +21,23 @@ describe('answerFontSize', () => {
     expect(answerFontSize('x'.repeat(121))).toBe(TYPE_SCALE.answerMedium);
     expect(answerFontSize('x'.repeat(240))).toBe(TYPE_SCALE.answerMedium);  // boundary of medium
     expect(answerFontSize('x'.repeat(241))).toBe(TYPE_SCALE.answerLong);
+  });
+});
+
+describe('fittedAnswerFontSize', () => {
+  it('scales the length tier by --fit and never drops below the TV body/verse floor', () => {
+    for (const text of ['x', 'x'.repeat(200), 'x'.repeat(900)]) {
+      const size = fittedAnswerFontSize(text);
+      expect(size.startsWith(`max(${TYPE_SCALE.verse}, `)).toBe(true);
+      expect(size).toContain(`calc(${answerFontSize(text)} * var(${FIT_VAR}, 1))`);
+    }
+  });
+
+  it('only the overlay\'s latest answer (fit) uses it; others keep the plain tier size', () => {
+    const { getAllByTestId } = render(<><AskAnswer text="a" pack={pack} /><AskAnswer text="b" pack={pack} fit /></>);
+    const [plain, fitted] = getAllByTestId('ask-answer');
+    expect(plain.style.fontSize).toBe(TYPE_SCALE.answerShort);
+    expect(fitted.style.fontSize).toContain(FIT_VAR);
   });
 });
 
