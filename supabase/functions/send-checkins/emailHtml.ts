@@ -28,9 +28,9 @@ export function escapeHtml(value: string): string {
 }
 
 const BODY = `font-family:${EMAIL_BODY_FONT};font-size:${EMAIL_BODY_PX}px;line-height:1.6;color:${C.ink};`;
-const SMALL_LABEL = `margin:0 0 6px;font-size:14px;letter-spacing:0.02em;color:${C['gold-deep']};font-weight:600;`;
+export const SMALL_LABEL = `margin:0 0 6px;font-size:14px;letter-spacing:0.02em;color:${C['gold-deep']};font-weight:600;`;
 
-function row(inner: string, style = ''): string {
+export function row(inner: string, style = ''): string {
   return `<tr><td style="padding:0 24px 20px;${style}">${inner}</td></tr>`;
 }
 
@@ -39,7 +39,7 @@ function homeLink(text: string, style: string): string {
   return `<a href="${escapeHtml(SITE_HOME_URL)}" style="${style}">${escapeHtml(text)}</a>`;
 }
 
-function header(): string {
+export function header(): string {
   return `<tr><td style="padding:28px 24px 18px;border-bottom:1px solid ${C.line};">`
     + `<p style="margin:0;font-family:${EMAIL_HEAD_FONT};font-size:16px;font-weight:700;">`
     + homeLink(`${EMAIL_BRAND_EN} · ${EMAIL_BRAND_ZH}`, `color:${C['gold-deep']};text-decoration:none;`)
@@ -105,18 +105,22 @@ function footer(c: CheckinContent): string {
     + `${stop}${feedback}${homeLink(SITE_HOST, `color:${C['gold-deep']};text-decoration:underline;`)}</td></tr>`;
 }
 
+/** The page around the rows: paper background, one 600px column, a hidden preheader. */
+export function renderEmailDocument(title: string, preheader: string, rows: string): string {
+  return '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">'
+    + '<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light">'
+    + `<title>${escapeHtml(title)}</title></head>`
+    + `<body style="margin:0;padding:0;background:${C.paper};">`
+    + `<div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;">${escapeHtml(preheader)}</div>`
+    + `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.paper};"><tr><td align="center" style="padding:16px 8px;">`
+    + `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:${EMAIL_MAX_WIDTH_PX}px;${BODY}">`
+    + `${rows}</table></td></tr></table></body></html>`;
+}
+
 /** The whole HTML document for one message. */
 export function renderCheckinHtml(c: CheckinContent): string {
-  const preheader = escapeHtml(c.prompt.split('\n')[0]);
   const body = header()
     + row(`<p style="margin:0;font-family:${EMAIL_HEAD_FONT};font-size:22px;font-weight:700;">${escapeHtml(c.greeting)}</p>`, 'padding-top:22px;')
     + card(c) + passageHead(c) + button(c.link.url, c.link.label) + passageTail(c) + footer(c);
-  return '<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8">'
-    + '<meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light">'
-    + `<title>${escapeHtml(c.subject)}</title></head>`
-    + `<body style="margin:0;padding:0;background:${C.paper};">`
-    + `<div style="display:none;max-height:0;overflow:hidden;opacity:0;mso-hide:all;">${preheader}</div>`
-    + `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:${C.paper};"><tr><td align="center" style="padding:16px 8px;">`
-    + `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:${EMAIL_MAX_WIDTH_PX}px;${BODY}">`
-    + `${body}</table></td></tr></table></body></html>`;
+  return renderEmailDocument(c.subject, c.prompt.split('\n')[0], body);
 }

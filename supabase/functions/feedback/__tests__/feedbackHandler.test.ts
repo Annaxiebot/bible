@@ -8,7 +8,7 @@
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { handleFeedback, hashClientIp, clientIp, FeedbackDeps, FeedbackInsert } from '../feedbackHandler.ts';
-import { feedbackEmail, feedbackEmailConfig, FEEDBACK_SUBJECT } from '../feedbackEmail.ts';
+import { feedbackEmail, DETAIL_LABEL, FEEDBACK_SOURCE_LABEL, NO_REPLY_EMAIL, UNKNOWN_SOURCE, OPEN_STUDY_LABEL, formatReceived, feedbackEmailConfig, FEEDBACK_SUBJECT } from '../feedbackEmail.ts';
 import { emailConfig, sendEmail, RESEND_EMAILS_URL } from '../../send-checkins/senders.ts';
 import { FEEDBACK_MAX_CHARS, FEEDBACK_EMAIL_MAX_CHARS, RATE_LIMIT_COUNT, HONEYPOT_FIELD } from '../../_shared/feedback.ts';
 
@@ -110,12 +110,36 @@ describe('clientIp / hashClientIp', () => {
 describe('feedbackEmail', () => {
   const row = { id: 'row-1', createdAt: '2026-10-06T12:00:00Z', message: '<b>hi</b> & "you"', email: 'm@x.org', context: { from: 'email' as const, pack: 'p1' } };
 
-  it('text: subject line, the message as typed, then the details', () => {
+  it('text: subject line, the message as typed, then plain-language details in Pacific time; no row id', () => {
     const m = feedbackEmail(row);
     expect(m.subject).toBe('意见反馈 · Feedback — scripturetolife.org');
     expect(m.text.split('\n')).toEqual([
-      FEEDBACK_SUBJECT, '', row.message, '', 'Reply-To: m@x.org', 'From: email', 'Pack: p1', 'Row: row-1', `Received: ${row.createdAt}`,
+      FEEDBACK_SUBJECT, '', row.message, '',
+      `${DETAIL_LABEL.reply}: m@x.org`,
+      `${DETAIL_LABEL.from}: ${FEEDBACK_SOURCE_LABEL.email}`,
+      `${DETAIL_LABEL.study}: https://scripturetolife.org/#/pack/p1`,
+      `${DETAIL_LABEL.received}: 2026-10-06 05:00 (Pacific)`,
     ]);
+    expect(m.text).not.toContain('row-1');
+    expect(m.html).not.toContain('row-1');
+  });
+
+  it('no email, no pack, no source: says so plainly and leaves out the study line (regression: "Pack: —")', () => {
+    const m = feedbackEmail({ ...row, email: null, context: {} });
+    expect(m.text).toContain(`${DETAIL_LABEL.reply}: ${NO_REPLY_EMAIL}`);
+    expect(m.text).toContain(`${DETAIL_LABEL.from}: ${UNKNOWN_SOURCE}`);
+    expect(m.text).not.toContain(DETAIL_LABEL.study);
+    expect(m.text).not.toContain('—\n');
+    expect(m.html).not.toContain('Pack:');
+  });
+
+  it('HTML: paper-style page with a mailto reply link and an "open the study" link, no raw URL shown', () => {
+    const html = feedbackEmail(row).html!;
+    expect(html).toContain('href="mailto:m@x.org"');
+    expect(html).toContain(`href="https://scripturetolife.org/#/pack/p1"`);
+    expect(html).toContain(OPEN_STUDY_LABEL);
+    expect(html).not.toContain('>https://');
+    expect(formatReceived('2026-01-15T20:30:00Z')).toBe('2026-01-15 12:30 (Pacific)');
   });
 
   it('HTML escapes every user value; no script or raw tags from the message', () => {
