@@ -7,7 +7,8 @@
  * and From are what Resend would get.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { handleFeedback, hashClientIp, clientIp, FeedbackDeps, FeedbackInsert } from '../feedbackHandler.ts';
+import { handleFeedback, FeedbackDeps, FeedbackInsert } from '../feedbackHandler.ts';
+import { hashClientIp } from '../../_shared/clientIp.ts';
 import { feedbackEmail, DETAIL_LABEL, FEEDBACK_SOURCE_LABEL, NO_REPLY_EMAIL, UNKNOWN_SOURCE, OPEN_STUDY_LABEL, formatReceived, feedbackEmailConfig, FEEDBACK_SUBJECT } from '../feedbackEmail.ts';
 import { emailConfig, sendEmail, RESEND_EMAILS_URL } from '../../send-checkins/senders.ts';
 import { FEEDBACK_MAX_CHARS, FEEDBACK_EMAIL_MAX_CHARS, RATE_LIMIT_COUNT, HONEYPOT_FIELD } from '../../_shared/feedback.ts';
@@ -89,21 +90,6 @@ describe('handleFeedback', () => {
     expect((await handleFeedback('POST', { message: '' }, '1.2.3.4', d)).status).toBe(400);
     expect((await handleFeedback('POST', { message: 'hi' }, '1.2.3.4', d)).status).toBe(500);
     expect(store.rows).toHaveLength(0);
-  });
-});
-
-describe('clientIp / hashClientIp', () => {
-  it('first x-forwarded-for hop, else x-real-ip, else unknown', () => {
-    const h = (map: Record<string, string>) => (name: string) => map[name] ?? null;
-    expect(clientIp(h({ 'x-forwarded-for': '9.9.9.9, 10.0.0.1' }))).toBe('9.9.9.9');
-    expect(clientIp(h({ 'x-real-ip': '8.8.8.8' }))).toBe('8.8.8.8');
-    expect(clientIp(h({}))).toBe('unknown');
-  });
-
-  it('is a 64-hex SHA-256 that depends on the salt', async () => {
-    const a = await hashClientIp('s1', '1.2.3.4');
-    expect(a).toMatch(/^[0-9a-f]{64}$/);
-    expect(await hashClientIp('s2', '1.2.3.4')).not.toBe(a);
   });
 });
 
