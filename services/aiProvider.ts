@@ -1,3 +1,8 @@
+// TODO(R1): unreachable since ADR-0007 "Personal app" (2026-10-05) — #app's AI settings open
+// the AI service dialog (components/setup/QuickAISetup) and its AI goes through services/studyAI.
+// Delete this file, services/aiProvider.ts and the direct-provider clients (gemini, claude,
+// kimi, openai, perplexity, tavily, firecrawl, exa, brave) in the "remove old multi-provider
+// AI code" session — its own session, no behaviour change (R8).
 /**
  * AI Provider Abstraction Layer
  * 

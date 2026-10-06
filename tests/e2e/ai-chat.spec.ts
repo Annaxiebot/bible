@@ -1,12 +1,20 @@
+/**
+ * ai-chat.spec.ts — the personal app's AI Chat · 个人研经AI对话
+ *
+ * Since ADR-0007 "Personal app" the chat has one AI path: a signed-in user
+ * (dev-only session seam) reaches the mocked ai-proxy with role 'study', so
+ * every test below gets a real streamed answer; a signed-out visitor gets
+ * the sign-in line. The settings button opens the AI service dialog.
+ */
 import { test, expect } from '@playwright/test';
 import { APP_HASH } from '../../components/landing/landingRoute';
+import { SETUP_TITLE, SETUP_HOSTED_READY, SETUP_SIGN_IN_TO_USE_AI, SETUP_OPEN_BUTTON } from '../../components/setup/setupStrings';
+import { AI_SIGN_IN_NEEDED } from '../../components/studypack/tvHints';
+import { openSignedInChat, failOnOpenRouter, CHAT_ANSWER } from './helpers/hostedAI';
 
 test.describe('AI Chat View', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto(`/${APP_HASH}`);
-    await page.waitForLoadState('networkidle');
-    // Navigate to AI Chat tab
-    await page.click('text=AI Chat');
+    await openSignedInChat(page, APP_HASH);
     await page.waitForTimeout(500);
   });
 
@@ -28,10 +36,10 @@ test.describe('AI Chat View', () => {
     await page.waitForTimeout(2000);
     const userMsg = page.locator('.justify-end');
     await expect(userMsg.first()).toBeVisible({ timeout: 5000 });
-    // Should show a response (either AI content or error message)
-    await page.waitForTimeout(3000);
+    // The streamed answer from the (mocked) hosted proxy
     const assistantMsg = page.locator('.justify-start').first();
     await expect(assistantMsg).toBeVisible({ timeout: 10000 });
+    await expect(assistantMsg).toContainText(CHAT_ANSWER);
   });
 
   test('should show action icons on assistant messages', async ({ page }) => {
@@ -41,7 +49,7 @@ test.describe('AI Chat View', () => {
     await textarea.press('Enter');
     await page.waitForTimeout(3000);
 
-    // Assistant message should have action icons (copy, speaker, save, etc.)
+    // Assistant message should have action icons (copy, save, etc.)
     const assistantMsg = page.locator('.justify-start').first();
     await expect(assistantMsg).toBeVisible({ timeout: 10000 });
 
@@ -49,9 +57,9 @@ test.describe('AI Chat View', () => {
     const copyBtn = assistantMsg.locator('button[title="复制"], button[title="Copy"]');
     await expect(copyBtn).toBeVisible();
 
-    // Should have the speaker button
+    // Read-aloud (Gemini speech) is paused: the hosted AI cannot serve it
     const speakerBtn = assistantMsg.locator('button[title="朗读"], button[title="Read aloud"]');
-    await expect(speakerBtn).toBeVisible();
+    await expect(speakerBtn).toHaveCount(0);
   });
 
   test('copy button should copy message content to clipboard', async ({ page, context }) => {
@@ -107,9 +115,7 @@ test.describe('AI Chat View', () => {
 
 test.describe('AI Chat - Thread Switching', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto(`/${APP_HASH}`);
-    await page.waitForLoadState('networkidle');
-    await page.click('text=AI Chat');
+    await openSignedInChat(page, APP_HASH);
     await page.waitForTimeout(500);
   });
 
@@ -153,9 +159,7 @@ test.describe('AI Chat - Thread Switching', () => {
 
 test.describe('AI Chat - Scroll to Bottom', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto(`/${APP_HASH}`);
-    await page.waitForLoadState('networkidle');
-    await page.click('text=AI Chat');
+    await openSignedInChat(page, APP_HASH);
     await page.waitForTimeout(500);
   });
 
@@ -188,5 +192,40 @@ test.describe('AI Chat - Scroll to Bottom', () => {
       );
       expect(isAtBottom).toBeTruthy();
     }
+  });
+});
+
+test.describe('AI Chat - one AI path (ADR-0007 Personal app)', () => {
+  test('signed in: AI settings shows the AI service status (no provider list); a message streams from ai-proxy with role study', async ({ page }) => {
+    const openRouterHits = await failOnOpenRouter(page);
+    const calls = await openSignedInChat(page, APP_HASH);
+
+    await page.getByRole('button', { name: SETUP_TITLE }).click();
+    const dialog = page.getByRole('dialog', { name: SETUP_TITLE });
+    await expect(dialog.getByText(SETUP_HOSTED_READY)).toBeVisible();
+    await expect(dialog.getByRole('combobox')).toHaveCount(0);
+    await expect(page.getByText('AI Provider Settings')).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await expect(dialog).toHaveCount(0);
+
+    await page.locator('textarea').fill('What is grace?');
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.justify-start').first()).toContainText(CHAT_ANSWER);
+    const [call] = calls();
+    expect(call.body).toMatchObject({ role: 'study', stream: true });
+    expect(call.body.messages[call.body.messages.length - 1]).toEqual({ role: 'user', content: 'What is grace?' });
+    expect(openRouterHits()).toBe(0);
+  });
+
+  test('signed out: the sign-in line, and 设置AI opens the AI service dialog at its sign-in prompt', async ({ page }) => {
+    await page.goto(`/${APP_HASH}`);
+    await page.waitForLoadState('networkidle');
+    await page.click('text=AI Chat');
+    await page.locator('textarea').fill('What is grace?');
+    await page.keyboard.press('Enter');
+    const alert = page.getByRole('alert').filter({ hasText: AI_SIGN_IN_NEEDED });
+    await expect(alert).toBeVisible();
+    await alert.getByRole('button', { name: SETUP_OPEN_BUTTON }).click();
+    await expect(page.getByRole('dialog', { name: SETUP_TITLE }).getByText(SETUP_SIGN_IN_TO_USE_AI)).toBeVisible();
   });
 });

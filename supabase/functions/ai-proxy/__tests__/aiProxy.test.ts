@@ -42,10 +42,11 @@ describe('pins against the app (the function imports nothing from the bundle)', 
 });
 
 describe('chooseModel', () => {
-  it('each role defaults: ask → gemini flash, pack/adjust/sharing → sonnet', () => {
+  it('each role defaults: ask/study → gemini flash, pack/adjust/sharing → sonnet', () => {
     expect(ROLE_DEFAULT_MODEL).toEqual({
       ask: 'google/gemini-2.5-flash', pack: 'anthropic/claude-sonnet-4.5',
       adjust: 'anthropic/claude-sonnet-4.5', sharing: 'anthropic/claude-sonnet-4.5',
+      study: 'google/gemini-2.5-flash',
     });
     for (const role of AI_ROLES) expect(chooseModel(role, undefined)).toBe(ROLE_DEFAULT_MODEL[role]);
   });
@@ -57,14 +58,22 @@ describe('chooseModel', () => {
     expect(chooseModel('ask', 42)).toBe(ASK_AI_MODEL);
   });
 
+  it('study (the personal app) shares the Ask-AI allowlist — the same list, not a copy (R3)', () => {
+    expect(ROLE_ALLOWED_MODELS.study).toBe(ROLE_ALLOWED_MODELS.ask);
+    for (const id of ASK_AI_FALLBACK_MODELS) expect(chooseModel('study', id)).toBe(id);
+    expect(chooseModel('study', 'anthropic/claude-sonnet-4.5')).toBe(ASK_AI_MODEL);
+    expect(chooseModel('study', undefined)).toBe(ASK_AI_MODEL);
+  });
+
   it('every role default is on its own allowlist', () => {
     for (const role of AI_ROLES) expect(ROLE_ALLOWED_MODELS[role]).toContain(ROLE_DEFAULT_MODEL[role]);
   });
 });
 
 describe('clampMaxTokens', () => {
-  it('caps: ask 2000, pack 12000, adjust 4000, sharing 3000', () => {
-    expect(ROLE_MAX_TOKENS).toEqual({ ask: 2000, pack: 12000, adjust: 4000, sharing: 3000 });
+  it('caps: ask 2000, pack 12000, adjust 4000, sharing 3000, study 4000', () => {
+    expect(ROLE_MAX_TOKENS).toEqual({ ask: 2000, pack: 12000, adjust: 4000, sharing: 3000, study: 4000 });
+    expect(clampMaxTokens('study', 99_999)).toBe(4000);
     expect(clampMaxTokens('ask', 300)).toBe(300);
     expect(clampMaxTokens('ask', 99_999)).toBe(2000);
     expect(clampMaxTokens('pack', 50_000)).toBe(12000);
@@ -83,6 +92,11 @@ describe('validateRequest', () => {
   it('a good body → the forwarded request with server-chosen model and cap', () => {
     const req = valid({ role: 'ask', messages: [USER], stream: true, max_tokens: 300, temperature: 0.7, model: 'evil/model' });
     expect(req).toEqual({ role: 'ask', messages: [USER], stream: true, maxTokens: 300, model: ASK_AI_MODEL, temperature: 0.7 });
+  });
+
+  it('role study (the personal app) is accepted: Ask-AI model, capped at 4000', () => {
+    const req = valid({ role: 'study', messages: [{ role: 'system', content: 's' }, USER], stream: true, max_tokens: 50_000, model: 'openai/gpt-5-pro' });
+    expect(req).toMatchObject({ role: 'study', stream: true, maxTokens: 4000, model: ASK_AI_MODEL });
   });
 
   it('rejects with a typed invalid-request: unknown role, empty / too many / too long messages, bad shapes', () => {
@@ -126,12 +140,14 @@ describe('validateRequest', () => {
 
 describe('monthlyLimit', () => {
   it('defaults: ask 300, pack 10, adjust 100, sharing 10', () => {
-    expect(DEFAULT_MONTHLY_LIMITS).toEqual({ ask: 300, pack: 10, adjust: 100, sharing: 10 });
+    expect(DEFAULT_MONTHLY_LIMITS).toEqual({ ask: 300, pack: 10, adjust: 100, sharing: 10, study: 100 });
     for (const role of AI_ROLES) expect(monthlyLimit(role, envOf({}))).toBe(DEFAULT_MONTHLY_LIMITS[role]);
   });
 
   it('a non-negative integer secret overrides; junk falls back to the default', () => {
     expect(MONTHLY_LIMIT_SECRET.pack).toBe('AI_MONTHLY_PACK');
+    expect(MONTHLY_LIMIT_SECRET.study).toBe('AI_MONTHLY_STUDY');
+    expect(monthlyLimit('study', envOf({ AI_MONTHLY_STUDY: '250' }))).toBe(250);
     expect(monthlyLimit('pack', envOf({ AI_MONTHLY_PACK: ' 25 ' }))).toBe(25);
     expect(monthlyLimit('ask', envOf({ AI_MONTHLY_ASK: '0' }))).toBe(0);
     expect(monthlyLimit('ask', envOf({ AI_MONTHLY_ASK: '-3' }))).toBe(300);

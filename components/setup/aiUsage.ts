@@ -5,16 +5,16 @@
  * RLS lets a leader SELECT their own rows only, and the query filters by uid
  * as well). The month key is UTC 'YYYY-MM', the same one consume_ai_quota
  * writes. A role never used this month shows 0/<default limit>; once used,
- * the row carries the limit the server applied. Ask and pack always show;
- * adjust and sharing once they have a row. A failed read is surfaced (R5).
+ * the row carries the limit the server applied. Ask, pack and study (the
+ * personal app) always show; adjust and sharing once they have a row. A failed read is surfaced (R5).
  */
 import { useEffect, useState } from 'react';
 import { getSignupClient } from '../signup/signupClient';
 import { AI_USAGE_TABLE, DEFAULT_MONTHLY_LIMITS, AIRole, isAIRole } from '../../supabase/functions/ai-proxy/policy';
 import { UsageEntry } from './setupStrings';
 
-const ALWAYS_SHOWN: readonly AIRole[] = ['ask', 'pack'];
-const ROLE_ORDER: readonly AIRole[] = ['ask', 'pack', 'adjust', 'sharing'];
+const ALWAYS_SHOWN: readonly AIRole[] = ['ask', 'pack', 'study'];
+const ROLE_ORDER: readonly AIRole[] = ['ask', 'pack', 'study', 'adjust', 'sharing'];
 
 /** UTC 'YYYY-MM' — the consume_ai_quota month (pinned by database/__tests__/aiUsageSchema.test.ts). */
 export function currentUsageMonth(now: Date = new Date()): string {

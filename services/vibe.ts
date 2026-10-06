@@ -1,11 +1,13 @@
 /**
  * Vibe Coding Service
  *
- * Uses the configured AI provider (Gemini or Claude) from AI Research settings
- * to generate Tailwind CSS classes for app theming based on natural language.
+ * Generates Tailwind classes / scoped CSS for app theming from natural
+ * language, through the personal app's one AI path (services/studyAI:
+ * own key → OpenRouter, signed in → ai-proxy role 'study').
  */
 
-import { chatWithAI, getCurrentProvider, isProviderConfigured } from './aiProvider';
+import { chatStudyAI } from './studyAI';
+import { isAIAvailable } from './aiTransport';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 
 export interface VibeStyles {
@@ -33,14 +35,9 @@ export const VIBE_PRESETS = [
   'Cozy coffee shop warmth',
 ];
 
+/** An own key or a signed-in user (the same gate as the study pages). */
 export function isVibeAvailable(): boolean {
-  const provider = getCurrentProvider();
-  return isProviderConfigured(provider);
-}
-
-export function getVibeProviderName(): string {
-  const provider = getCurrentProvider();
-  return provider === 'claude' ? 'Claude' : 'Gemini';
+  return isAIAvailable();
 }
 
 export async function generateVibeStyles(vibePrompt: string): Promise<VibeStyles> {
@@ -58,10 +55,7 @@ Output ONLY valid JSON like:
 
 Use only standard Tailwind CSS classes. Keep it tasteful and readable. Output ONLY the JSON, nothing else.`;
 
-  const result = await chatWithAI(prompt, [], { fast: true });
-
-  // Extract the response text
-  const text = typeof result === 'string' ? result : (result as any)?.text || (result as any)?.content || JSON.stringify(result);
+  const { text } = await chatStudyAI(prompt);
 
   // Extract JSON from response (may be wrapped in ```json blocks or have extra text)
   const jsonMatch = text.match(/```(?:json)?\s*(\{[\s\S]*?\})\s*```/) ||
@@ -110,8 +104,7 @@ export async function generateVibeCSS(userRequest: string, conversationHistory: 
   const aiHistory = conversationHistory.map(m => ({ role: m.role, content: m.role === 'assistant' && m.css ? `${m.content}\n\nCSS:\n${m.css}` : m.content }));
   const ctx = currentCSS ? `\n\nCurrent CSS:\n${currentCSS}\n\nBuild on these.` : '';
   const prompt = `${CSS_CTX}${ctx}\n\nUser: "${userRequest}"\n\nRespond:\nEXPLANATION: <one sentence>\nCSS:\n<code>`;
-  const result = await chatWithAI(prompt, aiHistory, { fast: true });
-  const text = typeof result === 'string' ? result : (result as any)?.text || (result as any)?.content || String(result);
+  const { text } = await chatStudyAI(prompt, aiHistory);
   const expMatch = text.match(/EXPLANATION:\s*(.+?)(?:\n|CSS:)/s);
   const cssMatch = text.match(/CSS:\s*\n?([\s\S]+?)(?:```|$)/);
   const cbMatch = text.match(/```(?:css)?\s*\n?([\s\S]*?)\n?```/);

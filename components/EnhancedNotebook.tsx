@@ -8,7 +8,6 @@ import LazyMarkdown from './LazyMarkdown';
 import { usePaperType } from '../hooks/usePaperType';
 import type { PaperType } from '../services/strokeNormalizer';
 import { downloadNote, readNoteFile } from '../services/fileSystem';
-import * as aiService from '../services/gemini';
 import { IMAGE, TIMING } from '../constants/appConfig';
 import 'katex/dist/katex.min.css';
 import { CHINESE_ABBREV_TO_BOOK_ID, BIBLE_BOOKS } from '../constants';
@@ -193,7 +192,6 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
   const [isWritingMode, setIsWritingMode] = useState(true);
 
   // Text-to-speech state (from Notebook.tsx)
-  const [isSpeaking, setIsSpeaking] = useState(false);
 
   // Camera/media state (from Notebook.tsx)
   const [isCameraOpen, setIsCameraOpen] = useState(false);
@@ -521,19 +519,6 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
     handleContentChange();
   };
 
-  // Text-to-speech (from Notebook.tsx)
-  const handleSpeak = () => {
-    const text = editorRef.current?.innerText || '';
-    if (!text.trim()) return;
-    setIsSpeaking(true);
-    aiService.speak(text, () => setIsSpeaking(false));
-  };
-
-  const handleStopSpeak = () => {
-    aiService.stopSpeech();
-    setIsSpeaking(false);
-  };
-
   // Export note (from Notebook.tsx)
   const handleExport = () => {
     if (!selection) return;
@@ -815,15 +800,6 @@ const EnhancedNotebook: React.FC<EnhancedNotebookProps> = ({
           <button onClick={() => mediaInputRef.current?.click()} className="toolbar-btn" title="Attach file">📎</button>
           <button onClick={handleImportClick} className="toolbar-btn" title="Import note">⬆</button>
           <button onClick={handleExport} className="toolbar-btn" title="Export note">⬇</button>
-          <span className="toolbar-sep" />
-          <button
-            onClick={isSpeaking ? handleStopSpeak : handleSpeak}
-            className="toolbar-btn"
-            style={isSpeaking ? { background: '#fee2e2', color: '#ef4444' } : {}}
-            title={isSpeaking ? 'Stop' : 'Read aloud'}
-          >
-            {isSpeaking ? '⏹' : '🔊'}
-          </button>
         </div>
       )}
 

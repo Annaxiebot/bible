@@ -9,7 +9,7 @@
  */
 
 /** Pure enough for the browser too: services/aiTransport + components/setup/aiUsage import from here (one list, R3). */
-export const AI_ROLES = ['ask', 'pack', 'adjust', 'sharing'] as const;
+export const AI_ROLES = ['ask', 'pack', 'adjust', 'sharing', 'study'] as const;
 export type AIRole = typeof AI_ROLES[number];
 
 /** = services/aiDefaults ASK_AI_MODEL (pinned). */
@@ -23,27 +23,38 @@ export const ASK_AI_FALLBACK_MODELS: readonly string[] = [
   'openrouter/free',
 ];
 
+/** 'study' = the personal app (#app chat, journal, vibe): the Ask-AI model and allowlist (one list, R3). */
 export const ROLE_DEFAULT_MODEL: Readonly<Record<AIRole, string>> = {
   ask: ASK_AI_MODEL,
   pack: PACK_GENERATION_MODEL,
   adjust: PACK_GENERATION_MODEL,
   sharing: PACK_GENERATION_MODEL,
+  study: ASK_AI_MODEL,
 };
+
+/** The Ask-AI model + its client fallback chain — allowed for 'ask' and 'study'. */
+const ASK_ALLOWED_MODELS: readonly string[] = [ASK_AI_MODEL, ...ASK_AI_FALLBACK_MODELS];
 
 /** Per role: the only models a caller may request (the client's fallback chain stays honoured for Ask AI). */
 export const ROLE_ALLOWED_MODELS: Readonly<Record<AIRole, readonly string[]>> = {
-  ask: [ASK_AI_MODEL, ...ASK_AI_FALLBACK_MODELS],
+  ask: ASK_ALLOWED_MODELS,
   pack: [PACK_GENERATION_MODEL],
   adjust: [PACK_GENERATION_MODEL],
   sharing: [PACK_GENERATION_MODEL],
+  study: ASK_ALLOWED_MODELS,
 };
 
-/** pack = components/newstudy/packPrompt PACK_MAX_TOKENS (pinned). */
+/**
+ * pack = components/newstudy/packPrompt PACK_MAX_TOKENS (pinned). study is
+ * twice ask: a personal-study answer is long-form and bilingual (中文 [SPLIT]
+ * English, services/systemPrompts), so the same content is written twice.
+ */
 export const ROLE_MAX_TOKENS: Readonly<Record<AIRole, number>> = {
   ask: 2000,
   pack: 12000,
   adjust: 4000,
   sharing: 3000,
+  study: 4000,
 };
 
 /** database/ai-usage-schema.sql names (pinned by database/__tests__/aiUsageSchema.test.ts). */
@@ -61,6 +72,7 @@ export const DEFAULT_MONTHLY_LIMITS: Readonly<Record<AIRole, number>> = {
   pack: 10,
   adjust: 100,
   sharing: 10,
+  study: 100,
 };
 
 /** The secret that overrides each role's monthly limit. */
@@ -69,6 +81,7 @@ export const MONTHLY_LIMIT_SECRET: Readonly<Record<AIRole, string>> = {
   pack: 'AI_MONTHLY_PACK',
   adjust: 'AI_MONTHLY_ADJUST',
   sharing: 'AI_MONTHLY_SHARING',
+  study: 'AI_MONTHLY_STUDY',
 };
 
 export interface ChatMessage { role: string; content: string }

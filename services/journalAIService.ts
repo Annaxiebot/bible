@@ -15,7 +15,7 @@
  * 11. Proactive suggestions — personalized prompts based on context
  */
 
-import { chatWithAI, streamViaEdgeFunction, getCurrentModel, getCurrentProvider } from './aiProvider';
+import { chatStudyAI, streamStudyAI } from './studyAI';
 import { journalStorage } from './journalStorage';
 import { JournalEntry, SpiritualMemoryItem } from './idbService';
 import { spiritualMemory } from './spiritualMemory';
@@ -38,36 +38,11 @@ export async function streamAI(
   onChunk: (text: string) => void,
 ): Promise<StreamResult> {
   const timestamp = new Date().toISOString();
-  let model: string | undefined;
-  let provider: string | undefined;
-  let racePool: any[] | undefined;
-
-  const useServer = localStorage.getItem('useServerAI') !== 'false';
-
-  // Inject language directive at the top of every journal-AI prompt so replies
-  // are Chinese-with-English-keywords even when the backend's own system prompt
-  // is absent or different. Placed as a USER-prompt prefix because streamAI
-  // sends no dedicated system message.
+  // Language directive as a USER-prompt prefix: journal requests send no system message.
   const JOURNAL_LANG_DIRECTIVE = `INSTRUCTION (overrides any other language preference): Write your entire response in Simplified Chinese (简体中文) as the primary language, but keep key theological/technical terms, proper nouns, book names, and Bible references in English (e.g. covenant, atonement, Genesis 15:6, John 3:16). Optionally add a short Chinese gloss in parentheses after the first occurrence of an English term, e.g. "covenant（约）". Do NOT use the [SPLIT] format here — produce a single unified response in Chinese with English keywords embedded.\n\n`;
-  const finalPrompt = JOURNAL_LANG_DIRECTIVE + prompt;
-
-  if (useServer && streamViaEdgeFunction) {
-    await streamViaEdgeFunction(
-      finalPrompt, [], { fast: true },
-      onChunk,
-      (m, p, pool) => { model = m; provider = p; racePool = pool; },
-      (err) => { throw err; },
-    );
-  } else {
-    // Fallback to non-streaming
-    const result = await chatWithAI(finalPrompt, [], { fast: true });
-    const text = typeof result === 'string' ? result : result.text;
-    model = typeof result === 'string' ? undefined : result.model;
-    provider = typeof result === 'string' ? undefined : (result as any).provider;
-    onChunk(text);
-  }
-
-  return { model: model || getCurrentModel() || getCurrentProvider(), provider, timestamp, racePool };
+  // The personal app's one AI path (services/studyAI): own key → OpenRouter, signed in → ai-proxy role 'study'.
+  const { model } = await streamStudyAI(JOURNAL_LANG_DIRECTIVE + prompt, [], onChunk);
+  return { model, timestamp };
 }
 
 // ─── Configurable AI Prompts ──────────────────────────────────────────────
@@ -248,13 +223,11 @@ export async function suggestTags(entry: JournalEntry): Promise<string[]> {
   if (text.trim().length < 10) return [];
 
   try {
-    const result = await chatWithAI(
+    const result = await chatStudyAI(
       `${getPrompt('tag')}\n\nJournal entry:\n${text.slice(0, 2000)}`,
-      [],
-      { fast: true }
     );
 
-    const responseText = typeof result === 'string' ? result : result.text;
+    const responseText = result.text;
 
     // Extract JSON array from response (handle markdown code blocks)
     const jsonMatch = responseText.match(/\[[\s\S]*?\]/);
@@ -399,13 +372,11 @@ export async function generateWeeklyDigest(force = false): Promise<WeeklyDigest 
     .join('\n\n');
 
   try {
-    const result = await chatWithAI(
+    const result = await chatStudyAI(
       `${getPrompt('digest')}\n\n${entriesText}`,
-      [],
-      { fast: true }
     );
 
-    const summary = typeof result === 'string' ? result : result.text;
+    const summary = result.text;
 
     const digest: WeeklyDigest = {
       summary,
@@ -499,12 +470,10 @@ export async function generateReflectionPrompt(
   }
 
   try {
-    const result = await chatWithAI(
+    const result = await chatStudyAI(
       `${getPromptWithIdentity('reflection')}\n\n${parts.join('\n\n')}`,
-      [],
-      { fast: true }
     );
-    const text = typeof result === 'string' ? result : result.text;
+    const text = result.text;
     return text.trim();
   } catch (err) {
     console.warn('[JournalAI] Reflection prompt failed:', err);
@@ -532,8 +501,8 @@ export async function extendThinking(
   }
 
   try {
-    const result = await chatWithAI(prompt, [], { fast: true });
-    return (typeof result === 'string' ? result : result.text).trim();
+    const result = await chatStudyAI(prompt);
+    return result.text.trim();
   } catch (err) {
     console.warn('[JournalAI] Extend thinking failed:', err);
     return '';
@@ -551,12 +520,10 @@ export async function summarizeEntry(text: string): Promise<string> {
   if (!text.trim() || text.trim().length < 20) return '';
 
   try {
-    const result = await chatWithAI(
+    const result = await chatStudyAI(
       `${getPromptWithIdentity('summarize')}\n\nJournal entry:\n${text.slice(0, 3000)}`,
-      [],
-      { fast: true }
     );
-    return (typeof result === 'string' ? result : result.text).trim();
+    return result.text.trim();
   } catch (err) {
     console.warn('[JournalAI] Summarize failed:', err);
     return '';
@@ -692,8 +659,8 @@ export async function chatAboutEntry(
   context.push(`User's question: ${question}`);
 
   try {
-    const result = await chatWithAI(context.join('\n\n'), [], { fast: true });
-    return (typeof result === 'string' ? result : result.text).trim();
+    const result = await chatStudyAI(context.join('\n\n'));
+    return result.text.trim();
   } catch (err) {
     console.warn('[JournalAI] Chat about entry failed:', err);
     return 'Sorry, I could not process your question right now. Please try again.';
@@ -720,12 +687,10 @@ export async function extractMemoryItems(
   if (!entryText.trim() || entryText.trim().length < 30) return [];
 
   try {
-    const result = await chatWithAI(
+    const result = await chatStudyAI(
       `${getPrompt('memory')}\n\nJournal entry:\n${entryText.slice(0, 2000)}`,
-      [],
-      { fast: true }
     );
-    const responseText = typeof result === 'string' ? result : result.text;
+    const responseText = result.text;
 
     const jsonMatch = responseText.match(/\[[\s\S]*?\]/);
     if (!jsonMatch) return [];
@@ -801,12 +766,10 @@ export async function generateSpiritualProfile(
     .join('\n');
 
   try {
-    const result = await chatWithAI(
+    const result = await chatStudyAI(
       `${getPromptWithIdentity('profile')}\n\nMemory items:\n${contextLines}`,
-      [],
-      { fast: true }
     );
-    return (typeof result === 'string' ? result : result.text).trim();
+    return result.text.trim();
   } catch (err) {
     console.warn('[JournalAI] Spiritual profile failed:', err);
     return 'Could not generate profile at this time. Please try again later.';
@@ -860,12 +823,10 @@ export async function generateProactiveSuggestion(
   }
 
   try {
-    const result = await chatWithAI(
+    const result = await chatStudyAI(
       `${getPromptWithIdentity('proactive')}\n\n${parts.join('\n')}`,
-      [],
-      { fast: true }
     );
-    return (typeof result === 'string' ? result : result.text).trim();
+    return result.text.trim();
   } catch (err) {
     console.warn('[JournalAI] Proactive suggestion failed:', err);
     return '';

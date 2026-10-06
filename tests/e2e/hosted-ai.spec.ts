@@ -10,44 +10,18 @@
  * no-credit reply is the one error line that links to that page. A
  * signed-out visitor sees the sign-in prompt.
  */
-import { test, expect, Page } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { SETUP_HASH } from '../../components/landing/landingRoute';
 import {
   SETUP_TITLE, SETUP_HOSTED_READY, SETUP_SIGN_IN_TO_USE_AI, SETUP_OWN_KEY_TOGGLE, SETUP_KEY_LABEL, SETUP_MODELS_TITLE,
 } from '../../components/setup/setupStrings';
 import { AI_CREDIT_USED_UP, AI_OWN_KEY_ON_STATUS_PAGE } from '../../components/studypack/tvHints';
-import { AI_PROXY_FUNCTION, E2E_ACCESS_TOKEN } from '../../services/aiProxyRoute';
-import { injectSupabaseOverride, E2E_SUPABASE_PATH, E2E_ANON_KEY, E2E_LEADER_ID } from './helpers/signup';
-import { openTV, goToSlide, DEMO_SLIDE, sseBody, OPENROUTER_CHAT_URL } from './helpers/tv';
+import { E2E_ACCESS_TOKEN } from '../../services/aiProxyRoute';
+import { E2E_SUPABASE_PATH, E2E_ANON_KEY } from './helpers/signup';
+import { openTV, goToSlide, DEMO_SLIDE, sseBody } from './helpers/tv';
+import { signInAsLeader, mockProxy, failOnOpenRouter } from './helpers/hostedAI';
 
 const MODEL = 'google/gemini-2.5-flash';
-
-/** The dev-only Google-session stand-in (same seam the leader pages read) + the fake Supabase base. */
-async function signInAsLeader(page: Page) {
-  await injectSupabaseOverride(page);
-  await page.addInitScript(uid => {
-    (window as Window & { __LEADER_E2E__?: unknown }).__LEADER_E2E__ = { uid, email: 'leader@example.org', name: 'Leader' };
-  }, E2E_LEADER_ID);
-}
-
-interface ProxyCall { headers: Record<string, string>; body: { role: string; model: string; stream: boolean } }
-
-/** Route the ai-proxy function under the fake base; every call is recorded. */
-async function mockProxy(page: Page, reply: { sse: string } | { status: number; json: object }): Promise<() => ProxyCall[]> {
-  const calls: ProxyCall[] = [];
-  await page.route(`**${E2E_SUPABASE_PATH}/functions/v1/${AI_PROXY_FUNCTION}`, route => {
-    calls.push({ headers: route.request().headers(), body: route.request().postDataJSON() });
-    if ('sse' in reply) return route.fulfill({ status: 200, headers: { 'Content-Type': 'text/event-stream' }, body: reply.sse });
-    return route.fulfill({ status: reply.status, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(reply.json) });
-  });
-  return () => calls;
-}
-
-async function failOnOpenRouter(page: Page): Promise<() => number> {
-  let hits = 0;
-  await page.route(OPENROUTER_CHAT_URL, route => { hits++; return route.abort(); });
-  return () => hits;
-}
 
 test.describe('Hosted AI — signed in, no own key', () => {
   test('TV Ask AI: no setup, the question goes to ai-proxy (bearer, apikey, role ask) and the streamed answer renders', async ({ page }) => {
@@ -95,7 +69,7 @@ test.describe('Hosted AI — signed in, no own key', () => {
     await page.goto(`./${SETUP_HASH}`);
     const dialog = page.getByRole('dialog', { name: SETUP_TITLE });
     await expect(dialog.getByText(SETUP_HOSTED_READY)).toBeVisible();
-    await expect(dialog.getByTestId('ai-usage')).toHaveText('本月 This month: 提问 12/300 · 查经包 1/10');
+    await expect(dialog.getByTestId('ai-usage')).toHaveText('本月 This month: 提问 12/300 · 查经包 1/10 · 个人研经 Personal Study 0/100');
     await expect(dialog.getByLabel(SETUP_KEY_LABEL)).toHaveCount(0);
     await expect(dialog.getByText(SETUP_MODELS_TITLE)).toHaveCount(0);
     const toggle = dialog.getByRole('button', { name: SETUP_OWN_KEY_TOGGLE });

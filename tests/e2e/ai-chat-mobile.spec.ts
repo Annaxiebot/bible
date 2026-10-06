@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { APP_HASH } from '../../components/landing/landingRoute';
+import { openSignedInChat } from './helpers/hostedAI';
 
 // Emulate iPhone 12 with Chromium (WebKit not installed)
 test.use({
@@ -11,9 +12,8 @@ test.use({
 
 test.describe('AI Chat - Mobile Touch', () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto(`/${APP_HASH}`);
-    await page.waitForLoadState('networkidle');
-    await page.click('text=AI Chat');
+    // Signed in (dev-only seam) with a mocked ai-proxy: sends get a real answer (ADR-0007 "Personal app").
+    await openSignedInChat(page, APP_HASH);
     await page.waitForTimeout(500);
   });
 

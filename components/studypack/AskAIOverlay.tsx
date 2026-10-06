@@ -8,52 +8,23 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StudyPack, Slide } from './packTypes';
 import { AskAIMessage } from './askAI';
-import { SETUP_KINDS, RETRY_KINDS, OWN_KEY_LINK_KINDS } from './askAIErrors';
 import {
-  ASK_AI_LABEL, ASK_INPUT_PLACEHOLDER, ASK_SUBMIT_LABEL, TV_RETRY, thinkingLine, modelLine, AI_OWN_KEY_ON_STATUS_PAGE,
+  ASK_AI_LABEL, ASK_INPUT_PLACEHOLDER, ASK_SUBMIT_LABEL, thinkingLine, modelLine,
 } from './tvHints';
-import { useAskAI, AskAI, AskAIFailure } from './useAskAI';
+import { useAskAI, AskAI } from './useAskAI';
+import AIErrorLine from './AIErrorLine';
 import AskAnswer from './AskAnswer';
 import { QuickAISetupForm } from '../setup/QuickAISetup';
-import { SETUP_OPEN_BUTTON } from '../setup/setupStrings';
-import { SETUP_HASH } from '../landing/landingRoute';
 
 // Answers render through AskAnswer (markdown + verse tooltips, font scaled
 // by length). Overflow scrolls inside Conversation (flex-1 overflow-y-auto)
 // so the input/controls never leave the screen.
 const questionStyle: React.CSSProperties = { fontSize: '2.5vh', lineHeight: 1.4 };
-const inlineButtonClass = 'ml-3 rounded-lg border border-stl-gold px-4 py-1 text-stl-gold';
 
 const Message: React.FC<{ m: AskAIMessage; pack: StudyPack }> = ({ m, pack }) =>
   m.role === 'user'
     ? <p className="text-stl-text-2" style={questionStyle}>{`Q: ${m.content}`}</p>
     : <AskAnswer text={m.content} pack={pack} />;
-
-/**
- * Error line; its kind decides which of Retry / Set up AI accompany it. Only
- * the hosted no-credit / paused lines link to the AI page's own-key option.
- */
-const ErrorLine: React.FC<{ error: AskAIFailure; onSetup: () => void; onRetry: () => void }> =
-  ({ error, onSetup, onRetry }) => (
-    <p className="text-red-400" style={questionStyle} role="alert">
-      {error.message}
-      {RETRY_KINDS.has(error.kind) && (
-        <button type="button" onClick={onRetry} className={inlineButtonClass} style={questionStyle}>
-          {TV_RETRY}
-        </button>
-      )}
-      {SETUP_KINDS.has(error.kind) && (
-        <button type="button" onClick={onSetup} className={inlineButtonClass} style={questionStyle}>
-          {SETUP_OPEN_BUTTON}
-        </button>
-      )}
-      {OWN_KEY_LINK_KINDS.has(error.kind) && (
-        <a href={SETUP_HASH} className="ml-3 text-stl-gold underline underline-offset-4" style={questionStyle}>
-          {AI_OWN_KEY_ON_STATUS_PAGE}
-        </a>
-      )}
-    </p>
-  );
 
 const Conversation: React.FC<{ ai: AskAI; pack: StudyPack }> = ({ ai, pack }) => {
   const endRef = useRef<HTMLDivElement>(null);
@@ -90,7 +61,7 @@ const Conversation: React.FC<{ ai: AskAI; pack: StudyPack }> = ({ ai, pack }) =>
         <p className="text-stl-text-3" style={questionStyle} data-testid="ask-model">{modelLine(ai.model)}</p>
       )}
       {ai.error && (
-        <ErrorLine error={ai.error} onSetup={() => setSetupOpen(true)} onRetry={() => { void ai.retry(); }} />
+        <AIErrorLine error={ai.error} style={questionStyle} onSetup={() => setSetupOpen(true)} onRetry={() => { void ai.retry(); }} />
       )}
       <div ref={endRef} />
     </div>
