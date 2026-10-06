@@ -104,8 +104,6 @@
 .ld-new-study-t { font-family: var(--ld-head); font-weight: 700; font-size: 1.625rem; }
 .ld-new-study-en { font: 400 1.3125rem/1.3 var(--ld-latin-head); color: var(--stl-ink-2); margin-left: 6px; }
 .ld-new-study-s { color: var(--stl-ink-2); margin-top: 2px; }
-.ld-ai-line { margin-top: 16px; }
-.ld-ai-line button { color: var(--stl-gold-deep); text-decoration: underline; text-underline-offset: 4px; min-height: 48px; text-align: left; }
 @media (max-width: 860px) {
   .ld-next-card { grid-template-columns: 1fr; }
   .ld-next-main, .ld-next-verse { padding: 26px 22px; }

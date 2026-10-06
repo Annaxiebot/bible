@@ -28,7 +28,7 @@ import Pill from '../shared/Pill';
 import { splitLabel } from '../studypack/principles';
 import { SETUP_HASH, NEW_STUDY_HASH, SAMPLE_PACK_ID } from './landingRoute';
 import {
-  SITE_LINE, LOOP_LINE_ZH, LOOP_LINE_EN, SETUP_LINE, SETUP_DONE_LINE, NEW_STUDY_LINE, NEW_STUDY_SUB,
+  SITE_LINE, LOOP_LINE_ZH, LOOP_LINE_EN, NEW_STUDY_LINE, NEW_STUDY_SUB,
   BRAND_EN, BRAND_ZH_LEAD, BRAND_ZH_HIGHLIGHT, NAV_LINKS, PHOTO_CREDIT,
 } from './landingStrings';
 import { FEEDBACK_LABEL, feedbackHash } from '../../supabase/functions/_shared/feedback';
@@ -49,14 +49,6 @@ const NewStudyBlock: React.FC = () => {
     </div>
   );
 };
-
-const SetupLine: React.FC<{ configured: boolean; onOpen: () => void }> = ({ configured, onOpen }) => (
-  <p className="ld-ai-line">
-    <button type="button" onClick={onOpen} data-testid="landing-setup-line">
-      {configured ? SETUP_DONE_LINE : SETUP_LINE}
-    </button>
-  </p>
-);
 
 const Footer: React.FC = () => {
   const newStudy = splitLabel(NEW_STUDY_LINE);
@@ -114,7 +106,6 @@ const Landing: React.FC<{ setupOpen?: boolean }> = ({ setupOpen = false }) => {
         <LandingPersonal />
         <LandingNextStudy packId={SAMPLE_PACK_ID}>
           <NewStudyBlock />
-          <SetupLine configured={ai.available} onOpen={() => setOpen(true)} />
         </LandingNextStudy>
         <LandingNumbers />
       </main>

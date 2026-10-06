@@ -55,11 +55,6 @@ export const LOOP_EYEBROW = '一个循环 · The loop';
 export const LOOP_HEADING_ZH = '明白，活出，兴盛';
 export const LOOP_HEADING_EN = 'Understand → Live → Flourish';
 
-/** One-line AI entry in the next-study section; opens the AI service dialog (hosted AI: sign in, no key — ADR-0007). */
-export const SETUP_LINE = 'AI 服务：带领者登录即可使用 · AI service: sign in as a leader';
-/** Same line once AI is available (signed in, or an own key stored); still opens the status dialog. */
-export const SETUP_DONE_LINE = 'AI 已就绪 · AI ready';
-
 /** Third door: the leader generates a pack from a passage (#/new). */
 export const NEW_STUDY_LINE = '新建查经 New study';
 export const NEW_STUDY_SUB = '输入经文，AI 生成查经包，大屏演示 · Enter a passage; a study pack is drafted in your browser';

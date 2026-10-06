@@ -16,7 +16,7 @@
 import { test, expect, Page } from '@playwright/test';
 import {
   BRAND_ZH, GROUP_CTA, PERSONAL_CTA, GROUP_TITLE_ZH, PERSONAL_TITLE_ZH, SITE_LINE, LOOP_STEPS,
-  SETUP_LINE, SETUP_DONE_LINE, NAV_LINKS, NEXT_OPEN_CTA, NEXT_SIGNUP_CTA, HONEST_NUMBERS, GROUP_PHOTOS,
+  NAV_LINKS, NEXT_OPEN_CTA, NEXT_SIGNUP_CTA, HONEST_NUMBERS, GROUP_PHOTOS,
 } from '../../components/landing/landingStrings';
 import { SETUP_HASH, SAMPLE_PACK_ID } from '../../components/landing/landingRoute';
 import { signupHash } from '../../components/signup/signupRoute';
@@ -87,12 +87,15 @@ test.describe('Landing page', () => {
     await expect(page.getByTestId('landing-page')).toHaveCount(0);
   });
 
-  test('the 1-minute setup line opens the AI key dialog; Save stores the key and flips the line', async ({ page }) => {
+  test('the landing has no AI status line, even with an own key stored', async ({ page }) => {
+    await page.addInitScript(k => localStorage.setItem(k, 'sk-or-e2e-key'), STORAGE_KEYS.OPENROUTER_API_KEY);
     await openLanding(page);
-    const line = page.getByTestId('landing-setup-line');
-    await expect(line).toHaveText(SETUP_LINE);
-    expect((await line.boundingBox())!.height).toBeGreaterThanOrEqual(48);
-    await line.click();
+    await expect(page.getByTestId('landing-setup-line')).toHaveCount(0);
+    await expect(page.getByText('AI 已就绪 · AI ready')).toHaveCount(0);
+  });
+
+  test('#/setup: Save stores the own key and closes the dialog', async ({ page }) => {
+    await page.goto(`./${SETUP_HASH}`);
     const dialog = page.getByRole('dialog', { name: SETUP_TITLE });
     await expect(dialog).toBeVisible();
     // Own key is the hidden, advanced path of the AI service page (ADR-0007): open its toggle first.
@@ -103,7 +106,6 @@ test.describe('Landing page', () => {
     await dialog.getByLabel(SETUP_KEY_LABEL).fill('sk-or-e2e-key');
     await dialog.getByRole('button', { name: SETUP_SAVE }).click();
     await expect(dialog).toHaveCount(0);
-    await expect(line).toHaveText(SETUP_DONE_LINE);
     expect(await page.evaluate(k => localStorage.getItem(k), STORAGE_KEYS.OPENROUTER_API_KEY)).toBe('sk-or-e2e-key');
     expect(page.url()).not.toContain('sk-or-e2e-key');
   });
@@ -129,7 +131,7 @@ test.describe('Landing page', () => {
       expect(await fontSizePx(page, '.ld-card-title')).toBeGreaterThanOrEqual(MIN_TITLE_PX);
       expect(await fontSizePx(page, '.ld-hero .stl-pill')).toBeGreaterThanOrEqual(MIN_CTA_PX);
       expect(await fontSizePx(page, '.ld-headline')).toBeGreaterThanOrEqual(MIN_HEADLINE_PX[name]);
-      const targets = page.locator('.stl-pill:visible, .ld-nav-link:visible, [data-testid="landing-setup-line"]');
+      const targets = page.locator('.stl-pill:visible, .ld-nav-link:visible');
       expect(await targets.count()).toBeGreaterThan(8);
       for (const box of await targets.evaluateAll(els => els.map(el => el.getBoundingClientRect().height))) {
         expect(box).toBeGreaterThanOrEqual(MIN_TAP_PX);

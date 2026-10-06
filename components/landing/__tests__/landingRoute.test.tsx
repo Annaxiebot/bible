@@ -12,7 +12,7 @@ import { render, screen, within, cleanup, fireEvent } from '@testing-library/rea
 import { resolveRootView, APP_HASH, SAMPLE_PACK_HASH, SETUP_HASH, NEW_STUDY_HASH, newStudyHash, getNewStudyPackIdFromHash } from '../landingRoute';
 import {
   BRAND_EN, BRAND_ZH, GROUP_CTA, PERSONAL_CTA, GROUP_HEADING_EN, GROUP_PHOTOS, PHOTO_CREDIT,
-  GROUP_TITLE_ZH, PERSONAL_TITLE_ZH, PERSONAL_TITLE_EN, LOOP_STEPS, SETUP_LINE,
+  GROUP_TITLE_ZH, PERSONAL_TITLE_ZH, PERSONAL_TITLE_EN, LOOP_STEPS,
   NEW_STUDY_LINE, PERSONAL_VERSE_REF,
 } from '../landingStrings';
 import { SETUP_TITLE, SETUP_CLOSE } from '../../setup/setupStrings';
@@ -194,18 +194,13 @@ describe('LandingGate', () => {
     expect(open).toHaveAttribute('href', APP_HASH);
   });
 
-  it('the setup line opens the quick AI dialog; closing it leaves the landing in place', async () => {
+  it('shows no AI status line on the landing — sign-in lives in the nav (regression: "AI ready" shown signed out)', async () => {
     window.location.hash = '';
     render(<LandingGate app={app} />);
     await screen.findByTestId('landing-page');
+    expect(screen.queryByTestId('landing-setup-line')).toBeNull();
+    expect(screen.queryByText(/AI 已就绪|AI ready/)).toBeNull();
     expect(screen.queryByRole('dialog')).toBeNull();
-    const line = screen.getByTestId('landing-setup-line');
-    expect(line).toHaveTextContent(SETUP_LINE);
-    fireEvent.click(line);
-    expect(screen.getByRole('dialog', { name: SETUP_TITLE })).toBeInTheDocument();
-    fireEvent.keyDown(window, { key: 'Escape' });
-    expect(screen.queryByRole('dialog')).toBeNull();
-    expect(screen.getByTestId('landing-page')).toBeInTheDocument();
   });
 
   it('#/setup opens the landing with the dialog already open; closing clears the hash', async () => {
