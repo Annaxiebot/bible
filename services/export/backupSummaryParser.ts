@@ -1,9 +1,13 @@
 import { VerseData } from '../../types/verseData';
 import { BackupSummaryData, EMPTY_SUMMARY } from './exportTypes';
+import { isPersonalBackup, type PersonalBackup } from './personalDataBackup';
 
 export function parseBackupSummary(jsonString: string): BackupSummaryData {
   const data = JSON.parse(jsonString);
 
+  if (isPersonalBackup(data)) {
+    return parseV5Summary(data);
+  }
   if (data.version === '3.0') {
     return parseV3Summary(data);
   }
@@ -20,6 +24,19 @@ function countNotes(entries: VerseData[]): { notes: number; aiResearch: number }
   return {
     notes: entries.filter(d => d.personalNote).length,
     aiResearch: entries.reduce((acc, d) => acc + (d.aiResearch?.length || 0), 0),
+  };
+}
+
+function parseV5Summary(data: PersonalBackup): BackupSummaryData {
+  return {
+    version: data.version,
+    exportDate: data.exportDate,
+    ...countNotes(data.verseData ?? []),
+    annotations: data.annotations?.length || 0,
+    bookmarks: data.bookmarks?.length || 0,
+    historyEntries: data.readingHistory?.history?.length || 0,
+    readingPlans: data.readingPlans?.length || 0,
+    bibleChapters: 0,
   };
 }
 

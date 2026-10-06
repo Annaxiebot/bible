@@ -373,6 +373,7 @@ const App: React.FC = () => {
     e.target.value = "";
   };
 
+  // TODO(R4): App.tsx is over budget — split the backup / restore / clear handlers into hooks/useBackupRestore.ts.
   const confirmRestore = async () => {
     if (!backupDialog?.fileContent) return;
     setBackupLoading(true);
@@ -384,7 +385,7 @@ const App: React.FC = () => {
 
       const anyImported = result.notesImported > 0 || result.chaptersImported > 0
         || result.annotationsImported > 0 || result.bookmarksImported > 0
-        || result.plansImported > 0 || result.historyRestored;
+        || result.plansImported > 0 || !!result.otherImported || result.historyRestored;
 
       if (result.success || anyImported) {
         const allNotes = await notesStorage.getAllNotes();
@@ -396,6 +397,7 @@ const App: React.FC = () => {
         if (result.annotationsImported > 0) parts.push(`${result.annotationsImported} annotations`);
         if (result.bookmarksImported > 0) parts.push(`${result.bookmarksImported} bookmarks`);
         if (result.plansImported > 0) parts.push(`${result.plansImported} plans`);
+        if (result.otherImported) parts.push(`${result.otherImported} journal/chat/memory/settings`);
         if (result.historyRestored) parts.push('reading history');
         setToast({ message: `恢复成功！Restored: ${parts.join(', ') || 'data'}`, type: 'success' });
         setTimeout(() => setToast(null), 4000);

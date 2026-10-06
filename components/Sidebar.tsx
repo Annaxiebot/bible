@@ -6,9 +6,10 @@ import { bookmarkStorage, Bookmark } from '../services/bookmarkStorage';
 import { readingPlanStorage, ReadingPlanState, READING_PLANS, PlanType, ReadingPlanDay } from '../services/readingPlanStorage';
 import { useSeasonTheme } from '../hooks/useSeasonTheme';
 import { ALL_SEASONS, getThemeForSeason, getSeason } from '../services/seasonTheme';
-import { AuthPanel } from './AuthPanel';
+import SyncStatusLine from './SyncStatusLine';
 import { autoSaveResearchService } from '../services/autoSaveResearchService';
 import { STORAGE_KEYS } from '../constants/storageKeys';
+import { PERSONAL_AI_FEATURE_PAUSED } from './setup/setupStrings';
 
 export interface BgDownloadProgress {
   cached: number;
@@ -98,7 +99,6 @@ const Sidebar: React.FC<SidebarProps> = ({
     dataStats: false,
     notesManagement: false,
     offlineDownload: false,
-    cloudSync: false,
     settings: false,
   });
 
@@ -215,6 +215,7 @@ const Sidebar: React.FC<SidebarProps> = ({
       {showToggle && (
         <button
           onClick={onToggle}
+          aria-label="菜单 Menu"
           className="fixed left-3 z-50 p-2 bg-white rounded-lg shadow-lg hover:bg-slate-50 transition-all"
           style={{ 
             top: '8px',
@@ -258,6 +259,8 @@ const Sidebar: React.FC<SidebarProps> = ({
               <p className="text-xs text-slate-500">圣经学研 {theme.emoji} {theme.nameZh}</p>
             </div>
           </div>
+          {/* Sync: one line — local-only or signed in & synced (ADR-0010) */}
+          <SyncStatusLine />
         </div>
 
         {/* Menu Items */}
@@ -676,10 +679,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </svg>
                 <div className="flex-1 text-left">
                   <span className="text-sm font-medium text-slate-700 group-hover:text-indigo-600">
-                    备份数据
+                    导出全部数据
                   </span>
                   <span className="block text-xs text-slate-500">
-                    Backup all data
+                    Export all my data
                   </span>
                 </div>
               </button>
@@ -693,10 +696,10 @@ const Sidebar: React.FC<SidebarProps> = ({
                 </svg>
                 <div className="flex-1 text-left">
                   <span className="text-sm font-medium text-slate-700 group-hover:text-indigo-600">
-                    恢复数据
+                    导入
                   </span>
                   <span className="block text-xs text-slate-500">
-                    Restore from backup
+                    Import
                   </span>
                 </div>
               </button>
@@ -816,22 +819,6 @@ const Sidebar: React.FC<SidebarProps> = ({
             </div>
           )}
 
-          {/* === Cloud Sync Section (collapsible) === */}
-          <button
-            onClick={() => toggleSection('cloudSync')}
-            className="w-full flex items-center gap-2 px-4 py-2 rounded-lg hover:bg-slate-50 transition-colors"
-          >
-            <ChevronIcon isOpen={sectionsOpen.cloudSync} />
-            <span className="text-xs font-bold text-slate-500 uppercase tracking-wider flex-1 text-left">
-              ☁️ 云端同步 Cloud Sync
-            </span>
-          </button>
-
-          {sectionsOpen.cloudSync && (
-            <div className="px-4 py-2">
-              <AuthPanel />
-            </div>
-          )}
 
           {/* === Settings Section (collapsible) === */}
           <button

@@ -11,6 +11,7 @@ import {
 import { importFromJSON } from './notesImporter';
 import { importBibleTexts } from './bibleTextExportImport';
 import { STORAGE_KEYS } from '../../constants/storageKeys';
+import { importPersonalBackup, isPersonalBackup } from './personalDataBackup';
 
 function createEmptyResult(): CombinedImportResult {
   return {
@@ -36,7 +37,9 @@ export async function importCombinedBackup(
   try {
     const importData = JSON.parse(jsonString);
 
-    if (importData.version === '3.0') {
+    if (isPersonalBackup(importData)) {
+      await importV5(jsonString, onProgress, result);
+    } else if (importData.version === '3.0') {
       await importV3(importData, notesStrategy, onProgress, result);
     } else if (importData.version === '2.0') {
       await importV2(importData, notesStrategy, onProgress, result);
@@ -54,6 +57,20 @@ export async function importCombinedBackup(
     result.errors.push(`Parse error: ${error}`);
     return result;
   }
+}
+
+/** v5.0 "Export all my data" file: merge, newer wins, never deletes (ADR-0010). */
+async function importV5(jsonString: string, onProgress: ProgressCallback | undefined, result: CombinedImportResult) {
+  onProgress?.('Importing...', 10);
+  const r = await importPersonalBackup(jsonString);
+  result.notesImported = r.imported.notes + r.imported.verseData;
+  result.annotationsImported = r.imported.annotations;
+  result.bookmarksImported = r.imported.bookmarks;
+  result.plansImported = r.imported.readingPlans;
+  result.otherImported = r.imported.journal + r.imported.chatHistory + r.imported.spiritualMemory + r.imported.settings;
+  result.historyRestored = r.historyRestored;
+  result.errors.push(...r.errors);
+  onProgress?.('Done!', 100);
 }
 
 async function importV3(
@@ -165,9 +182,10 @@ async function importBookmarks(
   }
 }
 
-async function importReadingHistory(
+/** Adds history entries this browser lacks; fills lastRead / position only when absent (never overwrites). */
+export async function importReadingHistory(
   readingHistoryData: unknown,
-  result: CombinedImportResult,
+  result: Pick<CombinedImportResult, 'errors' | 'historyRestored'>,
 ) {
   if (!readingHistoryData || typeof readingHistoryData !== 'object') return;
   const rh = readingHistoryData as Record<string, unknown>;

@@ -23,10 +23,13 @@ import { annotationStorage, AnnotationRecord } from './annotationStorage';
 import { readingHistory } from './readingHistory';
 import { verseDataStorage } from './verseDataStorage';
 import { bookmarkStorage } from './bookmarkStorage';
-import { bibleStorage, BibleTranslation } from './bibleStorage';
 import type { VerseData } from '../types/verseData';
 import type { Bookmark } from './idbService';
 import { augmentNotabilityJSON } from './notabilityCanvasMigration';
+import {
+  PERSONAL_SYNC_TABLES as T, verseDataRow, bookmarkRow, chatHistoryRow, spiritualMemoryRow,
+  syncMetadataRow, throwIfUpsertFailed, verseDataStamp,
+} from './syncRows';
 
 // =====================================================
 // SYNC STATE
@@ -39,7 +42,6 @@ interface SyncState {
   lastSettingsSync: number;
   lastVerseDataSync: number;
   lastBookmarksSync: number;
-  lastBibleCacheSync: number;
   lastJournalSync: number;
   lastChatHistorySync: number;
   lastSpiritualMemorySync: number;
@@ -54,7 +56,6 @@ const DEFAULT_SYNC_STATE: SyncState = {
   lastSettingsSync: 0,
   lastVerseDataSync: 0,
   lastBookmarksSync: 0,
-  lastBibleCacheSync: 0,
   lastJournalSync: 0,
   lastChatHistorySync: 0,
   lastSpiritualMemorySync: 0,
@@ -81,14 +82,14 @@ function setSyncState(state: Partial<SyncState>) {
 
 type SyncModule =
   | 'notes' | 'annotations' | 'readingHistory' | 'settings'
-  | 'verseData' | 'bookmarks' | 'bibleCache' | 'journal' | 'chatHistory'
+  | 'verseData' | 'bookmarks' | 'journal' | 'chatHistory'
   | 'spiritualMemory';
 
 const ALL_MODULES: SyncModule[] = [
   'notes', 'annotations', 'readingHistory', 'settings',
   'verseData', 'bookmarks', 'journal', 'chatHistory',
   'spiritualMemory',
-  // 'bibleCache' — disabled to reduce Disk IO (Bible text cached locally via bible-api.com)
+  // No 'bibleCache': public Bible text is bundled / re-fetchable, never synced (ADR-0010).
 ];
 
 const MODULE_TS_KEY = 'bible_sync_module_timestamps';
@@ -159,10 +160,7 @@ async function updateServerTimestamp(module: SyncModule, ts: number): Promise<vo
   const userId = authManager.getUserId();
   if (!userId) return;
   try {
-    await supabase.from('sync_metadata').upsert(
-      { user_id: userId, module, last_modified: ts, updated_at: new Date(ts).toISOString() },
-      { onConflict: 'user_id,module' }
-    );
+    await supabase.from(T.syncMetadata.table).upsert(syncMetadataRow(userId, module, ts), { onConflict: T.syncMetadata.onConflict });
   } catch { /* fire-and-forget */ }
 }
 
@@ -171,7 +169,7 @@ async function fetchServerTimestamps(): Promise<Record<string, number>> {
   const userId = authManager.getUserId();
   if (!userId) return {};
   const { data, error } = await supabase
-    .from('sync_metadata')
+    .from(T.syncMetadata.table)
     .select('module, last_modified')
     .eq('user_id', userId);
   if (error) { handleSyncError(error); return {}; }
@@ -535,7 +533,8 @@ async function syncReadingHistory(): Promise<void> {
 // SETTINGS SYNC
 // =====================================================
 
-const SYNCED_SETTINGS_KEYS = [
+/** localStorage keys mirrored to user_settings (exported for the personal-data backup, which drops the *_api_key ones). */
+export const SYNCED_SETTINGS_KEYS: string[] = [
   STORAGE_KEYS.AI_PROVIDER,
   STORAGE_KEYS.AI_MODEL,
   STORAGE_KEYS.GEMINI_API_KEY,
@@ -624,25 +623,7 @@ async function syncSettings(forceRemotePull = false): Promise<void> {
 // =====================================================
 // VERSE DATA SYNC (personal notes + AI research per verse)
 // =====================================================
-//
-// Supabase table DDL:
-//
-// CREATE TABLE verse_data (
-//   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-//   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-//   verse_id TEXT NOT NULL,           -- e.g. "GEN:1:1" or "GENERAL:0:0"
-//   book_id TEXT NOT NULL,
-//   chapter INTEGER NOT NULL,
-//   verses INTEGER[] NOT NULL,
-//   data JSONB NOT NULL,              -- full VerseData object (personalNote + aiResearch)
-//   updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
-//   UNIQUE(user_id, verse_id)
-// );
-// CREATE INDEX idx_verse_data_user ON verse_data(user_id);
-// ALTER TABLE verse_data ENABLE ROW LEVEL SECURITY;
-// CREATE POLICY "Users can manage own verse data" ON verse_data
-//   FOR ALL USING (auth.uid() = user_id);
-//
+// Table: database/personal-sync-schema.sql (row shape: services/syncRows.ts).
 
 async function syncVerseData(): Promise<void> {
   if (!supabase || !canSync()) return;
@@ -656,7 +637,7 @@ async function syncVerseData(): Promise<void> {
   // Get remote verse data modified since last sync
   const syncState = getSyncState();
   const { data: remoteRows, error } = await supabase
-    .from('verse_data')
+    .from(T.verseData.table)
     .select('*')
     .eq('user_id', userId)
     .gte('updated_at', new Date(syncState.lastVerseDataSync).toISOString());
@@ -675,23 +656,16 @@ async function syncVerseData(): Promise<void> {
 
   // Upload local verse data modified since last sync
   const dataToUpload = localData
-    .filter(local => new Date((local as any).updatedAt || 0).getTime() > syncState.lastVerseDataSync)
-    .map(local => ({
-      user_id: userId,
-      verse_id: local.id,
-      book_id: local.bookId,
-      chapter: local.chapter,
-      verses: local.verses,
-      data: local,
-      updated_at: new Date().toISOString(),
-    }));
+    // VerseData has no top-level updatedAt: the old `(local as any).updatedAt` filter was always 0, so nothing ever uploaded.
+    .filter(local => verseDataStamp(local) > syncState.lastVerseDataSync)
+    .map(local => verseDataRow(userId, local, new Date().toISOString()));
 
   if (dataToUpload.length > 0) {
     // Batch in chunks of 100 to avoid payload limits
     for (let i = 0; i < dataToUpload.length; i += 100) {
       if (!canSync()) break;
       const batch = dataToUpload.slice(i, i + 100);
-      await supabase.from('verse_data').upsert(batch, { onConflict: 'user_id,verse_id' });
+      throwIfUpsertFailed(T.verseData.table, await supabase.from(T.verseData.table).upsert(batch, { onConflict: T.verseData.onConflict }));
     }
   }
 
@@ -701,27 +675,7 @@ async function syncVerseData(): Promise<void> {
 // =====================================================
 // BOOKMARKS SYNC
 // =====================================================
-//
-// Supabase table DDL:
-//
-// CREATE TABLE bookmarks (
-//   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-//   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-//   bookmark_id TEXT NOT NULL,        -- e.g. "GEN:1:1"
-//   book_id TEXT NOT NULL,
-//   book_name TEXT NOT NULL,
-//   chapter INTEGER NOT NULL,
-//   verse INTEGER NOT NULL,
-//   text_preview TEXT NOT NULL DEFAULT '',
-//   created_at BIGINT NOT NULL,       -- epoch ms from client
-//   updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
-//   UNIQUE(user_id, bookmark_id)
-// );
-// CREATE INDEX idx_bookmarks_user ON bookmarks(user_id);
-// ALTER TABLE bookmarks ENABLE ROW LEVEL SECURITY;
-// CREATE POLICY "Users can manage own bookmarks" ON bookmarks
-//   FOR ALL USING (auth.uid() = user_id);
-//
+// Table: database/personal-sync-schema.sql (row shape: services/syncRows.ts).
 
 async function syncBookmarks(): Promise<void> {
   if (!supabase || !canSync()) return;
@@ -739,7 +693,7 @@ async function syncBookmarks(): Promise<void> {
   const bookmarksCutoffISO = new Date(syncState.lastBookmarksSync).toISOString();
   console.log(`[sync] bookmarks pull start — cutoff=${bookmarksCutoffISO}`);
   const { data: remoteBookmarks, error } = await supabase
-    .from('bookmarks')
+    .from(T.bookmarks.table)
     .select('*')
     .eq('user_id', userId)
     .gte('updated_at', bookmarksCutoffISO);
@@ -772,118 +726,13 @@ async function syncBookmarks(): Promise<void> {
   const remoteIds = new Set((remoteBookmarks || []).map((r: { bookmark_id: string }) => r.bookmark_id));
   const bookmarksToUpload = localBookmarks
     .filter(local => !remoteIds.has(local.id) && new Date(local.createdAt).getTime() > (getSyncState().lastBookmarksSync || 0))
-    .map(local => ({
-      user_id: userId,
-      bookmark_id: local.id,
-      book_id: local.bookId,
-      book_name: local.bookName,
-      chapter: local.chapter,
-      verse: local.verse,
-      text_preview: local.textPreview || '',
-      created_at: local.createdAt,
-      updated_at: new Date().toISOString(),
-    }));
+    .map(local => bookmarkRow(userId, local, new Date().toISOString()));
 
   if (bookmarksToUpload.length > 0 && canSync()) {
-    await supabase.from('bookmarks').upsert(bookmarksToUpload, { onConflict: 'user_id,bookmark_id' });
+    throwIfUpsertFailed(T.bookmarks.table, await supabase.from(T.bookmarks.table).upsert(bookmarksToUpload, { onConflict: T.bookmarks.onConflict }));
   }
 
   setSyncState({ lastBookmarksSync: Date.now() });
-}
-
-// =====================================================
-// BIBLE CACHE SYNC
-// =====================================================
-//
-// Supabase table DDL:
-//
-// CREATE TABLE bible_cache (
-//   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-//   user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
-//   cache_key TEXT NOT NULL,          -- e.g. "GEN_1_cuv"
-//   book_id TEXT NOT NULL,
-//   chapter INTEGER NOT NULL,
-//   translation TEXT NOT NULL,
-//   data JSONB NOT NULL,              -- ChapterStorageData (verse array)
-//   updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
-//   UNIQUE(user_id, cache_key)
-// );
-// CREATE INDEX idx_bible_cache_user ON bible_cache(user_id);
-// ALTER TABLE bible_cache ENABLE ROW LEVEL SECURITY;
-// CREATE POLICY "Users can manage own bible cache" ON bible_cache
-//   FOR ALL USING (auth.uid() = user_id);
-//
-
-async function syncBibleCache(): Promise<void> {
-  if (!supabase || !canSync()) return;
-
-  const userId = authManager.getUserId();
-  if (!userId) return;
-
-  // Get all locally cached chapters
-  const localChapters = await bibleStorage.getAllChapters();
-
-  // Get remote cache keys only (not full data) for comparison
-  const { data: remoteKeys, error } = await supabase
-    .from('bible_cache')
-    .select('cache_key')
-    .eq('user_id', userId);
-
-  if (error) throw error;
-
-  const remoteKeySet = new Set((remoteKeys || []).map((r: { cache_key: string }) => r.cache_key));
-  const localKeySet = new Set(localChapters.map(l => `${l.bookId}_${l.chapter}_${l.translation}`));
-
-  // Download remote chapters we don't have locally (fetch data only for missing ones)
-  const missingKeys = [...remoteKeySet].filter(k => !localKeySet.has(k));
-  if (missingKeys.length > 0) {
-    // Fetch in batches of 20 to avoid huge responses
-    for (let i = 0; i < missingKeys.length; i += 20) {
-      const batch = missingKeys.slice(i, i + 20);
-      const { data: remoteChapters } = await supabase
-        .from('bible_cache')
-        .select('cache_key, book_id, chapter, translation, data')
-        .eq('user_id', userId)
-        .in('cache_key', batch);
-
-      for (const remote of remoteChapters || []) {
-        if (remote.data) {
-          await bibleStorage.saveChapter(
-            remote.book_id,
-            remote.chapter,
-            remote.translation as BibleTranslation,
-            remote.data
-          );
-        }
-      }
-    }
-  }
-
-  // Upload local chapters that don't exist remotely — batch upsert
-  const chaptersToUpload = localChapters
-    .filter(local => !remoteKeySet.has(`${local.bookId}_${local.chapter}_${local.translation}`))
-    .map(local => ({
-      user_id: userId,
-      cache_key: `${local.bookId}_${local.chapter}_${local.translation}`,
-      book_id: local.bookId,
-      chapter: local.chapter,
-      translation: local.translation,
-      data: local.data,
-      updated_at: new Date().toISOString(),
-    }));
-
-  if (chaptersToUpload.length > 0) {
-    // Batch in chunks of 5 (chapter JSONB data is large)
-    for (let i = 0; i < chaptersToUpload.length; i += 5) {
-      if (!canSync()) break;
-      const batch = chaptersToUpload.slice(i, i + 5);
-      await supabase.from('bible_cache').upsert(batch, { onConflict: 'user_id,cache_key' }).then(({ error }) => {
-        if (error) throw error;
-      });
-    }
-  }
-
-  setSyncState({ lastBibleCacheSync: Date.now() });
 }
 
 // =====================================================
@@ -1192,20 +1041,7 @@ export async function fetchJournalEntryBody(id: string): Promise<void> {
 // =====================================================
 // CHAT HISTORY SYNC
 // =====================================================
-// Supabase DDL:
-// CREATE TABLE chat_history (
-//   id TEXT NOT NULL,
-//   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-//   book_id TEXT NOT NULL,
-//   chapter INTEGER NOT NULL,
-//   messages JSONB NOT NULL DEFAULT '[]',
-//   last_modified BIGINT NOT NULL,
-//   updated_at TIMESTAMPTZ DEFAULT now() NOT NULL,
-//   PRIMARY KEY (user_id, id)
-// );
-// CREATE INDEX idx_chat_history_user ON chat_history(user_id);
-// ALTER TABLE chat_history ENABLE ROW LEVEL SECURITY;
-// CREATE POLICY "Users can manage own chat history" ON chat_history FOR ALL USING (auth.uid() = user_id);
+// Table: database/personal-sync-schema.sql (row shape: services/syncRows.ts).
 
 async function syncChatHistory(): Promise<void> {
   if (!supabase || !canSync()) return;
@@ -1217,7 +1053,7 @@ async function syncChatHistory(): Promise<void> {
 
   const syncState = getSyncState();
   const { data: remoteRecords, error } = await supabase
-    .from('chat_history')
+    .from(T.chatHistory.table)
     .select('*')
     .eq('user_id', userId)
     .gte('updated_at', new Date(syncState.lastChatHistorySync).toISOString());
@@ -1247,21 +1083,11 @@ async function syncChatHistory(): Promise<void> {
   );
 
   if (toUpload.length > 0) {
-    const rows = toUpload.map(e => ({
-      id: e.id,
-      user_id: userId,
-      title: e.title || '',
-      book_id: e.bookId || '',
-      chapter: e.chapter || 0,
-      messages: e.messages,
-      created_at: e.createdAt || new Date(e.lastModified).toISOString(),
-      last_modified: e.lastModified,
-      updated_at: new Date(e.lastModified).toISOString(),
-    }));
+    const rows = toUpload.map(e => chatHistoryRow(userId, e));
 
     for (let i = 0; i < rows.length; i += 50) {
       if (!canSync()) break;
-      await supabase.from('chat_history').upsert(rows.slice(i, i + 50), { onConflict: 'user_id,id' });
+      throwIfUpsertFailed(T.chatHistory.table, await supabase.from(T.chatHistory.table).upsert(rows.slice(i, i + 50), { onConflict: T.chatHistory.onConflict }));
     }
   }
 
@@ -1285,7 +1111,7 @@ async function syncSpiritualMemory(): Promise<void> {
 
   // Quick count check
   const { count: remoteCount } = await supabase
-    .from('spiritual_memory')
+    .from(T.spiritualMemory.table)
     .select('id', { count: 'exact', head: true })
     .eq('user_id', userId)
     .gte('updated_at', lastSyncISO);
@@ -1304,7 +1130,7 @@ async function syncSpiritualMemory(): Promise<void> {
   // Pull remote changes
   if (remoteCount && remoteCount > 0) {
     const { data: remoteItems, error } = await supabase
-      .from('spiritual_memory')
+      .from(T.spiritualMemory.table)
       .select('*')
       .eq('user_id', userId)
       .gte('updated_at', lastSyncISO);
@@ -1329,19 +1155,11 @@ async function syncSpiritualMemory(): Promise<void> {
 
   // Push local changes
   if (localChanged.length > 0) {
-    const rows = localChanged.map(item => ({
-      id: item.id,
-      user_id: userId,
-      category: item.category,
-      content: item.content,
-      source: item.source || null,
-      created_at: item.createdAt,
-      updated_at: item.updatedAt,
-    }));
+    const rows = localChanged.map(item => spiritualMemoryRow(userId, item));
 
     for (let i = 0; i < rows.length; i += 50) {
       if (!canSync()) break;
-      await supabase.from('spiritual_memory').upsert(rows.slice(i, i + 50), { onConflict: 'id' });
+      throwIfUpsertFailed(T.spiritualMemory.table, await supabase.from(T.spiritualMemory.table).upsert(rows.slice(i, i + 50), { onConflict: T.spiritualMemory.onConflict }));
     }
   }
 
@@ -1371,7 +1189,6 @@ export async function performFullSync(): Promise<void> {
       { name: 'Settings', fn: () => syncSettings(true) }, // force pull from remote on full sync
       { name: 'Verse Data', fn: syncVerseData },
       { name: 'Bookmarks', fn: syncBookmarks },
-      { name: 'Bible Cache', fn: syncBibleCache },
       { name: 'Journal', fn: syncJournal },
       { name: 'Chat History', fn: syncChatHistory },
       { name: 'Spiritual Memory', fn: syncSpiritualMemory },
@@ -1419,16 +1236,14 @@ export async function performFullSync(): Promise<void> {
     if (supabase && canSync()) {
       const userId = authManager.getUserId();
       if (userId) {
-        const rows = ALL_MODULES.map(m => ({
-          user_id: userId, module: m, last_modified: ts, updated_at: new Date(ts).toISOString(),
-        }));
+        const rows = ALL_MODULES.map(m => syncMetadataRow(userId, m, ts));
         // Non-critical: this is telemetry metadata (server-side "last seen"
         // counters) used as a coarse incremental-sync hint. If it fails the
         // next incremental pass falls back to the local timestamps, so a
         // single failure here is recoverable. We still log it so it's not
         // invisible (R5 — "silent" requires an explicit reason).
         try {
-          await supabase.from('sync_metadata').upsert(rows, { onConflict: 'user_id,module' });
+          throwIfUpsertFailed(T.syncMetadata.table, await supabase.from(T.syncMetadata.table).upsert(rows, { onConflict: T.syncMetadata.onConflict }));
         } catch (metaErr) {
           console.error('[sync] sync_metadata upsert failed (non-critical, next incremental pass will self-heal):',
             metaErr instanceof Error ? metaErr.message : String(metaErr));
@@ -1460,7 +1275,6 @@ const MODULE_SYNC_MAP: Record<SyncModule, { name: string; fn: () => Promise<void
   settings:       { name: 'Settings', fn: syncSettings },
   verseData:      { name: 'Verse Data', fn: syncVerseData },
   bookmarks:      { name: 'Bookmarks', fn: syncBookmarks },
-  bibleCache:     { name: 'Bible Cache', fn: syncBibleCache }, // disabled in ALL_MODULES but kept in map for manual use
   journal:        { name: 'Journal', fn: syncJournal },
   chatHistory:    { name: 'Chat History', fn: syncChatHistory },
   spiritualMemory: { name: 'Spiritual Memory', fn: syncSpiritualMemory },
@@ -1517,19 +1331,7 @@ export async function performIncrementalSync(): Promise<void> {
   }
 }
 
-// =====================================================
-// AUTO SYNC ON AUTH STATE CHANGE (full sync on login)
-// =====================================================
-
-authManager.subscribe(async (state) => {
-  if (state.isAuthenticated && !state.isLoading) {
-    try {
-      await performIncrementalSync();
-    } catch {
-      // silently handle
-    }
-  }
-});
+// Sync on sign-in / stop on sign-out lives in services/syncLifecycle.ts (ADR-0010).
 
 // =====================================================
 // PERIODIC SYNC (every 5 minutes — incremental only)
@@ -1553,10 +1355,6 @@ function stopPeriodicSync(): void {
     clearInterval(periodicSyncIntervalId);
     periodicSyncIntervalId = null;
   }
-}
-
-if (typeof window !== 'undefined') {
-  startPeriodicSync();
 }
 
 // =====================================================
@@ -1606,7 +1404,6 @@ if (typeof window !== 'undefined') {
     'annotation-updated': 'annotations',
     'chathistory-updated': 'chatHistory',
     'bookmark-updated': 'bookmarks',
-    // 'bible-cache-updated': 'bibleCache', — disabled to reduce Disk IO
     'notes-updated': 'notes',
     'journal-updated': 'journal',
     'readinghistory-updated': 'readingHistory',
@@ -1805,7 +1602,6 @@ export const syncService = {
   syncSettings,
   syncVerseData,
   syncBookmarks,
-  syncBibleCache,
   syncJournal,
   fetchJournalEntryBody,
   syncChatHistory,
