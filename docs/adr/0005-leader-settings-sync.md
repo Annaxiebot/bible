@@ -50,7 +50,7 @@ leaders an identity (Google sign-in, `auth.uid()`-scoped rows).
   the change bus; the pure keys module keeps
   `services/supabase` out of modules the Playwright specs import.
 - The older `user_settings` mirror in `services/syncService` still lists
-  `ai_model` (and API keys) with a newer-timestamp rule; a user who also runs
+  `ai_model` (API keys were removed from it 2026-10-05, ADR-0010) with a newer-timestamp rule; a user who also runs
   the full sync can see the two disagree on `ai_model`. Retire `ai_model`
   from that list in its own session (TODO in `services/leaderSettings.ts`).
 - Server-wins-on-sign-in means an edit made signed-out on device B is

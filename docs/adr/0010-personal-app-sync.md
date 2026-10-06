@@ -83,9 +83,9 @@ can be exported manually."
 
 - A user who never signs in keeps everything in this browser and can move it
   with the one export file. Signing in anywhere is enough to sync.
-- Known, not changed here (R8): `SYNCED_SETTINGS_KEYS` still mirrors the
-  personal app's API keys into `user_settings` (see the ADR-0005 TODO in
-  `services/leaderSettings.ts`); it needs its own session. The export never
-  carries them.
+- API keys never sync (fixed 2026-10-05, right after this sync went live and
+  before any row held one — `user_settings` had 0 rows): `SYNCED_SETTINGS_KEYS`
+  no longer lists any `*_api_key`, and `isSyncableSettingKey` refuses one
+  arriving from an old server row. The export never carries them either.
 - Importing writes locally; records whose timestamps predate the last sync
   reach the server on their next edit, not immediately.
