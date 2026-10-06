@@ -19,26 +19,9 @@ export const STORAGE_KEYS = {
   BIBLE_CACHE_PREFIX: 'bible_cache_',
   BIBLE_CACHE_INDEX: 'bible_cache_index',
 
-  // API keys
-  GEMINI_API_KEY: 'gemini_api_key',
-  CLAUDE_API_KEY: 'claude_api_key',
-  OPENAI_API_KEY: 'openai_api_key',
-  KIMI_API_KEY: 'kimi_api_key',
+  // The user's own OpenRouter key — the hidden "Advanced" own-key path (services/openrouter getApiKey).
+  // Keys of the removed direct providers are cleared on start: services/obsoleteStorageKeys.ts.
   OPENROUTER_API_KEY: 'openrouter_api_key',
-  NVIDIA_API_KEY: 'nvidia_api_key',
-  DEEPSEEK_API_KEY: 'deepseek_api_key',
-  GROQ_API_KEY: 'groq_api_key',
-  DASHSCOPE_API_KEY: 'dashscope_api_key',
-  MINIMAX_API_KEY: 'minimax_api_key',
-  ZHIPU_API_KEY: 'zhipu_api_key',
-  ZAI_API_KEY: 'zai_api_key',
-  R9S_API_KEY: 'r9s_api_key',
-  MOONSHOT_API_KEY: 'moonshot_api_key',
-  PERPLEXITY_API_KEY: 'perplexity_api_key',
-  TAVILY_API_KEY: 'tavily_api_key',
-  FIRECRAWL_API_KEY: 'firecrawl_api_key',
-  EXA_API_KEY: 'exa_api_key',
-  BRAVE_API_KEY: 'brave_api_key',
   AI_PROVIDER: 'ai_provider',
   AI_MODEL: 'ai_model',
   // #/setup "模型 Models" rows: pack-generation model id; Ask-AI fallback ids, comma-separated (services/aiDefaults readers)

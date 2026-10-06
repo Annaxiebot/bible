@@ -3,25 +3,22 @@
  *
  * Single source (R3) for the out-of-the-box AI setup: provider OpenRouter,
  * model = a low-cost reliable model (ADR-0003 Consequences → Models).
- * Imported by services/aiProvider (fallback when nothing is stored),
- * components/AIProviderSettings (the advanced panel), components/setup (the
- * one-field key dialog) and components/newstudy (pack generation), so they
- * can never disagree. Pure module (no React) so tests and Playwright specs
- * can import it.
+ * Imported by services/studyAI, components/setup (the AI-service dialog and
+ * its model rows), components/studypack (Ask AI) and components/newstudy
+ * (pack generation), so they can never disagree. Pure module (no React) so
+ * tests and Playwright specs can import it.
  *
  * Existing stored choices are never overwritten: applyDefaultAISetup() is a
- * no-op once a provider has been chosen; applyRecommendedModel() is the one
- * explicit, user-tapped exception.
+ * no-op once a provider has been chosen.
  */
 import { STORAGE_KEYS } from '../constants/storageKeys';
 import { FREE_ROUTER_MODEL } from './openrouter';
 import { noteLeaderSettingChanged } from './leaderSettingsKeys';
 
 /**
- * OpenRouter model id that routes to the best available free model. The
- * app maps it to OpenRouter's free router (services/aiProvider →
- * services/openrouter FREE_ROUTER_MODEL); the server proxy knows it too.
- * Still selectable in the advanced panel; no longer the default.
+ * OpenRouter model id that routes to the best available free model — an
+ * older stored choice. wireModelId maps it to OpenRouter's free router
+ * (services/openrouter FREE_ROUTER_MODEL); the server proxy knows it too.
  */
 export const FREE_MODELS_ROUTER_ID = 'openrouter/auto:free';
 
@@ -102,8 +99,8 @@ function writeChoice(key: string, value: string): void {
 
 /**
  * Ask AI model (app-side id; callers on the wire apply wireModelId): the
- * model chosen in AI settings when the stored provider is OpenRouter (same
- * keys AIProviderSettings uses), otherwise the constant. A visitor who only
+ * model chosen in AI settings when the stored provider is OpenRouter,
+ * otherwise the constant. A visitor who only
  * pasted a key therefore gets the recommended model (one paste, it works).
  */
 export function askAIModel(): string {
@@ -116,16 +113,6 @@ export function askAIModel(): string {
 export function setAskAIModel(modelId: string): void {
   localStorage.setItem(STORAGE_KEYS.AI_PROVIDER, DEFAULT_AI_SETUP.provider);
   writeChoice(STORAGE_KEYS.AI_MODEL, modelId);
-}
-
-/**
- * The one deliberate overwrite: the Ask-AI row's "推荐 Recommended" tap in
- * the saved-key dialog state writes provider + recommended model over
- * whatever was stored (e.g. an older free-router choice). Ask AI only; the
- * pack and fallback rows have their own reset.
- */
-export function applyRecommendedModel(): void {
-  setAskAIModel(ASK_AI_MODEL);
 }
 
 export function packGenerationModel(): string {
@@ -152,18 +139,7 @@ export function setAskAIFallbackModels(raw: string): void {
   writeChoice(STORAGE_KEYS.AI_FALLBACK_MODELS, parseModelList(raw).join(', '));
 }
 
-/**
- * The model the settings panel should show as selected on open: the stored
- * choice if any, the default for a user who has chosen nothing, and
- * "" (provider default) for a user who chose a provider but no model.
- */
-export function initialModelChoice(): string {
-  const stored = localStorage.getItem(STORAGE_KEYS.AI_MODEL);
-  if (stored) return stored;
-  return hasChosenProvider() ? '' : DEFAULT_AI_SETUP.model;
-}
-
-/** Save an OpenRouter key (same storage key the advanced panel uses) and apply the defaults. */
+/** Save the user's own OpenRouter key (STORAGE_KEYS.OPENROUTER_API_KEY, read by getApiKey) and apply the defaults. */
 export function saveOpenRouterKey(key: string): void {
   const trimmed = key.trim();
   if (!trimmed) throw new Error('OpenRouter key is empty');

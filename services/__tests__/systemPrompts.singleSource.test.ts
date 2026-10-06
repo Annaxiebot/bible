@@ -37,20 +37,9 @@ describe('R3: BIBLE_SCHOLAR_SYSTEM_PROMPT single source of truth', () => {
     expect(FILES_WITH_MARKER.map(f => relative(REPO_ROOT, f))).toEqual(['services/systemPrompts.ts']);
   });
 
-  it('every client AI provider imports BIBLE_SCHOLAR_SYSTEM_PROMPT from the shared module', () => {
-    const providers = ['openai', 'claude', 'gemini', 'kimi', 'perplexity', 'openrouter'];
-    for (const p of providers) {
-      const src = readFileSync(join(REPO_ROOT, 'services', `${p}.ts`), 'utf8');
-      expect(src, `${p}.ts must import BIBLE_SCHOLAR_SYSTEM_PROMPT from ./systemPrompts`)
-        .toMatch(/import\s*\{[^}]*BIBLE_SCHOLAR_SYSTEM_PROMPT[^}]*\}\s*from\s*['"]\.\/systemPrompts['"]/);
-    }
-  });
-
-  it('the supabase edge function imports BIBLE_SCHOLAR_SYSTEM_PROMPT from the shared module', () => {
-    const src = readFileSync(join(REPO_ROOT, 'supabase/functions/ai-chat/index.ts'), 'utf8');
-    expect(src).toMatch(/import\s*\{[^}]*BIBLE_SCHOLAR_SYSTEM_PROMPT[^}]*\}\s*from\s*['"][^'"]*systemPrompts\.ts['"]/);
-    expect(src, 'edge function must not redeclare a SYSTEM_PROMPT constant')
-      .not.toMatch(/const\s+SYSTEM_PROMPT\s*=\s*`You are a world-class/);
+  it('the personal app chat imports BIBLE_SCHOLAR_SYSTEM_PROMPT from the shared module', () => {
+    const src = readFileSync(join(REPO_ROOT, 'components/ChatInterface.tsx'), 'utf8');
+    expect(src).toMatch(/import\s*\{[^}]*BIBLE_SCHOLAR_SYSTEM_PROMPT[^}]*\}\s*from\s*['"]\.\.\/services\/systemPrompts['"]/);
   });
 
   it('the exported prompt contains the [SPLIT] marker, the language directive, and LaTeX guidance', () => {

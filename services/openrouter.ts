@@ -1,88 +1,15 @@
 /**
- * OpenRouter API Service
- *
- * Unified gateway to access multiple AI models through OpenRouter.
- * Supports free models and premium models, with dynamic model list fetching.
+ * OpenRouter basics for the one AI path (ADR-0007): the chat endpoint, the
+ * free-router model id, the user's own key, and the setup dialog's key test.
+ * Requests themselves go through services/aiTransport.ts.
  */
 
 import { STORAGE_KEYS } from '../constants/storageKeys';
-import { withRetry } from '../utils/retryUtils';
-import { BIBLE_SCHOLAR_SYSTEM_PROMPT } from './systemPrompts';
 
 export const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
-const OPENROUTER_MODELS_URL = 'https://openrouter.ai/api/v1/models';
-const MODEL_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-export interface OpenRouterModelInfo {
-  id: string;
-  name: string;
-  provider: string;
-  isFree: boolean;
-}
-
-/** In-memory model cache — avoids redundant fetches within a session */
-let modelCache: { models: OpenRouterModelInfo[]; fetchedAt: number } | null = null;
-
-/**
- * Provider organization priority for auto-detection.
- * The provider prefix is the part before the '/' in the model ID
- * (e.g. 'google' for 'google/gemma-3-27b-it:free').
- * Models from higher-priority providers are tested first regardless of model name.
- */
-const PROVIDER_PRIORITY = ['google', 'openai', 'meta-llama', 'meta'];
-
-export type AutoDetectProgress = {
-  modelId: string;
-  modelName: string;
-  status: 'testing' | 'success' | 'failed';
-};
-
-/**
- * Fetch the live model list from OpenRouter.
- * Results are cached for 5 minutes. Falls back to the caller handling errors.
- * Free models (`:free` suffix or zero pricing) are sorted first.
- */
-export const fetchAvailableModels = async (): Promise<OpenRouterModelInfo[]> => {
-  if (modelCache && Date.now() - modelCache.fetchedAt < MODEL_CACHE_TTL_MS) {
-    return modelCache.models;
-  }
-
-  const response = await fetch(OPENROUTER_MODELS_URL);
-  if (!response.ok) {
-    throw new Error(`Failed to fetch OpenRouter models: ${response.statusText}`);
-  }
-
-  const data = await response.json() as {
-    data: Array<{ id: string; name: string; pricing?: { prompt: string; completion: string } }>;
-  };
-
-  const models: OpenRouterModelInfo[] = data.data.map(m => {
-    const isFree = m.id.endsWith(':free') ||
-      (m.pricing?.prompt === '0' && m.pricing?.completion === '0');
-    return {
-      id: m.id,
-      name: m.name || m.id,
-      provider: m.id.split('/')[0] ?? '',
-      isFree,
-    };
-  }).sort((a, b) => {
-    if (a.isFree !== b.isFree) return a.isFree ? -1 : 1;
-    return a.name.localeCompare(b.name);
-  });
-
-  modelCache = { models, fetchedAt: Date.now() };
-  return models;
-};
-
-/** Clear the model cache (e.g. for testing or forced refresh) */
-export const clearModelCache = (): void => {
-  modelCache = null;
-};
-
-/**
- * Default model used when no model is explicitly selected
- */
-export const DEFAULT_FREE_MODEL = 'google/gemma-3-27b-it:free';
+/** Model the key test uses when the caller names none. */
+const DEFAULT_FREE_MODEL = 'google/gemma-3-27b-it:free';
 
 /**
  * Special "free router" model that automatically picks the best available free model.
@@ -91,79 +18,11 @@ export const DEFAULT_FREE_MODEL = 'google/gemma-3-27b-it:free';
 export const FREE_ROUTER_MODEL = 'openrouter/free'; // the id OpenRouter's /models lists (not bare "free")
 
 /**
- * OpenRouter free models (verified available as of 2026-03)
- */
-export const FREE_MODELS = [
-  { id: 'meta-llama/llama-3.3-70b-instruct:free', name: 'Llama 3.3 70B (Free)', provider: 'Meta' },
-  { id: 'meta-llama/llama-3.2-3b-instruct:free', name: 'Llama 3.2 3B (Free)', provider: 'Meta' },
-  { id: 'mistralai/mistral-small-3.1-24b-instruct:free', name: 'Mistral Small 3.1 24B (Free)', provider: 'Mistral' },
-  { id: 'google/gemma-3-27b-it:free', name: 'Gemma 3 27B (Free)', provider: 'Google' },
-  { id: 'deepseek/deepseek-chat', name: 'DeepSeek Chat', provider: 'DeepSeek' },
-];
-
-/**
- * OpenRouter premium models (requires credits)
- */
-export const PREMIUM_MODELS = [
-  { id: 'anthropic/claude-3.5-sonnet', name: 'Claude 3.5 Sonnet', provider: 'Anthropic' },
-  { id: 'anthropic/claude-3-haiku', name: 'Claude 3 Haiku', provider: 'Anthropic' },
-  { id: 'openai/gpt-4o', name: 'GPT-4o', provider: 'OpenAI' },
-  { id: 'openai/gpt-4o-mini', name: 'GPT-4o Mini', provider: 'OpenAI' },
-  { id: 'google/gemini-2.5-flash', name: 'Gemini 2.5 Flash', provider: 'Google' },
-];
-
-/**
- * Test all free models in priority order and return those that respond successfully.
- * The dropdown can then be filtered to only show working models.
- * Returns { working: [...], best: firstWorking | null }.
- */
-export const autoDetectBestFreeModel = async (
-  apiKey: string,
-  onProgress?: (progress: AutoDetectProgress) => void
-): Promise<{ working: Array<{ modelId: string; modelName: string }>; best: { modelId: string; modelName: string } | null }> => {
-  let freeModels: OpenRouterModelInfo[] = [];
-  try {
-    const all = await fetchAvailableModels();
-    freeModels = all.filter(m => m.isFree);
-  } catch {
-    freeModels = FREE_MODELS.map(m => ({ ...m, isFree: true }));
-  }
-
-  // Sort by provider organization priority, then alphabetically within each tier
-  const providerIndex = (m: OpenRouterModelInfo) => {
-    const idx = PROVIDER_PRIORITY.indexOf(m.provider);
-    return idx === -1 ? PROVIDER_PRIORITY.length : idx;
-  };
-  const prioritized = [...freeModels].sort((a, b) => {
-    const diff = providerIndex(a) - providerIndex(b);
-    return diff !== 0 ? diff : a.name.localeCompare(b.name);
-  });
-
-  const working: Array<{ modelId: string; modelName: string }> = [];
-
-  for (const model of prioritized) {
-    onProgress?.({ modelId: model.id, modelName: model.name, status: 'testing' });
-    const timeoutPromise = new Promise<{ success: false; error: string }>(res =>
-      setTimeout(() => res({ success: false, error: 'timeout' }), 3000)
-    );
-    const result = await Promise.race([testApiKey(apiKey, model.id), timeoutPromise]);
-    if (result.success) {
-      onProgress?.({ modelId: model.id, modelName: model.name, status: 'success' });
-      working.push({ modelId: model.id, modelName: model.name });
-    } else {
-      onProgress?.({ modelId: model.id, modelName: model.name, status: 'failed' });
-    }
-  }
-
-  return { working, best: working[0] ?? null };
-};
-
-/**
  * Get OpenRouter API key
  */
 export const getApiKey = (): string | null => {
-  return localStorage.getItem(STORAGE_KEYS.OPENROUTER_API_KEY) || 
-         import.meta.env.VITE_OPENROUTER_API_KEY || 
+  return localStorage.getItem(STORAGE_KEYS.OPENROUTER_API_KEY) ||
+         import.meta.env.VITE_OPENROUTER_API_KEY ||
          null;
 };
 
@@ -213,113 +72,10 @@ export const testApiKey = async (apiKey: string, model?: string): Promise<ApiKey
       model: data.model || testModel,
     };
   } catch (error) {
+    // Reported, not swallowed: the setup dialog shows this error next to the key field.
     return {
       success: false,
       error: error instanceof Error ? error.message : 'Unknown error',
     };
   }
-};
-
-/**
- * Chat with AI via OpenRouter
- * Returns an object with text and model info
- */
-export const chatWithAI = async (
-  prompt: string,
-  history: { role: string; content: string }[],
-  options: { 
-    model?: string;
-    thinking?: boolean;
-    fast?: boolean;
-    search?: boolean;
-    image?: { data: string; mimeType: string };
-    useFreeRouter?: boolean; // When true, uses automatic free model selection
-    maxTokens?: number;      // Explicit cap; falls back to the fast/full defaults
-  } = {}
-): Promise<{ text: string; model: string }> => {
-  const apiKey = getApiKey();
-  
-  if (!apiKey) {
-    throw new Error('OpenRouter API key not configured. Please add your API key in settings.');
-  }
-
-  // Use free router by default if no specific model is selected
-  // The free router automatically picks the best available free model
-  // This eliminates the need to manually test which free models work
-  const model = options.useFreeRouter === false && options.model 
-    ? options.model 
-    : (options.model || FREE_ROUTER_MODEL);
-
-  // Build messages array — system prompt is the single source of truth.
-  const messages = [
-    { role: 'system', content: BIBLE_SCHOLAR_SYSTEM_PROMPT },
-    ...history.map(msg => ({
-      role: msg.role === 'assistant' ? 'assistant' : 'user',
-      content: msg.content,
-    })),
-    {
-      role: 'user',
-      content: options.image
-        ? [
-            { type: 'text', text: prompt },
-            {
-              type: 'image_url',
-              image_url: { url: `data:${options.image.mimeType};base64,${options.image.data}` }
-            }
-          ]
-        : prompt,
-    },
-  ];
-
-  try {
-    return await withRetry(async () => {
-      const response = await fetch(OPENROUTER_API_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-          'HTTP-Referer': window.location.origin,
-          'X-Title': 'Scripture Scholar',
-        },
-        body: JSON.stringify({
-          model,
-          messages,
-          // TODO(R4): this file is over the 300-line budget — split the model
-          // list/auto-detect catalog (FREE_MODELS…autoDetectBestFreeModel)
-          // into openrouterModels.ts in a dedicated refactor session.
-          max_tokens: options.maxTokens ?? (options.fast ? 1000 : 4000),
-          temperature: 0.7,
-        }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error?.message || `OpenRouter API error: ${response.status}`);
-      }
-
-      // Get the actual model used (important for free router - it picks dynamically)
-      const actualModel = data.model || model;
-      
-      return {
-        text: data.choices?.[0]?.message?.content || 'No response from AI',
-        model: actualModel,
-      };
-    });
-  } catch (error) {
-    if (error instanceof Error) {
-      throw new Error(`OpenRouter API error: ${error.message}`);
-    }
-    throw new Error('Unknown error calling OpenRouter API');
-  }
-};
-
-/** Legacy string-only return for backward compatibility */
-export const chatWithAI__legacy = async (
-  prompt: string,
-  history: { role: string; content: string }[],
-  options: Parameters<typeof chatWithAI>[2] = {}
-): Promise<string> => {
-  const result = await chatWithAI(prompt, history, options);
-  return result.text;
 };

@@ -29,9 +29,6 @@ vi.mock('../../services/supabase', () => {
   };
 });
 vi.mock('../signup/signupClient', () => ({ getSignupClient: () => null }));
-vi.mock('../AIProviderSettings', () => ({
-  default: () => { throw new Error('AIProviderSettings must not be rendered'); },
-}));
 vi.mock('../../services/chatHistoryStorage', () => ({
   loadThreadMessages: vi.fn(async () => []),
   saveThreadMessages: vi.fn(async () => undefined),

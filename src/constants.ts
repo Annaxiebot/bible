@@ -119,24 +119,6 @@ export const THEME = {
 export type ThemeMode = typeof THEME[keyof typeof THEME];
 
 // =====================================================
-// AI MODEL CONSTANTS
-// =====================================================
-
-export const AI_MODELS = {
-  // Gemini models
-  GEMINI_FLASH: 'gemini-2.0-flash-lite',
-  GEMINI_PRO: 'gemini-2.5-pro-preview-05-06',
-  GEMINI_FLASH_8B: 'gemini-2.0-flash-8b',
-
-  // Claude models
-  CLAUDE_SONNET: 'claude-sonnet-4-6',
-  CLAUDE_OPUS: 'claude-opus-4-6',
-  CLAUDE_HAIKU: 'claude-haiku-4-5-20251001',
-} as const;
-
-export type AIModel = typeof AI_MODELS[keyof typeof AI_MODELS];
-
-// =====================================================
 // TIMING CONSTANTS
 // =====================================================
 

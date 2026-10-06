@@ -7,6 +7,10 @@ import './styles/stlTheme.css'; // --stl-* colour tokens (landing + TV mode); ma
 import './styles/stlShared.css'; // font stacks, paper page shell, gold pill (landing, member pages, TV headings)
 import { startLeaderSettingsSync } from './services/leaderSettings';
 import { startSyncLifecycle } from './services/syncLifecycle';
+import { removeObsoleteAIStorageKeys } from './services/obsoleteStorageKeys';
+
+// The removed multi-provider AI left API keys and toggles in this browser; nothing reads them (ADR-0007).
+removeObsoleteAIStorageKeys();
 
 // A signed-in leader's settings follow them across devices (ADR-0005); no-op signed out / unconfigured.
 startLeaderSettingsSync();

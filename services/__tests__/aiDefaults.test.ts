@@ -11,11 +11,10 @@ import { STORAGE_KEYS } from '../../constants/storageKeys';
 import {
   DEFAULT_AI_SETUP, FREE_MODELS_ROUTER_ID, OPENROUTER_KEYS_URL, ASK_AI_MODEL, PACK_GENERATION_MODEL,
   ASK_AI_FALLBACK_MODELS, wireModelId,
-  applyDefaultAISetup, applyRecommendedModel, hasChosenProvider, initialModelChoice, saveOpenRouterKey,
+  applyDefaultAISetup, hasChosenProvider, saveOpenRouterKey,
   askAIModel, setAskAIModel, packGenerationModel, setPackGenerationModel,
   askAIFallbackModels, setAskAIFallbackModels, parseModelList,
 } from '../aiDefaults';
-import { getCurrentProvider, getCurrentModel } from '../aiProvider';
 import { FREE_ROUTER_MODEL } from '../openrouter';
 import { setLeaderSettingListener } from '../leaderSettingsKeys';
 
@@ -30,6 +29,8 @@ function makeStorage(initial: Record<string, string> = {}) {
 }
 
 let storage: ReturnType<typeof makeStorage>;
+const getCurrentProvider = () => storage.getItem(STORAGE_KEYS.AI_PROVIDER);
+const getCurrentModel = () => storage.getItem(STORAGE_KEYS.AI_MODEL);
 
 beforeEach(() => {
   storage = makeStorage();
@@ -53,10 +54,6 @@ describe('DEFAULT_AI_SETUP', () => {
     expect(ASK_AI_FALLBACK_MODELS[ASK_AI_FALLBACK_MODELS.length - 1]).toBe(FREE_ROUTER_MODEL);
     expect(ASK_AI_FALLBACK_MODELS).not.toContain(ASK_AI_MODEL);
     expect(new Set(ASK_AI_FALLBACK_MODELS).size).toBe(ASK_AI_FALLBACK_MODELS.length);
-  });
-
-  it('is the provider aiProvider falls back to when nothing is stored', () => {
-    expect(getCurrentProvider()).toBe(DEFAULT_AI_SETUP.provider);
   });
 
   it('points the "get a key" link at OpenRouter over https', () => {
@@ -85,16 +82,6 @@ describe('applyDefaultAISetup', () => {
     vi.stubGlobal('localStorage', storage);
     applyDefaultAISetup();
     expect(storage.dump()).toEqual({ [STORAGE_KEYS.AI_PROVIDER]: 'gemini' });
-  });
-});
-
-describe('applyRecommendedModel (the one-tap switch in the saved-key dialog)', () => {
-  it('overwrites a stored free-router choice with provider + recommended model', () => {
-    storage = makeStorage({ [STORAGE_KEYS.AI_PROVIDER]: 'openrouter', [STORAGE_KEYS.AI_MODEL]: FREE_MODELS_ROUTER_ID });
-    vi.stubGlobal('localStorage', storage);
-    applyRecommendedModel();
-    expect(getCurrentProvider()).toBe(DEFAULT_AI_SETUP.provider);
-    expect(getCurrentModel()).toBe(ASK_AI_MODEL);
   });
 });
 
@@ -149,21 +136,6 @@ describe('configurable model roles (#/setup rows): stored and valid wins, else t
     expect(askAIFallbackModels()).toEqual(['x/one', 'y/two']);
     setAskAIFallbackModels(',');
     expect(storage.getItem(STORAGE_KEYS.AI_FALLBACK_MODELS)).toBeNull();
-  });
-});
-
-describe('initialModelChoice (what the settings panel shows selected)', () => {
-  it('is the recommended model for a user who chose nothing', () => {
-    expect(initialModelChoice()).toBe(ASK_AI_MODEL);
-  });
-  it('is "" (provider default) for a user who chose a provider but no model', () => {
-    storage.setItem(STORAGE_KEYS.AI_PROVIDER, 'gemini');
-    expect(initialModelChoice()).toBe('');
-  });
-  it('is the stored model when one exists', () => {
-    storage.setItem(STORAGE_KEYS.AI_PROVIDER, 'openrouter');
-    storage.setItem(STORAGE_KEYS.AI_MODEL, 'openai/gpt-4o');
-    expect(initialModelChoice()).toBe('openai/gpt-4o');
   });
 });
 
