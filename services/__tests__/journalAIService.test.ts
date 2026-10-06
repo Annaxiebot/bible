@@ -19,6 +19,7 @@ import {
 import { journalStorage } from '../journalStorage';
 import { spiritualMemory } from '../spiritualMemory';
 import type { JournalEntry, SpiritualMemoryItem } from '../idbService';
+import { AskAIError, signInNeededError } from '../../components/studypack/askAIErrors';
 
 // The journal's AI goes through the personal app's one AI path (services/studyAI, role 'study').
 const { mockStreamStudyAI } = vi.hoisted(() => ({
@@ -152,12 +153,18 @@ describe('journalAIService', () => {
       expect(mockChatStudyAI).not.toHaveBeenCalled();
     });
 
-    it('should return empty array on AI failure', async () => {
-      mockChatStudyAI.mockRejectedValueOnce(new Error('API error'));
+    it('rethrows the typed AI failure (the caller decides; never swallowed here)', async () => {
+      const failure = signInNeededError('m');
+      mockChatStudyAI.mockRejectedValueOnce(failure);
 
       const entry = makeEntry({ plainText: 'Reflecting on the goodness of God today and always.' });
-      const tags = await suggestTags(entry);
-      expect(tags).toEqual([]);
+      await expect(suggestTags(entry)).rejects.toBe(failure);
+    });
+
+    it('a malformed JSON reply is "no tags", not a failure', async () => {
+      mockChatStudyAI.mockResolvedValueOnce({ text: '["faith", oops]', model: 'test-model' });
+      const entry = makeEntry({ plainText: 'Reflecting on the goodness of God today and always.' });
+      expect(await suggestTags(entry)).toEqual([]);
     });
 
     it('should handle string response from AI', async () => {
@@ -277,16 +284,16 @@ describe('journalAIService', () => {
       expect(mockChatStudyAI).toHaveBeenCalledOnce();
     });
 
-    it('should return null on AI failure', async () => {
+    it('rethrows the typed AI failure (quota), so the digest panel can show it', async () => {
       await journalStorage.createEntry({
         title: 'Test',
         plainText: 'Some reflection content here for the weekly digest.',
       });
 
-      mockChatStudyAI.mockRejectedValueOnce(new Error('API error'));
+      const failure = new AskAIError('quota', 'quota line', 'm', 429);
+      mockChatStudyAI.mockRejectedValueOnce(failure);
 
-      const digest = await generateWeeklyDigest(true);
-      expect(digest).toBeNull();
+      await expect(generateWeeklyDigest(true)).rejects.toBe(failure);
     });
   });
 
@@ -353,11 +360,10 @@ describe('journalAIService', () => {
       expect(result).toBe('What is on your heart today?');
     });
 
-    it('should return fallback on AI failure', async () => {
-      mockChatStudyAI.mockRejectedValueOnce(new Error('API error'));
-
-      const result = await generateReflectionPrompt(null, null, []);
-      expect(result).toBe('What is one thing you are grateful for today?');
+    it('rethrows on AI failure (no canned fallback prompt)', async () => {
+      const failure = signInNeededError('m');
+      mockChatStudyAI.mockRejectedValueOnce(failure);
+      await expect(generateReflectionPrompt(null, null, [])).rejects.toBe(failure);
     });
   });
 
@@ -381,10 +387,10 @@ describe('journalAIService', () => {
       expect(mockChatStudyAI).not.toHaveBeenCalled();
     });
 
-    it('should return empty string on AI failure', async () => {
-      mockChatStudyAI.mockRejectedValueOnce(new Error('API error'));
-      const result = await extendThinking('Some text here about faith.');
-      expect(result).toBe('');
+    it('rethrows on AI failure', async () => {
+      const failure = signInNeededError('m');
+      mockChatStudyAI.mockRejectedValueOnce(failure);
+      await expect(extendThinking('Some text here about faith.')).rejects.toBe(failure);
     });
   });
 
@@ -408,10 +414,10 @@ describe('journalAIService', () => {
       expect(mockChatStudyAI).not.toHaveBeenCalled();
     });
 
-    it('should return empty on failure', async () => {
-      mockChatStudyAI.mockRejectedValueOnce(new Error('API error'));
-      const result = await summarizeEntry('A moderately long entry about spiritual growth and transformation.');
-      expect(result).toBe('');
+    it('rethrows on AI failure', async () => {
+      const failure = signInNeededError('m');
+      mockChatStudyAI.mockRejectedValueOnce(failure);
+      await expect(summarizeEntry('A moderately long entry about spiritual growth and transformation.')).rejects.toBe(failure);
     });
   });
 
@@ -440,9 +446,16 @@ describe('journalAIService', () => {
       expect(results[0].reference).toMatch(/Psalm 23:1|Romans 8:28/);
     });
 
-    it('should throw on failure', async () => {
-      mockStreamError(new Error('API error'));
-      await expect(findRelatedScripture('Looking for peace and comfort today.')).rejects.toThrow();
+    it('rethrows the typed AI failure', async () => {
+      const failure = signInNeededError('m');
+      mockStreamError(failure);
+      await expect(findRelatedScripture('Looking for peace and comfort today.')).rejects.toBe(failure);
+    });
+
+    it('a reply with no references is an empty result (the UI says "none found"), not a failure', async () => {
+      mockStreamResponse('I could not think of anything specific.');
+      const { results } = await findRelatedScripture('Looking for peace and comfort today.');
+      expect(results).toEqual([]);
     });
 
     it('should limit to 5 results', async () => {
@@ -486,10 +499,10 @@ describe('journalAIService', () => {
       expect(mockChatStudyAI).not.toHaveBeenCalled();
     });
 
-    it('should return fallback on failure', async () => {
-      mockChatStudyAI.mockRejectedValueOnce(new Error('API error'));
-      const answer = await chatAboutEntry('Help me understand this passage about faith.', 'some content', []);
-      expect(answer).toContain('could not process');
+    it('rethrows on AI failure (no canned apology)', async () => {
+      const failure = signInNeededError('m');
+      mockChatStudyAI.mockRejectedValueOnce(failure);
+      await expect(chatAboutEntry('Help me understand this passage about faith.', 'some content', [])).rejects.toBe(failure);
     });
   });
 
@@ -525,10 +538,11 @@ describe('journalAIService', () => {
       expect(items).toEqual([]);
     });
 
-    it('should return empty on failure', async () => {
-      mockChatStudyAI.mockRejectedValueOnce(new Error('API error'));
-      const items = await extractMemoryItems('A moderately long entry about spiritual growth and learning.');
-      expect(items).toEqual([]);
+    it('rethrows on AI failure and saves nothing', async () => {
+      const failure = signInNeededError('m');
+      mockChatStudyAI.mockRejectedValueOnce(failure);
+      await expect(extractMemoryItems('A moderately long entry about spiritual growth and learning.')).rejects.toBe(failure);
+      expect(await spiritualMemory.getAllItems()).toEqual([]);
     });
 
     it('should filter invalid categories', async () => {
@@ -589,15 +603,15 @@ describe('journalAIService', () => {
       expect(mockChatStudyAI).not.toHaveBeenCalled();
     });
 
-    it('should return fallback on failure', async () => {
-      mockChatStudyAI.mockRejectedValueOnce(new Error('API error'));
+    it('rethrows on AI failure', async () => {
+      const failure = new AskAIError('quota', 'quota line', 'm', 429);
+      mockChatStudyAI.mockRejectedValueOnce(failure);
 
       const items: SpiritualMemoryItem[] = [
         { id: '1', category: 'theme', content: 'Grace', createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() },
       ];
 
-      const profile = await generateSpiritualProfile(items);
-      expect(profile).toContain('Could not generate');
+      await expect(generateSpiritualProfile(items)).rejects.toBe(failure);
     });
   });
 
@@ -630,10 +644,10 @@ describe('journalAIService', () => {
       expect(suggestion).toContain('grateful');
     });
 
-    it('should return empty on failure', async () => {
-      mockChatStudyAI.mockRejectedValueOnce(new Error('API error'));
-      const suggestion = await generateProactiveSuggestion([], null, null);
-      expect(suggestion).toBe('');
+    it('rethrows on AI failure (the caller stays silent with an R5 comment)', async () => {
+      const failure = signInNeededError('m');
+      mockChatStudyAI.mockRejectedValueOnce(failure);
+      await expect(generateProactiveSuggestion([], null, null)).rejects.toBe(failure);
     });
   });
 });
