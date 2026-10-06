@@ -5,10 +5,12 @@
  * reference can name a chapter or verse that does not exist. Each parsed
  * ref (verseRefs.ts) gets a verdict:
  *   valid   — every verse exists (in the pack, or in the bundled chapter);
- *   invalid — unknown book, chapter beyond the book (BIBLE_BOOKS chapter
- *             counts, synchronous) or a verse beyond the chapter;
- *   unknown — cannot be decided (no pack book/chapter for a bare ref, or
- *             the bundled chapter did not load): rendered as before.
+ *   invalid — a KNOWN book with a chapter beyond the book (BIBLE_BOOKS
+ *             chapter counts, synchronous) or a verse beyond the chapter;
+ *   unknown — not a reference we can judge: a Book C:V shape whose book is
+ *             not in BIBLE_BOOKS ("at 7:30", "下午3:00" — not scripture at
+ *             all), a bare ref with no pack book/chapter, or a bundled
+ *             chapter that did not load. Rendered as before, no marker.
  * Verse ranges come from the same bundled chapter files and session cache
  * as the popovers (externalVerses.ts — R3, no second loader or book list).
  * The TV "verses cited" block then shows the valid refs that point outside
@@ -22,8 +24,8 @@ import { BIBLE_BOOKS } from '../../services/bibleBookData';
 
 /** At most this many cited references under a TV answer. */
 export const MAX_CITED_REFS = 3;
-/** At most this many verses per cited reference, then "…". */
-export const MAX_CITED_VERSES = 3;
+/** At most this many verses per cited reference, then "…" (2: three bilingual refs still fit beside a long answer more often). */
+export const MAX_CITED_VERSES = 2;
 
 export type RefVerdict = 'valid' | 'invalid' | 'unknown';
 
@@ -42,11 +44,12 @@ export interface CheckedRef {
 
 type Precheck = { verdict: RefVerdict } | { verdict: 'load'; target: RefTarget };
 
-/** Everything decidable without loading a chapter: in-pack, unknown book, chapter range. */
+/** Everything decidable without loading a chapter: in-pack, not-a-reference, chapter range. */
 export function precheckRef(ref: VerseRef, pack: StudyPack): Precheck {
   if (planRef(ref, pack)?.verses) return { verdict: 'valid' };
-  // "Narnia 3:1": a Book C:V shape whose book is not in the canonical table.
-  if (ref.chapter !== null && ref.bookId === null) return { verdict: 'invalid' };
+  // "at 7:30", "下午3:00", "Narnia 3:1": a Book C:V shape whose book is not
+  // in the canonical table is not a reference — never "no such verse".
+  if (ref.chapter !== null && ref.bookId === null) return { verdict: 'unknown' };
   const bookId = ref.bookId ?? packBookId(pack);
   const chapter = ref.chapter ?? packChapter(pack);
   if (!bookId || chapter === null || ref.verses.length === 0) return { verdict: 'unknown' };

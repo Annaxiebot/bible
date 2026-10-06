@@ -1,8 +1,9 @@
 /**
  * citations.test.ts — the CitationValidator verdicts against the real
- * bundled chapters (roadmap P1): valid / invalid chapter / invalid verse /
- * unknown book, bare in-chapter refs, Chinese and English forms; the TV
- * cited-block selection (valid, outside the pack, ≤3 refs, ≤3 verses).
+ * bundled chapters (roadmap P1): valid / invalid chapter / invalid verse,
+ * unknown book = not a reference (unknown, never invalid), bare in-chapter
+ * refs, Chinese and English forms; the TV cited-block selection (valid,
+ * outside the pack, ≤MAX_CITED_REFS refs, ≤MAX_CITED_VERSES verses).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'fs';
@@ -54,8 +55,10 @@ describe('checkRef', () => {
     expect(await verdict('约翰福音 3:35–36')).toBe('valid');
   });
 
-  it('rejects an unknown book', async () => {
-    expect(await verdict('Narnia 3:1')).toBe('invalid');
+  it('an unknown book is not a reference: unknown, never invalid (times, made-up books)', async () => {
+    for (const text of ['at 7:30', '下午3:00', 'Narnia 3:1']) {
+      expect(await verdict(text), text).toBe('unknown');
+    }
   });
 
   it('bare refs check against the pack chapter: embedded, in the chapter only, beyond it', async () => {
@@ -82,11 +85,13 @@ describe('cited refs (TV block)', () => {
     expect(cited.map(c => c.label)).toEqual([
       '希伯来书 5:12–14 · Hebrews 5:12–14', '约翰福音 3:16–20 · John 3:16–20', '罗马书 8:28 · Romans 8:28',
     ]);
-    expect(cited[0].verses.map(v => v.num)).toEqual([12, 13, 14]);
-    expect(cited[0].more).toBe(false);
-    expect(cited[0].verses[2].cuv).toContain('惟独长大成人的');
-    expect(cited[1].verses.map(v => v.num)).toEqual([16, 17, 18]);
+    expect(MAX_CITED_VERSES).toBe(2);
+    expect(cited[0].verses.map(v => v.num)).toEqual([12, 13]);
+    expect(cited[0].more).toBe(true);
+    expect(cited[0].verses[0].cuv).toContain('看你们学习的工夫');
+    expect(cited[1].verses.map(v => v.num)).toEqual([16, 17]);
     expect(cited[1].more).toBe(true);
+    expect(cited[2].more).toBe(false);
     expect(cited[2].verses[0].en.length).toBeGreaterThan(0); // BSB text present
   });
 });
