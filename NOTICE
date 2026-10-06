@@ -1,0 +1,39 @@
+Scripture to Life (scripturetolife.org)
+Copyright (C) 2026 the Scripture to Life contributors
+
+The source code in this repository is free software: you can redistribute it
+and/or modify it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version (SPDX: AGPL-3.0-or-later). See LICENSE.
+
+This program is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+details.
+
+The following material is NOT covered by the code license and keeps its own
+terms:
+
+1. Bible text (public/bible-data/) - public domain
+   - cuv/: 和合本 Chinese Union Version (1919), public domain. Source: the
+     open-bibles chi-cuv.usfx.xml corpus, converted from Traditional to
+     Simplified characters (scripts/fetch-bible-data.mjs).
+   - bsb/: Berean Standard Bible (BSB), dedicated to the public domain in
+     2023. Source: https://bereanbible.com/bsb.txt, which carries the
+     dedication.
+
+2. Photos (public/landing/) - Unsplash License (https://unsplash.com/license)
+   - group.webp - Nicolas Lobos, https://unsplash.com/photos/qbazkeo-R1o
+   - tv.webp    - Clay Banks, https://unsplash.com/photos/XwgC9tsm7jU
+   - phone.webp - Nathan Dumlao, https://unsplash.com/photos/y440_q4e-0E
+   The landing footer credits the photographers.
+
+3. Fonts - not stored in this repository; the page loads them at run time
+   - 霞鹜文楷 LXGW WenKai (lxgw-wenkai-webfont, via cdn.jsdelivr.net) -
+     SIL Open Font License 1.1
+   - Inter, Fraunces, Noto Serif SC, JetBrains Mono (via Google Fonts) -
+     SIL Open Font License 1.1
+
+4. Third-party packages (package.json, installed into node_modules/) and
+   scripts loaded from CDNs (Tailwind CSS, KaTeX stylesheet) keep their own
+   licenses.

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 意见反馈 · Feedback (non-technical)
+    url: https://scripturetolife.org/#/feedback
+    about: 使用感受、文字、愿望，不需要 GitHub 账号 · Wording, a confusing page, a wish; no GitHub account needed
+  - name: 安全问题 · Security vulnerability
+    url: https://github.com/Annaxiebot/bible/security/advisories/new
+    about: 请私下报告，不要公开提 issue · Report privately, never in a public issue

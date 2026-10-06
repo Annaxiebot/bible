@@ -1,128 +1,138 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+# Scripture to Life · 活出神的话
 
-# 圣经学研 Scripture Scholar
+AI 辅助的小组查经工具。An AI-assisted tool for small-group Bible study.
 
-**A bilingual Bible study app with AI-powered research, inline handwriting annotations, and seasonal themes.**
+Live site: <https://scripturetolife.org>
 
-🌐 **[Live App →](https://annaxiebot.github.io/bible/)**
+## 这是什么 · What it is
 
-</div>
+A small-group leader enters a passage. The site drafts a study pack, the
+group studies it together on a TV, and members carry one practice into the
+week. The loop is 明白神的话 Understand the Word → 活出神的话 Live the Word →
+生命兴盛 Flourish.
 
----
+- **生成查经包 · Generate a study pack** (`#/new`): from a passage (or the
+  leader's own study guide), AI drafts the outline, questions and a life
+  menu. The leader reviews and adjusts each section before using it.
+- **大屏演示 · Present on a TV** (`#/pack/<id>`): full-screen slides with
+  clickable verse references (和合本 first, then BSB) and an on-screen
+  "问一问 Ask AI" panel for the group's questions.
+- **扫码报名 · Sign up by QR** (`#/signup`): members scan a code on the
+  screen and commit to one practice for the week. No account needed.
+- **周中提醒 · Mid-week check-ins**: short emails on Tuesday, Thursday and
+  the weekend. Answers stay private unless the member chooses to share
+  them with the leader. Members can stop the emails at any time.
+- **上周分享 · Last week's sharing**: the next meeting opens with a slide
+  summarizing only what members chose to share, reviewed by the leader first.
+- **个人研经 · Personal Bible app** (`#app`): bilingual reading
+  (和合本 + BSB, side by side, readable offline), notes, handwriting
+  annotations, and AI study help. Signed in with Google it syncs; signed out
+  it stays in the browser.
 
-## ✨ Features
+The Bible text is bundled in the repository (`public/bible-data/`), so a
+meeting never depends on a third-party Bible API.
 
-### 📖 Bilingual Bible Reading
-- Side-by-side **Chinese (和合本 CUV)** and **English (WEB)** text
-- Traditional/Simplified Chinese toggle
-- Chapter navigation with swipe gestures (iOS/iPad)
-- Full-text search across all books
-- Reading history with resume from last position
+## 本地运行 · Run locally
 
-### ✏️ Inline Handwriting Annotations
-- **Write directly on the Bible** — transparent drawing overlay on verse text
-- Optimized for **Apple Pencil** with pressure sensitivity, tilt detection, and 240Hz input capture
-- Tools: pen, marker, highlighter, eraser with 8 color presets
-- **Expandable margins** — drag to extend up to 2000px of extra writing space below verses
-- Annotations saved per chapter and persist across sessions
-- Apple Pencil double-tap to toggle eraser
-
-### 🤖 AI Scholar Research
-- Bilingual Chinese and English commentary through the site's AI service (OpenRouter; signed in → hosted proxy, or your own OpenRouter key) — see `docs/adr/0007-hosted-ai.md`
-- Academic-quality verse analysis with scholarly sources
-- Save research notes per verse for later review
-
-### 🎨 Seasonal Themes
-- Background and accent colors change with the seasons:
-  - 🌸 **Spring** — fresh sage greens
-  - ☀️ **Summer** — warm golden amber
-  - 🍂 **Autumn** — rich harvest orange
-  - ❄️ **Winter** — serene cool blues
-- Auto-detects season or manually choose in Settings
-- Themed paper backgrounds for an immersive reading experience
-
-### 📝 Notes & Bookmarks
-- Personal notes per verse with auto-save
-- Bookmark favorite verses (♥) with quick navigation from sidebar
-- Export/import all notes and data as backup
-- Offline Bible download for reading without internet
-
-### 📅 Reading Plans
-- Built-in reading plans to guide daily Bible study
-- Track progress with completion percentage
-- Flexible schedule with start/stop controls
-
----
-
-## 🌐 Live App
-
-**👉 [https://annaxiebot.github.io/bible/](https://annaxiebot.github.io/bible/)**
-
-Works on desktop browsers, iPad, and iPhone. Best experience on iPad with Apple Pencil for handwriting annotations.
-
----
-
-## 🏗️ Origin
-
-This app was originally created in [Google AI Studio](https://ai.studio/apps/drive/11oSg5tET4z_ig6AK13MydKOrO7Yx9m7z) and has been significantly extended with bilingual support, handwriting annotations, seasonal themes, reading plans, and offline capabilities.
-
----
-
-## 🚀 Run Locally
-
-**Prerequisites:** Node.js 20+
-
-1. Clone the repo:
-   ```bash
-   git clone https://github.com/Annaxiebot/bible.git
-   cd bible
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Set the Supabase project in `.env.local` (AI, sign-in and sync use it):
-   ```
-   VITE_SUPABASE_URL=https://<project>.supabase.co
-   VITE_SUPABASE_ANON_KEY=<anon key>
-   ```
-
-4. Run the dev server:
-   ```bash
-   npm run dev
-   ```
-
-5. Open [http://localhost:3000/bible/](http://localhost:3000/bible/) in your browser.
-
----
-
-## 📦 Build & Deploy
+Prerequisites: Node.js 20+.
 
 ```bash
-npm run build
+git clone https://github.com/Annaxiebot/bible.git
+cd bible
+npm install
+npm run dev          # http://localhost:3000/bible/
 ```
 
-The app auto-deploys to GitHub Pages on push to `master` via the included GitHub Actions workflow.
+Without a Supabase project the reading app, the landing page and TV mode
+for the bundled sample pack work; sign-in, sync, AI and sign-ups need the
+configuration below.
 
----
+### 测试 · Tests
 
-## 🛠️ Tech Stack
+```bash
+npx tsc --noEmit     # type check
+npx vitest run       # unit and integration tests
+npx playwright test  # end-to-end tests (starts the dev server on port 3000)
+npm run build        # production build
+```
 
-- **React 19** + TypeScript
-- **Vite** for build tooling
-- **OpenRouter** (via the `ai-proxy` Supabase edge function, or the user's own key) for AI research
-- **IndexedDB** (via `idb`) for local storage
-- **Canvas API** with pointer events for handwriting
-- **Tailwind CSS** (CDN) for styling
-- **KaTeX** for mathematical notation
-- **GitHub Pages** for deployment
+End-to-end tests mock Supabase and the AI; they never call a live service.
 
----
+## 架构 · Architecture
 
-## 📄 License
+- **Front end:** Vite + React 19 + TypeScript, a static site on GitHub
+  Pages. Deployed from `master` by `.github/workflows/deploy.yml`.
+- **Back end:** Supabase — Google sign-in, Postgres with row-level security
+  (schemas and runbooks in `database/`), and three edge functions in
+  `supabase/functions/`:
+  - `ai-proxy` — relays AI requests to OpenRouter with the site's key, so
+    leaders need no key of their own.
+  - `send-checkins` — the mid-week check-in emails (Resend), run by pg_cron.
+  - `feedback` — stores messages from the `#/feedback` page and emails the
+    owner.
+- **AI models:** OpenRouter, through the hosted proxy (a monthly quota per
+  leader). Model ids are single constants in `services/aiDefaults.ts`.
 
-This project is open source. Originally created in Google AI Studio.
-# Test auto-deploy
+Decisions are recorded as ADRs in [`docs/adr/`](docs/adr/):
+
+| ADR | Topic |
+| --- | --- |
+| [0003](docs/adr/0003-scripturetolife-content-principles.md) | Content principles: Chinese first, translations, Ask AI answer contract, flourishing model |
+| [0004](docs/adr/0004-per-pack-signup-and-checkins.md) | Per-pack sign-up and automated check-ins |
+| [0005](docs/adr/0005-leader-settings-sync.md) | Leader settings sync |
+| [0006](docs/adr/0006-packs-in-supabase.md) | Study packs in Supabase |
+| [0007](docs/adr/0007-hosted-ai.md) | Hosted AI proxy |
+| [0008](docs/adr/0008-last-week-sharing.md) | Last week's sharing |
+| [0009](docs/adr/0009-checkin-opt-out.md) | Check-in opt-out |
+| [0010](docs/adr/0010-personal-app-sync.md) | Personal app sync |
+| [0011](docs/adr/0011-feedback.md) | Feedback page |
+| [0012](docs/adr/0012-site-stats.md) | Site-wide usage counters |
+
+## 配置 · Configuration
+
+Front end (`.env.local`, never committed):
+
+| Variable | Purpose |
+| --- | --- |
+| `VITE_SUPABASE_URL` | Supabase project URL |
+| `VITE_SUPABASE_ANON_KEY` | Supabase anon (public) key; row-level security protects the data |
+| `VITE_OPENROUTER_API_KEY` | Optional, local development only. It is compiled into the bundle, so never set it for a public build |
+| `VITE_BASE_PATH` | Build base path (default `/bible/`; the production build uses `/`) |
+
+Edge function secrets (set with `supabase secrets set`; names only — values
+are never committed):
+
+- `ai-proxy`: `OPENROUTER_API_KEY`, `AI_PROXY_ENABLED`
+- `send-checkins`: `RESEND_API_KEY`, `CHECKIN_FROM`, `CHECKIN_REPLY_TO`,
+  `CHECKIN_CRON_SECRET`, `CHECKIN_SMS_ENABLED`, `TWILIO_ACCOUNT_SID`,
+  `TWILIO_AUTH_TOKEN`, `TWILIO_FROM`, `DRY_RUN`
+- `feedback`: `FEEDBACK_TO`, `FEEDBACK_SALT` (and the Resend secrets above)
+- All functions also read `SUPABASE_URL`, `SUPABASE_ANON_KEY` and
+  `SUPABASE_SERVICE_ROLE_KEY`, which Supabase provides.
+
+## 隐私 · Privacy
+
+Members give a name and an email or phone number, used only for the
+check-ins of the group they joined. Check-in answers stay on the member's
+own device unless they choose to share them. Nothing is sold or used for
+advertising. Full statement: [privacy.html](https://scripturetolife.org/privacy.html)
+(source: `public/privacy.html`).
+
+## 参与开发 · Contributing
+
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) and the
+[Code of Conduct](CODE_OF_CONDUCT.md). Report security problems privately as
+described in [SECURITY.md](SECURITY.md). Non-technical feedback:
+<https://scripturetolife.org/#/feedback>.
+
+## 许可 · License
+
+Code © the Scripture to Life contributors, licensed under the
+[GNU Affero General Public License v3.0 or later](LICENSE)
+(AGPL-3.0-or-later). If you run a modified version as a public service, you
+must offer its source to its users.
+
+The bundled Bible text is public domain and not covered by the code
+license: 和合本 Chinese Union Version (1919) and the Berean Standard Bible
+(dedicated to the public domain in 2023). Photos and fonts keep their own
+licenses. See [NOTICE](NOTICE) for the full list.

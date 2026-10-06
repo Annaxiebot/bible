@@ -25,6 +25,7 @@ import { photoSrc } from '../LandingGroup';
 import { clearExternalVerseCache } from '../../studypack/externalVerses';
 import { FEEDBACK_HASH, FEEDBACK_LABEL, feedbackHash } from '../../../supabase/functions/_shared/feedback';
 import { FEEDBACK_PAGE_TEST_ID } from '../../feedback/FeedbackPage';
+import { SOURCE_REPO_URL, CONTRIBUTE_LABEL } from '../../shared/sourceRepo';
 
 // The pages are React.lazy; their first import is load-dependent (several
 // seconds under heavy CPU load) and must not count against a 1 s findBy.
@@ -263,6 +264,17 @@ describe('LandingGate', () => {
     render(<LandingGate app={app} />);
     expect(await screen.findByTestId(FEEDBACK_PAGE_TEST_ID)).toHaveTextContent(FEEDBACK_LABEL);
     expect(screen.queryByTestId('landing-page')).toBeNull();
+  });
+
+  it('the footer links 参与开发 · Contribute on GitHub to the repo in a new tab, without an opener', async () => {
+    window.location.hash = '';
+    render(<LandingGate app={app} />);
+    await screen.findByTestId('landing-page');
+    const link = within(screen.getByTestId('landing-footer')).getByTestId('landing-contribute-link');
+    expect(link).toHaveAttribute('href', SOURCE_REPO_URL);
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(link.textContent).toBe(CONTRIBUTE_LABEL.replace(' · ', ''));
   });
 
   it('renders the app at #app', () => {

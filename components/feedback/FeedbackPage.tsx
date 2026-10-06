@@ -9,6 +9,7 @@
  * function repeats it before any write). The owner's address never reaches
  * the browser: the function emails it from a secret. Paper style with the
  * shared PaperHeader (its feedback link hidden here — this is the page).
+ * One line at the bottom points developers to the public repo (sourceRepo).
  */
 import React, { useState } from 'react';
 import { getSignupClient } from '../signup/signupClient';
@@ -21,6 +22,7 @@ import PaperHeader from '../shared/PaperHeader';
 import {
   FEEDBACK_LABEL, FEEDBACK_MAX_CHARS, FEEDBACK_EMAIL_MAX_CHARS, HONEYPOT_FIELD, FeedbackContext, validateFeedback,
 } from '../../supabase/functions/_shared/feedback';
+import { SOURCE_REPO_URL, CONTRIBUTE_PROMPT, EXTERNAL_LINK_PROPS } from '../shared/sourceRepo';
 import { sendFeedback } from './feedbackClient';
 import { FB_MESSAGE_LABEL, FB_EMAIL_LABEL, FB_SEND, FB_SENDING, FB_THANKS, FB_ERRORS, FeedbackFailure } from './feedbackStrings';
 
@@ -85,6 +87,10 @@ const FeedbackPage: React.FC<{ context: FeedbackContext }> = ({ context }) => {
             {failure && <p role="alert" data-testid="feedback-error" className={PAPER_ERROR_CLASS} style={textStyle}>{FB_ERRORS[failure]}</p>}
           </form>
         )}
+        <p className={`mt-10 ${PAPER_MUTED_CLASS}`}>
+          <a href={SOURCE_REPO_URL} {...EXTERNAL_LINK_PROPS} data-testid="feedback-contribute-link"
+            className="inline-flex min-h-[48px] items-center underline underline-offset-4">{CONTRIBUTE_PROMPT}</a>
+        </p>
       </div>
     </div>
   );

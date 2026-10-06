@@ -17,6 +17,7 @@ import {
 } from '../../../supabase/functions/_shared/feedback';
 import { FB_ERRORS, FB_THANKS, FB_EMAIL_LABEL, FB_MESSAGE_LABEL } from '../feedbackStrings';
 import { SETUP_MIN_FONT_PX } from '../../setup/setupStrings';
+import { SOURCE_REPO_URL, CONTRIBUTE_PROMPT } from '../../shared/sourceRepo';
 
 const httpError = (status: number, body: unknown) =>
   new FunctionsHttpError(new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }));
@@ -89,6 +90,18 @@ describe('FeedbackPage', () => {
       expect(await screen.findByText(FB_ERRORS[key])).toHaveAttribute('role', 'alert');
     }
     expect(screen.queryByTestId('feedback-thanks')).toBeNull();
+  });
+
+  it('one line invites developers to the repo, in a new tab without an opener — before and after sending', async () => {
+    render(<FeedbackPage context={{}} />);
+    const link = screen.getByRole('link', { name: CONTRIBUTE_PROMPT });
+    expect(link).toHaveAttribute('href', SOURCE_REPO_URL);
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    type('feedback-message', 'hi');
+    send();
+    await screen.findByTestId('feedback-thanks');
+    expect(screen.getByRole('link', { name: CONTRIBUTE_PROMPT })).toBeInTheDocument();
   });
 
   it('a filled honeypot never gets a thank-you', () => {

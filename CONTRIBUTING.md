@@ -1,158 +1,129 @@
-# Contributing Guidelines
+# 参与开发 · Contributing
 
-## ⚠️ NON-NEGOTIABLE: All Code Must Have Tests
+Thank you for helping build Scripture to Life. This page says how to
+propose a change, the rules every change follows, and how to check your
+work before you open a pull request.
 
-**NO CODE IS MERGED WITHOUT TESTS. Period.**
+By contributing you agree that your contribution is licensed under the
+GNU Affero General Public License v3.0 or later (see [LICENSE](LICENSE)),
+and that you follow the [Code of Conduct](CODE_OF_CONDUCT.md).
 
-This is professional software engineering practice. Past failures where new features broke existing functionality are unacceptable and MUST NOT happen again.
+## 怎样提交 · How to propose a change
 
----
+1. **Open an issue first** for anything beyond a small fix (a typo, a
+   one-line bug). Describe the problem or idea and wait for agreement on
+   the approach. This saves you from writing code that cannot be merged.
+2. **Fork the repository and create a branch** from `master`.
+3. **One concern per pull request.** A bug fix does not also refactor; a
+   feature does not also reformat unrelated files. If you find something
+   else that needs work, open a separate issue.
+4. **Open a pull request** that explains what changed and why, how you
+   tested it, and which issue it closes.
 
-## Before ANY Commit
+Non-technical feedback (wording, a confusing page, a wish) is welcome on
+the site's feedback page: <https://scripturetolife.org/#/feedback>.
+Security problems: see [SECURITY.md](SECURITY.md), never a public issue.
 
-- [ ] Tests written and passing (`npm run test`)
-- [ ] Build succeeds (`npm run build`)
-- [ ] Coverage didn't decrease (`npm run test:coverage`)
-- [ ] Manual smoke test of affected features
-- [ ] CI must be green (when configured)
+## 规则 · Rules every change follows
 
----
+### Code
 
-## When Creating New Features
+- **Tests alongside the code, never after.** Every bug fix comes with a
+  regression test. Changes to sign-up, check-ins, sync, AI or input
+  handling also need a test of the real user flow (an end-to-end test in
+  `tests/e2e/`), not only unit tests. Mocks must enforce the same rules as
+  the real service, or they hide bugs.
+- **No silent error swallowing.** Every `try/catch` either rethrows with
+  context, shows the user an error, or carries a comment explaining why
+  ignoring the error is correct. Logging to the console alone does not
+  count. An empty or timed-out result is a failure, not a success.
+- **One source for shared strings.** A string that must match in several
+  places (a user-visible label, a prompt, a config key, a column list)
+  lives in one module as an exported constant. Tests import the constant
+  instead of copying the literal. Search the codebase before adding a new
+  constant, function or long string.
+- **Size budget.** At most 50 lines per function and 300 lines per file.
+  Do not push a file over 300 lines; split it in the same change. Some
+  older files are already over; you may fix bugs in them, but do not add a
+  new feature to one without splitting it first.
+- **Clean build.** `npx tsc --noEmit` passes with no errors, no `any`
+  without a stated reason, no `@ts-ignore`, no commented-out code, no
+  `console.log` in production code, no magic numbers (use named
+  constants).
+- **Delete dead code.** Remove unused files and functions you come across
+  in the area you touch; do not leave `.backup`, `.old` or `_v2` copies.
+  Git history keeps the old version.
 
-1. **Write tests FIRST** (or alongside code) — Test-Driven Development
-2. Run `npm run test` before every commit
-3. Run `npm run test:coverage` to verify coverage >70%
-4. Document what you tested in commit message
+### Decisions
 
----
+- **Record decisions in an ADR.** A change to architecture, data model,
+  privacy or content rules gets a short Architecture Decision Record in
+  [`docs/adr/`](docs/adr/) (context, decision, consequences). Read the
+  existing ADRs before changing the area they cover.
 
-## Test Locations
+### Content and theology (ADR-0003)
 
-- **Unit tests:** `tests/unit/**/*.test.ts`
-- **Integration tests:** `tests/integration/**/*.test.ts`
-- **E2E tests:** `tests/e2e/**/*.spec.ts`
-- **Test guide:** `TESTING_GUIDE.md` (if exists)
+[ADR-0003](docs/adr/0003-scripturetolife-content-principles.md) binds every
+part of the site that shows or generates content. In short:
 
----
+- **Chinese first.** Every bilingual user-facing string shows 中文 first,
+  then English (`中文 · English`). Simplified Chinese.
+- **Translations.** Scripture is 和合本 (CUV) and the Berean Standard Bible
+  (BSB), both public domain and bundled in `public/bible-data/`. Never add
+  a copyrighted translation (for example NIV).
+- **A leader's guide is used literally.** The AI adds nothing uninvited;
+  leader-only material (hints, reference answers) never reaches the TV.
+  App-added layers are visibly the app's.
+- **The Ask AI answer contract.** Short first, deeper only when asked;
+  start from the passage, then the whole Bible with 1-2 references; cite
+  verses (every reference is clickable); mark contested readings as
+  "一种理解 · one reading"; follow the pack's content-language setting;
+  never equate a medical or emotional condition with weak faith. The AI
+  supports the discussion; the group and the pastor lead it.
+- **Three kinds of claims stay separate.** "Scripture says X"
+  (interpretation), "X may lead to behavior Y" (application hypothesis) and
+  "Y affects physiology Z" (a scientific claim that needs evidence). The
+  last two are never presented as biblical claims.
+- **Readable for seniors.** Large type, tap targets of at least 48px,
+  animation never carries information and respects reduced motion.
 
-## Coverage Requirements
+### Privacy and secrets
 
-- **Overall:** >70%
-- **Services:** >90% (business logic is critical)
-- **Components:** >60% (UI is harder to test)
+- **Never commit secrets** (API keys, tokens, passwords, the Supabase
+  service-role key) or a `.env` file. Only the Supabase anon key may appear
+  in a build, and only through `VITE_SUPABASE_ANON_KEY`.
+- **Never commit personal data**: real names, emails or phone numbers,
+  real check-in answers, logs, recordings or screenshots of real content.
+  Use obviously fake test data (`member@example.com`).
+- Reflections are private by default (ADR-0003 §17); a change must not
+  send a member's data anywhere they did not choose.
 
-Run coverage report:
+## 检查 · Run the checks
+
 ```bash
-npm run test:coverage
+npm install
+npx tsc --noEmit     # types: must be clean
+npx vitest run       # unit and integration tests: all pass
+npx playwright test  # end-to-end tests: all pass
+npm run build        # production build: no warnings
 ```
 
----
+Unit tests live next to the code in `__tests__/` folders; end-to-end tests
+live in `tests/e2e/`. End-to-end tests must not call live services: mock
+Supabase and the AI with fakes that enforce the real contract.
 
-## Red Flags (STOP and FIX)
+Include the test output (the last lines are enough) in your pull request.
 
-- ❌ "Feature complete" but no tests written
-- ❌ Breaking existing features (regression)
-- ❌ Large PRs without test coverage
-- ❌ Skipping tests "to save time"
-- ❌ Build warnings ignored
-- ❌ Duplicate keys in object literals
-
-**If an AI says "feature complete" without tests → IT'S NOT COMPLETE.**
-
----
-
-## Task Completion Checklist
-
-Use this for EVERY feature:
-
-```markdown
-- [ ] Feature implemented
-- [ ] Unit tests written
-- [ ] Integration tests written (if needed)
-- [ ] E2E tests written (if user-facing)
-- [ ] `npm run test` passes locally
-- [ ] `npm run build` succeeds with zero warnings
-- [ ] Coverage >70% overall
-- [ ] Manual smoke test completed
-- [ ] CI passing (when available)
-- [ ] Proof provided (test results, coverage report, screenshots)
-```
-
-**Not done until ALL boxes checked.**
-
----
-
-## Why This Matters
-
-- **Proof:** Tests prove code works as intended
-- **Protection:** Tests prevent regressions
-- **Documentation:** Tests show expected behavior
-- **Trust:** Code with tests can be trusted
-
-**There are no shortcuts. There are no exceptions.**
-
----
-
-## Code Quality Standards
-
-### TypeScript
-- Fix ALL build warnings before committing
-- No `any` types without explicit justification
-- Use strict mode (`"strict": true` in tsconfig.json)
-
-### Object Literals
-- No duplicate keys (will cause silent bugs)
-- Validate with linter or pre-commit hooks
-
-### Bundle Size
-- Keep main bundle <500KB minified
-- Use code splitting for large features
-- Lazy-load heavy dependencies
-
-### Security
-- Run `npm audit` regularly
-- Fix high/critical vulnerabilities immediately
-- Keep dependencies up to date
-
----
-
-## Commit Message Format
+## 提交信息 · Commit messages
 
 ```
-type(scope): brief description
+type(scope): short description
 
-- Detailed bullet points
 - What changed and why
-- Tests written and passing
-- Coverage: XX%
+- Searched: "<terms you searched for>" - no duplicates
+- Tests: which tests cover it and pass
 ```
 
-**Types:** `feat`, `fix`, `test`, `refactor`, `docs`, `chore`
-
-**Example:**
-```
-feat(bible-viewer): add offline chapter caching
-
-- Implement IndexedDB storage for downloaded chapters
-- Add background download with progress indicator
-- Tests written for storage service (95% coverage)
-- Manual testing on iPad with airplane mode
-- Coverage: 92% (services), 78% (overall)
-```
-
----
-
-## Getting Help
-
-If you're stuck:
-1. Read existing tests for examples
-2. Check `TESTING_GUIDE.md` (if exists)
-3. Ask for clarification before proceeding
-4. Pair with another developer/AI if needed
-
----
-
-**Remember:** Professional software engineering isn't about moving fast and breaking things. It's about building reliable software that works correctly and can be maintained over time.
-
-**The maintainer is a 25+ year software engineering veteran. Professional standards apply.**
+`type` is one of `feat`, `fix`, `test`, `refactor`, `docs`, `chore`.
+`scope` is the area, for example `landing`, `studypack`, `signup`,
+`checkins`. Explain *why* in the body; the diff already shows *what*.

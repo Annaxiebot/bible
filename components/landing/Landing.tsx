@@ -7,7 +7,8 @@
  * + landingSections.css). Shown only at the bare root URL. Order: sticky
  * nav · hero · the loop (01 02 03) · group band (photos) · personal study ·
  * next study (+ 新建查经 and the AI line) · honest numbers · footer (its
- * links end with 意见反馈 · Feedback → #/feedback?from=landing, ADR-0011).
+ * links end with 意见反馈 · Feedback → #/feedback?from=landing, ADR-0011,
+ * and 参与开发 · Contribute on GitHub → the public repo, in a new tab).
  * Strings live in landingStrings.ts (ADR-0003: Chinese first). The AI
  * line (and the #/setup hash) opens the AI service dialog. The next-study
  * block takes a pack id so a later "current pack" setting can drive it;
@@ -31,6 +32,7 @@ import {
   BRAND_EN, BRAND_ZH_LEAD, BRAND_ZH_HIGHLIGHT, NAV_LINKS, PHOTO_CREDIT,
 } from './landingStrings';
 import { FEEDBACK_LABEL, feedbackHash } from '../../supabase/functions/_shared/feedback';
+import { SOURCE_REPO_URL, CONTRIBUTE_LABEL, EXTERNAL_LINK_PROPS } from '../shared/sourceRepo';
 import { useAIAccess } from '../setup/useAIAccess';
 import QuickAISetupDialog from '../setup/QuickAISetup';
 
@@ -59,6 +61,7 @@ const SetupLine: React.FC<{ configured: boolean; onOpen: () => void }> = ({ conf
 const Footer: React.FC = () => {
   const newStudy = splitLabel(NEW_STUDY_LINE);
   const [feedbackZh, feedbackEn] = FEEDBACK_LABEL.split(' · ');
+  const [contributeZh, contributeEn] = CONTRIBUTE_LABEL.split(' · ');
   return (
     <footer className="ld-footer ld-dark" data-testid="landing-footer">
       <div className="ld-wrap">
@@ -75,6 +78,9 @@ const Footer: React.FC = () => {
             </a>
             <a className="ld-foot-link" href={feedbackHash('landing')} data-testid="landing-feedback-link">
               {feedbackZh}<span className="ld-nav-en">{feedbackEn}</span>
+            </a>
+            <a className="ld-foot-link" href={SOURCE_REPO_URL} {...EXTERNAL_LINK_PROPS} data-testid="landing-contribute-link">
+              {contributeZh}<span className="ld-nav-en">{contributeEn}</span>
             </a>
           </div>
         </div>

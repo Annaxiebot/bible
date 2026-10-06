@@ -5,7 +5,8 @@
  * real function's order (feedbackHandler): the shared validateFeedback
  * first (400 + problem code; a filled honeypot or an empty message never
  * stores), then a 5-per-window rate limit (429), else 200 + row id. No live
- * Supabase; nothing is sent anywhere.
+ * Supabase; nothing is sent anywhere. The Contribute links open the repo in
+ * a new tab; GitHub is stubbed.
  */
 import { test, expect, Page } from '@playwright/test';
 import {
@@ -13,6 +14,21 @@ import {
 } from '../../supabase/functions/_shared/feedback';
 import { FB_THANKS, FB_ERRORS } from '../../components/feedback/feedbackStrings';
 import { E2E_SUPABASE_PATH, injectSupabaseOverride } from './helpers/signup';
+import { SOURCE_REPO_URL, CONTRIBUTE_LABEL, CONTRIBUTE_PROMPT } from '../../components/shared/sourceRepo';
+
+const MIN_TAP_PX = 48;
+
+/** Clicks an external link and returns the popup it opened; GitHub is stubbed (no network). */
+async function openRepoPopup(page: Page, testId: string) {
+  await page.context().route(`${SOURCE_REPO_URL}**`, route => route.fulfill({ status: 200, contentType: 'text/html', body: '<p>repo</p>' }));
+  const link = page.getByTestId(testId);
+  await expect(link).toHaveAttribute('href', SOURCE_REPO_URL);
+  await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+  expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(MIN_TAP_PX);
+  const [popup] = await Promise.all([page.waitForEvent('popup'), link.click()]);
+  await popup.waitForLoadState();
+  return popup;
+}
 
 async function mockFeedbackFunction(page: Page) {
   const stored: Array<Record<string, unknown>> = [];
@@ -65,6 +81,21 @@ test.describe('Feedback', () => {
     await page.getByRole('button', { name: /发送/ }).click();
     await expect(page.getByTestId('feedback-thanks')).toBeVisible();
     expect(fn.stored()[0]).toMatchObject({ context: { from: 'email', pack: 'local-2026-10-02-jhn3' }, email: null });
+  });
+
+  test('Contribute on GitHub: landing footer and feedback page open the repo in a new tab with no opener', async ({ page }) => {
+    await page.goto('./');
+    await expect(page.getByTestId('landing-contribute-link')).toHaveText(CONTRIBUTE_LABEL.replace(' · ', ''));
+    const fromLanding = await openRepoPopup(page, 'landing-contribute-link');
+    expect(fromLanding.url()).toBe(SOURCE_REPO_URL);
+    expect(await fromLanding.evaluate(() => window.opener)).toBeNull();
+    await fromLanding.close();
+    await expect(page.getByTestId('landing-page')).toBeVisible();   // the site stays open behind it
+
+    await page.goto(`./${feedbackHash('landing')}`);
+    await expect(page.getByTestId('feedback-contribute-link')).toHaveText(CONTRIBUTE_PROMPT);
+    const fromFeedback = await openRepoPopup(page, 'feedback-contribute-link');
+    expect(fromFeedback.url()).toBe(SOURCE_REPO_URL);
   });
 
   test('over the hourly limit the page says so and shows no thank-you', async ({ page }) => {
