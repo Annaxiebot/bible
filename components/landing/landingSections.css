@@ -116,6 +116,12 @@
 .ld-nums { display: grid; grid-template-columns: repeat(4, 1fr); margin: 44px 0 0; border-top: 1px solid var(--stl-line); }
 .ld-nums > div { padding: 28px 22px 8px 0; border-right: 1px solid var(--stl-line); }
 .ld-nums > div:last-child { border-right: 0; }
+/* Live site-wide totals (ADR-0012): six figures, three per row. */
+@media (min-width: 861px) {
+  .ld-nums-3 { grid-template-columns: repeat(3, 1fr); }
+  .ld-nums-3 > div:nth-child(3n) { border-right: 0; }
+  .ld-nums-3 > div:nth-child(3n+1) { padding-left: 0; }
+}
 .ld-nums > div + div { padding-left: 22px; }
 .ld-figure { font: 600 clamp(2.75rem, 5vw, 4rem)/1 var(--ld-head); letter-spacing: -0.02em; }
 .ld-nums dd { margin: 12px 0 0; }

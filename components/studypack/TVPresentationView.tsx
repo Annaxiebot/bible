@@ -9,6 +9,8 @@
  * the Ask-AI overlay; Escape closes the overlay first, exits the app second.
  * Full screen (useTVFullscreen): F toggles it, a one-time hint says so, and
  * an Escape that only left full screen does not also leave TV mode.
+ * A presentation open for 10 minutes of visible time is logged once as a
+ * group meeting (useMeetingTracker, ADR-0012).
  */
 import { FIRST_SLIDE_HINT, FIRST_SLIDE_HINT_SHORT, ASK_AI_LABEL, TV_LOADING } from './tvHints';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
@@ -22,6 +24,7 @@ import { exitFullscreen } from './fullscreen';
 import { useSelectToAsk, selectionVerse } from './useSelectToAsk';
 import TVSlide from './TVSlide';
 import AskAIOverlay from './AskAIOverlay';
+import { useMeetingTracker } from '../stats/useMeetingTracker';
 
 /**
  * What the overlay should auto-send on open (one-click smart Ask AI):
@@ -177,6 +180,8 @@ const TVPresentationView: React.FC<TVPresentationViewProps> = ({ packId, onExit 
       });
     return () => { cancelled = true; };
   }, [packId, claim.version]);
+  // 10 minutes of visible presentation = one group meeting (ADR-0012; never the demo pack).
+  useMeetingTracker(packId, !!slides);
 
   return (
     <div

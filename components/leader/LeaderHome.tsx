@@ -8,6 +8,7 @@
  * its sign-up / shared-answer counts and Edit · Present · Sign-ups &
  * responses · Sign-up QR links (LeaderPackRow), a "新建查经 New study" link
  * and the pack sync line. Every failure renders inline (role=alert).
+ * Under the packs, "全站使用 · Site-wide" totals (SiteStatsSection, ADR-0012).
  */
 import React from 'react';
 import { useGoogleSignIn } from '../signup/useGoogleSignIn';
@@ -21,6 +22,7 @@ import { useLeaderPacks } from './leaderHomeData';
 import { LeaderPackRow, linkButtonClass } from './LeaderPackRow';
 import { LH_TITLE, LH_SIGNIN, LH_LOADING, LD_BACK } from './leaderStrings';
 import { LeaderSignOut } from './LeaderSignOut';
+import SiteStatsSection from './SiteStatsSection';
 import { textStyle, controlStyle, pageTitleStyle } from '../newstudy/newStudyStyles';
 
 const alert = (text: string) => <p role="alert" className="text-red-300" style={textStyle}>{text}</p>;
@@ -74,6 +76,7 @@ const LeaderHome: React.FC = () => {
         {session.configured && !session.loading && !session.uid && <SignInPrompt />}
         {session.uid && <LeaderSignOut email={session.email} />}
         {session.uid && <MyPacks uid={session.uid} />}
+        {session.uid && <SiteStatsSection />}
       </div>
     </div>
   );

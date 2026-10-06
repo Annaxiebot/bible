@@ -22,6 +22,7 @@ import { qrHash } from '../../signup/signupRoute';
 import { leaderHash } from '../leaderRoute';
 import { LH_SIGNIN, LH_ERR_COUNTS, packCountsLine } from '../leaderStrings';
 import { SETUP_SIGN_OUT, SETUP_SIGN_OUT_FAILED } from '../../setup/setupStrings';
+import { SITE_STATS_FN } from '../../stats/statsRules';
 
 let uid: string | null = 'uid-lead';
 let configured = true;
@@ -42,9 +43,12 @@ const fromMock = vi.fn((table: string) => ({
     },
   }),
 }));
+/** site_stats answers like the SQL (totals only); any other function is unknown. */
+const SITE_TOTALS = { packs: 3, leaders: 2, meetings: 1, signups: 4, practices: 15, checkins_shared: 2, as_of: '2026-10-06T00:00:00Z' };
+const rpcMock = vi.fn(async (fn: string) => (fn === SITE_STATS_FN ? { data: SITE_TOTALS, error: null } : { data: null, error: { message: `unknown ${fn}` } }));
 const authState = () => ({ user: uid ? { id: uid, email: 'lead@example.com' } : null, session: null, isAuthenticated: !!uid, isLoading: false });
 vi.mock('../../../services/supabase', () => ({
-  get supabase() { return configured ? { from: fromMock } : null; },
+  get supabase() { return configured ? { from: fromMock, rpc: rpcMock } : null; },
   isSupabaseConfigured: () => configured,
   authManager: {
     getState: () => authState(),
@@ -116,6 +120,15 @@ describe('LeaderHome', () => {
     expect(fromMock).toHaveBeenCalledWith(CHECKIN_ANSWERS_TABLE);
   });
 
+  it('signed in: the site-wide totals (site_stats) sit under My packs', async () => {
+    render(<LeaderHome />);
+    expect(await screen.findByTestId('site-stat-packs')).toHaveTextContent('3');
+    expect(screen.getByTestId('site-stat-checkins_shared')).toHaveTextContent('2');
+    const packs = screen.getByTestId('lh-packs');
+    expect(packs.compareDocumentPosition(screen.getByTestId('lh-site-stats')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(rpcMock).toHaveBeenCalledWith(SITE_STATS_FN);
+  });
+
   it('a counts failure is shown; the packs still list', async () => {
     countsError = 'permission denied';
     await saveLocalPack(pack('local-2026-10-02-matt6', '2026-10-02', '不要忧虑'));
@@ -141,9 +154,10 @@ describe('LeaderHome', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(`${SETUP_SIGN_OUT_FAILED} · network down`);
   });
 
-  it('signed out: no Sign out button', () => {
+  it('signed out: no Sign out button and no site-wide totals', () => {
     uid = null;
     render(<LeaderHome />);
     expect(screen.queryByTestId('leader-sign-out')).toBeNull();
+    expect(screen.queryByTestId('lh-site-stats')).toBeNull();
   });
 });
