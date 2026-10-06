@@ -14,7 +14,7 @@
 /** The study_signups column the migration adds; non-null = replaced by a later sign-up. */
 export const REPLACED_COLUMN = 'replaced_at';
 
-/** RPC the member's browser calls right after its insert: mark_replaced_signups(p_new_id) → count. */
+/** RPC the signup edge function (service role only) calls right after its insert: mark_replaced_signups(p_new_id) → count. */
 export const MARK_REPLACED_FN = 'mark_replaced_signups';
 
 /** Live rows only (replaced_at null or absent — rows read before the column existed). */

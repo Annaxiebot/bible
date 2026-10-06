@@ -17,9 +17,12 @@
  *   = pack.leaderId) and is forced into a dry run addressed to `test_to`.
  *   The leader_id of every row must match the pack's leaderId (verifyLeader);
  *   nothing client-supplied is trusted for ownership.
- * - 'welcome' is the one anonymous path: the member's browser passes the
- *   signup id it just received; the row must exist and be younger than
- *   WELCOME_WINDOW_MS (recipients.welcomeAllowed). One email, to that row.
+ * - 'welcome' needs a trusted caller too (trust.welcomeCallerProblem): the
+ *   signup function asks for it right after it inserted the row (ADR-0013);
+ *   an anonymous welcome is refused with 403 (it used to be the one
+ *   anonymous path, which let anyone make this domain mail any address).
+ *   The row must exist and be younger than WELCOME_WINDOW_MS
+ *   (recipients.welcomeAllowed). One email, to that row.
  * - DRY_RUN=1 logs instead of sending. Every attempt — sent, dry-run or
  *   failed — writes one checkin_sends row.
  * - Email headers come from secrets: CHECKIN_FROM (default CHECKIN_FROM_EMAIL)
@@ -43,7 +46,8 @@ import {
   selectRecipients, testRecipientRow, verifyLeader, memberContext, welcomeAllowed, Recipient, SignupRow,
 } from './recipients.ts';
 import { emailConfig, sendEmail, sendSms, TwilioConfig } from './senders.ts';
-import { isTrustedCaller, CRON_SECRET_HEADER } from './trust.ts';
+import { isTrustedCaller, welcomeCallerProblem, CRON_SECRET_HEADER } from './trust.ts';
+import { SIGNUPS_TABLE } from '../_shared/signup.ts';
 import { REPLACED_COLUMN } from './replaced.ts';
 import {
   UNSUBSCRIBED_COLUMN, UNSUBSCRIBE_FN, handleOneClick, isOneClickRequest, oneClickUrl, pauseSkip, sitePaused,
@@ -107,13 +111,13 @@ function loadPack(client: SupabaseClient, packId: string): Promise<CheckinPack> 
 
 async function loadSignups(client: SupabaseClient, packId: string): Promise<SignupRow[]> {
   // Live rows only: a row replaced by a later sign-up (same pack + email) gets nothing (replaced.ts).
-  const { data, error } = await client.from('study_signups').select(SIGNUP_COLUMNS).eq('pack_id', packId).is(REPLACED_COLUMN, null);
+  const { data, error } = await client.from(SIGNUPS_TABLE).select(SIGNUP_COLUMNS).eq('pack_id', packId).is(REPLACED_COLUMN, null);
   if (error) throw new Error(`study_signups query failed: ${error.message}`);
   return (data ?? []) as SignupRow[];
 }
 
 async function loadSignup(client: SupabaseClient, signupId: string): Promise<SignupRow | null> {
-  const { data, error } = await client.from('study_signups').select(SIGNUP_COLUMNS).eq('id', signupId).maybeSingle();
+  const { data, error } = await client.from(SIGNUPS_TABLE).select(SIGNUP_COLUMNS).eq('id', signupId).maybeSingle();
   if (error) throw new Error(`study_signups query failed: ${error.message}`);
   return (data as SignupRow | null) ?? null;
 }
@@ -196,8 +200,10 @@ async function sendAll(
   });
 }
 
-/** The anonymous welcome: one email to the signup row the browser just created. */
-async function handleWelcome(body: RequestBody, now: Date): Promise<Response> {
+/** The welcome: one email to the row the signup function just created (trusted caller only). */
+async function handleWelcome(request: Request, body: RequestBody, now: Date): Promise<Response> {
+  const refused = welcomeCallerProblem(request.headers.get(CRON_SECRET_HEADER), env('CHECKIN_CRON_SECRET'));
+  if (refused) return jsonResponse(403, { error: refused });
   if (typeof body.signup_id !== 'string' || body.signup_id.length === 0) return jsonResponse(400, { error: 'signup_id is required' });
   const client = serviceClient();
   const row = await loadSignup(client, body.signup_id);
@@ -216,7 +222,7 @@ async function handle(request: Request): Promise<Response> {
   const body = (await request.json().catch(() => ({}))) as RequestBody;
   const now = new Date();
   if (sitePaused(env)) return jsonResponse(200, { skipped: pauseSkip('any', true, false) });
-  if (body.kind === WELCOME_KIND) return handleWelcome(body, now);
+  if (body.kind === WELCOME_KIND) return handleWelcome(request, body, now);
   if (typeof body.pack_id !== 'string' || body.pack_id.length === 0) {
     return jsonResponse(400, { error: 'pack_id is required' });
   }
@@ -248,7 +254,7 @@ async function handle(request: Request): Promise<Response> {
 }
 
 Deno.serve(async (request: Request) => {
-  // The member's browser asks for the welcome email (and a leader's for a test), so it preflights first.
+  // A leader's browser asks for a test send, so it preflights first (the welcome comes from the signup function).
   const origin = request.headers.get('Origin');
   if (request.method === 'OPTIONS') return preflightResponse(origin);
   try {
