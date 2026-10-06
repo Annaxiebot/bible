@@ -65,6 +65,20 @@ export async function loadExternalVerses(
   return out;
 }
 
+/**
+ * The verse numbers a bundled chapter has (和合本 ∪ BSB, so a versification
+ * difference never flags a real verse), from the same session cache. Null
+ * when neither file loads — the caller cannot decide, never "invalid".
+ */
+export async function bundledVerseNumbers(bookId: string, chapter: number): Promise<Set<number> | null> {
+  const [zh, en] = await Promise.all([
+    cachedChapter(TRANSLATIONS.zh.id, bookId, chapter),
+    cachedChapter(TRANSLATIONS.en.id, bookId, chapter),
+  ]);
+  if (!zh && !en) return null;
+  return new Set([...(zh?.verses ?? []), ...(en?.verses ?? [])].map(v => v.verse));
+}
+
 /** How a matched ref should be rendered. */
 export interface RefPlan {
   /** Already-resolved pack verses (render immediately). */

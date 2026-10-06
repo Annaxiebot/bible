@@ -39,6 +39,12 @@ export const TV_THINKING = bilingual('思考中…', 'Thinking…');
 /** Verse popup failure line (bundled chapter could not be loaded). */
 export const VERSE_LOAD_ERROR = bilingual('无法加载', 'could not load');
 
+/** After a reference the AI cited that does not exist (citations.ts): shown as plain text + this mark, no popover. */
+export const NO_SUCH_VERSE_MARK = `（${bilingualLine('经文不存在', 'no such verse')}）`;
+
+/** Heading of the TV "verses cited" block under the latest Ask-AI answer. */
+export const VERSES_CITED_HEADING = bilingualLine('引用经文', 'Verses cited');
+
 // ---- Ask-AI model + failure lines · 问AI模型与失败提示 -------------------
 
 /** "模型 Model: <id>" — shared by the overlay footer and the setup dialog. */
