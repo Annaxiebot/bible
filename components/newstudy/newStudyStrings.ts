@@ -13,6 +13,17 @@ export const NS_INTRO = bilingualLine(
   'Pick a passage; the AI drafts a study pack in your browser. Verses come from the bundled 和合本 + BSB, never from the AI'
 );
 
+// ---- first-visit guide (FirstTimeGuide) ----
+export const NS_GUIDE_TITLE = bilingualLine('第一次使用？三步就好', 'First time? Three steps');
+/** The three steps in order; FirstTimeGuide numbers them with NS_GUIDE_MARKS. */
+export const NS_GUIDE_STEPS = [
+  bilingualLine('选经文，AI 起草查经包', 'Pick a passage — the AI drafts a study pack'),
+  bilingualLine('看一看、改一改，按保存', 'Read it, edit anything, Save'),
+  bilingualLine('周五在电视上放映，组员扫码报名', 'Present it on the TV on Friday — members scan the QR to sign up'),
+] as const;
+export const NS_GUIDE_MARKS = ['①', '②', '③'] as const;
+export const NS_GUIDE_GOT_IT = bilingualLine('知道了', 'Got it');
+
 // ---- form ----
 export const NS_BOOK = bilingual('书卷', 'Book');
 export const NS_CHAPTER = bilingual('章', 'Chapter');

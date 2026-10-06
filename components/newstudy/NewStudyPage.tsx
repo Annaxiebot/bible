@@ -1,7 +1,8 @@
 /**
  * NewStudyPage.tsx — "新建查经 New study" (#/new, #/new/<packId>) · 新建查经页
  *
- * Owns the phase state (PhaseView renders it) and "我的查经包 My packs".
+ * Owns the phase state (PhaseView renders it) and "我的查经包 My packs";
+ * a visitor with no saved packs first sees the three-step card (FirstTimeGuide).
  * AI gate (ADR-0007, components/setup/useAIAccess): a signed-in leader or
  * an own OpenRouter key → the form; neither → the AI form renders inline
  * first (sign-in prompt, own-key option below). The key never leaves
@@ -22,6 +23,7 @@ import { useAIAccess } from '../setup/useAIAccess';
 import { NEW_STUDY_HASH, newStudyHash, getNewStudyPackIdFromHash, packHash } from '../landing/landingRoute';
 import PhaseView, { Phase } from './PhaseView';
 import PackList from './PackList';
+import FirstTimeGuide from './FirstTimeGuide';
 import { useLocalPacks } from './useLocalPacks';
 import { useGeneration } from './useGeneration';
 import { useAutoSave } from './useAutoSave';
@@ -121,6 +123,7 @@ const NewStudyPage: React.FC = () => {
           </div>
           <a href="#" className={quietButtonClass} style={controlStyle} aria-label={NS_BACK}>✕</a>
         </header>
+        <FirstTimeGuide show={phase.kind === 'form' && packs.loaded && packs.packs.length === 0} />
         {!configured && (
           <div className="rounded-2xl border border-slate-700 bg-slate-900 p-6">
             <QuickAISetupForm onSaved={access.refresh} ownKeyOption={false} />

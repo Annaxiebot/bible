@@ -26,6 +26,8 @@ export interface LocalPacks {
   /** Ids of stored records that no longer parse (shown, never hidden). */
   invalid: string[];
   error: string | null;
+  /** The first read of the store has finished (ok or failed): an empty list is then real, not "not yet". */
+  loaded: boolean;
   refresh: () => Promise<void>;
   save: (pack: StudyPack) => Promise<void>;
   remove: (id: string) => Promise<void>;
@@ -48,6 +50,7 @@ export function useLocalPacks(): LocalPacks {
   const [packs, setPacks] = useState<StudyPack[]>([]);
   const [invalid, setInvalid] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
 
   const refresh = useCallback(async () => {
     try {
@@ -58,6 +61,7 @@ export function useLocalPacks(): LocalPacks {
     } catch (err) {
       setError(describe(NS_ERR_STORAGE, err));
     }
+    setLoaded(true);
   }, []);
 
   useEffect(() => { void refresh(); }, [refresh]);
@@ -104,5 +108,5 @@ export function useLocalPacks(): LocalPacks {
     await save(pack);
   }, [save]);
 
-  return { packs, invalid, error, refresh, save, remove, exportJson, importJson };
+  return { packs, invalid, error, loaded, refresh, save, remove, exportJson, importJson };
 }

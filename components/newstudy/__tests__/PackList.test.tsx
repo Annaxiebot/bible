@@ -18,7 +18,7 @@ const verses = Array.from({ length: 15 }, (_, i) => ({ num: 22 + i, cuv: `第${2
 const pack = assemblePack(JOHN3_REQUEST, verses, validateGenerated(JOHN3_GENERATED, JOHN3_REQUEST.contentLanguage));
 
 const packs: LocalPacks = {
-  packs: [pack], invalid: [], error: null,
+  packs: [pack], invalid: [], error: null, loaded: true,
   refresh: vi.fn(), save: vi.fn(), remove: vi.fn(), exportJson: vi.fn(), importJson: vi.fn(),
 };
 

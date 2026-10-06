@@ -34,6 +34,9 @@ export const STORAGE_KEYS = {
   // TV mode: the one-time "按 F 全屏 Press F for full screen" / "横屏 sideways" hint was shown on this device
   TV_FULLSCREEN_HINT_SEEN: 'tv_fullscreen_hint_seen',
 
+  // New study: the first-visit "三步 Three steps" card was dismissed with 知道了 Got it (this device only, not synced)
+  NEW_STUDY_GUIDE_DISMISSED: 'new_study_guide_dismissed',
+
   // Device/sync
   DEVICE_ID: 'bible_device_id',
   SYNC_STATE: 'bible-app-sync-state',
@@ -50,3 +53,6 @@ export const STORAGE_KEYS = {
   // Legacy migration
   LEGACY_NOTES: 'scripture_scholar_notes',
 } as const;
+
+/** The value NEW_STUDY_GUIDE_DISMISSED holds once the first-visit card was dismissed (one place, R3). */
+export const NEW_STUDY_GUIDE_DISMISSED_VALUE = '1';
