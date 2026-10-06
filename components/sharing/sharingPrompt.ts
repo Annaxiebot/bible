@@ -27,10 +27,6 @@ export const QUOTE_MAX_EN_CHARS = 120;
 export const SHARING_MAX_TOKENS = ROLE_MAX_TOKENS.sharing;
 export const SHARING_TEMPERATURE = 0.3;
 
-export const SHARING_SYSTEM_PROMPT =
-  'You summarise, for a small-group leader, what members of a Chinese-speaking Bible study group chose to share ' +
-  'about last week\'s practice. Reply with exactly one JSON object and nothing else: no prose, no markdown fences.';
-
 /** The JSON shape for a mode: each item carries the halves the mode asks for (same convention as packPrompt.generatedShape). */
 export function sharingShape(mode: ContentLanguage): string {
   const item = (zh: string, en: string) => {
@@ -80,7 +76,7 @@ export function buildSharingPrompt(input: SharingPromptInput): string {
   ].join('\n\n');
 }
 
-/** The streamed chat/completions body (role 'sharing' on the proxy, which picks the model; an own key uses the pack model). */
+/** The streamed chat/completions body in the data form (role 'sharing'; the proxy picks the model and owns the system message, ADR-0014; an own key uses the pack model). */
 export function buildSharingRequestBody(input: SharingPromptInput): string {
   return JSON.stringify({
     model: packGenerationModel(),
@@ -88,7 +84,6 @@ export function buildSharingRequestBody(input: SharingPromptInput): string {
     max_tokens: SHARING_MAX_TOKENS,
     temperature: SHARING_TEMPERATURE,
     messages: [
-      { role: 'system', content: SHARING_SYSTEM_PROMPT },
       { role: 'user', content: buildSharingPrompt(input) },
     ],
   });

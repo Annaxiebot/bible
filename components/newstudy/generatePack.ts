@@ -22,7 +22,7 @@ import { streamChatCompletionDetailed, StreamOutcome, AIRequestMeta } from '../s
 import { withModel } from '../studypack/tvHints';
 import { fetchBundledChapter } from '../../services/bibleDataSource';
 import {
-  buildPackPrompt, PACK_SYSTEM_PROMPT, PACK_MAX_TOKENS, PACK_TEMPERATURE, PACK_CONTINUE_PROMPT,
+  buildPackPrompt, PACK_MAX_TOKENS, PACK_TEMPERATURE, PACK_CONTINUE_PROMPT,
 } from './packPrompt';
 import { extractJsonObject, validateGenerated, GeneratedContent } from './generatedPack';
 import { assemblePack, passageLabel, StudyRequest, VerseRange } from './packAssembly';
@@ -57,6 +57,7 @@ export async function loadPassage(req: VerseRange): Promise<PackVerse[]> {
   return verses;
 }
 
+/** The data form (ADR-0014): the pack system message is server-owned (_shared/aiPrompts), added by the proxy or, own key, by aiTransport. */
 export function buildPackRequestBody(req: StudyRequest, verses: PackVerse[]): string {
   return JSON.stringify({
     model: packGenerationModel(), // the #/setup choice, else the quality-first default (ADR-0003 → Models)
@@ -64,7 +65,6 @@ export function buildPackRequestBody(req: StudyRequest, verses: PackVerse[]): st
     max_tokens: PACK_MAX_TOKENS,
     temperature: PACK_TEMPERATURE,
     messages: [
-      { role: 'system', content: PACK_SYSTEM_PROMPT },
       {
         role: 'user',
         content: buildPackPrompt({

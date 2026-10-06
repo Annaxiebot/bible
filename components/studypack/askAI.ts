@@ -6,8 +6,8 @@
  * means changing only these two files.
  */
 import { askAIModel, wireModelId } from '../../services/aiDefaults';
-import { StudyPack, Slide, packContentLanguage } from './packTypes';
-import { ASK_AI_ANSWER_CONTRACT, CONTENT_LANGUAGE_CONTRACTS, TRANSLATIONS } from './principles';
+import { StudyPack, Slide } from './packTypes';
+import { TRANSLATIONS } from './principles';
 
 /** The OpenRouter wire id the overlay sends: the configurable Ask-AI choice (services/aiDefaults askAIModel) mapped from any router alias. */
 export function resolveAskAIModel(): string {
@@ -71,20 +71,18 @@ export function questionForSelection(selected: string, verse: number | null = nu
 }
 
 /**
- * Prompt for one overlay question. The passage (full bilingual text from the
- * pack), the current slide, the answer contract and the pack's content-
- * language rule (a zh-keywords pack is answered in Chinese with English
- * keywords by default) are rebuilt every turn; the conversation so far
- * travels in the `history` parameter.
+ * The user turn for one overlay question — data only (ADR-0014): the
+ * passage (full bilingual text from the pack), the current slide and the
+ * question, rebuilt every turn; the conversation so far travels in the
+ * `history` parameter. The answer contract and the pack's content-language
+ * rule are server-owned (supabase/functions/_shared/aiPrompts askSystemText),
+ * chosen by the request's `content_language`.
  */
 export function buildAskAIPrompt(pack: StudyPack, slide: Slide, question: string): string {
   return [
     `We are in a small-group TV presentation of ${pack.passageRef}.`,
     `FULL PASSAGE (${TRANSLATIONS.zh.label} / ${pack.enVersion}):\n${formatPassage(pack)}`,
     `CURRENT SLIDE:\n${formatSlide(slide)}`,
-    ASK_AI_ANSWER_CONTRACT,
-    CONTENT_LANGUAGE_CONTRACTS[packContentLanguage(pack)].askAIRule,
     `QUESTION: ${question}`,
   ].join('\n\n');
 }
-

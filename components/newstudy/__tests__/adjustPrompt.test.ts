@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildAdjustPrompt, buildAdjustRequestBody, isAdjustable, adjustContent, ADJUST_MAX_TOKENS, ADJUST_MAX_QUESTIONS,
 } from '../adjustPrompt';
-import { PACK_SYSTEM_PROMPT, PACK_COMPACT_JSON_RULE, PACK_TEMPERATURE } from '../packPrompt';
+import { PACK_COMPACT_JSON_RULE, PACK_TEMPERATURE } from '../packPrompt';
 import { PACK_CONTENT_CONTRACT, CONTENT_LANGUAGE_CONTRACTS, LIFE_AREAS } from '../../studypack/principles';
 import { PackSection } from '../../studypack/packTypes';
 
@@ -74,11 +74,10 @@ describe('adjustable kinds', () => {
 });
 
 describe('buildAdjustRequestBody', () => {
-  it('streams with the pack system prompt, the adjust token cap and the pack temperature', () => {
+  it('streams the data form (no system message — server-owned, ADR-0014), the adjust token cap and the pack temperature', () => {
     const body = JSON.parse(buildAdjustRequestBody({ passageRef: REF, contentLanguage: 'bilingual', section: discussion, instruction: 'x' }));
     expect(body).toMatchObject({ stream: true, max_tokens: ADJUST_MAX_TOKENS, temperature: PACK_TEMPERATURE });
-    expect(body.messages[0]).toEqual({ role: 'system', content: PACK_SYSTEM_PROMPT });
-    expect(body.messages[1].role).toBe('user');
+    expect(body.messages.map((m: { role: string }) => m.role)).toEqual(['user']);
     expect(typeof body.model).toBe('string');
   });
 });

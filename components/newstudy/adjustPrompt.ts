@@ -3,7 +3,8 @@
  *
  * The leader types an instruction ("更简单 · Simpler"); the model returns the
  * same JSON shape for that one section. Rules are imported, never pasted
- * (R3): the system prompt + compact-JSON rule from packPrompt, the content
+ * (R3): the compact-JSON rule from packPrompt (the system prompt is
+ * server-owned, ADR-0014 — role 'adjust' gets the pack's), the content
  * contract and the pack's content-language line rule from principles. The
  * heading is never sent (headings stay fixed) and scripture is never
  * adjustable — verses come from the bundled Bible (ADR-0003 §4). The life
@@ -12,7 +13,7 @@
 import { PackSection, SectionKind, StudyPack } from '../studypack/packTypes';
 import { PACK_CONTENT_CONTRACT, CONTENT_LANGUAGE_CONTRACTS, ContentLanguage } from '../studypack/principles';
 import { packGenerationModel } from '../../services/aiDefaults';
-import { PACK_SYSTEM_PROMPT, PACK_COMPACT_JSON_RULE, PACK_TEMPERATURE } from './packPrompt';
+import { PACK_COMPACT_JSON_RULE, PACK_TEMPERATURE } from './packPrompt';
 
 /** Sections whose lines the model drafted; title (app-owned facts), scripture (bundled) and qr (fixed) are excluded. */
 export const ADJUSTABLE_KINDS: readonly SectionKind[] = [
@@ -89,7 +90,7 @@ export function buildAdjustPrompt(input: AdjustInput): string {
   ].join('\n\n');
 }
 
-/** The chat/completions body (streamed through the shared transport, role 'adjust'). */
+/** The chat/completions body in the data form (streamed through the shared transport, role 'adjust'; no system message, ADR-0014). */
 export function buildAdjustRequestBody(input: AdjustInput): string {
   return JSON.stringify({
     model: packGenerationModel(), // own key: the leader's pack model; hosted: the server picks per role (ADR-0007)
@@ -97,7 +98,6 @@ export function buildAdjustRequestBody(input: AdjustInput): string {
     max_tokens: ADJUST_MAX_TOKENS,
     temperature: PACK_TEMPERATURE,
     messages: [
-      { role: 'system', content: PACK_SYSTEM_PROMPT },
       { role: 'user', content: buildAdjustPrompt(input) },
     ],
   });

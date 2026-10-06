@@ -12,7 +12,8 @@ import { DEFAULT_AI_SETUP, ASK_AI_MODEL, FREE_MODELS_ROUTER_ID, wireModelId } fr
 import { FREE_ROUTER_MODEL } from '../../../services/openrouter';
 import { createSSEParser, SSEEvent, buildRequestBody } from '../askAIStream';
 import { TEST_PACK_PATH } from './fixtures';
-import { CONTENT_LANGUAGE_CONTRACTS, CONTENT_LANGUAGES, ASK_AI_SYSTEM_PROMPT } from '../principles';
+import { CONTENT_LANGUAGES, ASK_AI_SYSTEM_PROMPT, ASK_AI_ANSWER_CONTRACT, ASK_AI_LANGUAGE_RULES } from '../principles';
+import { ownKeyBody } from '../../../services/aiTransport';
 import { BIBLE_SCHOLAR_SYSTEM_PROMPT } from '../../../services/systemPrompts';
 
 function loadPack(): { pack: StudyPack; slide: Slide } {
@@ -55,33 +56,16 @@ describe('resolveAskAIModel', () => {
 });
 
 describe('buildAskAIPrompt', () => {
-  it('embeds the full bilingual passage, the current slide, and the contract', () => {
+  it('embeds the full bilingual passage, the current slide and the question — data only, the rules are server-owned (ADR-0014)', () => {
     const { pack, slide } = loadPack();
     const prompt = buildAskAIPrompt(pack, slide, 'Why birds?');
     expect(prompt).toContain('Matthew 6:25–34');
     expect(prompt).toContain('不要为生命忧虑');                 // CUV v.25
     expect(prompt).toContain('do not worry about tomorrow');  // BSB v.34
     expect(prompt).toContain(slide.heading);                    // current slide content
-    expect(prompt).toContain('4 short sentences');
-    expect(prompt).toContain('Across the whole Bible');
-    expect(prompt).toContain('follow the CONTENT LANGUAGE rule below exactly');
-    expect(prompt).toContain('citing the verse');
     expect(prompt).toContain('QUESTION: Why birds?');
-  });
-
-  it('carries the pack\'s content language: a legacy pack answers in the question\'s language, a zh-keywords pack in Chinese with English keywords', () => {
-    const { pack, slide } = loadPack();
-    const legacy = buildAskAIPrompt(pack, slide, 'q');
-    expect(legacy).toContain(CONTENT_LANGUAGE_CONTRACTS.bilingual.askAIRule);
-    expect(legacy).not.toContain(CONTENT_LANGUAGE_CONTRACTS['zh-keywords'].askAIRule);
-    for (const mode of CONTENT_LANGUAGES) {
-      const prompt = buildAskAIPrompt({ ...pack, contentLanguage: mode }, slide, 'q');
-      expect(prompt).toContain(CONTENT_LANGUAGE_CONTRACTS[mode].askAIRule);
-      expect(prompt.indexOf(CONTENT_LANGUAGE_CONTRACTS[mode].askAIRule)).toBeLessThan(prompt.indexOf('QUESTION: q'));
-    }
-    expect(CONTENT_LANGUAGE_CONTRACTS['zh-keywords'].askAIRule).toMatch(/answer in Simplified Chinese/);
-    expect(CONTENT_LANGUAGE_CONTRACTS['zh-keywords'].askAIRule).toContain('忧虑（anxiety）');
-    expect(CONTENT_LANGUAGE_CONTRACTS['en-keywords'].askAIRule).toMatch(/answer in English/);
+    expect(prompt).not.toContain(ASK_AI_ANSWER_CONTRACT);
+    expect(prompt).not.toContain('CONTENT LANGUAGE');
   });
 
   it('includes every scripture section of a pack with TWO scripture sections', () => {
@@ -125,11 +109,32 @@ describe('buildAskAIPrompt', () => {
 });
 
 describe('Ask AI request', () => {
-  it('sends Ask AI its own system prompt, not the Scripture Scholar one (which forced [SPLIT] Chinese+English, LaTeX and a closing offer)', () => {
-    const pack = parseStudyPack(JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8')));
-    const body = JSON.parse(buildRequestBody(pack, buildSlides(pack)[0], [], 'q', { model: 'm' }));
-    expect(body.messages[0]).toEqual({ role: 'system', content: ASK_AI_SYSTEM_PROMPT });
-    expect(JSON.stringify(body.messages)).not.toContain(BIBLE_SCHOLAR_SYSTEM_PROMPT.split('\n')[0]);
+  it('sends data only: no system message, the pack\'s mode as content_language (a legacy pack → bilingual)', () => {
+    const { pack, slide } = loadPack();
+    const history = [{ role: 'user' as const, content: 'q0' }, { role: 'assistant' as const, content: 'a0' }];
+    const legacy = JSON.parse(buildRequestBody(pack, slide, history, 'q', { model: 'm' }));
+    expect(legacy.content_language).toBe('bilingual');
+    expect(legacy.messages.map((m: { role: string }) => m.role)).toEqual(['user', 'assistant', 'user']);
+    expect(legacy.messages[2].content).toBe(buildAskAIPrompt(pack, slide, 'q'));
+    for (const mode of CONTENT_LANGUAGES) {
+      expect(JSON.parse(buildRequestBody({ ...pack, contentLanguage: mode }, slide, [], 'q', { model: 'm' })).content_language).toBe(mode);
+    }
+  });
+
+  it('the final messages carry Ask AI\'s own prompt + contract + the mode\'s rule, not the Scripture Scholar one (which forced [SPLIT], LaTeX and a closing offer)', () => {
+    const { pack, slide } = loadPack();
+    for (const mode of CONTENT_LANGUAGES) {
+      const body = buildRequestBody({ ...pack, contentLanguage: mode }, slide, [], 'q', { model: 'm' });
+      const final = JSON.parse(ownKeyBody('ask', body));
+      const system = final.messages[0];
+      expect(system.role).toBe('system');
+      expect(system.content).toContain(ASK_AI_SYSTEM_PROMPT);
+      expect(system.content).toContain(ASK_AI_ANSWER_CONTRACT);
+      expect(system.content).toContain(ASK_AI_LANGUAGE_RULES[mode]);
+      for (const other of CONTENT_LANGUAGES.filter(m => m !== mode)) expect(system.content).not.toContain(ASK_AI_LANGUAGE_RULES[other]);
+      expect(final).not.toHaveProperty('content_language');
+      expect(JSON.stringify(final.messages)).not.toContain(BIBLE_SCHOLAR_SYSTEM_PROMPT.split('\n')[0]);
+    }
   });
 });
 

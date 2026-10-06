@@ -5,7 +5,8 @@
  * Supabase base of helpers/signup) with no OpenRouter key asks a question on
  * the TV: the request goes to the routed ai-proxy function with the user's
  * bearer, the anon apikey and role "ask", never to openrouter.ai, and the
- * streamed answer renders. The AI service page is a status page: ready line
+ * streamed answer renders; the body is data only — no system message, the
+ * pack's mode as content_language (the proxy owns the rules, ADR-0014). The AI service page is a status page: ready line
  * + this month's usage, the own-key path hidden behind its toggle. A hosted
  * no-credit reply is the one error line that links to that page. A
  * signed-out visitor sees the sign-in prompt.
@@ -20,6 +21,8 @@ import { E2E_ACCESS_TOKEN } from '../../services/aiProxyRoute';
 import { E2E_SUPABASE_PATH, E2E_ANON_KEY } from './helpers/signup';
 import { openTV, goToSlide, DEMO_SLIDE, sseBody } from './helpers/tv';
 import { signInAsLeader, mockProxy, failOnOpenRouter } from './helpers/hostedAI';
+import { ASK_AI_ANSWER_CONTRACT } from '../../supabase/functions/_shared/aiPrompts';
+import { LEGACY_CONTENT_LANGUAGE } from '../../components/studypack/principles';
 
 const MODEL = 'google/gemini-2.5-flash';
 
@@ -45,7 +48,9 @@ test.describe('Hosted AI — signed in, no own key', () => {
     const [call] = calls();
     expect(call.headers.authorization).toBe(`Bearer ${E2E_ACCESS_TOKEN}`);
     expect(call.headers.apikey).toBe(E2E_ANON_KEY);
-    expect(call.body).toMatchObject({ role: 'ask', model: MODEL, stream: true });
+    expect(call.body).toMatchObject({ role: 'ask', model: MODEL, stream: true, content_language: LEGACY_CONTENT_LANGUAGE });
+    expect(call.body.messages.filter(m => m.role === 'system')).toHaveLength(0);
+    expect(JSON.stringify(call.body.messages)).not.toContain(ASK_AI_ANSWER_CONTRACT.split('\n')[0]);
     expect(openRouterHits()).toBe(0);
   });
 

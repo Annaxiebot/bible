@@ -15,6 +15,7 @@ import { STORAGE_KEYS } from '../../constants/storageKeys';
 import { OPENROUTER_API_URL } from '../openrouter';
 import { ASK_AI_MODEL } from '../aiDefaults';
 import { ROLE_MAX_TOKENS, MAX_MESSAGES, MAX_TOTAL_CHARS } from '../../supabase/functions/ai-proxy/policy';
+import { SCOPE_GUARD } from '../../supabase/functions/_shared/aiPrompts';
 import { AI_SIGN_IN_NEEDED } from '../../components/studypack/tvHints';
 
 let session: { access_token: string } | null = null;
@@ -61,7 +62,7 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe('streamStudyAI routing', () => {
-  it('own key → OpenRouter directly: no role, the Ask-AI model, the study cap, the system prompt first', async () => {
+  it('own key → OpenRouter directly: no role, the Ask-AI model, the study cap, the scope guard then the user\'s system prompt', async () => {
     ownKey();
     const fetchMock = stubFetch(streamReply(['你好 ', 'world']));
     const chunks: string[] = [];
@@ -73,7 +74,7 @@ describe('streamStudyAI routing', () => {
     expect(body).not.toHaveProperty('role');
     expect(body).toMatchObject({ model: ASK_AI_MODEL, stream: true, max_tokens: ROLE_MAX_TOKENS.study });
     expect(body.messages).toEqual([
-      { role: 'system', content: 'SYS' }, { role: 'user', content: 'earlier' }, { role: 'user', content: 'q' },
+      { role: 'system', content: SCOPE_GUARD }, { role: 'system', content: 'SYS' }, { role: 'user', content: 'earlier' }, { role: 'user', content: 'q' },
     ]);
     expect(chunks).toEqual(['你好 ', 'world']);
     expect(result).toEqual({ text: '你好 world', model: SERVED });

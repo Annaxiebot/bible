@@ -5,7 +5,9 @@
  * invalid-key line with Set up AI; a hung request shows the timeout line
  * with the model id and Retry; a reasoning-only stream is retried with
  * reasoning off and the retry's content renders; an in-stream error event
- * is shown bilingually. Happy paths live in tv-presentation.spec.ts.
+ * is shown bilingually. With an own key the request still carries the
+ * server's system message (scope guard + the pack's rules, ADR-0014) first,
+ * on the retry too. Happy paths live in tv-presentation.spec.ts.
  */
 import { test, expect, Page } from '@playwright/test';
 import {
@@ -13,6 +15,8 @@ import {
 } from '../../components/studypack/tvHints';
 import { SETUP_OPEN_BUTTON } from '../../components/setup/setupStrings';
 import { ASK_AI_MODEL } from '../../services/aiDefaults';
+import { SCOPE_GUARD, askSystemText } from '../../supabase/functions/_shared/aiPrompts';
+import { LEGACY_CONTENT_LANGUAGE } from '../../components/studypack/principles';
 import { openTV, goToSlide, DEMO_SLIDE, injectApiKey, mockOpenRouterSequence, mockOpenRouterHang, setAskAITimeout, sseBody } from './helpers/tv';
 
 const E2E_TIMEOUT_MS = 1500;
@@ -73,6 +77,10 @@ test.describe('Ask AI failures on the TV', () => {
     expect(bodies[0].reasoning).toBeUndefined();
     expect(bodies[1].reasoning).toEqual({ enabled: false, exclude: true });
     expect(bodies[1].max_tokens).toBeGreaterThan(bodies[0].max_tokens);
+    for (const body of bodies) {
+      expect(body.messages![0]).toEqual({ role: 'system', content: `${SCOPE_GUARD}\n\n${askSystemText(LEGACY_CONTENT_LANGUAGE)}` });
+      expect(body).not.toHaveProperty('content_language');
+    }
   });
 
   test('an error event inside a 200 stream (on every attempt) → the bilingual error line with message and code', async ({ page }) => {

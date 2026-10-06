@@ -20,7 +20,8 @@ vi.mock('../supabase', () => ({
   },
 }));
 
-import { sendAIRequest, isAIAvailable, hostedUid, aiProxyUrl, AI_PROXY_FUNCTION, E2E_ACCESS_TOKEN } from '../aiTransport';
+import { SCOPE_GUARD } from '../../supabase/functions/_shared/aiPrompts';
+import { sendAIRequest, ownKeyBody, isAIAvailable, hostedUid, aiProxyUrl, AI_PROXY_FUNCTION, E2E_ACCESS_TOKEN } from '../aiTransport';
 
 const BODY = JSON.stringify({ model: 'google/gemini-2.5-flash', stream: true, max_tokens: 300, messages: [{ role: 'user', content: 'q' }] });
 const getItemMock = window.localStorage.getItem as ReturnType<typeof vi.fn>;
@@ -48,7 +49,7 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe('sendAIRequest', () => {
-  it('own key stored → OpenRouter directly with that key; the body is untouched (no role), even when signed in', async () => {
+  it('own key stored → OpenRouter directly with that key; no role, the server\'s final messages (ADR-0014), even when signed in', async () => {
     getItemMock.mockImplementation((k: string) => (k === STORAGE_KEYS.OPENROUTER_API_KEY ? 'sk-or-own' : null));
     session = { access_token: 'user-jwt' };
     signedInUid = 'uid-1';
@@ -59,7 +60,9 @@ describe('sendAIRequest', () => {
     expect(url).toBe(OPENROUTER_API_URL);
     expect(headers.Authorization).toBe('Bearer sk-or-own');
     expect(headers['X-Title']).toBe('Title');
-    expect(body).toEqual(JSON.parse(BODY));
+    expect(body).toEqual(JSON.parse(ownKeyBody('ask', BODY)));
+    expect(body.messages[0].content).toContain(SCOPE_GUARD);
+    expect(body).not.toHaveProperty('role');
   });
 
   it('no key, signed in → the ai-proxy function with the access token, anon apikey and the role', async () => {

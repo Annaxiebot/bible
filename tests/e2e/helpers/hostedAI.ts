@@ -22,7 +22,7 @@ export async function signInAsLeader(page: Page) {
 
 export interface ProxyCall {
   headers: Record<string, string>;
-  body: { role: string; model: string; stream: boolean; messages: Array<{ role: string; content: string }> };
+  body: { role: string; model: string; stream: boolean; content_language?: string; messages: Array<{ role: string; content: string }> };
 }
 
 export async function mockProxy(page: Page, reply: { sse: string } | { status: number; json: object }): Promise<() => ProxyCall[]> {

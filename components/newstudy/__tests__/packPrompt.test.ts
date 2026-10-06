@@ -5,7 +5,7 @@
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
-  buildPackPrompt, GENERATED_SHAPE, generatedShape, PACK_MAX_TOKENS, PACK_TEMPERATURE, PACK_SYSTEM_PROMPT,
+  buildPackPrompt, GENERATED_SHAPE, generatedShape, PACK_MAX_TOKENS, PACK_TEMPERATURE,
   PACK_COMPACT_JSON_RULE, PACK_LENGTH_LIMITS, PACK_CONTINUE_PROMPT,
 } from '../packPrompt';
 import { buildPackRequestBody, buildContinuationBody } from '../generatePack';
@@ -96,9 +96,9 @@ describe('PACK_CONTINUE_PROMPT / buildContinuationBody', () => {
     expect(body.model).toBe(PACK_GENERATION_MODEL);
     expect(body.max_tokens).toBe(PACK_MAX_TOKENS);
     expect(body.messages).toHaveLength(original.messages.length + 2);
-    expect(body.messages.slice(0, 2)).toEqual(original.messages);
-    expect(body.messages[2]).toEqual({ role: 'assistant', content: '{"title": {"zh": "祂' });
-    expect(body.messages[3]).toEqual({ role: 'user', content: PACK_CONTINUE_PROMPT });
+    expect(body.messages.slice(0, 1)).toEqual(original.messages);
+    expect(body.messages[1]).toEqual({ role: 'assistant', content: '{"title": {"zh": "祂' });
+    expect(body.messages[2]).toEqual({ role: 'user', content: PACK_CONTINUE_PROMPT });
   });
 });
 
@@ -119,8 +119,9 @@ describe('buildPackRequestBody', () => {
     expect(PACK_MAX_TOKENS).toBeGreaterThanOrEqual(8000);
     expect(body.temperature).toBe(PACK_TEMPERATURE);
     expect(PACK_TEMPERATURE).toBeLessThanOrEqual(0.3);
-    expect(body.messages[0]).toEqual({ role: 'system', content: PACK_SYSTEM_PROMPT });
-    expect(body.messages[1].content).toContain('约翰福音 3:22–36 · John 3:22–36');
+    // Data form (ADR-0014): the pack system message is server-owned.
+    expect(body.messages.map(m => m.role)).toEqual(['user']);
+    expect(body.messages[0].content).toContain('约翰福音 3:22–36 · John 3:22–36');
   });
 });
 
@@ -178,7 +179,7 @@ describe('content language contracts in the prompt (CONTENT_LANGUAGE_CONTRACTS, 
 
   it('the request body carries the request\'s mode', () => {
     const body = JSON.parse(buildPackRequestBody(JOHN3_REQUEST_ZH, verses)) as { messages: Array<{ content: string }> };
-    expect(body.messages[1].content).toContain(CONTENT_LANGUAGE_CONTRACTS['zh-keywords'].lineRule);
-    expect(body.messages[1].content).not.toContain(CONTENT_LANGUAGE_CONTRACTS.bilingual.lineRule);
+    expect(body.messages[0].content).toContain(CONTENT_LANGUAGE_CONTRACTS['zh-keywords'].lineRule);
+    expect(body.messages[0].content).not.toContain(CONTENT_LANGUAGE_CONTRACTS.bilingual.lineRule);
   });
 });

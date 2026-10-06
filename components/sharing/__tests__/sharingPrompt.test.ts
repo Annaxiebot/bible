@@ -2,7 +2,7 @@
  * sharingPrompt.test.ts — the sharing prompt's contracts and request body · 上周分享提示词测试 (ADR-0008)
  */
 import { describe, it, expect } from 'vitest';
-import { buildSharingPrompt, buildSharingRequestBody, sharingShape, SHARING_MAX_TOKENS, SHARING_SYSTEM_PROMPT } from '../sharingPrompt';
+import { buildSharingPrompt, buildSharingRequestBody, sharingShape, SHARING_MAX_TOKENS } from '../sharingPrompt';
 import { loadSharingMaterial } from '../sharingData';
 import { CONTENT_LANGUAGE_CONTRACTS, SHARING_CONTENT_CONTRACT } from '../../studypack/principles';
 import { ROLE_MAX_TOKENS } from '../../../supabase/functions/ai-proxy/policy';
@@ -38,12 +38,12 @@ describe('buildSharingPrompt', () => {
 });
 
 describe('buildSharingRequestBody', () => {
-  it('streams one system + one user turn under the proxy\'s sharing cap; nothing identifying in the body', async () => {
+  it('streams one user turn (the system message is server-owned, ADR-0014) under the proxy\'s sharing cap; nothing identifying in the body', async () => {
     const body = buildSharingRequestBody({ current: CURRENT, material: await material() });
     const parsed = JSON.parse(body);
     expect(parsed).toMatchObject({ stream: true, max_tokens: ROLE_MAX_TOKENS.sharing });
     expect(SHARING_MAX_TOKENS).toBe(ROLE_MAX_TOKENS.sharing);
-    expect(parsed.messages[0]).toEqual({ role: 'system', content: SHARING_SYSTEM_PROMPT });
+    expect(parsed.messages.map((m: { role: string }) => m.role)).toEqual(['user']);
     for (const id of IDENTIFIERS) expect(body).not.toContain(id);
   });
 });
