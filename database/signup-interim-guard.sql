@@ -1,36 +1,24 @@
--- Interim sign-up guard · 报名临时防护 (2026-10-06)
+-- Sign-up rate guard · 报名限流 (2026-10-06)
 --
--- Stopgap while the `signup` edge function (ADR-0013) is built. Until then
--- the browser still inserts into study_signups with the anon key, and the old
--- policy only checked leader_id IS NOT NULL — anyone could file sign-ups
--- under any leader, and each row can trigger one welcome email. This file
--- changes nothing for real members (the page already sends the pack's own
--- leader_id) and closes the worst of it in the database:
+-- Began as the interim guard while the `signup` edge function (ADR-0013)
+-- was built: the browser still inserted with the anon key, and the old
+-- policy only checked leader_id IS NOT NULL. Its first part — an anon
+-- INSERT policy requiring the pack's real owner through a SECURITY DEFINER
+-- helper, signup_owner_matches — was applied live 2026-10-06 and is
+-- removed by database/signup-endpoint-schema.sql (anon has no INSERT at
+-- all now), so it is no longer in this file. What stays:
 --
--- 1. The insert policy also requires leader_id to be the pack's owner in
---    study_packs (checked by a SECURITY DEFINER helper, because anon cannot
---    read study_packs under its RLS).
--- 2. A BEFORE INSERT trigger caps sign-ups: at most SIGNUPS_PER_PACK_HOUR
+-- A BEFORE INSERT trigger caps sign-ups: at most SIGNUPS_PER_PACK_HOUR
 --    per pack per rolling hour, at most SIGNUPS_PER_EMAIL_DAY per pack +
 --    email per rolling day. That bounds how many welcome emails a script
---    can cause. The trigger applies to every writer, the future edge
---    function included, so the limits stay true after the switch.
+--    can cause. The trigger applies to every writer, the `signup` edge
+--    function's service-role insert included: it is the one copy of these
+--    two caps (R3). The function maps its P0001 refusal to a 429 carrying
+--    the message below (supabase/functions/_shared/signup.ts
+--    RATE_GUARD_ERRCODE); the function adds only a per-IP cap of its own.
 --
--- Idempotent. Applied live through the management API.
-
-CREATE OR REPLACE FUNCTION public.signup_owner_matches(p_pack_id TEXT, p_leader_id UUID)
-RETURNS BOOLEAN
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = public AS $$
-  SELECT EXISTS (SELECT 1 FROM study_packs WHERE id = p_pack_id AND leader_id = p_leader_id);
-$$;
-REVOKE ALL ON FUNCTION public.signup_owner_matches(TEXT, UUID) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.signup_owner_matches(TEXT, UUID) TO anon, authenticated;
-
-DROP POLICY IF EXISTS "Anyone may sign up for an owned pack" ON study_signups;
-CREATE POLICY "Anyone may sign up for an owned pack"
-  ON study_signups FOR INSERT
-  TO anon, authenticated
-  WITH CHECK (leader_id IS NOT NULL AND public.signup_owner_matches(pack_id, leader_id));
+-- Idempotent. Applied live through the management API. Apply AFTER
+-- signups-schema.sql.
 
 CREATE OR REPLACE FUNCTION public.signup_rate_guard() RETURNS TRIGGER
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$

@@ -20,8 +20,10 @@
 --
 -- PRIVACY BOUNDARY: it returns only what the sign-up page reads
 -- (components/signup/signupPack.ts, SignupPack): id, title, passageRef,
--- leaderId (the insert must carry it; RLS on study_signups requires it),
--- lifeMenu (area + practice per row — the choices the member commits to).
+-- leaderId (tells the page the pack is owned; the `signup` edge function
+-- reads the real owner from study_packs itself and never trusts this,
+-- ADR-0013), lifeMenu (area + practice per row — the choices the member
+-- commits to; the function accepts only these rows).
 -- Never the verses, context, original language, cross references,
 -- discussion questions, reflection or closing lines, dates or timestamps.
 -- NULL when the id is unknown. SECURITY DEFINER with a pinned search_path;
