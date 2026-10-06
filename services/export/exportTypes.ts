@@ -108,6 +108,8 @@ export interface CombinedImportResult {
   bookmarksImported: number;
   historyRestored: boolean;
   plansImported: number;
+  /** v5.0 files: journal + chat history + spiritual memory + settings written. */
+  otherImported?: number;
   errors: string[];
 }
 

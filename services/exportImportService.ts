@@ -116,7 +116,7 @@ class ExportImportService {
   }
 
   async exportAndDownloadAll(onProgress?: import('./export/exportTypes').ProgressCallback) {
-    return exportAndDownloadAll(this.deviceId, onProgress);
+    return exportAndDownloadAll(onProgress);
   }
 
   async importCombinedBackup(

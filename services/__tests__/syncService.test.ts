@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { verseDataRow, bookmarkRow } from '../syncRows';
 
 // ---------------------------------------------------------------------------
 // Supabase mock — tracks upsert/select calls
@@ -6,6 +7,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const mockSupabaseData: Record<string, any[]> = {};
 const mockUpsertCalls: Array<{ table: string; data: any; options: any }> = [];
+/** Like supabase-js: an upsert that fails RESOLVES with { error } (it never rejects). Set per table. */
+const mockUpsertErrors: Record<string, { message: string }> = {};
 /**
  * Tracks every .from(table).select(cols)... chain, including the args that
  * subsequent .eq() / .gte() calls were invoked with. Used by the server-side
@@ -22,6 +25,7 @@ function resetSupabaseMock() {
   for (const key of Object.keys(mockSupabaseData)) delete mockSupabaseData[key];
   mockUpsertCalls.length = 0;
   mockSelectCalls.length = 0;
+  for (const key of Object.keys(mockUpsertErrors)) delete mockUpsertErrors[key];
 }
 
 const mockFrom = (table: string) => ({
@@ -59,7 +63,7 @@ const mockFrom = (table: string) => ({
   },
   upsert: (data: any, options?: any) => {
     mockUpsertCalls.push({ table, data, options });
-    return Promise.resolve({ data: null, error: null });
+    return Promise.resolve({ data: null, error: mockUpsertErrors[table] ?? null });
   },
   channel: vi.fn(() => ({
     on: vi.fn().mockReturnThis(),
@@ -193,7 +197,7 @@ describe('syncService', () => {
       expect(typeof syncService.syncSettings).toBe('function');
       expect(typeof syncService.syncVerseData).toBe('function');
       expect(typeof syncService.syncBookmarks).toBe('function');
-      expect(typeof syncService.syncBibleCache).toBe('function');
+      expect((syncService as Record<string, unknown>).syncBibleCache).toBeUndefined(); // ADR-0010: public text never synced
       expect(typeof syncService.canSync).toBe('function');
       expect(typeof syncService.getSyncState).toBe('function');
     });
@@ -205,7 +209,6 @@ describe('syncService', () => {
       const state = syncService.getSyncState();
       expect(state.lastVerseDataSync).toBe(0);
       expect(state.lastBookmarksSync).toBe(0);
-      expect(state.lastBibleCacheSync).toBe(0);
     });
 
     it('should preserve new fields when reading from localStorage with old data', async () => {
@@ -222,7 +225,6 @@ describe('syncService', () => {
       expect(state.lastNotesSync).toBe(1000);
       expect(state.lastVerseDataSync).toBe(0);
       expect(state.lastBookmarksSync).toBe(0);
-      expect(state.lastBibleCacheSync).toBe(0);
     });
   });
 
@@ -240,10 +242,43 @@ describe('syncService', () => {
     });
   });
 
-  describe('syncBibleCache', () => {
-    it('should be callable without errors when no local or remote data exists', async () => {
+  describe('recovered tables (ADR-0010)', () => {
+    const noted = {
+      id: 'JHN_3_16', bookId: 'JHN', chapter: 3, verses: [16], aiResearch: [],
+      personalNote: { text: 'n', createdAt: 1000, updatedAt: 2000 },
+    };
+
+    it('uploads verse data on the first sync (regression: the old filter read a missing top-level updatedAt, so nothing ever uploaded)', async () => {
+      idbStores.verseData.set(noted.id, noted);
       const { syncService } = await import('../syncService');
-      await expect(syncService.syncBibleCache()).resolves.not.toThrow();
+      await syncService.syncVerseData();
+      const call = mockUpsertCalls.find(c => c.table === 'verse_data');
+      expect(call?.options).toEqual({ onConflict: 'user_id,verse_id' });
+      expect(call?.data[0]).toMatchObject({ user_id: 'test-user-123', verse_id: 'JHN_3_16', book_id: 'JHN', chapter: 3, verses: [16] });
+    });
+
+    it('a failed upsert throws instead of passing silently (R5)', async () => {
+      idbStores.verseData.set(noted.id, noted);
+      mockUpsertErrors.verse_data = { message: 'relation "verse_data" does not exist' };
+      const { syncService } = await import('../syncService');
+      await expect(syncService.syncVerseData()).rejects.toThrow(/verse_data upsert failed: relation/);
+    });
+
+    it('chat history and spiritual memory upserts carry their conflict targets', async () => {
+      idbStores.chatHistory.set('c1', { id: 'c1', title: 't', messages: [], createdAt: '2026-01-01T00:00:00Z', lastModified: 5 });
+      idbStores.spiritualMemory.set('mem_1', { id: 'mem_1', category: 'prayer', content: 'x', createdAt: '2026-01-01T00:00:00Z', updatedAt: '2026-01-02T00:00:00Z' });
+      const { syncService } = await import('../syncService');
+      await syncService.syncChatHistory();
+      await syncService.syncSpiritualMemory();
+      expect(mockUpsertCalls.find(c => c.table === 'chat_history')?.options).toEqual({ onConflict: 'user_id,id' });
+      expect(mockUpsertCalls.find(c => c.table === 'spiritual_memory')?.options).toEqual({ onConflict: 'id' });
+    });
+
+    it('a full sync never touches bible_cache', async () => {
+      const { syncService } = await import('../syncService');
+      await syncService.performFullSync();
+      expect(mockUpsertCalls.some(c => c.table === 'bible_cache')).toBe(false);
+      expect(mockSelectCalls.some(c => c.table === 'bible_cache')).toBe(false);
     });
   });
 
@@ -291,15 +326,7 @@ describe('sync data transformation', () => {
         personalNote: { text: 'My note', createdAt: 1000, updatedAt: 2000 },
       };
 
-      const row = {
-        user_id: userId,
-        verse_id: local.id,
-        book_id: local.bookId,
-        chapter: local.chapter,
-        verses: local.verses,
-        data: local,
-        updated_at: new Date().toISOString(),
-      };
+      const row = verseDataRow(userId, local, new Date().toISOString());
 
       expect(row.verse_id).toBe('GEN:1:1_2');
       expect(row.book_id).toBe('GEN');
@@ -320,56 +347,11 @@ describe('sync data transformation', () => {
         createdAt: Date.now(),
       };
 
-      const row = {
-        user_id: userId,
-        bookmark_id: local.id,
-        book_id: local.bookId,
-        book_name: local.bookName,
-        chapter: local.chapter,
-        verse: local.verse,
-        text_preview: local.textPreview || '',
-        created_at: local.createdAt,
-        updated_at: new Date().toISOString(),
-      };
+      const row = bookmarkRow(userId, local, new Date().toISOString());
 
       expect(row.bookmark_id).toBe('PSA:23:1');
       expect(row.book_name).toBe('Psalms');
       expect(row.text_preview).toBe('The LORD is my shepherd...');
-    });
-  });
-
-  describe('bible cache upload format', () => {
-    it('should build correct cache_key from chapter record', () => {
-      const local = {
-        bookId: 'GEN',
-        chapter: 1,
-        translation: 'cuv' as const,
-        data: { verses: [{ number: 1, text: '...' }] },
-      };
-
-      const cacheKey = `${local.bookId}_${local.chapter}_${local.translation}`;
-      expect(cacheKey).toBe('GEN_1_cuv');
-    });
-
-    it('should filter out already-synced chapters', () => {
-      const localChapters = [
-        { bookId: 'GEN', chapter: 1, translation: 'cuv', data: { verses: [] } },
-        { bookId: 'GEN', chapter: 1, translation: 'web', data: { verses: [] } },
-        { bookId: 'GEN', chapter: 2, translation: 'cuv', data: { verses: [] } },
-      ];
-
-      const remoteKeySet = new Set(['GEN_1_cuv']);
-
-      const toUpload = localChapters.filter(local => {
-        const key = `${local.bookId}_${local.chapter}_${local.translation}`;
-        return !remoteKeySet.has(key);
-      });
-
-      expect(toUpload).toHaveLength(2);
-      expect(toUpload.map(c => `${c.bookId}_${c.chapter}_${c.translation}`)).toEqual([
-        'GEN_1_web',
-        'GEN_2_cuv',
-      ]);
     });
   });
 
@@ -387,21 +369,6 @@ describe('sync data transformation', () => {
       expect(batches[0]).toHaveLength(100);
       expect(batches[1]).toHaveLength(100);
       expect(batches[2]).toHaveLength(50);
-    });
-
-    it('should chunk bible cache uploads into batches of 50', () => {
-      const items = Array.from({ length: 120 }, (_, i) => ({ id: `ch_${i}` }));
-      const batchSize = 50;
-      const batches: any[][] = [];
-
-      for (let i = 0; i < items.length; i += batchSize) {
-        batches.push(items.slice(i, i + batchSize));
-      }
-
-      expect(batches).toHaveLength(3);
-      expect(batches[0]).toHaveLength(50);
-      expect(batches[1]).toHaveLength(50);
-      expect(batches[2]).toHaveLength(20);
     });
   });
 
