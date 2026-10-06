@@ -25,11 +25,7 @@ import {
   findRelatedEntries,
   generateWeeklyDigest,
   getTimelineGroups,
-  generateReflectionPrompt,
-  extendThinking,
-  summarizeEntry,
   findRelatedScripture,
-  chatAboutEntry,
   extractMemoryItems,
   getMemoryContext,
   generateSpiritualProfile,
@@ -41,6 +37,12 @@ import {
   TimelineGroup,
   ScriptureSuggestion,
 } from '../services/journalAIService';
+import { InlineAIError, useAIFailures } from './studypack/InlineAIError';
+
+/** The journal's user-triggered AI actions; each failure shows next to its own control. */
+type ToolbarAIAction = 'reflect' | 'extend' | 'summary' | 'scripture';
+type JournalAIAction = ToolbarAIAction | 'digest' | 'chat' | 'profile';
+const TOOLBAR_AI_ACTIONS: readonly ToolbarAIAction[] = ['reflect', 'extend', 'summary', 'scripture'];
 
 interface JournalViewProps {
   /** Current Bible reading context for linking new entries */
@@ -84,6 +86,7 @@ async function reverseGeocode(lat: number, lng: number): Promise<string> {
     const parts = [street, area, state].filter(Boolean);
     return parts.length > 0 ? parts.join(', ') : data.display_name?.split(',').slice(0, 3).join(',').trim() || '';
   } catch {
+    // R5: the place name is optional decoration on a new entry; without it the entry simply has no location line.
     return '';
   }
 }
@@ -159,6 +162,9 @@ const JournalView: React.FC<JournalViewProps> = ({
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant'; text: string; meta?: StreamResult }[]>([]);
   const [isLoadingChat, setIsLoadingChat] = useState(false);
+  // TODO(R4): JournalView is ~2.5k lines; split seam = the AI layer (these AI states, the handle* AI
+  // handlers, the AI toolbar + result cards + chat panel JSX) into its own JournalAIPanel component.
+  const aiFailures = useAIFailures<JournalAIAction>();
 
   // ── Phase 4: Personal Agent state ─────────────────────────────────
   const [showProfile, setShowProfile] = useState(false);
@@ -319,6 +325,8 @@ const JournalView: React.FC<JournalViewProps> = ({
         const newTags = tags.filter(t => !selectedEntry.tags.includes(t));
         setSuggestedTags(newTags);
       } catch {
+        // R5: automatic tagging runs on its own 5 s after typing; the user did not ask for it, and the
+        // explicit AI actions show the same failure (e.g. sign in) with its way out. Saving is unaffected.
         setSuggestedTags([]);
       } finally {
         setIsLoadingTags(false);
@@ -343,6 +351,7 @@ const JournalView: React.FC<JournalViewProps> = ({
         setIsLoadingRelated(false);
       }
     }).catch(() => {
+      // R5: a local keyword match over IndexedDB (no AI); on failure the optional "related" list is just empty.
       if (!cancelled) {
         setRelatedEntries([]);
         setIsLoadingRelated(false);
@@ -366,6 +375,7 @@ const JournalView: React.FC<JournalViewProps> = ({
     if (!selectedId) return;
     if (!syncService.canSync()) return;
     syncService.fetchJournalEntryBody(selectedId).catch((err) => {
+      // R5: background prefetch of the body; the next sync pulls it again, and the entry's local copy stays usable.
       console.warn('[journal] lazy body fetch failed:', err);
     });
   }, [selectedId]);
@@ -396,11 +406,13 @@ const JournalView: React.FC<JournalViewProps> = ({
   const handleWeeklyDigest = async () => {
     setIsLoadingDigest(true);
     setShowDigest(true);
+    aiFailures.clear('digest');
     try {
       const digest = await generateWeeklyDigest(true);
       setWeeklyDigest(digest);
-    } catch {
+    } catch (err) {
       setWeeklyDigest(null);
+      aiFailures.fail('digest', err);
     } finally {
       setIsLoadingDigest(false);
     }
@@ -411,6 +423,7 @@ const JournalView: React.FC<JournalViewProps> = ({
   const handleReflect = async () => {
     setIsLoadingReflection(true);
     setReflectionPrompt('');
+    aiFailures.clear('reflect');
     try {
       const recentEntries = entries.slice(0, 3);
       const recentContext = recentEntries.map(e => e.plainText.slice(0, 300)).join('\n---\n');
@@ -422,8 +435,9 @@ const JournalView: React.FC<JournalViewProps> = ({
         setReflectionPrompt(prev => (prev || '') + chunk);
       });
       setAiMeta(prev => ({ ...prev, reflect: meta }));
-    } catch {
+    } catch (err) {
       setReflectionPrompt(null);
+      aiFailures.fail('reflect', err);
     } finally {
       setIsLoadingReflection(false);
     }
@@ -433,6 +447,7 @@ const JournalView: React.FC<JournalViewProps> = ({
     if (!selectedEntry) return;
     setIsLoadingExtend(true);
     setExtendResult('');
+    aiFailures.clear('extend');
     try {
       const selection = window.getSelection();
       const selectedText = selection && selection.toString().trim()
@@ -445,8 +460,9 @@ const JournalView: React.FC<JournalViewProps> = ({
         setExtendResult(prev => (prev || '') + chunk);
       });
       setAiMeta(prev => ({ ...prev, extend: meta }));
-    } catch {
+    } catch (err) {
       setExtendResult(null);
+      aiFailures.fail('extend', err);
     } finally {
       setIsLoadingExtend(false);
     }
@@ -456,14 +472,16 @@ const JournalView: React.FC<JournalViewProps> = ({
     if (!selectedEntry?.plainText) return;
     setIsLoadingSummary(true);
     setSummaryResult('');
+    aiFailures.clear('summary');
     try {
       const prompt = `Summarize this journal entry into 2-3 key insights or takeaways. Use bullet points (markdown). Be concise — each point should be 1 sentence. Capture the spiritual/emotional essence.\n\nJournal entry:\n${selectedEntry.plainText.slice(0, 3000)}`;
       const meta = await streamAI(prompt, (chunk) => {
         setSummaryResult(prev => (prev || '') + chunk);
       });
       setAiMeta(prev => ({ ...prev, summary: meta }));
-    } catch {
+    } catch (err) {
       setSummaryResult(null);
+      aiFailures.fail('summary', err);
     } finally {
       setIsLoadingSummary(false);
     }
@@ -473,6 +491,7 @@ const JournalView: React.FC<JournalViewProps> = ({
     if (!selectedEntry?.plainText) return;
     setIsLoadingScripture(true);
     setScriptureSuggestions([]);
+    aiFailures.clear('scripture');
     try {
       const { results, meta } = await findRelatedScripture(selectedEntry.plainText);
       setAiMeta(prev => ({ ...prev, scripture: meta }));
@@ -482,8 +501,7 @@ const JournalView: React.FC<JournalViewProps> = ({
         setScriptureSuggestions(results);
       }
     } catch (err) {
-      console.warn('[Scripture] Failed:', err);
-      setScriptureSuggestions([{ reference: '', reason: 'Could not find scripture. Please try again.' }]);
+      aiFailures.fail('scripture', err);
     } finally {
       setIsLoadingScripture(false);
     }
@@ -496,6 +514,7 @@ const JournalView: React.FC<JournalViewProps> = ({
     setChatMessages(prev => [...prev, { role: 'user', text: question }]);
     setChatMessages(prev => [...prev, { role: 'assistant', text: '' }]);
     setIsLoadingChat(true);
+    aiFailures.clear('chat');
     try {
       const recentEntries = entries.slice(0, 3);
       const recentContext = recentEntries.map(e => e.plainText.slice(0, 300)).join('\n---\n');
@@ -520,15 +539,13 @@ const JournalView: React.FC<JournalViewProps> = ({
         }
         return updated;
       });
-    } catch {
+    } catch (err) {
+      // Drop the empty answer bubble; the failure line under the messages says why.
       setChatMessages(prev => {
-        const updated = [...prev];
-        const last = updated[updated.length - 1];
-        if (last?.role === 'assistant' && !last.text) {
-          updated[updated.length - 1] = { ...last, text: 'Sorry, something went wrong.' };
-        }
-        return updated;
+        const last = prev[prev.length - 1];
+        return last?.role === 'assistant' && !last.text ? prev.slice(0, -1) : prev;
       });
+      aiFailures.fail('chat', err);
     } finally {
       setIsLoadingChat(false);
     }
@@ -541,7 +558,10 @@ const JournalView: React.FC<JournalViewProps> = ({
     if (!selectedEntry?.plainText || selectedEntry.plainText.trim().length < 30) return;
     if (memorySaveTimerRef.current) clearTimeout(memorySaveTimerRef.current);
     memorySaveTimerRef.current = setTimeout(() => {
-      extractMemoryItems(selectedEntry.plainText, selectedEntry.id).catch(() => {});
+      extractMemoryItems(selectedEntry.plainText, selectedEntry.id).catch(() => {
+        // R5: background memory extraction 10 s after typing — not a user action, never blocks saving;
+        // a signed-out or over-quota user sees that failure on the AI action they do click.
+      });
     }, 10000); // 10s after last edit
     return () => {
       if (memorySaveTimerRef.current) clearTimeout(memorySaveTimerRef.current);
@@ -552,14 +572,18 @@ const JournalView: React.FC<JournalViewProps> = ({
     setShowProfile(true);
     setProfileTab('profile');
     setIsLoadingProfile(true);
+    aiFailures.clear('profile');
     // Load memory items immediately
-    spiritualMemory.getAllItems().then(setMemoryItems).catch(() => {});
+    spiritualMemory.getAllItems().then(setMemoryItems).catch(() => {
+      // R5: the Memory tab's count/list is local IndexedDB; on failure it shows empty and the tab reloads it on open.
+    });
     try {
       const items = await getMemoryContext();
       const profile = await generateSpiritualProfile(items);
       setProfileText(profile);
-    } catch {
-      setProfileText('Could not generate profile at this time.');
+    } catch (err) {
+      setProfileText(null);
+      aiFailures.fail('profile', err);
     } finally {
       setIsLoadingProfile(false);
     }
@@ -600,7 +624,8 @@ const JournalView: React.FC<JournalViewProps> = ({
             setProactiveSuggestion(suggestion);
           }
         } catch {
-          // silent — don't show errors for proactive features
+          // R5: the "for today" suggestion fires on its own 3 s after the list loads — the user did not ask
+          // for it, so a failure (signed out, quota) is not shown here; the AI actions they click show it.
         } finally {
           if (!cancelled) setIsLoadingProactive(false);
       }
@@ -619,12 +644,16 @@ const JournalView: React.FC<JournalViewProps> = ({
     setShowChat(false);
     setChatMessages([]);
     setChatInput('');
+    for (const action of [...TOOLBAR_AI_ACTIONS, 'chat' as const]) aiFailures.clear(action);
   }, [selectedId]);
 
   // ── Timeline ──────────────────────────────────────────────────────
   useEffect(() => {
     if (listView === 'timeline') {
-      getTimelineGroups().then(setTimelineGroups).catch(() => setTimelineGroups([]));
+      getTimelineGroups().then(setTimelineGroups).catch(() => {
+        // R5: the timeline groups local IndexedDB entries (no AI); on failure it shows empty, the list view still works.
+        setTimelineGroups([]);
+      });
     }
   }, [listView, entries]);
 
@@ -843,7 +872,9 @@ const JournalView: React.FC<JournalViewProps> = ({
               ✕
             </button>
           </div>
-          {isLoadingDigest ? (
+          {aiFailures.errors.digest ? (
+            <InlineAIError error={aiFailures.errors.digest} onRetry={handleWeeklyDigest} testId="journal-ai-error-digest" />
+          ) : isLoadingDigest ? (
             <div style={{ fontSize: 13, color: '#9ca3af', padding: '8px 0' }}>Generating digest...</div>
           ) : weeklyDigest ? (
             <div>
@@ -1296,6 +1327,7 @@ const JournalView: React.FC<JournalViewProps> = ({
         videoRef.current.srcObject = stream;
       }
     } catch {
+      // R5: the browser's own camera prompt is the visible signal; on denial (or no camera) the empty viewer just closes.
       setShowWebcam(false);
     }
   }, []);
@@ -1605,6 +1637,14 @@ const JournalView: React.FC<JournalViewProps> = ({
           {'\uD83D\uDC64 Profile'}
         </button>
       </div>
+      {TOOLBAR_AI_ACTIONS.map(action => {
+        const error = aiFailures.errors[action];
+        const retry: Record<ToolbarAIAction, () => void> = { reflect: handleReflect, extend: handleExtend, summary: handleSummarize, scripture: handleFindScripture };
+        return error ? (
+          <InlineAIError key={action} error={error} onRetry={retry[action]} testId={`journal-ai-error-${action}`}
+            style={{ padding: '4px 12px', background: '#f8f7ff', borderBottom: '1px solid #f3f4f6' }} />
+        ) : null;
+      })}
 
       {/* ── AI Result Cards (Phase 3) ──────────────────────────────── */}
 
@@ -1710,6 +1750,8 @@ const JournalView: React.FC<JournalViewProps> = ({
               {profileTab === 'profile' ? (
                 isLoadingProfile ? (
                   <div style={{ fontSize: 14, color: '#9ca3af', padding: '16px 0', textAlign: 'center' }}>Generating your spiritual profile...</div>
+                ) : aiFailures.errors.profile ? (
+                  <InlineAIError error={aiFailures.errors.profile} onRetry={handleShowProfile} testId="journal-ai-error-profile" />
                 ) : (
                   <div style={{ fontSize: 14, color: '#374151', lineHeight: 1.7 }}>
                     <LazyMarkdown>{profileText || ''}</LazyMarkdown>
@@ -2160,6 +2202,7 @@ const JournalView: React.FC<JournalViewProps> = ({
               {isLoadingChat && (
                 <div style={{ fontSize: 12, color: '#9ca3af' }}>Thinking...</div>
               )}
+              {aiFailures.errors.chat && <InlineAIError error={aiFailures.errors.chat} testId="journal-ai-error-chat" />}
             </div>
             <div style={{ display: 'flex', gap: 6 }}>
               <input
@@ -2336,7 +2379,9 @@ const JournalView: React.FC<JournalViewProps> = ({
               updates.title = `${date} 图片笔记`;
             }
           }
-        } catch { /* ignore parse errors */ }
+        } catch {
+          // R5: unparseable Notability data still saves as-is below; only the derived plain text / auto-title is skipped.
+        }
         journalStorage.updateEntry(selectedEntry.id, updates).then((updated) => {
           if (updated) {
             setEntries(prev => prev.map(e => e.id === updated.id ? updated : e));

@@ -527,7 +527,7 @@ const DrawingBlockComponent: React.FC<{
           return;
         }
       }
-    } catch { /* ignore parse errors */ }
+    } catch { /* R5: unparseable canvas data skips only the auto-grow check; the drawing still saves just below */ }
     handleChange(data);
   }, [block, height, onChange, handleChange]);
 

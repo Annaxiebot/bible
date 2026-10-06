@@ -13,9 +13,15 @@
  * 9. Memory extraction — extracts themes, prayers, growth areas, questions
  * 10. Spiritual profile — AI-generated user profile from memory
  * 11. Proactive suggestions — personalized prompts based on context
+ *
+ * Errors: every AI call here rethrows the AskAIError of services/studyAI
+ * (sign-in-needed, quota, no-credit, network…) — nothing is swallowed. The
+ * UI decides: user-triggered actions show the shared InlineAIError; the
+ * automatic ones (tags, memory, proactive) catch with an R5 comment.
  */
 
 import { chatStudyAI, streamStudyAI } from './studyAI';
+import { emptyError } from '../components/studypack/askAIErrors';
 import { journalStorage } from './journalStorage';
 import { JournalEntry, SpiritualMemoryItem } from './idbService';
 import { spiritualMemory } from './spiritualMemory';
@@ -64,7 +70,9 @@ export function getAgentIdentity(): AgentIdentity {
   try {
     const stored = localStorage.getItem(IDENTITY_STORAGE_KEY);
     if (stored) return { ...DEFAULT_IDENTITY, ...JSON.parse(stored) };
-  } catch {}
+  } catch {
+    // R5: a corrupt or unreadable stored identity falls back to the default (no name, no personality) — the settings tab shows that state.
+  }
   return { ...DEFAULT_IDENTITY };
 }
 
@@ -117,35 +125,29 @@ export const DEFAULT_PROMPTS: JournalPromptConfig = {
   chat: `You are a thoughtful spiritual companion. The user is asking about their journal entry. Answer warmly and concisely.`,
 };
 
-export function getPrompt(key: keyof JournalPromptConfig): string {
+/** The stored prompt overrides; a corrupt store reads as none. */
+function readPromptConfig(): Partial<JournalPromptConfig> {
   try {
     const stored = localStorage.getItem(PROMPT_STORAGE_KEY);
-    if (stored) {
-      const config = JSON.parse(stored);
-      if (config[key]) return config[key];
-    }
-  } catch {}
-  return DEFAULT_PROMPTS[key];
+    return stored ? JSON.parse(stored) : {};
+  } catch {
+    // R5: corrupt stored overrides fall back to the defaults (shown in the settings tab); the next save rewrites the store.
+    return {};
+  }
+}
+
+export function getPrompt(key: keyof JournalPromptConfig): string {
+  return readPromptConfig()[key] || DEFAULT_PROMPTS[key];
 }
 
 export function setPrompt(key: keyof JournalPromptConfig, value: string): void {
-  try {
-    const stored = localStorage.getItem(PROMPT_STORAGE_KEY);
-    const config = stored ? JSON.parse(stored) : {};
-    config[key] = value;
-    localStorage.setItem(PROMPT_STORAGE_KEY, JSON.stringify(config));
-  } catch {}
+  localStorage.setItem(PROMPT_STORAGE_KEY, JSON.stringify({ ...readPromptConfig(), [key]: value }));
 }
 
 export function resetPrompt(key: keyof JournalPromptConfig): void {
-  try {
-    const stored = localStorage.getItem(PROMPT_STORAGE_KEY);
-    if (stored) {
-      const config = JSON.parse(stored);
-      delete config[key];
-      localStorage.setItem(PROMPT_STORAGE_KEY, JSON.stringify(config));
-    }
-  } catch {}
+  const config = readPromptConfig();
+  delete config[key];
+  localStorage.setItem(PROMPT_STORAGE_KEY, JSON.stringify(config));
 }
 
 export function resetAllPrompts(): void {
@@ -172,6 +174,19 @@ const STOP_WORDS = new Set([
 ]);
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
+
+/** The first JSON array in a model reply (code fences allowed); [] when there is none or it is malformed. */
+function parseJSONArray(responseText: string): unknown[] {
+  const jsonMatch = responseText.match(/\[[\s\S]*?\]/);
+  if (!jsonMatch) return [];
+  try {
+    const parsed: unknown = JSON.parse(jsonMatch[0]);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    // R5: the AI call itself succeeded; malformed JSON in the reply means "no suggestions", not a failure the user can act on.
+    return [];
+  }
+}
 
 /** Tokenize text into lowercase words, filter stop words + short tokens */
 export function extractKeywords(text: string): string[] {
@@ -215,36 +230,21 @@ export function extractSnippet(text: string, keywords: string[], maxLen = 120): 
 
 /**
  * Suggest tags for a journal entry using AI.
- * Returns an array of suggested tag strings.
- * On failure returns an empty array (graceful degradation).
+ * Returns an array of suggested tag strings; throws the AI's AskAIError.
  */
 export async function suggestTags(entry: JournalEntry): Promise<string[]> {
   const text = entry.plainText || entry.title || '';
   if (text.trim().length < 10) return [];
 
-  try {
-    const result = await chatStudyAI(
-      `${getPrompt('tag')}\n\nJournal entry:\n${text.slice(0, 2000)}`,
-    );
+  const result = await chatStudyAI(
+    `${getPrompt('tag')}\n\nJournal entry:\n${text.slice(0, 2000)}`,
+  );
 
-    const responseText = result.text;
-
-    // Extract JSON array from response (handle markdown code blocks)
-    const jsonMatch = responseText.match(/\[[\s\S]*?\]/);
-    if (!jsonMatch) return [];
-
-    const parsed = JSON.parse(jsonMatch[0]);
-    if (!Array.isArray(parsed)) return [];
-
-    return parsed
-      .filter((t: unknown): t is string => typeof t === 'string')
-      .map((t: string) => t.toLowerCase().trim())
-      .filter((t: string) => t.length > 0 && t.length < 50)
-      .slice(0, 7);
-  } catch (err) {
-    console.warn('[JournalAI] Tag suggestion failed:', err);
-    return [];
-  }
+  return parseJSONArray(result.text)
+    .filter((t: unknown): t is string => typeof t === 'string')
+    .map((t: string) => t.toLowerCase().trim())
+    .filter((t: string) => t.length > 0 && t.length < 50)
+    .slice(0, 7);
 }
 
 // ─── 2. Smart linking — related entries ─────────────────────────────────────
@@ -351,7 +351,9 @@ export async function generateWeeklyDigest(force = false): Promise<WeeklyDigest 
       if (cached) {
         return JSON.parse(cached) as WeeklyDigest;
       }
-    } catch { /* ignore corrupt cache */ }
+    } catch {
+      // R5: a corrupt cached digest is regenerated below — the user still gets one.
+    }
   }
 
   // Gather entries from past 7 days
@@ -371,30 +373,24 @@ export async function generateWeeklyDigest(force = false): Promise<WeeklyDigest 
     })
     .join('\n\n');
 
+  const result = await chatStudyAI(
+    `${getPrompt('digest')}\n\n${entriesText}`,
+  );
+
+  const digest: WeeklyDigest = {
+    summary: result.text,
+    entryCount: recentEntries.length,
+    weekKey,
+    generatedAt: now.toISOString(),
+  };
+
   try {
-    const result = await chatStudyAI(
-      `${getPrompt('digest')}\n\n${entriesText}`,
-    );
-
-    const summary = result.text;
-
-    const digest: WeeklyDigest = {
-      summary,
-      entryCount: recentEntries.length,
-      weekKey,
-      generatedAt: now.toISOString(),
-    };
-
-    // Cache it
-    try {
-      localStorage.setItem(cacheKey, JSON.stringify(digest));
-    } catch { /* localStorage might be full */ }
-
-    return digest;
-  } catch (err) {
-    console.warn('[JournalAI] Weekly digest failed:', err);
-    return null;
+    localStorage.setItem(cacheKey, JSON.stringify(digest));
+  } catch {
+    // R5: the cache is an optimisation; a full localStorage only means the digest is regenerated next time.
   }
+
+  return digest;
 }
 
 // ─── 4. Timeline data helpers ───────────────────────────────────────────────
@@ -469,16 +465,10 @@ export async function generateReflectionPrompt(
     parts.push('The user is starting a new journal entry with no previous context.');
   }
 
-  try {
-    const result = await chatStudyAI(
-      `${getPromptWithIdentity('reflection')}\n\n${parts.join('\n\n')}`,
-    );
-    const text = result.text;
-    return text.trim();
-  } catch (err) {
-    console.warn('[JournalAI] Reflection prompt failed:', err);
-    return 'What is one thing you are grateful for today?';
-  }
+  const result = await chatStudyAI(
+    `${getPromptWithIdentity('reflection')}\n\n${parts.join('\n\n')}`,
+  );
+  return result.text.trim();
 }
 
 // ─── 6. Extend thinking (Phase 3) ─────────────────────────────────────────
@@ -500,13 +490,8 @@ export async function extendThinking(
     prompt += `\n\nThey are currently reading: ${bibleContext.bookName} ${bibleContext.chapter}`;
   }
 
-  try {
-    const result = await chatStudyAI(prompt);
-    return result.text.trim();
-  } catch (err) {
-    console.warn('[JournalAI] Extend thinking failed:', err);
-    return '';
-  }
+  const result = await chatStudyAI(prompt);
+  return result.text.trim();
 }
 
 // ─── 7. Summarize (Phase 3) ───────────────────────────────────────────────
@@ -519,15 +504,10 @@ export async function extendThinking(
 export async function summarizeEntry(text: string): Promise<string> {
   if (!text.trim() || text.trim().length < 20) return '';
 
-  try {
-    const result = await chatStudyAI(
-      `${getPromptWithIdentity('summarize')}\n\nJournal entry:\n${text.slice(0, 3000)}`,
-    );
-    return result.text.trim();
-  } catch (err) {
-    console.warn('[JournalAI] Summarize failed:', err);
-    return '';
-  }
+  const result = await chatStudyAI(
+    `${getPromptWithIdentity('summarize')}\n\nJournal entry:\n${text.slice(0, 3000)}`,
+  );
+  return result.text.trim();
 }
 
 // ─── 8. Scripture finder (Phase 3) ────────────────────────────────────────
@@ -553,9 +533,7 @@ export async function findRelatedScripture(text: string): Promise<{ results: Scr
     (chunk) => { responseText += chunk; },
   );
 
-  if (!responseText.trim()) {
-    throw new Error('No response from AI');
-  }
+  if (!responseText.trim()) throw emptyError(meta.model ?? '', null);
 
   // Try JSON parsing first
   const jsonResults = parseScriptureJSON(responseText);
@@ -565,7 +543,8 @@ export async function findRelatedScripture(text: string): Promise<{ results: Scr
   const fallbackResults = parseScriptureFromText(responseText);
   if (fallbackResults.length > 0) return { results: fallbackResults, meta };
 
-  throw new Error('Could not find scripture suggestions in AI response');
+  // A reply with no recognisable references: the UI says "no suggestions found".
+  return { results: [], meta };
 }
 
 /** Parse structured JSON array from AI response */
@@ -580,10 +559,12 @@ function parseScriptureJSON(responseText: string): ScriptureSuggestion[] {
   try {
     parsed = JSON.parse(jsonMatch[0]);
   } catch {
+    // Not silent: retried below with trailing commas removed.
     try {
       const fixed = jsonMatch[0].replace(/,\s*\]/g, ']').replace(/,\s*\}/g, '}');
       parsed = JSON.parse(fixed);
     } catch {
+      // R5: still not JSON — the caller falls back to finding references in the plain text.
       return [];
     }
   }
@@ -658,13 +639,8 @@ export async function chatAboutEntry(
 
   context.push(`User's question: ${question}`);
 
-  try {
-    const result = await chatStudyAI(context.join('\n\n'));
-    return result.text.trim();
-  } catch (err) {
-    console.warn('[JournalAI] Chat about entry failed:', err);
-    return 'Sorry, I could not process your question right now. Please try again.';
-  }
+  const result = await chatStudyAI(context.join('\n\n'));
+  return result.text.trim();
 }
 
 // ─── 10. Memory extraction (Phase 4) ──────────────────────────────────────
@@ -678,7 +654,7 @@ export interface MemoryItem {
 
 /**
  * Extract memory-worthy items from a journal entry.
- * Saves them to the spiritualMemory store.
+ * Saves them to the spiritualMemory store; throws the AI's AskAIError.
  */
 export async function extractMemoryItems(
   entryText: string,
@@ -686,45 +662,32 @@ export async function extractMemoryItems(
 ): Promise<MemoryItem[]> {
   if (!entryText.trim() || entryText.trim().length < 30) return [];
 
-  try {
-    const result = await chatStudyAI(
-      `${getPrompt('memory')}\n\nJournal entry:\n${entryText.slice(0, 2000)}`,
-    );
-    const responseText = result.text;
+  const result = await chatStudyAI(
+    `${getPrompt('memory')}\n\nJournal entry:\n${entryText.slice(0, 2000)}`,
+  );
 
-    const jsonMatch = responseText.match(/\[[\s\S]*?\]/);
-    if (!jsonMatch) return [];
+  const validCategories = new Set(['theme', 'prayer', 'growth', 'question']);
+  const items: MemoryItem[] = parseJSONArray(result.text)
+    .filter(
+      (item: unknown): item is MemoryItem =>
+        typeof item === 'object' &&
+        item !== null &&
+        typeof (item as any).category === 'string' &&
+        validCategories.has((item as any).category) &&
+        typeof (item as any).content === 'string' &&
+        (item as any).content.trim().length > 0
+    )
+    .slice(0, 10);
 
-    const parsed = JSON.parse(jsonMatch[0]);
-    if (!Array.isArray(parsed)) return [];
-
-    const validCategories = new Set(['theme', 'prayer', 'growth', 'question']);
-    const items: MemoryItem[] = parsed
-      .filter(
-        (item: unknown): item is MemoryItem =>
-          typeof item === 'object' &&
-          item !== null &&
-          typeof (item as any).category === 'string' &&
-          validCategories.has((item as any).category) &&
-          typeof (item as any).content === 'string' &&
-          (item as any).content.trim().length > 0
-      )
-      .slice(0, 10);
-
-    // Save to IndexedDB (non-blocking)
-    for (const item of items) {
-      await spiritualMemory.addItem({
-        category: item.category,
-        content: item.content,
-        source: entryId,
-      });
-    }
-
-    return items;
-  } catch (err) {
-    console.warn('[JournalAI] Memory extraction failed:', err);
-    return [];
+  for (const item of items) {
+    await spiritualMemory.addItem({
+      category: item.category,
+      content: item.content,
+      source: entryId,
+    });
   }
+
+  return items;
 }
 
 /**
@@ -765,15 +728,10 @@ export async function generateSpiritualProfile(
     .map(([cat, items]) => `${cat}: ${items.length > 0 ? items.join('; ') : 'none'}`)
     .join('\n');
 
-  try {
-    const result = await chatStudyAI(
-      `${getPromptWithIdentity('profile')}\n\nMemory items:\n${contextLines}`,
-    );
-    return result.text.trim();
-  } catch (err) {
-    console.warn('[JournalAI] Spiritual profile failed:', err);
-    return 'Could not generate profile at this time. Please try again later.';
-  }
+  const result = await chatStudyAI(
+    `${getPromptWithIdentity('profile')}\n\nMemory items:\n${contextLines}`,
+  );
+  return result.text.trim();
 }
 
 // ─── 12. Proactive suggestions (Phase 4) ──────────────────────────────────
@@ -822,13 +780,8 @@ export async function generateProactiveSuggestion(
     parts.push(`Currently reading: ${bibleContext.bookName} ${bibleContext.chapter}`);
   }
 
-  try {
-    const result = await chatStudyAI(
-      `${getPromptWithIdentity('proactive')}\n\n${parts.join('\n')}`,
-    );
-    return result.text.trim();
-  } catch (err) {
-    console.warn('[JournalAI] Proactive suggestion failed:', err);
-    return '';
-  }
+  const result = await chatStudyAI(
+    `${getPromptWithIdentity('proactive')}\n\n${parts.join('\n')}`,
+  );
+  return result.text.trim();
 }

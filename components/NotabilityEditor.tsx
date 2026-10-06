@@ -22,6 +22,7 @@ import {
   drawPaperBackground,
 } from '../services/strokeNormalizer';
 import { compressImage } from '../services/imageCompressionService';
+import { InlineAIError, useAIFailures } from './studypack/InlineAIError';
 import { migrateStrokes, Y_NORM_PAGE_HEIGHT } from '../services/notabilityStrokeMigration';
 import { NOTABILITY_PAGE_HEIGHT_PX, resolveCanvasHeightPages } from '../services/notabilityCanvasMigration';
 
@@ -217,7 +218,10 @@ function parseExtended(raw: string): ExtendedCanvasData | null {
     const p = JSON.parse(raw);
     if (p && p.version === 2) return p as ExtendedCanvasData;
     return null;
-  } catch { return null; }
+  } catch {
+    // R5: not the v2 JSON shape — the caller then reads the data as legacy strokes, nothing is lost.
+    return null;
+  }
 }
 
 // ── Component ──────────────────────────────────────────────────────────────
@@ -450,6 +454,9 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
   // AI
   const [showAIMenu, setShowAIMenu] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
+  // One key: the AI menu's last failure, shown under the AI button (sign in, quota…).
+  // TODO(R4): split seam = the AI menu (AI_ACTIONS, handleAIAction, the AI button + its failure line) → NotabilityAIMenu.
+  const aiFailures = useAIFailures<'action'>();
 
   // Selection (lasso + rectangle)
   const [selectionMode, setSelectionMode] = useState<'lasso' | 'rectangle'>('rectangle');
@@ -2509,7 +2516,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     const tool = toolRef.current;
     if (tool === 'pointer' || tool === 'text') return; // not a drawing path
     e.preventDefault();
-    try { el.setPointerCapture(e.pointerId); } catch { /* older iOS */ }
+    try { el.setPointerCapture(e.pointerId); } catch { /* R5: older iOS lacks pointer capture; drawing still works without it */ }
     // Stylus-cancels-finger: the Pencil just made contact. Any finger touch
     // currently active is the user's palm resting — retroactively cancel its
     // swipe state so the palm's pre-Pencil movement doesn't commit a page
@@ -2553,7 +2560,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
     if (e.pointerType !== 'pen') return;
     // Same: lasso drag ends here too. Shared classifier.
     if (!isGestureInProgress()) return;
-    try { el.releasePointerCapture(e.pointerId); } catch { /* older iOS */ }
+    try { el.releasePointerCapture(e.pointerId); } catch { /* R5: older iOS lacks pointer capture; drawing still works without it */ }
     e.preventDefault();
     handlePointerUp();
   }, [handlePointerUp, isGestureInProgress]);
@@ -3190,6 +3197,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
 
     setShowAIMenu(false);
     setAiLoading(true);
+    aiFailures.clear('action');
 
     // Use specific source text box if provided, otherwise gather all text
     const srcId = sourceTextBoxId || editingTextIdRef.current || selectedItemIdRef.current;
@@ -3298,14 +3306,13 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
       }, 100);
       triggerAutoSave();
     } catch (err) {
-      console.error('AI action failed:', err);
-      setTextBoxes(prev => prev.map(tb =>
-        tb.id === aiBox.id ? { ...tb, content: '(AI reflection failed. Please try again.)' } : tb
-      ));
+      // Drop the AI box if nothing streamed into it; the failure line under the AI button says why.
+      setTextBoxes(prev => prev.filter(tb => tb.id !== aiBox.id || tb.content !== ''));
+      aiFailures.fail('action', err);
     } finally {
       setAiLoading(false);
     }
-  }, [onAIStream, aiLoading, entryPlainText, bibleContext, pushUndo, triggerAutoSave]);
+  }, [onAIStream, aiLoading, entryPlainText, bibleContext, pushUndo, triggerAutoSave, aiFailures.clear, aiFailures.fail]);
 
   // ── Done handler ───────────────────────────────────────────────────────
 
@@ -3684,7 +3691,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
           {/* AI button */}
           {onAIStream && (
             <div className="relative">
-              <button onClick={() => { setShowAIMenu(!showAIMenu); closeAllPopups(); }}
+              <button onClick={() => { setShowAIMenu(!showAIMenu); closeAllPopups(); aiFailures.clear('action'); }}
                 className={`px-2 py-1 rounded-lg text-xs font-bold transition-colors ${
                   aiLoading ? 'bg-purple-100 text-purple-500 animate-pulse' : 'hover:bg-purple-50 text-purple-600'
                 }`} title="AI Actions">
@@ -3699,6 +3706,10 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                     </button>
                   ))}
                 </div>
+              )}
+              {!showAIMenu && aiFailures.errors.action && (
+                <InlineAIError error={aiFailures.errors.action} testId="notability-ai-error"
+                  style={{ position: 'absolute', right: 0, top: '100%', marginTop: 8, zIndex: 50, width: 280, background: '#fff', borderRadius: 12, border: '1px solid #e2e8f0', boxShadow: '0 4px 12px rgba(0,0,0,0.08)', padding: '8px 12px' }} />
               )}
             </div>
           )}
@@ -4379,7 +4390,7 @@ const NotabilityEditor: React.FC<NotabilityEditorProps> = ({
                         // listener once this grip has been grabbed.
                         onPointerDown={e => {
                           e.stopPropagation();
-                          try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* ignore */ }
+                          try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* R5: no pointer capture (older iOS) — the grip still drags via its own handlers */ }
                         }}
                         onMouseDown={e => {
                           e.stopPropagation(); e.preventDefault();
