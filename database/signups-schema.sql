@@ -182,6 +182,9 @@ CREATE TABLE IF NOT EXISTS checkin_answers (
 CREATE INDEX IF NOT EXISTS idx_checkin_answers_pack_created ON checkin_answers(pack_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_checkin_answers_leader_id ON checkin_answers(leader_id);
 CREATE INDEX IF NOT EXISTS idx_checkin_answers_signup ON checkin_answers(signup_id);
+-- One shared answer per member per check-in: sharing again replaces it (2026-10-06).
+-- Without this, anyone holding a member's link could file answers without limit.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_checkin_answers_signup_kind ON checkin_answers(signup_id, kind);
 
 ALTER TABLE checkin_answers ENABLE ROW LEVEL SECURITY;
 
@@ -195,6 +198,9 @@ CREATE POLICY "Leaders can view their own shared answers"
 -- Share one answer. SECURITY DEFINER so the anon member can write without
 -- any table privilege; ownership is copied from the signup row, never
 -- taken from the caller. search_path pinned (definer-function hygiene).
+-- Sharing again for the same check-in replaces the earlier answer (the
+-- member edited it) and moves created_at to now, so the leader sees the
+-- latest text once, never a pile of copies.
 CREATE OR REPLACE FUNCTION public.share_checkin_answer(p_signup_id UUID, p_kind TEXT, p_answer TEXT)
 RETURNS UUID
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
@@ -209,6 +215,7 @@ BEGIN
   END IF;
   INSERT INTO checkin_answers (signup_id, pack_id, leader_id, kind, answer)
     VALUES (p_signup_id, v_pack_id, v_leader_id, p_kind, p_answer)
+    ON CONFLICT (signup_id, kind) DO UPDATE SET answer = EXCLUDED.answer, created_at = now()
     RETURNING id INTO v_id;
   RETURN v_id;
 END $$;

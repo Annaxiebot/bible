@@ -87,6 +87,13 @@ describe('signups-schema.sql', () => {
     expect(sql).toContain(`GRANT EXECUTE ON FUNCTION public.${SHARE_ANSWER_FN}(UUID, TEXT, TEXT) TO anon, authenticated;`);
   });
 
+  it('one shared answer per member per check-in: a unique (signup_id, kind) and the function upserts', () => {
+    expect(sql).toContain(`CREATE UNIQUE INDEX IF NOT EXISTS uq_checkin_answers_signup_kind ON ${CHECKIN_ANSWERS_TABLE}(signup_id, kind);`);
+    const fn = sql.slice(sql.indexOf(`CREATE OR REPLACE FUNCTION public.${SHARE_ANSWER_FN}(`));
+    expect(fn.slice(0, fn.indexOf('$$;'))).toContain(
+      'ON CONFLICT (signup_id, kind) DO UPDATE SET answer = EXCLUDED.answer, created_at = now()');
+  });
+
   it('checkin_context is defined once, in signup-practices-schema.sql (R3), not here', () => {
     expect(sql).not.toContain(`FUNCTION public.${CHECKIN_CONTEXT_FN}(`);
     expect(sql).toContain('database/signup-practices-schema.sql');
