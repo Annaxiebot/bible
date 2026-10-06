@@ -91,6 +91,9 @@ hand. Supabase was already in the stack (auth, sync, `ai-chat` edge function).
    for kind `welcome` (the one anonymous path: the signup must exist and be
    younger than 10 minutes, `recipients.welcomeAllowed`); the message
    restates the practice and carries the check-in link.
+   *Superseded 2026-10-06 (ADR-0013): the `signup` edge function writes the
+   row and asks for the welcome as a trusted caller; the anonymous welcome
+   is closed.*
 8. **Unclaimed vs demo.** A pack without `leaderId` is a *demo* only when it
    is public (id not `local-`). A LOCAL pack without a leader is
    *unclaimed*: it exists only in this browser, so whoever signs in here
@@ -207,12 +210,15 @@ every member sign-up was rejected. The browser now makes the uuid
 return=minimal, and uses that id as the check-in token. No anon SELECT
 policy was added. The e2e mock answers a `Prefer: return=representation`
 insert with the same 42501 error, so a client that reads back cannot pass.
+*Superseded 2026-10-06 (ADR-0013): the browser no longer inserts; the
+`signup` edge function makes the id and writes the row.*
 
 **Amendment (2026-10-04): a later sign-up replaces an earlier one.** The
 same person submitting twice for a pack used to get every check-in twice
 and be counted twice. Anon still has no UPDATE/SELECT policy: after its
 insert the browser calls `mark_replaced_signups(new id)`
-(`database/signup-replace-schema.sql`, SECURITY DEFINER, anon-callable),
+(`database/signup-replace-schema.sql`, SECURITY DEFINER; anon-callable
+until ADR-0013 made it service-role only, called by the `signup` function),
 which — only for a live row younger than the welcome window — sets
 `replaced_at` on every OTHER live row with the same `pack_id` and
 `lower(trim(email))` created no later than it, and returns only a count

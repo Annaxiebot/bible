@@ -5,21 +5,21 @@
  * title + passage Chinese first; step 1 is the commitment (any number of
  * practices, at least one, own version), Next is gated on it; step 2 is
  * the contact form (large type, ≥48px targets); validation errors render
- * inline; a valid submit inserts the payload with the practice through the
- * (mocked) Supabase client, asks for the welcome email, and shows the
- * thank-you restating the commitment with the personal check-in link; an
- * insert error is shown, never swallowed; an unconfigured service is an
+ * inline; a valid submit is ONE call to the signup function (mocked
+ * functions.invoke that, like the function, refuses a body
+ * validateSignupBody refuses) carrying no leader_id, and shows the
+ * thank-you restating the commitment with the personal check-in link (the
+ * function's id) and the replace/welcome verdicts; a refusal is shown,
+ * never swallowed; an unconfigured service is an
  * error; a public demo pack shows the no-sign-up line; an unclaimed LOCAL
  * pack (real fake-indexeddb) shows the sign-in block instead.
  */
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { FunctionsHttpError } from '@supabase/supabase-js';
 import SignupPage from '../SignupPage';
-import { SIGNUPS_TABLE, SIGNUP_LOCALE } from '../signupClient';
-import { SEND_CHECKINS_FUNCTION } from '../signupSchema';
-import { MARK_REPLACED_FN } from '../../../supabase/functions/send-checkins/replaced';
-import { WELCOME_KIND } from '../welcomeEmail';
+import { SIGNUP_FUNCTION, SIGNUP_PROBLEM_TEXT, validateSignupBody } from '../../../supabase/functions/_shared/signup';
 import { saveLocalPack } from '../../studypack/packSource';
 import { idbService } from '../../../services/idbService';
 import { checkinHash } from '../../checkin/checkinRoute';
@@ -37,14 +37,19 @@ import { LANDING_HASH } from '../../landing/landingRoute';
 const WENKAI_HEAD = 'stl-head';
 const PILL = 'stl-pill';
 
-/** The anon insert result; reading the row back (.select → RETURNING) fails RLS, as live (anon has no SELECT policy). */
-const insertResult = vi.fn();
-const RLS_ERROR = { message: 'new row violates row-level security policy for table "study_signups"' };
-const insertMock = vi.fn((_payload: unknown) => Object.assign(Promise.resolve().then(() => insertResult()), {
-  select: () => ({ single: async () => ({ data: null, error: RLS_ERROR }) }),
-}));
-const fromMock = vi.fn(() => ({ insert: insertMock }));
-const invokeMock = vi.fn();
+/** The function's 200 for a stored row (tests override replace/welcome). */
+const functionReply = vi.fn();
+/** functions.invoke: only the signup function exists, and it refuses what validateSignupBody refuses (400 + its line). */
+const invokeMock = vi.fn(async (name: string, options: { body: unknown }) => {
+  if (name !== SIGNUP_FUNCTION) return { data: null, error: new FunctionsHttpError(new Response('{}', { status: 404 })) };
+  const verdict = validateSignupBody(options.body);
+  if (verdict.ok === false) {
+    const body = JSON.stringify({ error: verdict.problem, message: SIGNUP_PROBLEM_TEXT[verdict.problem] });
+    return { data: null, error: new FunctionsHttpError(new Response(body, { status: 400 })) };
+  }
+  return functionReply();
+});
+const fromMock = vi.fn();
 const rpcMock = vi.fn();
 const signInMock = vi.fn(async () => ({ error: null }));
 let configured = true;
@@ -88,12 +93,10 @@ function fill(values: { name?: string; email?: string; phone?: string }) {
 describe('SignupPage', () => {
   beforeEach(() => {
     configured = true;
-    insertResult.mockReset().mockReturnValue({ data: null, error: null });
-    vi.spyOn(crypto, 'randomUUID').mockReturnValue(SIGNUP_ID);
-    insertMock.mockClear();
+    functionReply.mockReset().mockReturnValue({ data: { id: SIGNUP_ID, replaced: 0, replace: 'done', welcome: 'sent' }, error: null });
+    invokeMock.mockClear();
     fromMock.mockClear();
-    rpcMock.mockReset().mockResolvedValue({ data: 0, error: null });
-    invokeMock.mockReset().mockResolvedValue({ data: { attempted: 1, results: [{ status: 'sent' }] }, error: null });
+    rpcMock.mockClear();
     vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => PACK })));
   });
   afterEach(() => vi.unstubAllGlobals());
@@ -168,10 +171,10 @@ describe('SignupPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent(SU_ERR_EMAIL_REQUIRED);
     expect(screen.getByTestId('su-email')).toBeRequired();
     expect(screen.getByTestId('su-phone')).not.toBeRequired();
-    expect(insertMock).not.toHaveBeenCalled();
+    expect(invokeMock).not.toHaveBeenCalled();
   });
 
-  it('a valid submit inserts the payload with the commitment, sends the welcome, and the thank-you restates it with the check-in link', async () => {
+  it('a valid submit is one call to the signup function (no leader_id, no id); the thank-you restates the commitment with the function\'s check-in link', async () => {
     await renderWithPack();
     fireEvent.click(screen.getAllByTestId('su-practice')[0]);
     fireEvent.change(screen.getByTestId('su-note'), { target: { value: '十点关机 · Phone off at ten' } });
@@ -179,14 +182,14 @@ describe('SignupPage', () => {
     fill({ name: ' 小明 ', email: 'ming@example.org', phone: '408 555 1234' });
     fireEvent.click(screen.getByTestId('su-submit'));
     await screen.findByTestId('signup-thanks');
-    expect(fromMock).toHaveBeenCalledWith(SIGNUPS_TABLE);
-    expect(insertMock).toHaveBeenCalledWith({
-      id: SIGNUP_ID, pack_id: PACK_ID, leader_id: LEADER_ID, pack_title: PACK.title, name: '小明', phone: '4085551234',
-      email: 'ming@example.org', consent_checkins: true, locale: SIGNUP_LOCALE,
-      practices: [ROWS[0]], practice_area: ROWS[0].area, practice_text: ROWS[0].practice, practice2_area: null,
-      practice2_text: null, practice_note: '十点关机 · Phone off at ten',
-    });
-    expect(invokeMock).toHaveBeenCalledWith(SEND_CHECKINS_FUNCTION, { body: { kind: WELCOME_KIND, signup_id: SIGNUP_ID } });
+    expect(invokeMock).toHaveBeenCalledTimes(1);
+    expect(invokeMock).toHaveBeenCalledWith(SIGNUP_FUNCTION, { body: {
+      pack_id: PACK_ID, name: ' 小明 ', email: 'ming@example.org', phone: '408 555 1234',
+      practices: [ROWS[0]], practice_note: '十点关机 · Phone off at ten', consent: true,
+    } });
+    // No direct table write, no RPC: the browser has no other path (ADR-0013).
+    expect(fromMock).not.toHaveBeenCalled();
+    expect(rpcMock).not.toHaveBeenCalled();
     const thanks = screen.getByTestId('signup-thanks');
     expect(thanks).toHaveTextContent(SU_THANKS);
     // The chosen practice keeps its own text; the own version is an extra labelled line.
@@ -196,13 +199,11 @@ describe('SignupPage', () => {
     expect(within(thanks).getByTestId('signup-checkin-link')).toHaveAttribute('href', expect.stringContaining(checkinHash(SIGNUP_ID)));
     expect(within(thanks).queryByTestId('welcome-failed')).toBeNull();
     expect(screen.queryByTestId('signup-form')).toBeNull();
-    // After the insert the server is asked to retire earlier rows of this person — with only the new id.
-    expect(rpcMock).toHaveBeenCalledWith(MARK_REPLACED_FN, { p_new_id: SIGNUP_ID });
     expect(within(thanks).queryByTestId('signup-replaced')).toBeNull();   // nothing was replaced
   });
 
-  it('signing up again (the RPC replaced an earlier row) says the earlier sign-up was updated', async () => {
-    rpcMock.mockResolvedValue({ data: 1, error: null });
+  it('signing up again (the function replaced an earlier row) says the earlier sign-up was updated', async () => {
+    functionReply.mockReturnValue({ data: { id: SIGNUP_ID, replaced: 1, replace: 'done', welcome: 'sent' }, error: null });
     await renderWithPack();
     choosePractice();
     fill({ name: 'A', email: 'a@b.co' });
@@ -212,7 +213,9 @@ describe('SignupPage', () => {
   });
 
   it('a failed replace is a visible notice under the thank-you (the new row is stored; the welcome still goes)', async () => {
-    rpcMock.mockResolvedValue({ data: null, error: { message: 'function not found' } });
+    functionReply.mockReturnValue({
+      data: { id: SIGNUP_ID, replaced: null, replace: 'failed', replace_message: 'function not found', welcome: 'sent' }, error: null,
+    });
     await renderWithPack();
     choosePractice();
     fill({ name: 'A', email: 'a@b.co' });
@@ -220,38 +223,43 @@ describe('SignupPage', () => {
     expect(await screen.findByTestId('replace-failed')).toHaveTextContent(`${SU_REPLACE_FAILED}: function not found`);
     expect(screen.getByTestId('signup-thanks')).toHaveTextContent(SU_THANKS);
     expect(screen.queryByTestId('signup-replaced')).toBeNull();
-    expect(invokeMock).toHaveBeenCalledTimes(1);
+    expect(screen.queryByTestId('welcome-failed')).toBeNull();
   });
 
   it('with consent off the thank-you says no check-ins will come; a failed welcome is shown under it', async () => {
-    invokeMock.mockResolvedValue({ data: null, error: { message: 'Function not found' } });
+    functionReply.mockReturnValue({
+      data: { id: SIGNUP_ID, replaced: 0, replace: 'done', welcome: 'failed', welcome_message: 'Function not found' }, error: null,
+    });
     await renderWithPack();
     choosePractice();
     fill({ name: 'A', email: 'a@b.co' });
     fireEvent.click(screen.getByTestId('su-consent'));
     fireEvent.click(screen.getByTestId('su-submit'));
     await screen.findByTestId('signup-thanks');
-    expect(insertMock.mock.calls[0][0]).toMatchObject({ consent_checkins: false });
+    expect(invokeMock.mock.calls[0][1].body).toMatchObject({ consent: false });
     expect(screen.getByTestId('signup-thanks')).toHaveTextContent(SU_NEXT_NO_CHECKINS);
     expect(screen.getByTestId('welcome-failed')).toHaveTextContent(`${CK_WELCOME_FAILED}: Function not found`);
   });
 
-  it('email without a phone is accepted (phone stays optional) and the phone is stored as null', async () => {
+  it('email without a phone is accepted (phone stays optional): the body carries an empty phone the function stores as null', async () => {
     await renderWithPack();
     choosePractice();
     fill({ name: 'A', email: 'a@b.co' });
     fireEvent.click(screen.getByTestId('su-submit'));
     await screen.findByTestId('signup-thanks');
-    expect(insertMock.mock.calls[0][0]).toMatchObject({ email: 'a@b.co', phone: null });
+    const body = invokeMock.mock.calls[0][1].body;
+    expect(body).toMatchObject({ email: 'a@b.co', phone: '' });
+    expect(validateSignupBody(body)).toMatchObject({ ok: true, value: { phone: null } });
   });
 
-  it('an insert error is surfaced with the server message; the form stays', async () => {
-    insertResult.mockReturnValue({ data: null, error: { message: 'permission denied' } });
+  it('a refusal (the function\'s 429) is surfaced with its bilingual line; the form stays', async () => {
+    const limited = JSON.stringify({ error: 'rate-limited', message: SIGNUP_PROBLEM_TEXT['rate-limited'] });
+    functionReply.mockReturnValue({ data: null, error: new FunctionsHttpError(new Response(limited, { status: 429 })) });
     await renderWithPack();
     choosePractice();
     fill({ name: 'A', email: 'a@b.co' });
     fireEvent.click(screen.getByTestId('su-submit'));
-    expect(await screen.findByRole('alert')).toHaveTextContent(`${SU_ERR_SUBMIT}: permission denied`);
+    expect(await screen.findByRole('alert')).toHaveTextContent(`${SU_ERR_SUBMIT}: ${SIGNUP_PROBLEM_TEXT['rate-limited']}`);
     expect(screen.getByTestId('signup-form')).toBeInTheDocument();
     expect(screen.getByTestId('su-submit')).not.toBeDisabled();
   });
@@ -278,7 +286,7 @@ describe('SignupPage', () => {
     expect(screen.getByTestId('signup-demo')).toHaveTextContent(SU_DEMO_LINE);
     expect(screen.queryByTestId('signup-form')).toBeNull();
     expect(screen.queryByTestId('qr-unclaimed')).toBeNull();
-    expect(insertMock).not.toHaveBeenCalled();
+    expect(invokeMock).not.toHaveBeenCalled();
   });
 
   it('an unclaimed LOCAL pack shows "sign in to enable sign-up" with the Google button (the app sign-in flow), not the demo line', async () => {

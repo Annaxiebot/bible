@@ -10,6 +10,7 @@
 import { validateFeedback, isRateLimited, RATE_LIMIT_WINDOW_MS, FeedbackRecord } from '../_shared/feedback.ts';
 import { feedbackEmail, StoredFeedback } from './feedbackEmail.ts';
 import type { CheckinMessage } from '../send-checkins/templates.ts';
+import { hashClientIp } from '../_shared/clientIp.ts';
 
 export const FEEDBACK_TABLE = 'feedback';
 
@@ -33,18 +34,6 @@ export interface FeedbackDeps {
 export interface HandlerReply {
   status: number;
   body: Record<string, unknown>;
-}
-
-/** The caller's IP as the edge proxy reports it (first x-forwarded-for hop), else x-real-ip, else 'unknown'. */
-export function clientIp(header: (name: string) => string | null): string {
-  const forwarded = header('x-forwarded-for')?.split(',')[0]?.trim();
-  return forwarded || header('x-real-ip')?.trim() || 'unknown';
-}
-
-/** Hex SHA-256 of salt + ip: the raw address is never stored. */
-export async function hashClientIp(salt: string, ip: string): Promise<string> {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${salt}:${ip}`));
-  return [...new Uint8Array(digest)].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 
 export async function handleFeedback(method: string, body: unknown, ip: string, deps: FeedbackDeps): Promise<HandlerReply> {

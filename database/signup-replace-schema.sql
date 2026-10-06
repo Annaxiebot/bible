@@ -6,9 +6,10 @@
 -- re-running is safe.
 --
 -- The same person submitting twice for one pack used to get every check-in
--- twice and be counted twice. Anon still has no UPDATE (or SELECT) policy:
--- after its insert, the member's browser calls mark_replaced_signups with
--- the id it just created, and this SECURITY DEFINER function marks every
+-- twice and be counted twice. Anon has no UPDATE (or SELECT) policy: right
+-- after its insert, the `signup` edge function (service role; ADR-0013,
+-- database/signup-endpoint-schema.sql) calls mark_replaced_signups with the
+-- id it just created, and this SECURITY DEFINER function marks every
 -- OTHER live row for the same pack + lower(trim(email)) as replaced. It
 -- returns only a count — never another row's id (an id is a member's
 -- check-in token; whoever types someone's email must not get their link).
@@ -57,5 +58,6 @@ BEGIN
   RETURN v_count;
 END;
 $$;
-REVOKE ALL ON FUNCTION public.mark_replaced_signups(UUID) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.mark_replaced_signups(UUID) TO anon, authenticated;
+-- Service role only: anon could retire anyone's sign-up knowing their email + pack (ADR-0013).
+REVOKE ALL ON FUNCTION public.mark_replaced_signups(UUID) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.mark_replaced_signups(UUID) TO service_role;

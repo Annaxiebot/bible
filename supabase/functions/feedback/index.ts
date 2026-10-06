@@ -13,7 +13,8 @@ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { preflightResponse, withCors } from '../_shared/cors.ts';
 import { emailConfig, sendEmail } from '../send-checkins/senders.ts';
 import { feedbackEmailConfig } from './feedbackEmail.ts';
-import { handleFeedback, clientIp, FEEDBACK_TABLE, FeedbackDeps } from './feedbackHandler.ts';
+import { clientIp } from '../_shared/clientIp.ts';
+import { handleFeedback, FEEDBACK_TABLE, FeedbackDeps } from './feedbackHandler.ts';
 
 function env(name: string): string {
   return Deno.env.get(name) ?? '';

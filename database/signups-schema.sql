@@ -6,8 +6,9 @@
 --
 -- Privacy (ADR-0003 §17, ADR-0004): sign-up data is used only for the
 -- mid-week check-ins the member opted into. Members never log in — they scan
--- a QR, so the anon key may INSERT a row (carrying the pack's leader_id) and
--- nothing else. A leader may read and delete only rows whose leader_id is
+-- a QR, and the `signup` edge function (service role) writes their row:
+-- app roles have no INSERT on study_signups (ADR-0013,
+-- database/signup-endpoint-schema.sql). A leader may read and delete only rows whose leader_id is
 -- their own auth uid, mirroring the "auth.uid() = user_id" policies in
 -- supabase-schema.sql. The scheduler runs as the service role, which
 -- bypasses RLS and verifies the pack ↔ leader pairing itself.
@@ -35,11 +36,10 @@ CREATE INDEX IF NOT EXISTS idx_study_signups_pack_created ON study_signups(pack_
 
 ALTER TABLE study_signups ENABLE ROW LEVEL SECURITY;
 
+-- No INSERT policy for app roles: the `signup` edge function is the only
+-- writer (ADR-0013). The anon policy this file used to create let anyone
+-- file sign-ups under any leader; dropped here so a fresh install never has it.
 DROP POLICY IF EXISTS "Anyone may sign up for an owned pack" ON study_signups;
-CREATE POLICY "Anyone may sign up for an owned pack"
-  ON study_signups FOR INSERT
-  TO anon, authenticated
-  WITH CHECK (leader_id IS NOT NULL);
 
 DROP POLICY IF EXISTS "Leaders can view their own sign-ups" ON study_signups;
 CREATE POLICY "Leaders can view their own sign-ups"

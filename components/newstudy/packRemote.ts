@@ -11,7 +11,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { parseStudyPack, StudyPack } from '../studypack/packTypes';
 import { PS_ERR_PULL, PS_ERR_PUSH, PS_ERR_DELETE } from './packSyncStrings';
 
-export const STUDY_PACKS_TABLE = 'study_packs';
+import { STUDY_PACKS_TABLE } from '../../supabase/functions/_shared/signup';
+
+export { STUDY_PACKS_TABLE };
 
 export interface StudyPackRow {
   id: string;

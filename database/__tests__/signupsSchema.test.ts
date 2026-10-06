@@ -2,7 +2,8 @@
  * signupsSchema.test.ts — the migration says what the code assumes · 迁移文本测试
  *
  * Grep-level pins on database/signups-schema.sql: ownership columns, the
- * RLS policies (anon INSERT only with a leader, reads scoped to
+ * RLS policies (no INSERT policy for app roles — the signup edge function
+ * writes, ADR-0013 — reads scoped to
  * auth.uid() = leader_id, pack_summaries writable only by its owner), the
  * table names the browser and the edge function use, and the cron body.
  */
@@ -39,9 +40,11 @@ describe('signups-schema.sql', () => {
     }
   });
 
-  it('study_signups: anon may only INSERT with a leader; reads and deletes are scoped to auth.uid() = leader_id; no UPDATE', () => {
-    expect(policy('Anyone may sign up for an owned pack')).toBe(
-      `ON ${SIGNUPS_TABLE} FOR INSERT TO anon, authenticated WITH CHECK (leader_id IS NOT NULL)`);
+  it('study_signups: no INSERT policy for app roles (the old anon one is dropped); reads and deletes are scoped to auth.uid() = leader_id; no UPDATE', () => {
+    expect(sql).not.toMatch(new RegExp(`ON ${SIGNUPS_TABLE} FOR INSERT`));
+    expect(sql).not.toContain('CREATE POLICY "Anyone may sign up for an owned pack"');
+    expect(sql).toContain(`DROP POLICY IF EXISTS "Anyone may sign up for an owned pack" ON ${SIGNUPS_TABLE};`);
+    expect(sql).toContain('database/signup-endpoint-schema.sql');
     expect(policy('Leaders can view their own sign-ups')).toBe(
       `ON ${SIGNUPS_TABLE} FOR SELECT TO authenticated USING (auth.uid() = leader_id)`);
     expect(policy('Leaders can delete their own sign-ups')).toBe(

@@ -6,6 +6,7 @@
  * Playwright specs and the pack assembler can import it.
  */
 import { bilingual, bilingualLine } from '../studypack/principles';
+import { SIGNUP_PROBLEM_TEXT } from '../../supabase/functions/_shared/signup';
 
 export const SU_TITLE = bilingual('报名', 'Sign up');
 export const SU_INTRO = bilingualLine(
@@ -24,13 +25,14 @@ export const SU_SUBMIT = bilingual('提交', 'Submit');
 export const SU_SUBMITTING = bilingual('提交中…', 'Submitting…');
 
 // ---- validation / errors (surfaced inline, never swallowed) ----
-export const SU_ERR_NAME = bilingualLine('请填写姓名', 'Please enter your name');
-export const SU_ERR_EMAIL_REQUIRED = bilingualLine('请填写邮箱', 'Please enter your email');
-export const SU_ERR_EMAIL = bilingualLine('邮箱格式不对', 'That email does not look right');
-export const SU_ERR_PHONE = bilingualLine('手机号格式不对', 'That phone number does not look right');
+// The validation lines are the function's own (supabase/functions/_shared/signup.ts, R3): page and server say the same.
+export const SU_ERR_NAME = SIGNUP_PROBLEM_TEXT['name-empty'];
+export const SU_ERR_EMAIL_REQUIRED = SIGNUP_PROBLEM_TEXT['email-empty'];
+export const SU_ERR_EMAIL = SIGNUP_PROBLEM_TEXT['email-shape'];
+export const SU_ERR_PHONE = SIGNUP_PROBLEM_TEXT['phone-shape'];
 export const SU_ERR_NOT_CONFIGURED = bilingualLine('报名服务未配置', 'The sign-up service is not configured');
 export const SU_ERR_SUBMIT = bilingualLine('提交失败', 'Submission failed');
-export const SU_ERR_PACK = bilingualLine('找不到这个查经包', 'This study pack could not be found');
+export const SU_ERR_PACK = SIGNUP_PROBLEM_TEXT['pack-unknown'];
 /** Detail after SU_ERR_PACK when neither this phone nor the public projection has the pack (a member cannot fix it by signing in). */
 export const SU_PACK_ASK_LEADER = bilingualLine('请向带领者要新的二维码', 'Ask your leader for a new QR code');
 /** Detail after SU_ERR_PACK when the projection answered with something that is not a sign-up pack. */
@@ -69,7 +71,7 @@ export const SU_PRACTICE_NOTE = bilingual('我的版本（可选）', 'My own ve
 export const SU_NEXT_STEP = bilingual('下一步', 'Next');
 export const SU_PREV_STEP = bilingual('上一步', 'Back');
 export const SU_CONTACT_TITLE = bilingual('联系方式', 'How to reach you');
-export const SU_ERR_PRACTICE = bilingualLine('请至少选一项操练', 'Please choose at least one practice');
+export const SU_ERR_PRACTICE = SIGNUP_PROBLEM_TEXT['practice-none'];
 /**
  * Thank-you restatement: "你本周的操练 · Your practice this week：<text>". The
  * practice text is already bilingual, so it appears once (it used to be

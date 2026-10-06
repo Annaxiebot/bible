@@ -14,12 +14,12 @@ import {
   CK_TITLE, CK_KEEP_PRIVATE, CK_SHARE, CK_KEPT, CK_SHARED, CK_KIND_LABEL, CK_QUESTION_LABEL,
 } from '../../components/checkin/checkinStrings';
 import {
-  E2E_SIGNUP_ID as SIGNUP_ID, E2E_SUPABASE_PATH, mockBackend, OK_INSERT as okInsert, E2E_CHECKIN_PRACTICES, E2E_CHECKIN_NOTE,
+  E2E_SIGNUP_ID as SIGNUP_ID, E2E_SUPABASE_PATH, mockBackend, E2E_CHECKIN_PRACTICES, E2E_CHECKIN_NOTE,
 } from './helpers/signup';
 
 test.describe('Check-in page', () => {
   test('#/checkin/<uuid>/tue renders the practice, the Tuesday question and the two buttons; Keep private sends nothing; Share calls the RPC', async ({ page }) => {
-    const { shares } = await mockBackend(page, okInsert);
+    const { shares } = await mockBackend(page);
     const requests: string[] = [];
     page.on('request', r => { if (r.url().includes(E2E_SUPABASE_PATH)) requests.push(r.url()); });
     await page.goto(`./${checkinHash(SIGNUP_ID, 'tue')}`);
@@ -49,7 +49,7 @@ test.describe('Check-in page', () => {
   });
 
   test('#/checkin/<uuid>/weekend: the doubled "周末回顾：周末:" / "End of week: Weekend:" labels show once, in the heading', async ({ page }) => {
-    await mockBackend(page, okInsert);
+    await mockBackend(page);
     await page.goto(`./${checkinHash(SIGNUP_ID, 'weekend')}`);
     const question = page.getByTestId('checkin-question');
     await expect(question.locator('p').first()).toHaveText(`${CK_QUESTION_LABEL} · ${CK_KIND_LABEL.weekend}`);

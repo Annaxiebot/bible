@@ -11,3 +11,9 @@ verify_jwt = false
 # its own guards (honeypot, validation, per-IP rate limit; ADR-0011).
 [functions.feedback]
 verify_jwt = false
+
+# The public #/signup page posts with no sign-in; the function is the only
+# writer of study_signups and enforces its own guards (validation, per-IP
+# and per-email rate limits, the pack's own leader and life menu; ADR-0013).
+[functions.signup]
+verify_jwt = false
