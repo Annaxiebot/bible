@@ -44,4 +44,7 @@ jobs:
           # build-time API keys) do not linger on the site. PR previews under
           # preview/ are recreated by preview.yml on their next push.
           keep_files: false
+          # One fresh commit per deploy: gh-pages never accumulates history, so nothing
+          # an old build contained stays reachable in the branch (2026-10-06 history clean-up).
+          force_orphan: true
           cname: scripturetolife.org
