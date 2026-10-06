@@ -533,29 +533,19 @@ async function syncReadingHistory(): Promise<void> {
 // SETTINGS SYNC
 // =====================================================
 
-/** localStorage keys mirrored to user_settings (exported for the personal-data backup, which drops the *_api_key ones). */
+/**
+ * localStorage keys mirrored to user_settings (also used by the personal-data
+ * backup). NEVER API keys: hosted AI needs none, and an own key stays in this
+ * browser only (ADR-0007, ADR-0010) — isSyncableSettingKey guards both ways.
+ */
+/** True for a key that may cross to the server; API keys never do, even if an old row carries one. */
+export function isSyncableSettingKey(key: string): boolean {
+  return !/api[_-]?key/i.test(key) && SYNCED_SETTINGS_KEYS.includes(key);
+}
+
 export const SYNCED_SETTINGS_KEYS: string[] = [
   STORAGE_KEYS.AI_PROVIDER,
   STORAGE_KEYS.AI_MODEL,
-  STORAGE_KEYS.GEMINI_API_KEY,
-  STORAGE_KEYS.CLAUDE_API_KEY,
-  STORAGE_KEYS.OPENAI_API_KEY,
-  STORAGE_KEYS.KIMI_API_KEY,
-  STORAGE_KEYS.OPENROUTER_API_KEY,
-  STORAGE_KEYS.NVIDIA_API_KEY,
-  STORAGE_KEYS.DEEPSEEK_API_KEY,
-  STORAGE_KEYS.GROQ_API_KEY,
-  STORAGE_KEYS.DASHSCOPE_API_KEY,
-  STORAGE_KEYS.MINIMAX_API_KEY,
-  STORAGE_KEYS.ZHIPU_API_KEY,
-  STORAGE_KEYS.ZAI_API_KEY,
-  STORAGE_KEYS.R9S_API_KEY,
-  STORAGE_KEYS.MOONSHOT_API_KEY,
-  STORAGE_KEYS.PERPLEXITY_API_KEY,
-  STORAGE_KEYS.TAVILY_API_KEY,
-  STORAGE_KEYS.FIRECRAWL_API_KEY,
-  STORAGE_KEYS.EXA_API_KEY,
-  STORAGE_KEYS.BRAVE_API_KEY,
   STORAGE_KEYS.AUTO_SAVE_RESEARCH,
   STORAGE_KEYS.ENGLISH_VERSION,
   STORAGE_KEYS.CHINESE_VERSION,
@@ -598,7 +588,7 @@ async function syncSettings(forceRemotePull = false): Promise<void> {
     // Pull from remote if remote is newer OR if forced (manual/full sync)
     if (forceRemotePull || remoteTime > syncState.lastSettingsSync) {
       // Remote is newer — merge remote into local (remote wins)
-      for (const [key, val] of Object.entries(remoteSettings)) {
+      for (const [key, val] of Object.entries(remoteSettings).filter(([k]) => isSyncableSettingKey(k))) {
         if (val && SYNCED_SETTINGS_KEYS.includes(key)) {
           localStorage.setItem(key, val);
           localSettings[key] = val;

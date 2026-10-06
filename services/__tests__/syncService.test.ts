@@ -297,6 +297,18 @@ describe('syncService', () => {
     });
   });
 
+  describe('API keys never sync (ADR-0007/0010)', () => {
+    it('SYNCED_SETTINGS_KEYS holds no API key, and keys arriving from the server are refused', async () => {
+      const { SYNCED_SETTINGS_KEYS, isSyncableSettingKey } = await import('../syncService');
+      const { STORAGE_KEYS } = await import('../../constants/storageKeys');
+      expect(SYNCED_SETTINGS_KEYS.filter(k => /api[_-]?key/i.test(k))).toEqual([]);
+      const apiKeys = Object.values(STORAGE_KEYS).filter(k => /api[_-]?key/i.test(String(k)));
+      expect(apiKeys.length).toBeGreaterThan(0); // the guard is meaningful: such keys exist locally
+      for (const k of apiKeys) expect(isSyncableSettingKey(String(k))).toBe(false);
+      expect(isSyncableSettingKey(STORAGE_KEYS.FONT_SIZE)).toBe(true);
+    });
+  });
+
   describe('notifySettingsChanged', () => {
     it('should dispatch settings-updated event', async () => {
       const { notifySettingsChanged } = await import('../syncService');
