@@ -19,7 +19,7 @@ import { printJournalEntriesByIds } from '../services/printService';
 import type { JournalPrintOptions } from '../utils/journalPrintRenderer';
 import { type JournalBlock, migrateToBlocks, flattenBlocks, createTextBlock, createImageBlock } from '../types/journalBlocks';
 import {
-  getPrompt, setPrompt, resetPrompt, DEFAULT_PROMPTS, type JournalPromptConfig,
+  getPrompt, getPromptWithIdentity, setPrompt, resetPrompt, DEFAULT_PROMPTS, type JournalPromptConfig,
   getAgentIdentity, setAgentIdentity, resetAgentIdentity,
   suggestTags,
   findRelatedEntries,
@@ -427,7 +427,7 @@ const JournalView: React.FC<JournalViewProps> = ({
     try {
       const recentEntries = entries.slice(0, 3);
       const recentContext = recentEntries.map(e => e.plainText.slice(0, 300)).join('\n---\n');
-      let prompt = 'Generate a thoughtful, personal spiritual reflection prompt for the user. Be warm, gentle, and thought-provoking. One paragraph.';
+      let prompt = getPromptWithIdentity('reflection');
       if (selectedEntry?.plainText) prompt += `\n\nTheir current journal entry:\n${selectedEntry?.plainText?.slice(0, 500) ?? ''}`;
       if (bookName && chapter) prompt += `\n\nCurrently reading: ${bookName} ${chapter}`;
       if (recentContext) prompt += `\n\nRecent journal themes:\n${recentContext}`;
@@ -454,7 +454,7 @@ const JournalView: React.FC<JournalViewProps> = ({
         ? selection.toString().trim()
         : selectedEntry.plainText || '';
       if (!selectedText) { setIsLoadingExtend(false); return; }
-      let prompt = `The user wrote this spiritual reflection. Gently extend their thinking — what deeper meaning might this have? How does it connect to broader spiritual themes? Keep the same tone and language. Write 2-3 short paragraphs.\n\nUser's writing:\n${selectedText.slice(0, 2000)}`;
+      let prompt = `${getPromptWithIdentity('extend')}\n\nUser's writing:\n${selectedText.slice(0, 2000)}`;
       if (bookName && chapter) prompt += `\n\nThey are currently reading: ${bookName} ${chapter}`;
       const meta = await streamAI(prompt, (chunk) => {
         setExtendResult(prev => (prev || '') + chunk);
@@ -474,7 +474,7 @@ const JournalView: React.FC<JournalViewProps> = ({
     setSummaryResult('');
     aiFailures.clear('summary');
     try {
-      const prompt = `Summarize this journal entry into 2-3 key insights or takeaways. Use bullet points (markdown). Be concise — each point should be 1 sentence. Capture the spiritual/emotional essence.\n\nJournal entry:\n${selectedEntry.plainText.slice(0, 3000)}`;
+      const prompt = `${getPromptWithIdentity('summarize')}\n\nJournal entry:\n${selectedEntry.plainText.slice(0, 3000)}`;
       const meta = await streamAI(prompt, (chunk) => {
         setSummaryResult(prev => (prev || '') + chunk);
       });
@@ -518,7 +518,7 @@ const JournalView: React.FC<JournalViewProps> = ({
     try {
       const recentEntries = entries.slice(0, 3);
       const recentContext = recentEntries.map(e => e.plainText.slice(0, 300)).join('\n---\n');
-      let prompt = `The user is asking about their journal entry. Answer helpfully based on the context.\n\nQuestion: ${question}\n\nJournal entry:\n${(selectedEntry?.plainText || '').slice(0, 2000)}`;
+      let prompt = `${getPromptWithIdentity('chat')}\n\nQuestion: ${question}\n\nJournal entry:\n${(selectedEntry?.plainText || '').slice(0, 2000)}`;
       if (recentContext) prompt += `\n\nRecent entries:\n${recentContext}`;
       const meta = await streamAI(prompt, (chunk) => {
         setChatMessages(prev => {
