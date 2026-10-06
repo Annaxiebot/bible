@@ -2,36 +2,17 @@
  * signupSchema.ts — the study_signups contract shared by browser and tests · 报名表结构
  *
  * Pure module (no Supabase import) so Playwright specs can import the table
- * name and the row shape. Must match database/signups-schema.sql and
- * database/signup-practices-schema.sql.
+ * and RPC names. Must match database/signups-schema.sql and
+ * database/signup-practices-schema.sql. Rows are written by the `signup`
+ * edge function only (supabase/functions/_shared/signup.ts holds its body).
  */
 
-import type { ChosenPractice } from '../../supabase/functions/send-checkins/practices';
+import { SIGNUPS_TABLE } from '../../supabase/functions/_shared/signup';
 
-export const SIGNUPS_TABLE = 'study_signups';
-export const SIGNUP_LOCALE = 'zh';
+/** One copy (R3) with the signup edge function, the only writer of the table (ADR-0013). */
+export { SIGNUPS_TABLE };
 
-export interface SignupInsert {
-  id: string;          // made in the browser (newSignupId): the insert cannot read it back (anon has no SELECT)
-  pack_id: string;
-  leader_id: string;   // the pack's owning leader (StudyPack.leaderId); RLS scopes reads to this uid
-  pack_title: string;
-  name: string;
-  phone: string | null;
-  email: string | null;
-  consent_checkins: boolean;
-  locale: string;
-  // The commitment (ADR-0004 §7): every chosen life-menu practice in tap order, an optional own version.
-  // practice_* / practice2_* repeat the first two for older readers (supabase/functions/send-checkins/practices.ts).
-  practices: ChosenPractice[];
-  practice_area: string | null;
-  practice_text: string | null;
-  practice2_area: string | null;
-  practice2_text: string | null;
-  practice_note: string | null;
-}
-
-/** The edge function both the leader's test and the member's welcome call. */
+/** The edge function the leader's test send calls (the welcome is asked for by the signup function, ADR-0013). */
 export const SEND_CHECKINS_FUNCTION = 'send-checkins';
 
 /** checkin_answers: a member's shared answer, written through the SECURITY DEFINER function below. */

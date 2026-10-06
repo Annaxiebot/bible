@@ -8,13 +8,15 @@
  * its title + passage, then the two-step
  * form (commitment, then contact) — only for a pack with an owning leader.
  * An unclaimed local pack shows the sign-in block (the leader's own device);
- * a public demo pack shows the bilingual "no sign-up" line. Each row
- * carries the pack's leader_id so only that leader can read it (ADR-0004).
+ * a public demo pack shows the bilingual "no sign-up" line. Submitting is
+ * one call to the signup edge function (signupClient.submitSignup), which
+ * gives the row its pack's leader_id from the server's own copy of the pack,
+ * so only that leader can read it (ADR-0004, ADR-0013).
  * A stored row flips to the thank-you: every chosen practice restated, the
  * member's check-in link, the welcome email's verdict, and — when this
  * sign-up replaced the member's earlier one (same pack + email) — a line
  * saying so (a failed replace is shown, never swallowed).
- * Every failure (pack missing, service unconfigured, insert rejected) is a
+ * Every failure (pack missing, service unconfigured, sign-up refused) is a
  * visible state, never a silent catch. Paper style like the landing
  * (shared/paperStyles.ts): WenKai headings, sans body, gold pills; the brand
  * link home (shared/PaperHeader) on top.
@@ -25,9 +27,8 @@ import { useSignupPack, SignupPackState } from './useSignupPack';
 import SignupForm from './SignupForm';
 import UnclaimedSignIn from './UnclaimedSignIn';
 import {
-  SignupForm as SignupFormValues, getSignupClient, insertSignup, toInsertPayload, practiceLines, ownVersionOf, markReplaced, ReplaceResult,
+  SignupForm as SignupFormValues, getSignupClient, submitSignup, practiceLines, ownVersionOf, ReplaceResult, WelcomeResult,
 } from './signupClient';
-import { sendWelcome, WelcomeResult } from './welcomeEmail';
 import { checkinUrl } from '../checkin/checkinRoute';
 import { CK_YOUR_LINK } from '../checkin/checkinStrings';
 import {
@@ -106,13 +107,9 @@ const SignupPage: React.FC<{ packId: string }> = ({ packId }) => {
     if (state.status !== 'ready') return;
     const client = getSignupClient();
     if (!client) throw new Error(SU_ERR_NOT_CONFIGURED);
-    const payload = toInsertPayload(state.pack, form);
-    const signupId = await insertSignup(client, payload);
-    const practices = practiceLines(form);
-    const link = checkinUrl(signupId, undefined, window.location.origin, import.meta.env.BASE_URL);
-    const replace = await markReplaced(client, signupId);
-    const welcome = await sendWelcome(client, signupId, payload.email);
-    setDone({ consent: form.consent, practices, ownVersion: ownVersionOf(form), link, welcome, replace });
+    const { id, replace, welcome } = await submitSignup(client, state.pack.id, form);
+    const link = checkinUrl(id, undefined, window.location.origin, import.meta.env.BASE_URL);
+    setDone({ consent: form.consent, practices: practiceLines(form), ownVersion: ownVersionOf(form), link, welcome, replace });
   };
 
   return (

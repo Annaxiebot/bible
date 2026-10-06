@@ -1,34 +1,29 @@
 /**
- * signupClient.ts — validation, payload and the anon insert · 报名数据层
+ * signupClient.ts — validation and the one call to the signup function · 报名数据层
  *
- * Members never log in: the insert runs with the anon key, which RLS limits
- * to INSERT on study_signups (database/signups-schema.sql). Anon has NO
- * SELECT policy (members must not read rows), so the insert must not ask
- * for the row back (INSERT ... RETURNING fails RLS): the browser makes the
- * uuid, sends it as `id`, and inserts with return=minimal. The client is
- * the app's shared Supabase client (services/supabase); when the build has
- * no VITE_SUPABASE_* (local dev, e2e) a window.__SUPABASE_E2E__ override
- * supplies url + anon key so Playwright can route the PostgREST call —
- * same dev-only hook pattern as window.__ASK_AI_TIMEOUT_MS.
+ * Members never log in. The page validates with the function's own rules
+ * (supabase/functions/_shared/signup.ts) for instant feedback, then makes
+ * ONE call: functions.invoke('signup'). The function (service role) is the
+ * only writer of study_signups: it looks the pack's leader and title up
+ * itself, checks the practices against the pack's life menu, rate-limits,
+ * inserts with its own id, retires this person's earlier rows for the same
+ * pack + email, and asks for the welcome email (ADR-0013). The browser
+ * sends no leader_id, title or id. The client is the app's shared Supabase
+ * client (services/supabase); when the build has no VITE_SUPABASE_* (local
+ * dev, e2e) a window.__SUPABASE_E2E__ override supplies url + anon key so
+ * Playwright can route the call — same dev-only hook pattern as
+ * window.__ASK_AI_TIMEOUT_MS.
  * A sign-up is a commitment (ADR-0004 §7): at least one life-menu practice
  * (any number) is required before any contact detail; then a name and an
- * email (the check-in channel); phone is optional. After the insert,
- * markReplaced asks the server to retire this member's earlier rows for the
- * same pack + email (database/signup-replace-schema.sql).
+ * email (the check-in channel); phone is optional.
  */
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient, FunctionsHttpError, SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '../../services/supabase';
-import type { StudyPack, LifeMenuRow } from '../studypack/packTypes';
-import {
-  SU_ERR_NAME, SU_ERR_EMAIL_REQUIRED, SU_ERR_EMAIL, SU_ERR_PHONE, SU_ERR_SUBMIT, SU_ERR_PRACTICE, SU_DEMO_LINE, SU_REPLACE_FAILED,
-} from './signupStrings';
-import { SIGNUPS_TABLE, SIGNUP_LOCALE, SignupInsert } from './signupSchema';
-import { practiceColumns, practiceTexts, ownVersionLine } from '../../supabase/functions/send-checkins/practices';
-import { MARK_REPLACED_FN } from '../../supabase/functions/send-checkins/replaced';
-import { EMAIL_SHAPE } from '../../supabase/functions/_shared/feedback';
-
-export { SIGNUPS_TABLE, SIGNUP_LOCALE };
-export type { SignupInsert };
+import type { LifeMenuRow } from '../studypack/packTypes';
+import { SU_ERR_SUBMIT, SU_ERR_PRACTICE, SU_REPLACE_FAILED } from './signupStrings';
+import { CK_WELCOME_FAILED } from '../checkin/checkinStrings';
+import { practiceTexts, ownVersionLine } from '../../supabase/functions/send-checkins/practices';
+import { SIGNUP_FUNCTION, SIGNUP_PROBLEM_TEXT, SignupBody, signupFieldProblem } from '../../supabase/functions/_shared/signup';
 
 export interface SignupForm {
   practices: LifeMenuRow[];       // the week's commitment: one or more, in tap order
@@ -41,31 +36,15 @@ export interface SignupForm {
 
 export const EMPTY_SIGNUP: SignupForm = { practices: [], note: '', name: '', phone: '', email: '', consent: true };
 
-/** Digits with an optional leading +, 7–15 digits (E.164 range) after normalisation. */
-const PHONE_RE = /^\+?\d{7,15}$/;
-
-/** Strip spaces, dashes, dots and parentheses so "(408) 555-1234" validates. */
-export function normalizePhone(raw: string): string {
-  return raw.replace(/[\s\-().]/g, '');
-}
-
 /** First bilingual problem with the commitment step, or null. */
 export function validatePractice(form: Pick<SignupForm, 'practices'>): string | null {
   return form.practices.length > 0 ? null : SU_ERR_PRACTICE;
 }
 
-/** First bilingual problem with the whole form, or null when it is valid. */
+/** First bilingual problem with the whole form (the function's own rules and lines), or null when it is valid. */
 export function validateSignup(form: SignupForm): string | null {
-  const practiceProblem = validatePractice(form);
-  if (practiceProblem) return practiceProblem;
-  const name = form.name.trim();
-  const email = form.email.trim();
-  const phone = normalizePhone(form.phone);
-  if (!name) return SU_ERR_NAME;
-  if (!email) return SU_ERR_EMAIL_REQUIRED;
-  if (!EMAIL_SHAPE.test(email)) return SU_ERR_EMAIL;
-  if (phone && !PHONE_RE.test(phone)) return SU_ERR_PHONE;
-  return null;
+  const problem = signupFieldProblem({ ...form, practice_note: form.note });
+  return problem ? SIGNUP_PROBLEM_TEXT[problem] : null;
 }
 
 /** One line per chosen practice (its own text) for the thank-you; the own version is shown separately (ownVersionLine). */
@@ -78,41 +57,12 @@ export function ownVersionOf(form: Pick<SignupForm, 'note'>): string | null {
   return ownVersionLine({ practice_note: form.note });
 }
 
-/** RFC 4122 v4 uuid: crypto.randomUUID where available (secure contexts), else built from crypto.getRandomValues. */
-export function newSignupId(): string {
-  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
-  const b = crypto.getRandomValues(new Uint8Array(16));
-  b[6] = (b[6] & 0x0f) | 0x40;   // version 4
-  b[8] = (b[8] & 0x3f) | 0x80;   // RFC 4122 variant
-  const hex = Array.from(b, x => x.toString(16).padStart(2, '0')).join('');
-  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-}
-
-/**
- * The row sent to PostgREST, carrying its own new uuid (the member's
- * check-in token); empty optionals become null, never ''. Throws for a demo
- * pack or a missing practice.
- */
-export function toInsertPayload(
-  pack: Pick<StudyPack, 'id' | 'title' | 'leaderId'>, form: SignupForm, id: string = newSignupId(),
-): SignupInsert {
-  if (!pack.leaderId) throw new Error(SU_DEMO_LINE);
-  if (form.practices.length === 0) throw new Error(SU_ERR_PRACTICE);
-  const email = form.email.trim();
-  const phone = normalizePhone(form.phone);
-  const note = form.note.trim();
+/** The request body: what the member typed and chose, nothing about ownership. */
+export function toSignupBody(packId: string, form: SignupForm): SignupBody {
   return {
-    id,
-    pack_id: pack.id,
-    leader_id: pack.leaderId,
-    pack_title: pack.title,
-    name: form.name.trim(),
-    phone: phone || null,
-    email: email || null,
-    consent_checkins: form.consent,
-    locale: SIGNUP_LOCALE,
-    ...practiceColumns(form.practices),
-    practice_note: note || null,
+    pack_id: packId, name: form.name, email: form.email, phone: form.phone,
+    practices: form.practices.map(p => ({ area: p.area, practice: p.practice })),
+    practice_note: form.note, consent: form.consent,
   };
 }
 
@@ -136,29 +86,46 @@ export function getSignupClient(): SupabaseClient | null {
   return overrideClient;
 }
 
-/**
- * Insert one sign-up WITHOUT reading it back (no .select(): PostgREST
- * return=minimal; anon has no SELECT policy) and return the payload's own
- * id (the member's check-in token). Throws a bilingual error carrying the
- * PostgREST message.
- */
-export async function insertSignup(client: SupabaseClient, payload: SignupInsert): Promise<string> {
-  const { error } = await client.from(SIGNUPS_TABLE).insert(payload);
-  if (error) throw new Error(`${SU_ERR_SUBMIT}: ${error.message}`);
-  return payload.id;
+export type ReplaceResult = { status: 'done'; replaced: number } | { status: 'failed'; message: string };
+export type WelcomeResult = { status: 'sent' } | { status: 'skipped' } | { status: 'failed'; message: string };
+
+export interface SignupResult {
+  id: string;              // the member's check-in token, made by the function
+  replace: ReplaceResult;
+  welcome: WelcomeResult;
 }
 
-export type ReplaceResult = { status: 'done'; replaced: number } | { status: 'failed'; message: string };
+interface SignupReply {
+  id?: unknown; replaced?: unknown; replace?: unknown; replace_message?: unknown; welcome?: unknown; welcome_message?: unknown;
+}
+
+/** The function's 200 → what the thank-you shows; a failed replace or welcome carries its bilingual prefix + reason. */
+function toResult(reply: SignupReply | null): SignupResult {
+  if (typeof reply?.id !== 'string') throw new Error(`${SU_ERR_SUBMIT}: ${JSON.stringify(reply)}`);
+  const replace: ReplaceResult = reply.replace === 'done' && typeof reply.replaced === 'number'
+    ? { status: 'done', replaced: reply.replaced }
+    : { status: 'failed', message: `${SU_REPLACE_FAILED}: ${String(reply.replace_message ?? JSON.stringify(reply))}` };
+  const welcome: WelcomeResult = reply.welcome === 'sent' ? { status: 'sent' }
+    : reply.welcome === 'skipped' ? { status: 'skipped' }
+    : { status: 'failed', message: `${CK_WELCOME_FAILED}: ${String(reply.welcome_message ?? JSON.stringify(reply))}` };
+  return { id: reply.id, replace, welcome };
+}
+
+/** A refusal's bilingual line from the function's body ({ error, message }), else the HTTP status. */
+async function refusalText(error: Error): Promise<string> {
+  if (!(error instanceof FunctionsHttpError)) return error.message;
+  const response = error.context as Response | undefined;
+  const body = (await response?.json().catch(() => null)) as { message?: unknown; error?: unknown } | null;
+  return String(body?.message ?? body?.error ?? `HTTP ${response?.status ?? '?'}`);
+}
 
 /**
- * After the insert: mark this member's earlier rows for the same pack +
- * email as replaced (SECURITY DEFINER RPC; it returns only a count, never
- * another row's id). A failure is returned, not thrown: the new row is
- * stored, so the thank-you still shows, with the reason under it.
+ * The sign-up: one call to the signup function. A refusal (validation,
+ * rate limit, unknown pack, server error) throws a bilingual error the form
+ * shows; a stored row returns its id with the replace and welcome verdicts.
  */
-export async function markReplaced(client: SupabaseClient, signupId: string): Promise<ReplaceResult> {
-  const { data, error } = await client.rpc(MARK_REPLACED_FN, { p_new_id: signupId });
-  if (error) return { status: 'failed', message: `${SU_REPLACE_FAILED}: ${error.message}` };
-  if (typeof data !== 'number') return { status: 'failed', message: `${SU_REPLACE_FAILED}: ${JSON.stringify(data)}` };
-  return { status: 'done', replaced: data };
+export async function submitSignup(client: SupabaseClient, packId: string, form: SignupForm): Promise<SignupResult> {
+  const { data, error } = await client.functions.invoke<SignupReply>(SIGNUP_FUNCTION, { body: toSignupBody(packId, form) });
+  if (error) throw new Error(`${SU_ERR_SUBMIT}: ${await refusalText(error)}`);
+  return toResult(data);
 }

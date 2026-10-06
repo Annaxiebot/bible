@@ -34,18 +34,20 @@ test.describe('New study: feedback vehicle', () => {
     }
     await expect(page.getByText(/Google/)).toHaveCount(0);
     // Give the stored pack an owner (what claim-on-sign-in does) and sign a member up to it.
-    await page.evaluate(async ([id, leaderId]) => new Promise<void>((resolve, reject) => {
+    const owned = await page.evaluate(async ([id, leaderId]) => new Promise<Record<string, unknown> & { id: string }>((resolve, reject) => {
       const open = indexedDB.open('BibleApp');
       open.onerror = () => reject(open.error);
       open.onsuccess = () => {
         const tx = open.result.transaction('studypacks', 'readwrite');
         const store = tx.objectStore('studypacks');
         const get = store.get(id);
-        get.onsuccess = () => { store.put({ ...get.result, pack: { ...get.result.pack, leaderId } }); };
-        tx.oncomplete = () => { open.result.close(); resolve(); };
+        let pack: Record<string, unknown> & { id: string };
+        get.onsuccess = () => { pack = { ...get.result.pack, leaderId }; store.put({ ...get.result, pack }); };
+        tx.oncomplete = () => { open.result.close(); resolve(pack); };
         tx.onerror = () => reject(tx.error);
       };
     }), [PACK_ID, E2E_LEADER_ID] as const);
+    mocks.ownPack(owned);   // the signed-in save puts it in study_packs, where the signup function reads it
     await page.goto(`./${signupHash(PACK_ID)}`);
     await page.getByTestId('su-practice').first().click();
     await page.getByTestId('su-next').click();
@@ -54,8 +56,8 @@ test.describe('New study: feedback vehicle', () => {
     await page.getByRole('button', { name: SU_SUBMIT }).click();
     await expect(page.getByTestId('signup-thanks')).toContainText(SU_THANKS);
     const href = (await page.getByTestId('signup-checkin-link').getAttribute('href'))!;
-    expect(href.endsWith(checkinHash(mocks.bodies()[0].id))).toBe(true);   // the browser makes the id (anon cannot read the row back)
+    expect(href.endsWith(checkinHash(mocks.rows()[0].id))).toBe(true);   // the signup function makes the id
     expect(href).not.toContain('docs.google.com');
-    expect(mocks.bodies()[0]).toMatchObject({ pack_id: PACK_ID, leader_id: E2E_LEADER_ID, name: '小明' });
+    expect(mocks.rows()[0]).toMatchObject({ pack_id: PACK_ID, leader_id: E2E_LEADER_ID, name: '小明' });
   });
 });
