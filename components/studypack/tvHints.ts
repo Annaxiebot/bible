@@ -51,8 +51,8 @@ export const SOURCES_LABEL = bilingual('资料', 'Sources');
 /** Cross-references for related verses (ADR-0015). */
 export const OPENBIBLE_NAME = 'OpenBible.info';
 export const OPENBIBLE_URL = 'https://www.openbible.info/labs/cross-references/';
-/** Original-language word data (ADR-0018); STEP Bible asks to be credited by this name, linked to its site. */
-export const STEP_BIBLE_NAME = 'STEP Bible';
+/** Original-language word data (ADR-0018): the one name (also in the prompt's word block), linked to its site. */
+export { STEP_BIBLE_NAME } from '../../supabase/functions/_shared/aiPromptBlocks';
 export const STEP_BIBLE_URL = 'https://www.STEPBible.org';
 
 /** Heading of the TV "verses cited" block under the latest Ask-AI answer. */

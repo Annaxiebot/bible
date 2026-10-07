@@ -67,6 +67,9 @@ export function hasRelatedVersesBlock(messages: readonly PromptMessage[]): boole
  * selected or named verse's Greek/Hebrew words (STEP Bible, CC BY). One
  * constant for the block's writer and its detector (R3).
  */
+/** The word data's source, named as STEP Bible asks (CC BY 4.0); the Ask AI credit line reuses it (tvHints). */
+export const STEP_BIBLE_NAME = 'STEP Bible';
+
 export const ORIGINAL_WORDS_HEADING = 'ORIGINAL WORDS';
 
 /**
@@ -106,7 +109,7 @@ export interface OriginalWordsVerse {
  */
 export function formatOriginalWordsBlock(verses: readonly OriginalWordsVerse[]): string {
   if (verses.length === 0) return '';
-  const lines = [`${ORIGINAL_WORDS_HEADING} (STEP Bible tagged Greek/Hebrew text and brief lexicon, per verse in text order; ` +
+  const lines = [`${ORIGINAL_WORDS_HEADING} (${STEP_BIBLE_NAME} tagged Greek/Hebrew text and brief lexicon, per verse in text order; ` +
     "transliteration (original) · Strong's · morphology (verbs) · English gloss — dictionary form: brief meaning):"];
   const explained = new Set<string>();
   for (const verse of verses) {
