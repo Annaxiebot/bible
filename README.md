@@ -134,5 +134,8 @@ must offer its source to its users.
 
 The bundled Bible text is public domain and not covered by the code
 license: 和合本 Chinese Union Version (1919) and the Berean Standard Bible
-(dedicated to the public domain in 2023). Photos and fonts keep their own
-licenses. See [NOTICE](NOTICE) for the full list.
+(dedicated to the public domain in 2023). The cross-references Ask AI
+uses to find related verses come from
+[OpenBible.info](https://www.openbible.info/labs/cross-references/)
+(CC BY). Photos and fonts keep their own licenses. See [NOTICE](NOTICE) for
+the full list.
