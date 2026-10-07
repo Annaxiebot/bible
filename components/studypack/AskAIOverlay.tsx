@@ -10,8 +10,10 @@ import { StudyPack, Slide } from './packTypes';
 import { AskAIMessage } from './askAI';
 import {
   ASK_AI_LABEL, ASK_INPUT_PLACEHOLDER, ASK_SUBMIT_LABEL, RELATED_VERSES_CREDIT, thinkingLine, modelLine,
+  ORIGINAL_WORDS_CREDIT, STEP_BIBLE_NAME, STEP_BIBLE_URL,
 } from './tvHints';
 import { RELATED_VERSES_ENABLED } from './relatedVerses';
+import { ORIGINAL_WORDS_ENABLED } from './originalWords';
 import { useAskAI, AskAI } from './useAskAI';
 import AIErrorLine from './AIErrorLine';
 import AskAnswer from './AskAnswer';
@@ -200,9 +202,22 @@ const AskAIOverlay: React.FC<AskAIOverlayProps> = ({ pack, slide, initialQuestio
             {RELATED_VERSES_CREDIT}
           </p>
         )}
+        {ORIGINAL_WORDS_ENABLED && <OriginalWordsCredit />}
       </div>
     </div>
   );
 };
+
+/** The STEP Bible credit (CC BY 4.0, ADR-0018): the one credit string, its name linked to www.STEPBible.org. */
+export const OriginalWordsCredit: React.FC = () => (
+  <p className="text-stl-text-3 shrink-0" style={{ fontSize: '1.6vh' }} data-testid="ask-original-credit">
+    {ORIGINAL_WORDS_CREDIT.split(STEP_BIBLE_NAME).map((part, i) => (
+      <React.Fragment key={i}>
+        {i > 0 && <a href={STEP_BIBLE_URL} target="_blank" rel="noreferrer" className="underline">{STEP_BIBLE_NAME}</a>}
+        {part}
+      </React.Fragment>
+    ))}
+  </p>
+);
 
 export default AskAIOverlay;

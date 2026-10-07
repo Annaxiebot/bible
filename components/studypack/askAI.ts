@@ -8,7 +8,9 @@
 import { askAIModel, wireModelId } from '../../services/aiDefaults';
 import { StudyPack, Slide } from './packTypes';
 import { TRANSLATIONS } from './principles';
-import { RelatedVerseText, formatRelatedVersesBlock } from '../../supabase/functions/_shared/aiPrompts';
+import {
+  OriginalWordsVerse, RelatedVerseText, formatOriginalWordsBlock, formatRelatedVersesBlock,
+} from '../../supabase/functions/_shared/aiPrompts';
 
 /** The OpenRouter wire id the overlay sends: the configurable Ask-AI choice (services/aiDefaults askAIModel) mapped from any router alias. */
 export function resolveAskAIModel(): string {
@@ -71,15 +73,21 @@ export function questionForSelection(selected: string, verse: number | null = nu
  * chosen by the request's `content_language`.
  * `related` (ADR-0015, relatedVerses.ts): the RELATED VERSES block goes after
  * the passage; none or empty → exactly the prompt without it.
+ * `original` (ADR-0018, originalWords.ts): the ORIGINAL WORDS block goes
+ * after that; none or empty → exactly the prompt without it.
  */
 export function buildAskAIPrompt(
-  pack: StudyPack, slide: Slide, question: string, related: readonly RelatedVerseText[] = []
+  pack: StudyPack, slide: Slide, question: string,
+  related: readonly RelatedVerseText[] = [], original: readonly OriginalWordsVerse[] = []
 ): string {
-  const block = formatRelatedVersesBlock(related, `${TRANSLATIONS.zh.label} / ${TRANSLATIONS.en.label}`);
+  const blocks = [
+    formatRelatedVersesBlock(related, `${TRANSLATIONS.zh.label} / ${TRANSLATIONS.en.label}`),
+    formatOriginalWordsBlock(original),
+  ].filter(Boolean);
   return [
     `We are in a small-group TV presentation of ${pack.passageRef}.`,
     `FULL PASSAGE (${TRANSLATIONS.zh.label} / ${pack.enVersion}):\n${formatPassage(pack)}`,
-    ...(block ? [block] : []),
+    ...blocks,
     `CURRENT SLIDE:\n${formatSlide(slide)}`,
     `QUESTION: ${question}`,
   ].join('\n\n');

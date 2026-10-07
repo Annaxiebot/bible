@@ -14,7 +14,7 @@ import { sendAIRequest, AIRole } from '../../services/aiTransport';
 import { StudyPack, Slide, packContentLanguage } from './packTypes';
 import { AskAIMessage, ASK_AI_MAX_TOKENS, buildAskAIPrompt } from './askAI';
 import { signInNeededError, errorFromStatus, hostedErrorFromStatus, streamError, ErrorReply } from './askAIErrors';
-import type { RelatedVerseText } from '../../supabase/functions/_shared/aiPrompts';
+import type { OriginalWordsVerse, RelatedVerseText } from '../../supabase/functions/_shared/aiPrompts';
 
 /** One parsed SSE data event, reduced to what the app acts on. */
 export interface SSEEvent {
@@ -85,6 +85,8 @@ export interface AskAIRequestOptions {
   noReasoning?: boolean;
   /** RELATED VERSES for the user message (ADR-0015); absent or empty → today's body exactly. */
   related?: readonly RelatedVerseText[];
+  /** ORIGINAL WORDS for the user message (ADR-0018); absent or empty → no block. */
+  original?: readonly OriginalWordsVerse[];
 }
 
 /** Token cap for the no-reasoning retry: room for an answer after a model that used to think first. */
@@ -112,7 +114,7 @@ export function buildRequestBody(
     content_language: packContentLanguage(pack),
     messages: [
       ...history.map(m => ({ role: m.role, content: m.content })),
-      { role: 'user', content: buildAskAIPrompt(pack, slide, question, opts.related) },
+      { role: 'user', content: buildAskAIPrompt(pack, slide, question, opts.related, opts.original) },
     ],
   });
 }

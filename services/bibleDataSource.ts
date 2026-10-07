@@ -34,6 +34,19 @@ export function crossRefChapterUrl(bookId: string, chapter: number): string {
   return `${import.meta.env.BASE_URL}bible-data/xref/${bookId}/${chapter}.json`;
 }
 
+/**
+ * Static URLs of the original-language word data (STEP Bible, CC BY —
+ * scripts/build-original-words.mjs, ADR-0018): one file per chapter (every
+ * chapter has one) and one brief lexicon per language.
+ */
+export function originalWordsChapterUrl(bookId: string, chapter: number): string {
+  return `${import.meta.env.BASE_URL}bible-data/orig/${bookId}/${chapter}.json`;
+}
+
+export function originalLexiconUrl(language: 'greek' | 'hebrew'): string {
+  return `${import.meta.env.BASE_URL}bible-data/orig/lexicon-${language}.json`;
+}
+
 function hasVerses(data: unknown): data is ChapterStorageData {
   return (
     typeof data === 'object' && data !== null &&

@@ -150,10 +150,80 @@ export function formatPickRequest(passageRef: string, question: string, candidat
 
 const RELATED_BLOCK_START = new RegExp(`(^|\\n)${RELATED_VERSES_HEADING} \\(`);
 
+function lastUserCarries(messages: readonly PromptMessage[], start: RegExp): boolean {
+  const lastUser = [...messages].reverse().find(m => m.role === 'user');
+  return !!lastUser && start.test(lastUser.content);
+}
+
 /** True when the latest user message carries a RELATED VERSES block (earlier turns hold only the questions). */
 export function hasRelatedVersesBlock(messages: readonly PromptMessage[]): boolean {
-  const lastUser = [...messages].reverse().find(m => m.role === 'user');
-  return !!lastUser && RELATED_BLOCK_START.test(lastUser.content);
+  return lastUserCarries(messages, RELATED_BLOCK_START);
+}
+
+/**
+ * First line of the ORIGINAL WORDS block (ADR-0018) — data only: the
+ * selected or named verse's Greek/Hebrew words (STEP Bible, CC BY). One
+ * constant for the block's writer and its detector (R3).
+ */
+export const ORIGINAL_WORDS_HEADING = 'ORIGINAL WORDS';
+
+/**
+ * The rule the answer contract gains when — and only when — the request
+ * carries an ORIGINAL WORDS block (ADR-0018); numbered after rule 7 when that is present.
+ */
+export const ASK_AI_ORIGINAL_WORDS_RULE =
+  "ORIGINAL WORDS: When you explain a word's original-language sense, use only the ORIGINAL WORDS for that verse: " +
+  "name the word, its transliteration and Strong's number as given; if the selected Chinese or English term matches " +
+  'none of them, say so rather than guessing.';
+
+/** One word of a verse; `lemma`/`lemmaTranslit`/`brief` come from the brief lexicon (absent if it failed to load). */
+export interface OriginalWord {
+  original: string;
+  translit: string;
+  strong: string;
+  /** Verbs only (tense, mood, stem); '' for other words. */
+  morph: string;
+  gloss: string;
+  lemma?: string;
+  lemmaTranslit?: string;
+  brief?: string;
+}
+
+/** One verse's words for the block: a bilingual label, the language, the words in text order. */
+export interface OriginalWordsVerse {
+  label: string;
+  language: 'Greek' | 'Hebrew';
+  words: readonly OriginalWord[];
+}
+
+/**
+ * The ORIGINAL WORDS block for the user message, or '' when there is none
+ * (no block → no rule → today's request). One line per word:
+ * "translit (original) · Strong's · morph · gloss — lemma (translit): brief meaning";
+ * the lexicon part is printed once per Strong's number in the block.
+ */
+export function formatOriginalWordsBlock(verses: readonly OriginalWordsVerse[]): string {
+  if (verses.length === 0) return '';
+  const lines = [`${ORIGINAL_WORDS_HEADING} (STEP Bible tagged Greek/Hebrew text and brief lexicon, per verse in text order; ` +
+    "transliteration (original) · Strong's · morphology (verbs) · English gloss — dictionary form: brief meaning):"];
+  const explained = new Set<string>();
+  for (const verse of verses) {
+    lines.push(`[${verse.label} · ${verse.language}]`);
+    for (const w of verse.words) {
+      const head = [`${w.translit} (${w.original})`, w.strong, ...(w.morph ? [w.morph] : []), w.gloss].join(' · ');
+      const lexicon = w.brief && !explained.has(w.strong) ? ` — ${w.lemma} (${w.lemmaTranslit}): ${w.brief}` : '';
+      explained.add(w.strong);
+      lines.push(head + lexicon);
+    }
+  }
+  return lines.join('\n');
+}
+
+const ORIGINAL_BLOCK_START = new RegExp(`(^|\\n)${ORIGINAL_WORDS_HEADING} \\(`);
+
+/** True when the latest user message carries an ORIGINAL WORDS block. */
+export function hasOriginalWordsBlock(messages: readonly PromptMessage[]): boolean {
+  return lastUserCarries(messages, ORIGINAL_BLOCK_START);
 }
 
 /** Which language a pack of each mode is answered in on the TV (ADR-0003 §9). */
@@ -185,17 +255,22 @@ export interface PromptMessage { role: string; content: string }
  * user message still carries the contract and the rule): the contract only,
  * so it appears twice for that one deploy round — accepted (ADR-0014).
  * `related`: the request carries a RELATED VERSES block → the contract gains
- * ASK_AI_RELATED_VERSES_RULE (ADR-0015); false → unchanged.
+ * ASK_AI_RELATED_VERSES_RULE (ADR-0015); `original`: an ORIGINAL WORDS block →
+ * the contract gains ASK_AI_ORIGINAL_WORDS_RULE, numbered 8 after rule 7, else 7
+ * (ADR-0018). Both false → today's text, byte for byte.
  */
-export function askSystemText(mode?: ContentLanguage, related = false): string {
-  const parts = [ASK_AI_SYSTEM_PROMPT, related ? `${ASK_AI_ANSWER_CONTRACT}\n${ASK_AI_RELATED_VERSES_RULE}` : ASK_AI_ANSWER_CONTRACT];
+export function askSystemText(mode?: ContentLanguage, related = false, original = false): string {
+  const rules = [ASK_AI_ANSWER_CONTRACT];
+  if (related) rules.push(ASK_AI_RELATED_VERSES_RULE);
+  if (original) rules.push(`${related ? 8 : 7}. ${ASK_AI_ORIGINAL_WORDS_RULE}`);
+  const parts = [ASK_AI_SYSTEM_PROMPT, rules.join('\n')];
   if (mode) parts.push(ASK_AI_LANGUAGE_RULES[mode]);
   return parts.join('\n\n');
 }
 
 /** The role's own system text (adjust drafts a pack section, so it shares the pack's); null for 'study'. */
-function roleSystemText(role: AIRole, mode?: ContentLanguage, related = false): string | null {
-  if (role === 'ask') return askSystemText(mode, related);
+function roleSystemText(role: AIRole, mode: ContentLanguage | undefined, data: readonly PromptMessage[]): string | null {
+  if (role === 'ask') return askSystemText(mode, hasRelatedVersesBlock(data), hasOriginalWordsBlock(data));
   if (role === 'pack' || role === 'adjust') return PACK_SYSTEM_PROMPT;
   if (role === 'sharing') return SHARING_SYSTEM_PROMPT;
   if (role === 'pick') return PICK_SYSTEM_PROMPT;
@@ -209,11 +284,12 @@ function roleSystemText(role: AIRole, mode?: ContentLanguage, related = false): 
  * - study: the guard goes first and the browser's messages follow unchanged
  *   (the personal app's editable prompt still applies, within scope);
  * - ask: the latest user message carrying a RELATED VERSES block adds the
- *   one related-verses rule sentence (ADR-0015 §4).
+ *   one related-verses rule sentence (ADR-0015 §4); one carrying an ORIGINAL
+ *   WORDS block adds the original-words rule (ADR-0018).
  */
 export function buildFinalMessages(role: AIRole, messages: readonly PromptMessage[], mode?: ContentLanguage): PromptMessage[] {
   const data = messages.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content }));
-  const own = roleSystemText(role, mode, hasRelatedVersesBlock(data));
+  const own = roleSystemText(role, mode, data);
   if (own === null) {
     return [{ role: 'system', content: SCOPE_GUARD }, ...messages.map(m => ({ role: m.role, content: m.content }))];
   }

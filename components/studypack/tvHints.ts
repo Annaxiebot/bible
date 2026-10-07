@@ -45,6 +45,11 @@ export const NO_SUCH_VERSE_MARK = `（${bilingualLine('经文不存在', 'no suc
 /** CC BY credit for the cross-references Ask AI draws related verses from (ADR-0015; shown while the switch is on). */
 export const RELATED_VERSES_CREDIT = bilingualLine('相关经文：OpenBible.info（CC BY）', 'Related verses: OpenBible.info (CC BY)');
 
+/** CC BY 4.0 credit for the original-language word data (ADR-0018; shown while that switch is on). */
+export const STEP_BIBLE_NAME = 'STEP Bible';
+export const STEP_BIBLE_URL = 'https://www.STEPBible.org';
+export const ORIGINAL_WORDS_CREDIT = bilingualLine(`原文词汇：${STEP_BIBLE_NAME}（CC BY）`, `Original words: ${STEP_BIBLE_NAME} (CC BY)`);
+
 /** Heading of the TV "verses cited" block under the latest Ask-AI answer. */
 export const VERSES_CITED_HEADING = bilingualLine('引用经文', 'Verses cited');
 
