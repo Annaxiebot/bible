@@ -1,3 +1,5 @@
+// TODO(R4): at 297 lines this module is at its budget; the next addition first moves the
+// RELATED VERSES / ORIGINAL WORDS block builders into _shared/aiPromptBlocks.ts.
 /**
  * aiPrompts.ts — the server-owned AI system messages · 服务器端AI提示词 (ADR-0014)
  *

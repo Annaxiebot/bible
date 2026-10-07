@@ -22,13 +22,13 @@ import { bilingualRefLabel } from './refLabel';
 import { focusVerses, packPassage, PassageSpan } from './relatedVerses';
 import { originalLexiconUrl, originalWordsChapterUrl } from '../../services/bibleDataSource';
 import type { OriginalWord, OriginalWordsVerse } from '../../supabase/functions/_shared/aiPrompts';
+// The stored word's field separator: one copy, owned by the build script that writes the data (R3).
+import { WORD_FIELD_SEPARATOR } from '../../scripts/lib/stepWords.mjs';
 
 /** The switch (ADR-0018). Off: no word data is fetched or sent — today's request, byte for byte. */
 export const ORIGINAL_WORDS_ENABLED: boolean = true;
 /** At most this many verses' words per question (request size). */
 export const ORIGINAL_WORDS_MAX_VERSES = 2;
-/** The stored word's field separator (scripts/lib/stepWords.mjs WORD_FIELD_SEPARATOR — the data's format). */
-const FIELD_SEPARATOR = '|'; // pinned equal to the script's constant by originalWords.test.ts
 
 /** One chapter file: verse → "original|translit|strong|morph|gloss" strings in text order. */
 export type OriginalChapter = Record<string, string[]>;
@@ -40,7 +40,7 @@ export interface OriginalWordsResult { verses: OriginalWordsVerse[]; targets: nu
 
 /** "κόσμον|kosmon|G2889||world" → its fields (the lexicon part is added by withLexicon). */
 export function unpackWord(stored: string): OriginalWord {
-  const [original = '', translit = '', strong = '', morph = '', gloss = ''] = stored.split(FIELD_SEPARATOR);
+  const [original = '', translit = '', strong = '', morph = '', gloss = ''] = stored.split(WORD_FIELD_SEPARATOR);
   return { original, translit, strong, morph, gloss };
 }
 
