@@ -47,7 +47,6 @@ export const STATS_TITLE = bilingualLine('全站使用', 'Site-wide');
 export const STATS_LIVING = bilingualLine(BRAND_ZH, 'Living the Word');
 export const STATS_LOADING = bilingualLine('读取全站统计中', 'Loading site-wide numbers');
 export const STATS_FAILED = bilingualLine('全站统计暂时无法读取', 'Site-wide numbers are unavailable right now');
-export const STATS_PRIVATE_NOTE = bilingualLine('只有总数，不含任何姓名', 'Totals only, no names');
 
 // ---- landing live variant (shown only at/above PUBLIC_STATS_MIN_LEADERS) ----
 export const LIVE_NUMBERS_EYEBROW = STATS_TITLE;

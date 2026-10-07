@@ -9,7 +9,7 @@
 import React from 'react';
 import { useSiteStats } from '../stats/siteStats';
 import {
-  SITE_STAT_FIGURES, LIVING_KEYS, STATS_TITLE, STATS_LIVING, STATS_LOADING, STATS_FAILED, STATS_PRIVATE_NOTE,
+  SITE_STAT_FIGURES, LIVING_KEYS, STATS_TITLE, STATS_LIVING, STATS_LOADING, STATS_FAILED,
   SiteStats, StatFigure,
 } from '../stats/statsRules';
 import { textStyle } from '../newstudy/newStudyStyles';
@@ -38,7 +38,6 @@ const SiteStatsSection: React.FC = () => {
           <FigureList figures={SITE_STAT_FIGURES.filter(f => !LIVING_KEYS.includes(f.key))} stats={state.stats} />
           <h3 className="text-stl-text-3" style={textStyle}>{STATS_LIVING}</h3>
           <FigureList figures={SITE_STAT_FIGURES.filter(f => LIVING_KEYS.includes(f.key))} stats={state.stats} />
-          {quiet(STATS_PRIVATE_NOTE)}
         </>
       )}
     </section>
