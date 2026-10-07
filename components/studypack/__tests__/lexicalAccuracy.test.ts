@@ -55,6 +55,19 @@ describe('checkLexicalAccuracy', () => {
     expect([r.found, r.total]).toEqual([5, 5]);
   });
 
+  it('ordinary English is not counted as a wrong transliteration (regression: the ADR-0018 run flagged these)', () => {
+    const answer = "The Greek word Jesus uses here isn't rare; broadly, the transliteration kosmos (κόσμος) means world. "
+      + 'The Hebrew knowledge of God is different.';
+    const forms = checkLexicalAccuracy(answer, john316).mentions.map(m => m.form);
+    for (const english of ["isn't", 'Jesus', 'broadly', 'transliteration', 'knowledge']) expect(forms).not.toContain(english);
+    expect(forms).toEqual(expect.arrayContaining(['κόσμος', 'kosmos']));
+  });
+
+  it('a made-up transliteration with a mark is still caught as not found', () => {
+    const r = checkLexicalAccuracy('原文是希腊文 systenazō（同叹息）。', john316);
+    expect(r.mentions).toEqual([{ form: 'systenazō', kind: 'translit', found: false }]);
+  });
+
   it('a form or number the verse does not have is reported as not found', () => {
     const answer = 'The Greek word aiōn (αἰών, G0165) means an age; the Hebrew is olam.';
     const r = checkLexicalAccuracy(answer, john316);

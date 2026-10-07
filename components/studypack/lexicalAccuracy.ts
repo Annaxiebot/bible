@@ -41,6 +41,23 @@ const MIN_PLAIN_TRANSLIT = 4;
 const NOT_TRANSLIT = new Set(['for', 'word', 'words', 'term', 'is', 'means', 'meaning', 'here', 'the', 'a', 'an', 'of', 'and',
   'in', 'text', 'original', 'verb', 'noun', 'this', 'that', 'used', 'translated', 'sense', 'root', 'it', 'behind', 'with', 'or']);
 
+/** English contractions — their apostrophe is not a transliteration mark ("isn't", "God's", "we're"). */
+const ENGLISH_CONTRACTION = /['\u2019](?:t|s|re|ve|ll|d|m)$/i;
+/** English word endings no Greek/Hebrew transliteration has ("broadly", "transliteration", "meaning"). */
+const ENGLISH_SUFFIX = /(?:ly|tion|tions|sion|ness|ment|ments|ing|ity|ful|less)$/i;
+/** Common English words the context patterns catch beside "Greek"/"Hebrew" (owner's ADR-0018 evaluation). */
+const COMMON_ENGLISH = new Set(['jesus', 'god', 'lord', 'christ', 'spirit', 'knowledge', 'world', 'love', 'fear', 'grace',
+  'faith', 'greek', 'hebrew', 'english', 'chinese', 'literally', 'also', 'which', 'means', 'refers', 'conveys']);
+
+/**
+ * A Latin word that is ordinary English, not a transliteration — checked only for words the
+ * verse's data does not contain, so a real transliteration is never dropped. (The evaluation
+ * counted "isn't", "Jesus", "broadly", "transliteration" as wrong Greek; ADR-0018 result.)
+ */
+export function looksEnglish(word: string): boolean {
+  return ENGLISH_CONTRACTION.test(word) || ENGLISH_SUFFIX.test(word) || COMMON_ENGLISH.has(word.toLowerCase());
+}
+
 /** Strip accents/points, lower-case; Greek final sigma → σ. */
 export function normaliseScript(form: string): string {
   return form.normalize('NFD').replace(/[\u0300-\u036F\u0591-\u05C7\u05BE\u1FBD\u2019]/g, '').replace(/\u03C2/g, '\u03C3').toLowerCase();
@@ -75,13 +92,14 @@ function latinCandidates(answer: string, known: Known): string[] {
   for (const m of answer.matchAll(new RegExp(LATIN_WORD, 'g'))) {
     const word = m[0].replace(/^['’ʼʻ-]+|['’ʼʻ-]+$/g, '');
     const plainHit = word.length >= MIN_PLAIN_TRANSLIT && known.translit.has(normaliseTranslit(word));
-    const marked = MARKED_TRANSLIT.test(word) && !/['\u2019]s$/i.test(word); // not an English possessive (Strong's)
+    const marked = MARKED_TRANSLIT.test(word) && !looksEnglish(word); // not "isn't" / "Strong's"
     if (word && (plainHit || marked)) out.push(word);
   }
   for (const re of [BESIDE_SCRIPT, AFTER_LANGUAGE]) {
     for (const m of answer.matchAll(re)) {
       const word = (m[1] ?? m[2] ?? '').replace(/^['’ʼʻ-]+|['’ʼʻ-]+$/g, '');
-      if (word.length > 1 && !NOT_TRANSLIT.has(word.toLowerCase())) out.push(word);
+      const inData = known.translit.has(normaliseTranslit(word));
+      if (word.length > 1 && !NOT_TRANSLIT.has(word.toLowerCase()) && (inData || !looksEnglish(word))) out.push(word);
     }
   }
   return out;
