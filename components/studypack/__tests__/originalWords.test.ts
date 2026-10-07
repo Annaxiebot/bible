@@ -39,8 +39,8 @@ beforeEach(() => {
 });
 
 describe('targetVerses (pure)', () => {
-  it('ships switched off, at most 2 verses', () => {
-    expect(ORIGINAL_WORDS_ENABLED).toBe(false);
+  it('is on since the evaluation (ADR-0018), at most 2 verses', () => {
+    expect(ORIGINAL_WORDS_ENABLED).toBe(true);
     expect(ORIGINAL_WORDS_MAX_VERSES).toBe(2);
   });
 

@@ -23,6 +23,13 @@ import { STORAGE_KEYS } from '../../../constants/storageKeys';
 import { RelatedVerse } from '../relatedVerses';
 import { TEST_PACK_PATH } from './fixtures';
 
+// Original-word retrieval is not under test here (originalWords tests cover it): with the
+// ADR-0018 switch on it finds nothing, so these requests stay exactly what this file pins.
+vi.mock('../originalWords', async importOriginal => ({
+  ...(await importOriginal<typeof import('../originalWords')>()),
+  loadOriginalWords: vi.fn(async () => ({ verses: [], targets: [], warnings: [] })),
+}));
+
 const loadRelatedMock = vi.hoisted(() => vi.fn());
 vi.mock('../relatedVerses', async importOriginal => ({
   ...(await importOriginal<typeof import('../relatedVerses')>()),

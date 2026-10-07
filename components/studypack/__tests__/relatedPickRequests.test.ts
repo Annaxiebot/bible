@@ -17,6 +17,13 @@ import { PICK_SYSTEM_PROMPT, SCOPE_GUARD, PromptMessage, RELATED_VERSES_HEADING 
 import { validateRequest, ASK_AI_MODEL } from '../../../supabase/functions/ai-proxy/policy';
 import { ownKeyBody } from '../../../services/aiTransport';
 import { TEST_PACK_PATH } from './fixtures';
+
+// Original-word retrieval is not under test here (originalWords tests cover it): with the
+// ADR-0018 switch on it finds nothing, so these requests stay exactly what this file pins.
+vi.mock('../originalWords', async importOriginal => ({
+  ...(await importOriginal<typeof import('../originalWords')>()),
+  loadOriginalWords: vi.fn(async () => ({ verses: [], targets: [], warnings: [] })),
+}));
 import { stubBundledFetch } from './bundledFetch';
 
 const pickSwitch = vi.hoisted(() => ({ on: false }));

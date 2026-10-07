@@ -24,7 +24,7 @@ import { originalLexiconUrl, originalWordsChapterUrl } from '../../services/bibl
 import type { OriginalWord, OriginalWordsVerse } from '../../supabase/functions/_shared/aiPrompts';
 
 /** The switch (ADR-0018). Off: no word data is fetched or sent — today's request, byte for byte. */
-export const ORIGINAL_WORDS_ENABLED: boolean = false;
+export const ORIGINAL_WORDS_ENABLED: boolean = true;
 /** At most this many verses' words per question (request size). */
 export const ORIGINAL_WORDS_MAX_VERSES = 2;
 /** The stored word's field separator (scripts/lib/stepWords.mjs WORD_FIELD_SEPARATOR — the data's format). */

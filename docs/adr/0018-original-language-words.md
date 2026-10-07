@@ -1,7 +1,7 @@
 # ADR-0018: Original-language word data for Ask AI (2026-10-06)
 
-Status: proposed — release steps 1–2 built, switch OFF (`ORIGINAL_WORDS_ENABLED`
-in `components/studypack/originalWords.ts`). Not evaluated yet. Roadmap P2
+Status: accepted — switched on 2026-10-06 after the evaluation below
+(`ORIGINAL_WORDS_ENABLED` in `components/studypack/originalWords.ts`). Roadmap P2
 "Greek/Hebrew grounding".
 
 ## Context
@@ -197,6 +197,32 @@ apostrophe, in brackets after a Greek/Hebrew form, after "Greek / Hebrew /
 punctuation, and accepts the verse's word forms and their lemmas. A plain
 Latin transliteration in running text that is not in the data is missed, so
 the measure under-counts wrong forms rather than flagging English words.
+
+## Evaluation result (2026-10-06)
+
+`scripts/eval-original-words.mjs`, the 18 questions fixed in
+`tests/fixtures/original-words-eval.json` before the run; both arms
+google/gemini-2.5-flash; control = today's request (pinned by hash); judge
+anthropic/claude-sonnet-4.5 asked in both orders.
+
+| measure | control | treatment |
+|---|---|---|
+| answered / failed | 18 / 0 | 18 / 0 |
+| "no such verse" | 0 | 0 |
+| cited from memory | 2 | 1 |
+| judge wins (consistent) | 1 | 10 |
+| split | 7 | 7 |
+| original-language forms mentioned | 32 | 85 |
+| found in the verse data | 26 (81.3%) | 79 (92.9%) |
+
+Every bar written above is met, so the switch is on. Reading the "not
+found" lists: the treatment's misses are almost all the checker flagging
+plain English words ("isn't", "Jesus", "broadly", "transliteration") plus
+μέριμνα, the noun cognate of the verb actually in Philippians 4:6 (a fair
+mention). The control's misses include real ones — systenazō, chesed, a
+truncated Hebrew form — so the true accuracy gap is wider than the
+percentages. Follow-up (small): teach the checker to skip common English
+words so the percentage measures what it says.
 
 ## Alternatives considered
 
