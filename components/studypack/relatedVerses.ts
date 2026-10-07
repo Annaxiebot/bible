@@ -27,7 +27,7 @@ import { getBookIndex } from '../../services/bibleBookData';
 import type { RelatedVerseText } from '../../supabase/functions/_shared/aiPrompts';
 
 /** The switch (ADR-0015 release step 4). Off: Ask AI fetches no cross-references and sends today's request. */
-export const RELATED_VERSES_ENABLED: boolean = false;
+export const RELATED_VERSES_ENABLED: boolean = true;
 /** At most this many related references per question. */
 export const RELATED_VERSES_MAX = 6;
 /** At most this many from one book (variety, not one chapter of Proverbs six times). */

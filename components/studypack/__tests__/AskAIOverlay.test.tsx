@@ -62,10 +62,10 @@ beforeEach(() => {
 });
 
 describe('AskAIOverlay (streaming)', () => {
-  it('shows no related-verses credit while the ADR-0015 switch is off', () => {
+  it('credits OpenBible.info for the related verses (ADR-0015 switch on; CC BY)', () => {
     configureKey();
     renderOverlay();
-    expect(screen.queryByTestId('ask-related-credit')).toBeNull();
+    expect(screen.getByTestId('ask-related-credit')).toHaveTextContent('OpenBible.info');
   });
 
   it('no key, signed out: the inline sign-in prompt (no key hints) and the input disabled', () => {

@@ -21,6 +21,14 @@ import {
 } from '../tvHints';
 import { TEST_PACK_PATH } from './fixtures';
 
+// Retrieval is not under test here (relatedVerses / relatedPrompt tests cover it): with the
+// ADR-0015 switch on, the loader finds nothing, so every request below is today's request and
+// the fetch mocks keep answering only the OpenRouter calls.
+vi.mock('../relatedVerses', async importOriginal => ({
+  ...(await importOriginal<typeof import('../relatedVerses')>()),
+  loadRelatedVerses: vi.fn(async () => ({ related: [], warnings: [] })),
+}));
+
 function loadPack(): { pack: StudyPack; slide: Slide } {
   const pack = parseStudyPack(JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8')));
   return { pack, slide: buildSlides(pack)[0] };

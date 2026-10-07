@@ -23,6 +23,12 @@ import { STORAGE_KEYS } from '../../../constants/storageKeys';
 import { RelatedVerse } from '../relatedVerses';
 import { TEST_PACK_PATH } from './fixtures';
 
+const loadRelatedMock = vi.hoisted(() => vi.fn());
+vi.mock('../relatedVerses', async importOriginal => ({
+  ...(await importOriginal<typeof import('../relatedVerses')>()),
+  loadRelatedVerses: loadRelatedMock,
+}));
+
 const pack: StudyPack = parseStudyPack(JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8')));
 const slides: Slide[] = buildSlides(pack);
 const HISTORY = [{ role: 'user' as const, content: 'q0' }, { role: 'assistant' as const, content: 'a0' }];
@@ -87,22 +93,32 @@ describe('treatment: the block in the user message + one rule sentence', () => {
   });
 });
 
-describe('the TV with the switch off', () => {
+describe('the TV with the switch on (ADR-0015 step 4)', () => {
   const getItemMock = window.localStorage.getItem as ReturnType<typeof vi.fn>;
+  const okStream = () => new ReadableStream<Uint8Array>({ start(c) { c.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ choices: [{ delta: { content: 'ok' } }] })}\n`)); c.close(); } });
   beforeEach(() => {
     vi.unstubAllGlobals();
     getItemMock.mockReset().mockImplementation((key: string) => (key === STORAGE_KEYS.OPENROUTER_API_KEY ? 'test-key' : null));
   });
 
-  it('fetches no cross-references and sends no block', async () => {
-    const stream = new ReadableStream<Uint8Array>({ start(c) { c.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ choices: [{ delta: { content: 'ok' } }] })}\n`)); c.close(); } });
-    const fetchMock = vi.fn(async () => ({ ok: true, status: 200, body: stream }));
+  async function sentBody(related: RelatedVerse[]): Promise<string> {
+    loadRelatedMock.mockResolvedValue({ related, warnings: [] });
+    const fetchMock = vi.fn(async () => ({ ok: true, status: 200, body: okStream() }));
     vi.stubGlobal('fetch', fetchMock);
     await streamStudyAI(pack, slides[0], [], QUESTION, () => undefined, new AbortController().signal);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    const calls = fetchMock.mock.calls as unknown as Array<[string, { body: string }]>;
-    expect(String(calls[0][0])).not.toContain('xref');
-    expect(calls[0][1].body).not.toContain(RELATED_VERSES_HEADING);
-    expect(calls[0][1].body).not.toContain(ASK_AI_RELATED_VERSES_RULE);
+    expect(loadRelatedMock).toHaveBeenCalledWith(pack, QUESTION);
+    return (fetchMock.mock.calls as unknown as Array<[string, { body: string }]>)[0][1].body;
+  }
+
+  it('sends the RELATED VERSES block and the rule sentence when verses were found', async () => {
+    const body = await sentBody(RELATED);
+    expect(body).toContain(RELATED_VERSES_HEADING);
+    expect(body).toContain(JSON.stringify(ASK_AI_RELATED_VERSES_RULE).slice(1, 40));
+  });
+
+  it('with none found, sends today\'s request: no block, no rule', async () => {
+    const body = await sentBody([]);
+    expect(body).not.toContain(RELATED_VERSES_HEADING);
+    expect(body).not.toContain(JSON.stringify(ASK_AI_RELATED_VERSES_RULE).slice(1, 40));
   });
 });

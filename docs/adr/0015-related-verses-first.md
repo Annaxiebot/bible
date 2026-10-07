@@ -1,6 +1,6 @@
 # ADR-0015: Ask AI finds related verses first, then explains them (2026-10-06)
 
-Status: proposed — release steps 1–2 built, switch off (2026-10-06). Roadmap P1 "BibleRetriever".
+Status: accepted — switched on 2026-10-06 after the evaluation below. Roadmap P1 "BibleRetriever".
 
 ## Context
 
@@ -176,6 +176,45 @@ A blind comparison, like the 2026-10 model vote:
   it names.
 - **Evaluation**: `scripts/eval-related-verses.mjs` (`--dry-run` builds every
   request with no network). Fixture: `tests/fixtures/related-verses-eval.json`.
+
+## Evaluation result (release step 3, 2026-10-06)
+
+`scripts/eval-related-verses.mjs`, 12 questions over Matthew 6, Proverbs 1,
+John 3 and Romans 8 (Chinese and English; passage, selection and
+whole-Bible questions). Both arms: google/gemini-2.5-flash, same
+parameters; control = today's exact request (pinned by hash). Judge:
+anthropic/claude-sonnet-4.5, blind.
+
+**First run — judge discarded.** Asked for a bare "A" or "B", the judge
+answered "B" in all 12 pairs: pure position bias, so its 7–5 "win" for the
+treatment measured only the random order (R14: a measurement that cannot
+fail is not a result). The script now asks for two sentences of reasons and
+a `WINNER:` line, in **both** orders, and counts only verdicts that survive
+the swap.
+
+**Second run (fresh answers, order-proof judge):**
+
+| measure | control | treatment |
+|---|---|---|
+| answered / failed | 12 / 0 | 12 / 0 |
+| "no such verse" refs | 0 | 0 |
+| cited from memory | 24 | 4 |
+| judge wins (consistent in both orders) | 3 | 5 |
+| split (order flipped the verdict) | 4 | 4 |
+
+The bar in §6 is met (treatment wins; "no such verse" not raised), so the
+switch is on. Memory citations fell by 83%.
+
+**Where the control won (3):** the related list, built from the passage's
+verses, missed the single best verse for the *question* — Isaiah 65:17 /
+Revelation 21:1 for "creation renewed" (Romans 8), Philippians 2:3–4 for
+humility in ministry (John 3), Hebrews 11:6 for faith (Matthew 6:27). Next
+step (roadmap): question-aware candidates — e.g. also follow the links of
+verses whose text matches the question, or of the top candidates — then
+re-run this evaluation with the same control.
+
+The owner's blind-vote page for the second run is produced by the same
+script (`… results.json vote.html`); the owner may overrule this decision.
 
 ## Release
 

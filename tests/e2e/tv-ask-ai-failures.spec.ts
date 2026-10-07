@@ -78,7 +78,8 @@ test.describe('Ask AI failures on the TV', () => {
     expect(bodies[1].reasoning).toEqual({ enabled: false, exclude: true });
     expect(bodies[1].max_tokens).toBeGreaterThan(bodies[0].max_tokens);
     for (const body of bodies) {
-      expect(body.messages![0]).toEqual({ role: 'system', content: `${SCOPE_GUARD}\n\n${askSystemText(LEGACY_CONTENT_LANGUAGE)}` });
+      // Matthew 6 has cross-references, so the request carries RELATED VERSES and the rule (ADR-0015, switch on).
+      expect(body.messages![0]).toEqual({ role: 'system', content: `${SCOPE_GUARD}\n\n${askSystemText(LEGACY_CONTENT_LANGUAGE, true)}` });
       expect(body).not.toHaveProperty('content_language');
     }
   });

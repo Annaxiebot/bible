@@ -29,8 +29,8 @@ beforeEach(() => {
 });
 
 describe('the switch', () => {
-  it('is off until the blind evaluation says otherwise (ADR-0015 release step 3–4)', () => {
-    expect(RELATED_VERSES_ENABLED).toBe(false);
+  it('is on since the evaluation (ADR-0015 release step 4, 2026-10-06)', () => {
+    expect(RELATED_VERSES_ENABLED).toBe(true);
   });
 });
 
