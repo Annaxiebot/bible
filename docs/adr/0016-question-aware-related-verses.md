@@ -1,7 +1,7 @@
 # ADR-0016: Ask AI picks the related verses for the question (2026-10-06)
 
-Status: evaluated 2026-10-06 — NOT switched on (`QUESTION_AWARE_ENABLED` stays
-false); the bar in the Evaluation section was not met. See "Evaluation result".
+Status: closed 2026-10-07 — evaluated twice, NOT switched on (`QUESTION_AWARE_ENABLED` stays
+false); the bar was not met either time. See "Second attempt (result)".
 The switch lives in `components/studypack/relatedPick.ts`. Amends ADR-0015 §3
 step 4. Roadmap P1 "Question-aware related verses".
 
@@ -241,6 +241,34 @@ order-proof judge, does not raise "no such verse" or "cited from memory",
 and the pick path is used for most questions.
 
 **Result:** not yet run.
+
+## Second attempt (result) (2026-10-07) — closed
+
+`scripts/eval-question-aware.mjs` on the 34 questions fixed before the run
+(`tests/fixtures/question-aware-eval-2.json`, 8 passages), same model,
+control (vote top 6) and order-proof judge as the first run.
+
+| measure | control (votes) | treatment (pick, 2-hop pool) |
+|---|---|---|
+| answered / failed | 34 / 0 | 34 / 0 |
+| "no such verse" | 0 | 0 |
+| cited from memory | 18 | 4 |
+| judge wins (consistent) | 11 | 11 |
+| split (order flipped it) | 12 | 12 |
+| pick used | — | 32 of 34 (2 timeouts → votes) |
+| picks from hop 2 | — | 27, in 15 questions |
+
+**Decision: question-aware picking stays off, and this line of work is
+closed.** The bar (the treatment wins the order-proof judge) is not met:
+11–11 on a set three times larger than the first. Two attempts agree that
+picking changes *where* the cited verses come from — far fewer from memory
+— without making answers better for a small group as judged blind. ADR-0015's
+vote-ranked list stays the related-verse source.
+
+Kept: the code (pick role, parser, fallback, second hop, eval script) stays
+behind `QUESTION_AWARE_ENABLED = false` so a future model or idea can be
+measured against the same control. `database/ai-usage-pick-role.sql` stays
+unapplied; no pick call can happen in production.
 
 ## Release
 
