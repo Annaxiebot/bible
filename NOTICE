@@ -30,18 +30,35 @@ terms:
      at least one vote (scripts/build-cross-refs.mjs, ADR-0015).
    Ask AI credits OpenBible.info wherever it shows related verses.
 
-3. Photos (public/landing/) - Unsplash License (https://unsplash.com/license)
+3. Original-language word data (public/bible-data/orig/) - Creative Commons
+   Attribution 4.0 (CC BY 4.0)
+   - STEP Bible (www.STEPBible.org), data created by STEPBible.org based on
+     work at Tyndale House Cambridge: https://github.com/STEPBible/STEPBible-Data
+     (commit 1f3423d4): TAGNT (Translators Amalgamated Greek NT), TAHOT
+     (Translators Amalgamated Hebrew OT), TBESG and TBESH (Translators Brief
+     lexicons of Extended Strongs for Greek and Hebrew).
+   Changes made (scripts/build-original-words.mjs, ADR-0018): one file per
+   chapter; Greek words of the Nestle-Aland text only (a verse with none keeps
+   its Traditional-text words); Hebrew accents, punctuation and the "/"
+   segment marks removed from the word, transliterations without syllable
+   dots and lower-cased; morphology kept for verbs only; lexicon meanings
+   shortened to 200 characters with references and scholarly apparatus
+   removed; text normalised to Unicode NFC.
+   Ask AI credits "STEP Bible", linked to www.STEPBible.org, wherever it
+   uses this data.
+
+4. Photos (public/landing/) - Unsplash License (https://unsplash.com/license)
    - group.webp - Nicolas Lobos, https://unsplash.com/photos/qbazkeo-R1o
    - tv.webp    - Clay Banks, https://unsplash.com/photos/XwgC9tsm7jU
    - phone.webp - Nathan Dumlao, https://unsplash.com/photos/y440_q4e-0E
    The landing footer credits the photographers.
 
-4. Fonts - not stored in this repository; the page loads them at run time
+5. Fonts - not stored in this repository; the page loads them at run time
    - 霞鹜文楷 LXGW WenKai (lxgw-wenkai-webfont, via cdn.jsdelivr.net) -
      SIL Open Font License 1.1
    - Inter, Fraunces, Noto Serif SC, JetBrains Mono (via Google Fonts) -
      SIL Open Font License 1.1
 
-5. Third-party packages (package.json, installed into node_modules/) and
+6. Third-party packages (package.json, installed into node_modules/) and
    scripts loaded from CDNs (Tailwind CSS, KaTeX stylesheet) keep their own
    licenses.
