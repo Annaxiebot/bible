@@ -29,7 +29,7 @@ test('fresh browser: #/new shows the three-step card; Got it hides it for good',
   await page.reload();
   await expect(page.getByTestId('new-study-form')).toBeVisible();
   // The bundled chapter has loaded by now, so the (faster) IndexedDB pack read has too: the absence is real.
-  await expect(page.getByTestId('ns-verse-to').locator('option')).toHaveCount(34);
+  await expect(page.getByTestId('ns-verse-to').locator('option')).toHaveCount(45); // Mark 1, the first study
   expect(await page.evaluate(k => localStorage.getItem(k), STORAGE_KEYS.NEW_STUDY_GUIDE_DISMISSED)).toBe(NEW_STUDY_GUIDE_DISMISSED_VALUE);
   await expect(page.getByTestId('ns-guide')).toHaveCount(0);
 });

@@ -27,6 +27,7 @@ import { AUTOSAVE_DELAY_MS } from '../useAutoSave';
 import NewStudyPage from '../NewStudyPage';
 import { installFakeFullscreen } from '../../studypack/__tests__/fakeFullscreen';
 import { validateRequest, DEFAULT_REQUEST } from '../NewStudyForm';
+import { saveLocalPack } from '../../studypack/packSource';
 
 const generateMock = vi.fn();
 vi.mock('../generatePack', () => ({
@@ -68,6 +69,7 @@ describe('NewStudyPage', () => {
   it('renders the Chinese-first form with dropdowns and never lets a bad range reach generation', async () => {
     withKey('k');
     render(<NewStudyPage />);
+    await screen.findByTestId('new-study-form'); // opens once the next-study suggestion is ready
     expect(screen.getByLabelText(NS_BOOK)).toBeInTheDocument();
     expect(within(screen.getByTestId('ns-book')).getByText('约翰福音 John')).toBeInTheDocument();
     expect(screen.getByTestId('ns-chapter').tagName).toBe('SELECT');
@@ -80,11 +82,26 @@ describe('NewStudyPage', () => {
     expect(validateRequest({ ...DEFAULT_REQUEST, verseFrom: 30, verseTo: 20 })).toBe(NS_ERR_RANGE);
   });
 
+  it('with a saved study, the form opens on the passage after it (John 3:22–36 → John 4:1–15)', async () => {
+    withKey('k');
+    await saveLocalPack({ ...generatedPack(), title: '第3课 ' + generatedPack().title });
+    render(<NewStudyPage />);
+    await screen.findByTestId('new-study-form');
+    // Every bundled chapter has 36 verses here, so 3:22–36 ends John 3: the next study starts John 4, same length.
+    expect(screen.getByTestId('ns-book')).toHaveValue('JHN');
+    expect(screen.getByTestId('ns-chapter')).toHaveValue('4');
+    await versesReady();
+    expect(screen.getByTestId('ns-verse-from')).toHaveValue('1');
+    expect(screen.getByTestId('ns-verse-to')).toHaveValue('15');
+    expect(screen.getByTestId('ns-lesson-number')).toHaveValue(4);
+  });
+
   const versesReady = () => waitFor(() => expect(screen.getByTestId('ns-verse-to')).toBeEnabled());
   /** The editor's range selects read the bundled chapter too; wait so no state update lands after the test. */
   const rangeReady = () => waitFor(() => expect(screen.getByTestId('ns-range-verse-to')).toBeEnabled());
 
   async function fillAndGenerate() {
+    await screen.findByTestId('new-study-form'); // opens once the next-study suggestion is ready
     fireEvent.change(screen.getByTestId('ns-book'), { target: { value: 'JHN' } });
     fireEvent.change(screen.getByTestId('ns-chapter'), { target: { value: '3' } });
     await versesReady();

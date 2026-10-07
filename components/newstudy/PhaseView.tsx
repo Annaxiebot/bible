@@ -14,6 +14,7 @@ import { StudyRequest } from './packAssembly';
 import type { AutoSaveStatus } from './useAutoSave';
 import { NS_CANCEL, NS_RETRY, NS_BACK } from './newStudyStrings';
 import { textStyle, controlStyle, headingStyle, secondaryButtonClass, quietButtonClass } from './newStudyStyles';
+import type { NextStudy } from './nextStudy';
 
 export type Phase =
   | { kind: 'form' }
@@ -50,10 +51,12 @@ export interface PhaseViewProps {
   onSave: (pack: StudyPack) => Promise<void>;
   onPreview: (pack: StudyPack) => Promise<void>;
   autosave: { status: AutoSaveStatus; error: string | null };
+  /** Where the next study starts (useNextStudy); null while it is worked out (a split second after the packs load). */
+  suggestion?: NextStudy | null;
 }
 
 const PhaseView: React.FC<PhaseViewProps> = ({
-  phase, configured, onGenerate, onCancel, onBack, onChange, onSave, onPreview, autosave,
+  phase, configured, onGenerate, onCancel, onBack, onChange, onSave, onPreview, autosave, suggestion = null,
 }) => {
   // The last committed kind: the editor scrolls up only when it replaces the progress line.
   const previous = useRef(phase.kind);
@@ -61,7 +64,11 @@ const PhaseView: React.FC<PhaseViewProps> = ({
   const justGenerated = previous.current === 'generating' && phase.kind === 'editor';
   switch (phase.kind) {
     case 'form':
-      return configured ? <NewStudyForm busy={false} onGenerate={onGenerate} /> : null;
+      // The form waits for the suggestion (a split second after the packs load) and opens on it:
+      // opening early and swapping later would drop anything the leader had already typed.
+      return configured && suggestion
+        ? <NewStudyForm busy={false} onGenerate={onGenerate} suggestion={suggestion} />
+        : null;
     case 'generating':
       return <Progress step={phase.step} detail={phase.detail} onCancel={onCancel} />;
     case 'failed':

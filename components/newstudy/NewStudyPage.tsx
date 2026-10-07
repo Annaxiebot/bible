@@ -25,6 +25,7 @@ import PhaseView, { Phase } from './PhaseView';
 import PackList from './PackList';
 import FirstTimeGuide from './FirstTimeGuide';
 import { useLocalPacks } from './useLocalPacks';
+import { useNextStudy } from './useNextStudy';
 import { useGeneration } from './useGeneration';
 import { useAutoSave } from './useAutoSave';
 import { NS_TITLE, NS_INTRO, NS_PRIVACY, NS_BACK, NS_ERR_STORAGE } from './newStudyStrings';
@@ -72,6 +73,7 @@ const NewStudyPage: React.FC = () => {
   const [phase, setPhaseRaw] = useState<Phase>({ kind: 'form' });
   const [routeError, setRouteError] = useState<RouteError | null>(null);
   const packs = useLocalPacks();
+  const suggestion = useNextStudy(packs.packs, packs.loaded);
   const editing = phase.kind === 'editor' ? phase.pack : null;
   const autosave = useAutoSave(editing, packs.save);
 
@@ -139,6 +141,7 @@ const NewStudyPage: React.FC = () => {
           onChange={pack => setPhase({ kind: 'editor', pack })}
           onSave={flush} onPreview={preview}
           autosave={{ status: autosave.status, error: autosave.error }}
+          suggestion={suggestion}
         />
         {phase.kind === 'form' && <PackList packs={packs} onOpen={openSaved} />}
         <p className="text-slate-500" style={textStyle}>{NS_PRIVACY}</p>

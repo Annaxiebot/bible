@@ -21,7 +21,8 @@ import { NS_CONTENT_LANGUAGE_OPTIONS } from '../newStudyStrings';
 import { CONTENT_LANGUAGES, DEFAULT_CONTENT_LANGUAGE } from '../../studypack/principles';
 
 /** Verse counts the mocked bundled data reports; anything else is 30. */
-const VERSE_COUNTS: Record<string, number> = { 'MAT/6': 34, 'JHN/1': 51, 'JHN/3': 36 };
+const VERSE_COUNTS: Record<string, number> = {
+  'MRK/1': 45, 'MAT/6': 34, 'JHN/1': 51, 'JHN/3': 36 };
 const fetchMock = vi.fn();
 vi.mock('../../../services/bibleDataSource', () => ({
   fetchBundledChapter: (...args: unknown[]) => fetchMock(...args),
@@ -38,13 +39,16 @@ const values = (testId: string) => options(testId).map(o => o.value);
 const select = (testId: string, value: string) => fireEvent.change(screen.getByTestId(testId), { target: { value } });
 const versesReady = () => waitFor(() => expect(screen.getByTestId('ns-verse-to')).toBeEnabled());
 
+/** The dropdown tests run on Matthew 6:25–34, handed in as the next-study suggestion (useNextStudy). */
+const MAT6 = { bookId: 'MAT', chapter: 6, verseFrom: 25, verseTo: 34 };
+
 describe('NewStudyForm dropdowns', () => {
   beforeEach(() => {
     fetchMock.mockReset().mockImplementation(async (bookId: string, chapter: number) => bundledChapter(bookId, chapter));
   });
 
   it('lists 1..N chapters for the book and resets to chapter 1 on a book change', async () => {
-    render(<NewStudyForm busy={false} onGenerate={() => {}} />);
+    render(<NewStudyForm busy={false} onGenerate={() => {}} suggestion={MAT6} />);
     expect(values('ns-chapter')).toHaveLength(getBookById('MAT')!.chapters);
     expect(screen.getByTestId('ns-chapter')).toHaveValue('6');
     select('ns-book', 'PSA');
@@ -54,11 +58,20 @@ describe('NewStudyForm dropdowns', () => {
     await versesReady();
   });
 
-  it('keeps the default MAT 6:25–34 on mount and loads 34 verse options from the bundled chapter', async () => {
-    render(<NewStudyForm busy={false} onGenerate={() => {}} />);
+  it('starts on the suggested passage (after the latest pack) and loads its 34 verse options', async () => {
+    render(<NewStudyForm busy={false} onGenerate={() => {}} suggestion={MAT6} />);
     await versesReady();
     expect(fetchMock).toHaveBeenCalledWith('MAT', 6, 'cuv');
     expect(values('ns-verse-from')).toHaveLength(34);
+    expect(screen.getByTestId('ns-verse-from')).toHaveValue('25');
+    expect(screen.getByTestId('ns-verse-to')).toHaveValue('34');
+  });
+
+  it('with no pack yet, starts on Mark 1:1–15 (DEFAULT_REQUEST)', async () => {
+    render(<NewStudyForm busy={false} onGenerate={() => {}} />);
+    await versesReady();
+    expect(screen.getByTestId('ns-book')).toHaveValue('MRK');
+    expect(screen.getByTestId('ns-chapter')).toHaveValue('1');
     expect(screen.getByTestId('ns-verse-from')).toHaveValue(String(DEFAULT_REQUEST.verseFrom));
     expect(screen.getByTestId('ns-verse-to')).toHaveValue(String(DEFAULT_REQUEST.verseTo));
   });
@@ -82,7 +95,7 @@ describe('NewStudyForm dropdowns', () => {
 
   it('clamps To ≥ From: picking From above To snaps To to From, and To below From snaps up', async () => {
     const onGenerate = vi.fn();
-    render(<NewStudyForm busy={false} onGenerate={onGenerate} />);
+    render(<NewStudyForm busy={false} onGenerate={onGenerate} suggestion={MAT6} />);
     await versesReady();
     select('ns-verse-to', '20');
     select('ns-verse-from', '30');
@@ -104,10 +117,10 @@ describe('NewStudyForm dropdowns', () => {
       expect(screen.getByTestId(id)).toHaveTextContent(TV_LOADING);
     }
     expect(screen.getByTestId('ns-chapter')).toBeEnabled();
-    resolve(bundledChapter('MAT', 6));
+    resolve(bundledChapter('MRK', 1));
     await versesReady();
     expect(screen.getByTestId('ns-verse-from')).toBeEnabled();
-    expect(values('ns-verse-to')).toHaveLength(34);
+    expect(values('ns-verse-to')).toHaveLength(45);
   });
 
   it('falls back to a wide verse range when the bundled chapter cannot be loaded', async () => {

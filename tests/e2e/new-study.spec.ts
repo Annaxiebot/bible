@@ -42,21 +42,21 @@ test.describe('New study', () => {
     const form = page.getByTestId('new-study-form');
     await expect(form).toBeVisible();
     await expect(form.getByText(NS_BOOK)).toBeVisible();
-    await expect(page.getByTestId('ns-book')).toHaveValue('MAT');
+    await expect(page.getByTestId('ns-book')).toHaveValue('MRK'); // no pack yet → the first study, Mark 1:1–15
     await expect(page.getByTestId('ns-book').locator('option', { hasText: '约翰福音 John' })).toHaveCount(1);
     expect(await page.getByTestId('ns-book').evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(20);
     expect((await page.getByTestId('ns-generate').boundingBox())!.height).toBeGreaterThanOrEqual(48);
-    // Chapter and verses are native dropdowns driven by real data (Matthew: 28 chapters; 6:25–34 default).
+    // Chapter and verses are native dropdowns driven by real data (Mark: 16 chapters; 1:1–15 default, 45 verses).
     for (const id of ['ns-chapter', 'ns-verse-from', 'ns-verse-to']) {
       const select = page.getByTestId(id);
       await expect(select).toHaveJSProperty('tagName', 'SELECT');
       expect((await select.boundingBox())!.height).toBeGreaterThanOrEqual(48);
       expect(await select.evaluate(el => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(20);
     }
-    await expect(page.getByTestId('ns-chapter').locator('option')).toHaveCount(28);
-    await expect(page.getByTestId('ns-verse-to').locator('option')).toHaveCount(34);
-    await expect(page.getByTestId('ns-verse-from')).toHaveValue('25');
-    await expect(page.getByTestId('ns-verse-to')).toHaveValue('34');
+    await expect(page.getByTestId('ns-chapter').locator('option')).toHaveCount(16);
+    await expect(page.getByTestId('ns-verse-to').locator('option')).toHaveCount(45);
+    await expect(page.getByTestId('ns-verse-from')).toHaveValue('1');
+    await expect(page.getByTestId('ns-verse-to')).toHaveValue('15');
     // 内容语言 Content language: a large native select, defaulting to 中文为主 (Chinese with English keywords).
     await expect(form.getByText(NS_CONTENT_LANGUAGE)).toBeVisible();
     const language = page.getByTestId('ns-content-language');

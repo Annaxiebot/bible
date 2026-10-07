@@ -49,11 +49,11 @@ beforeEach(async () => {
 });
 
 describe('NewStudyPage AI gate', () => {
-  it('signed in, no key → the form, no setup', () => {
+  it('signed in, no key → the form, no setup', async () => {
     withKey(null);
     signedInUid = 'uid-leader-1';
     render(<NewStudyPage />);
-    expect(screen.getByTestId('new-study-form')).toBeInTheDocument();
+    expect(await screen.findByTestId('new-study-form')).toBeInTheDocument();
     expect(screen.queryByTestId('quick-ai-setup')).toBeNull();
   });
 
@@ -66,10 +66,10 @@ describe('NewStudyPage AI gate', () => {
     expect(screen.getByTestId('new-study-page').textContent).not.toMatch(/OpenRouter|密钥|\bkey\b/);
   });
 
-  it('signed out with an own key → the form (the direct path is unchanged)', () => {
+  it('signed out with an own key → the form (the direct path is unchanged)', async () => {
     withKey('sk-or-own');
     render(<NewStudyPage />);
-    expect(screen.getByTestId('new-study-form')).toBeInTheDocument();
+    expect(await screen.findByTestId('new-study-form')).toBeInTheDocument();
     expect(screen.queryByTestId('quick-ai-setup')).toBeNull();
   });
 });

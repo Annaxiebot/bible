@@ -18,6 +18,7 @@ import { textStyle, controlStyle, inputClass, primaryButtonClass, labelClass } f
 import { useVerseRange, RangeSelects } from './verseRangeFields';
 import { readDefaultContentLanguage, rememberContentLanguage } from './contentLanguageDefault';
 import { CONTENT_LANGUAGES, DEFAULT_CONTENT_LANGUAGE, isContentLanguage } from '../studypack/principles';
+import { FIRST_STUDY, NextStudy } from './nextStudy';
 
 /** Local ISO date (yyyy-mm-dd) for the date field's default. */
 export function todayIso(): string {
@@ -26,9 +27,8 @@ export function todayIso(): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-export const DEFAULT_REQUEST: StudyRequest = {
-  bookId: 'MAT', chapter: 6, verseFrom: 25, verseTo: 34, date: '', contentLanguage: DEFAULT_CONTENT_LANGUAGE,
-};
+/** Before the suggestion arrives the form shows the first study (Mark 1:1–15, nextStudy.ts). */
+export const DEFAULT_REQUEST: StudyRequest = { ...FIRST_STUDY, date: '', contentLanguage: DEFAULT_CONTENT_LANGUAGE };
 
 /** Pure validation so the unit tests pin the rules without rendering. */
 export function validateRequest(req: StudyRequest): string | null {
@@ -53,6 +53,8 @@ const ContentLanguageField: React.FC<{ req: StudyRequest; update: (patch: Partia
 interface Props {
   busy: boolean;
   onGenerate: (req: StudyRequest) => void;
+  /** Where the next study starts (useNextStudy) — the form opens on it; absent → Mark 1:1–15. */
+  suggestion?: NextStudy | null;
 }
 
 /** Optional lesson title + the lesson-number/date sub-grid. */
@@ -80,9 +82,9 @@ const LessonFields: React.FC<{ req: StudyRequest; update: (patch: Partial<StudyR
   </>
 );
 
-const NewStudyForm: React.FC<Props> = ({ busy, onGenerate }) => {
+const NewStudyForm: React.FC<Props> = ({ busy, onGenerate, suggestion = null }) => {
   const [req, setReq] = useState<StudyRequest>(() => ({
-    ...DEFAULT_REQUEST, date: todayIso(), contentLanguage: readDefaultContentLanguage(),
+    ...DEFAULT_REQUEST, ...suggestion, date: todayIso(), contentLanguage: readDefaultContentLanguage(),
   }));
   const [error, setError] = useState<string | null>(null);
   const update = (patch: Partial<StudyRequest>) => { setReq(r => ({ ...r, ...patch })); setError(null); };
