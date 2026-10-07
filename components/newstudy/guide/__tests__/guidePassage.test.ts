@@ -44,3 +44,23 @@ describe('detectGuidePassage', () => {
     expect(detectGuidePassage('马可福音 99:1-3，v.7，第7节').range).toBeNull();
   });
 });
+
+describe('the 章/節 heading form, with the book named elsewhere (owner\'s real guide)', () => {
+  // The heading of "約翰福音10（10月5日預查）預查版.pdf": Traditional characters, the book only in
+  // the series title, the passage as "4 章 27-42 節", a single-verse 太 28:19 further down.
+  const GUIDE = '※ 預查版本、非查經版本 ※\n8:05 開始預查\n聖荷西基督徒會堂 約翰福音查經\n\n第十課 莊稼已經熟了（4 章 27-42 節）\n'
+    + '引言：上次我們查考了主耶穌向撒瑪利亞婦人的一對一談道…（14節）…\n'.repeat(3) + '主的心意是要我們傳福音給萬民（太 28:19）。';
+
+  it('finds John 4:27–42, confidently', () => {
+    expect(detectGuidePassage(GUIDE)).toEqual({ range: { bookId: 'JHN', chapter: 4, verseFrom: 27, verseTo: 42 }, confident: true });
+  });
+
+  it('Simplified and other spellings: 第4章第27至42节, 4章27-42节', () => {
+    expect(detectGuidePassage('马可福音查经 第1章第1至15节').range).toEqual({ bookId: 'MRK', chapter: 1, verseFrom: 1, verseTo: 15 });
+    expect(detectGuidePassage('路加福音 学习 6章27-36节').range).toEqual({ bookId: 'LUK', chapter: 6, verseFrom: 27, verseTo: 36 });
+  });
+
+  it('no full book name anywhere → the 章/節 form alone names no passage', () => {
+    expect(detectGuidePassage('第十課（4 章 27-42 節）').range).toBeNull();
+  });
+});

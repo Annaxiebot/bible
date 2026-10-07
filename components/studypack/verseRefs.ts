@@ -76,6 +76,27 @@ function simplifyBookName(name: string): string {
   return Array.from(name, ch => TRAD_TO_SIMP_BOOK_CHARS[ch] ?? ch).join('');
 }
 
+/** Full Chinese book names (约翰福音, 创世记…) → id: the book table's own names, the unambiguous form. */
+const FULL_CHINESE_NAMES: ReadonlyArray<[string, string]> = BIBLE_BOOKS
+  .map(b => [b.name.split(' ')[0], b.id] as [string, string])
+  .sort((a, b) => b[0].length - a[0].length);
+
+/**
+ * Every full Chinese book name in `text` (Traditional or Simplified), in order —
+ * for headings that name the book apart from the chapter ("約翰福音查經 … 4 章 27-42 節").
+ * Abbreviations are left out: a lone 约/可/路 in prose is far too common to mean a book.
+ */
+export function findBookNames(text: string): Array<{ index: number; bookId: string }> {
+  const simple = simplifyBookName(text);   // per-character map, so indexes line up with `text`
+  const found: Array<{ index: number; end: number; bookId: string }> = [];
+  for (const [name, bookId] of FULL_CHINESE_NAMES) {   // longest first: a shorter name inside a longer one is skipped
+    for (let i = simple.indexOf(name); i !== -1; i = simple.indexOf(name, i + name.length)) {
+      if (!found.some(f => i < f.end && i + name.length > f.index)) found.push({ index: i, end: i + name.length, bookId });
+    }
+  }
+  return found.sort((a, b) => a.index - b.index).map(({ index, bookId }) => ({ index, bookId }));
+}
+
 /** Book-name prefix of a "Book C:V" match → canonical book id, or null. */
 function lookupBookId(namePart: string): string | null {
   const name = namePart.replace(/[.\s]+$/, '').trim();
