@@ -231,6 +231,17 @@ describe('NewStudyPage', () => {
     expect(generateMock.mock.calls[1][0]).toEqual(generateMock.mock.calls[0][0]);
   });
 
+  it('Back on the "generation failed" screen returns to the form (regression: it did nothing)', async () => {
+    withKey('k');
+    generateMock.mockRejectedValueOnce(new Error(NS_ERR_NO_JSON));
+    render(<NewStudyPage />);
+    await fillAndGenerate();
+    expect(await screen.findByRole('alert')).toHaveTextContent(NS_ERR_NO_JSON);
+    fireEvent.click(screen.getByRole('button', { name: NS_BACK }));
+    expect(await screen.findByTestId('new-study-form')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: NS_RETRY })).toBeNull();
+  });
+
   it('lists saved packs on load and opens one into the editor', async () => {
     withKey('k');
     await idbService.put('studypacks', { id: 'local-2026-10-02-jhn3', pack: generatedPack(), savedAt: 1 });

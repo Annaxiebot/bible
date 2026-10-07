@@ -98,10 +98,14 @@ const NewStudyPage: React.FC = () => {
   }, []);
   useEditorRoute(editing?.id ?? null, openSaved, closeEditor, setRouteError);
 
-  /** Back: store any pending edit first; a failed save keeps the editor open with the error shown. */
+  /**
+   * Back: store any pending edit first (a failed save keeps the editor open with the error shown),
+   * then return to the form — from the editor or from the "generation failed" screen. The failed
+   * screen used to stay put: closeEditor only leaves the editor, and the hash is already #/new.
+   */
   const back = async () => {
     await flush();
-    closeEditor();
+    setPhaseRaw(current => (current.kind === 'editor' || current.kind === 'failed' ? { kind: 'form' } : current));
     window.location.hash = NEW_STUDY_HASH;
   };
 
