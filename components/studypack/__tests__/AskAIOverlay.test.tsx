@@ -7,7 +7,7 @@ import { TEST_PACK_PATH } from './fixtures';
 import { parseStudyPack, buildSlides, StudyPack, Slide } from '../packTypes';
 import { SETUP_TITLE, SETUP_OPEN_BUTTON, SETUP_CANCEL, SETUP_SIGN_IN_TO_USE_AI, SETUP_OWN_KEY_TOGGLE } from '../../setup/setupStrings';
 import { ASK_AI_MODEL } from '../../../services/aiDefaults';
-import { AI_CREDITS_MESSAGE, AI_EMPTY, TV_RETRY, thinkingLine, modelLine } from '../tvHints';
+import { AI_CREDITS_MESSAGE, AI_EMPTY, TV_RETRY, thinkingLine, modelLine, BACKUP_MODEL_NOTE } from '../tvHints';
 import { AskAIError, emptyError, timeoutError } from '../askAIErrors';
 
 // Mirror of askAIFallback.ts streamStudyAI:
@@ -62,6 +62,16 @@ beforeEach(() => {
 });
 
 describe('AskAIOverlay (streaming)', () => {
+  it('the main model answered → no model line at all (owner: the id means nothing in a meeting)', async () => {
+    configureKey();
+    renderOverlay();
+    fireEvent.change(screen.getByLabelText(/Ask AI question/), { target: { value: 'Why birds?' } });
+    fireEvent.click(screen.getByRole('button', { name: /提问 Ask/ }));
+    await waitFor(() => expect(screen.getByTestId('ask-answer')).toHaveTextContent('Answer (v.25).'));
+    expect(screen.queryByTestId('ask-backup-model')).toBeNull();
+    expect(screen.getByTestId('ask-panel').textContent).not.toContain(ASK_AI_MODEL);
+  });
+
   it('credits OpenBible.info for the related verses (ADR-0015 switch on; CC BY)', () => {
     configureKey();
     renderOverlay();
@@ -110,8 +120,9 @@ describe('AskAIOverlay (streaming)', () => {
       expect(screen.getByTestId('ask-answer')).toHaveTextContent('Anxiety follows (v.25).'));
     expect(screen.getByTestId('verse-ref')).toHaveTextContent('v.25');
     expect(screen.getByLabelText(/Ask AI question/)).toBeEnabled();
-    // The model that answered is shown under the answer
-    expect(screen.getByTestId('ask-model')).toHaveTextContent(modelLine('served/model'));
+    // A model other than the main one answered → the quiet backup note (the model id itself is never shown)
+    expect(screen.getByTestId('ask-backup-model')).toHaveTextContent(BACKUP_MODEL_NOTE);
+    expect(screen.getByTestId('ask-panel').textContent).not.toContain('served/model');
   });
 
   it('while waiting, the thinking line names the model so a stuck state is identifiable', async () => {

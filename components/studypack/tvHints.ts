@@ -55,7 +55,10 @@ export const VERSES_CITED_HEADING = bilingualLine('引用经文', 'Verses cited'
 
 // ---- Ask-AI model + failure lines · 问AI模型与失败提示 -------------------
 
-/** "模型 Model: <id>" — shared by the overlay footer and the setup dialog. */
+/** Shown only when a backup model answered (the main one failed): its answers may be weaker. */
+export const BACKUP_MODEL_NOTE = bilingual('备用模型作答', 'answered by a backup model');
+
+/** "模型 Model: <id>" — in the thinking/timeout lines (so a stuck state is identifiable) and the setup dialog. */
 export const MODEL_LABEL = bilingual('模型', 'Model');
 export function modelLine(modelId: string): string {
   return `${MODEL_LABEL}: ${modelId}`;

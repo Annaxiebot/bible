@@ -9,7 +9,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StudyPack, Slide } from './packTypes';
 import { AskAIMessage } from './askAI';
 import {
-  ASK_AI_LABEL, ASK_INPUT_PLACEHOLDER, ASK_SUBMIT_LABEL, RELATED_VERSES_CREDIT, thinkingLine, modelLine,
+  ASK_AI_LABEL, ASK_INPUT_PLACEHOLDER, ASK_SUBMIT_LABEL, RELATED_VERSES_CREDIT, thinkingLine, BACKUP_MODEL_NOTE,
   ORIGINAL_WORDS_CREDIT, STEP_BIBLE_NAME, STEP_BIBLE_URL,
 } from './tvHints';
 import { RELATED_VERSES_ENABLED } from './relatedVerses';
@@ -19,6 +19,7 @@ import AIErrorLine from './AIErrorLine';
 import AskAnswer from './AskAnswer';
 import { useAnswerFit } from './useAnswerFit';
 import { QuickAISetupForm } from '../setup/QuickAISetup';
+import { askAIModel } from '../../services/aiDefaults';
 
 // Layout (ADR-0003 §10): the header, the latest question and the input are
 // pinned; the conversation area between them takes all remaining height.
@@ -179,11 +180,13 @@ const AskAIOverlay: React.FC<AskAIOverlayProps> = ({ pack, slide, initialQuestio
       onTouchEnd={e => e.stopPropagation()}
     >
       {/* TV: the panel takes nearly the whole screen (2vh/2vw frame over the dim backdrop). */}
-      <div className="bg-stl-surface border border-stl-border rounded-xl absolute inset-y-[2vh] inset-x-[2vw] p-[2vh] flex flex-col" data-testid="ask-panel">
+      <div className="bg-stl-surface border border-stl-border rounded-xl absolute inset-y-[2vh] inset-x-[2vw] p-[2vh] flex flex-col" data-testid="ask-panel"
+        data-answer-state={ai.loading ? 'answering' : 'idle'}>
         <div className="flex items-center gap-[1vw] mb-[1vh] shrink-0">
           <h2 className="text-stl-gold font-bold mr-auto" style={{ fontSize: '3.5vh' }}>{ASK_AI_LABEL}</h2>
-          {!ai.loading && ai.model && ai.messages.some(m => m.role === 'assistant') && (
-            <p className="text-stl-text-3 truncate" style={questionStyle} data-testid="ask-model">{modelLine(ai.model)}</p>
+          {/* Owner: the model id means nothing in a meeting; say only when a backup model answered. */}
+          {!ai.loading && ai.model && ai.model !== askAIModel() && ai.messages.some(m => m.role === 'assistant') && (
+            <p className="text-stl-text-3 truncate" style={questionStyle} data-testid="ask-backup-model">{BACKUP_MODEL_NOTE}</p>
           )}
           <button
             onClick={close}

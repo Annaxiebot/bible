@@ -30,7 +30,8 @@ for (const vp of [{ width: 1280, height: 720 }, { width: 1920, height: 1080 }]) 
     await openTV(page);
     await goToSlide(page, DEMO_SLIDE.discussion);
     await page.keyboard.press('a');
-    await expect(page.getByTestId('ask-model')).toBeVisible(); // the stream has ended
+    await expect(page.getByTestId('ask-answer').first()).toBeVisible();
+  await expect(page.getByTestId('ask-panel')).toHaveAttribute('data-answer-state', 'idle'); // the stream has ended
 
     const latest = page.getByTestId('ask-latest');
     const cited = latest.getByTestId('cited-verses');

@@ -70,7 +70,7 @@ test.describe('Ask AI failures on the TV', () => {
     ]);
     await askOnDiscussionSlide(page);
     await expect(page.getByText('Anxiety follows the treasure (v.25).')).toBeVisible();
-    await expect(page.getByTestId('ask-model')).toHaveText(modelLine('google/gemini-2.5-flash'));
+    await expect(page.getByTestId('ask-backup-model')).toHaveCount(0); // the retry used the main model: no model line
     await expect(page.getByRole('alert')).toHaveCount(0);
     const bodies = mock.bodies();
     expect(bodies).toHaveLength(2);

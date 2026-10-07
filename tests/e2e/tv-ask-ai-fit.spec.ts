@@ -28,7 +28,8 @@ async function askOnDiscussionSlide(page: Page, answer: string) {
   await openTV(page);
   await goToSlide(page, DEMO_SLIDE.discussion);
   await page.keyboard.press('a');
-  await expect(page.getByTestId('ask-model')).toBeVisible(); // the stream has ended
+  await expect(page.getByTestId('ask-answer').first()).toBeVisible();
+  await expect(page.getByTestId('ask-panel')).toHaveAttribute('data-answer-state', 'idle'); // the stream has ended
 }
 
 /** The conversation area's scroll geometry and the latest answer's font size. */
