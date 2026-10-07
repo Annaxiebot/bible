@@ -20,7 +20,7 @@ import {
   ASK_AI_ANSWER_CONTRACT, ASK_AI_ORIGINAL_WORDS_RULE, ASK_AI_RELATED_VERSES_RULE, ORIGINAL_WORDS_HEADING, PromptMessage, askSystemText,
 } from '../../../supabase/functions/_shared/aiPrompts';
 import { validateRequest } from '../../../supabase/functions/ai-proxy/policy';
-import { ORIGINAL_WORDS_CREDIT, STEP_BIBLE_URL } from '../tvHints';
+import { STEP_BIBLE_NAME, STEP_BIBLE_URL } from '../tvHints';
 import { TEST_PACK_PATH } from './fixtures';
 import { stubBundledFetch } from './bundledFetch';
 
@@ -138,21 +138,18 @@ describe('switch on (mocked)', () => {
   });
 });
 
-describe('the STEP Bible credit (CC BY 4.0)', () => {
+describe('the STEP Bible credit (CC BY 4.0) in the one sources line', () => {
+  const stepLink = () => [...screen.getByTestId('ask-sources').querySelectorAll('a')].find(a => a.textContent === STEP_BIBLE_NAME);
+
   it('is absent while the switch is off', () => {
     render(<AskAIOverlay pack={pack} slide={slide} initialQuestion={null} onClose={() => undefined} />);
-    expect(screen.queryByTestId('ask-original-credit')).toBeNull();
+    expect(stepLink()).toBeUndefined();
   });
 
-  it('is shown with the switch on, next to the OpenBible credit, "STEP Bible" linked to www.STEPBible.org', () => {
+  it('with the switch on, "STEP Bible" is named and linked to www.STEPBible.org, after OpenBible.info', () => {
     origSwitch.on = true;
     render(<AskAIOverlay pack={pack} slide={slide} initialQuestion={null} onClose={() => undefined} />);
-    const credit = screen.getByTestId('ask-original-credit');
-    expect(credit.textContent).toBe(ORIGINAL_WORDS_CREDIT);
-    expect(ORIGINAL_WORDS_CREDIT).toBe('原文词汇：STEP Bible（CC BY） · Original words: STEP Bible (CC BY)');
-    const links = credit.querySelectorAll('a');
-    expect(links).toHaveLength(2);
-    links.forEach(a => expect(a.getAttribute('href')).toBe(STEP_BIBLE_URL));
-    expect(screen.getByTestId('ask-related-credit').nextElementSibling).toBe(credit);
+    expect(stepLink()?.getAttribute('href')).toBe(STEP_BIBLE_URL);
+    expect(screen.getByTestId('ask-sources').textContent).toBe('资料 Sources：OpenBible.info · STEP Bible');
   });
 });

@@ -9,8 +9,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StudyPack, Slide } from './packTypes';
 import { AskAIMessage } from './askAI';
 import {
-  ASK_AI_LABEL, ASK_INPUT_PLACEHOLDER, ASK_SUBMIT_LABEL, RELATED_VERSES_CREDIT, thinkingLine, BACKUP_MODEL_NOTE,
-  ORIGINAL_WORDS_CREDIT, STEP_BIBLE_NAME, STEP_BIBLE_URL,
+  ASK_AI_LABEL, ASK_INPUT_PLACEHOLDER, ASK_SUBMIT_LABEL, thinkingLine, BACKUP_MODEL_NOTE,
+  SOURCES_LABEL, OPENBIBLE_NAME, OPENBIBLE_URL, STEP_BIBLE_NAME, STEP_BIBLE_URL,
 } from './tvHints';
 import { RELATED_VERSES_ENABLED } from './relatedVerses';
 import { ORIGINAL_WORDS_ENABLED } from './originalWords';
@@ -200,27 +200,30 @@ const AskAIOverlay: React.FC<AskAIOverlayProps> = ({ pack, slide, initialQuestio
         <LatestQuestion ai={ai} />
         <Conversation ai={ai} pack={pack} />
         <QuestionForm ai={ai} />
-        {RELATED_VERSES_ENABLED && (
-          <p className="text-stl-text-3 shrink-0 mt-[0.5vh]" style={{ fontSize: '1.6vh' }} data-testid="ask-related-credit">
-            {RELATED_VERSES_CREDIT}
-          </p>
-        )}
-        {ORIGINAL_WORDS_ENABLED && <OriginalWordsCredit />}
+        <SourcesCredit />
       </div>
     </div>
   );
 };
 
-/** The STEP Bible credit (CC BY 4.0, ADR-0018): the one credit string, its name linked to www.STEPBible.org. */
-export const OriginalWordsCredit: React.FC = () => (
-  <p className="text-stl-text-3 shrink-0" style={{ fontSize: '1.6vh' }} data-testid="ask-original-credit">
-    {ORIGINAL_WORDS_CREDIT.split(STEP_BIBLE_NAME).map((part, i) => (
-      <React.Fragment key={i}>
-        {i > 0 && <a href={STEP_BIBLE_URL} target="_blank" rel="noreferrer" className="underline">{STEP_BIBLE_NAME}</a>}
-        {part}
-      </React.Fragment>
-    ))}
-  </p>
-);
+/** The data sources in use, one short line, each name linked (CC BY); nothing when no source is switched on. */
+export const SourcesCredit: React.FC = () => {
+  const sources = [
+    RELATED_VERSES_ENABLED && { name: OPENBIBLE_NAME, url: OPENBIBLE_URL },
+    ORIGINAL_WORDS_ENABLED && { name: STEP_BIBLE_NAME, url: STEP_BIBLE_URL },
+  ].filter((x): x is { name: string; url: string } => Boolean(x));
+  if (sources.length === 0) return null;
+  return (
+    <p className="text-stl-text-3 shrink-0 mt-[0.5vh]" style={{ fontSize: '1.6vh' }} data-testid="ask-sources">
+      {SOURCES_LABEL}：
+      {sources.map((src, i) => (
+        <React.Fragment key={src.name}>
+          {i > 0 && ' · '}
+          <a href={src.url} target="_blank" rel="noreferrer" className="underline">{src.name}</a>
+        </React.Fragment>
+      ))}
+    </p>
+  );
+};
 
 export default AskAIOverlay;

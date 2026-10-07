@@ -14,7 +14,7 @@ import { readFileSync } from 'fs';
 import { parseStudyPack, buildSlides } from '../packTypes';
 import { STORAGE_KEYS } from '../../../constants/storageKeys';
 import { ASK_AI_RELATED_VERSES_RULE, RELATED_VERSES_HEADING, PromptMessage } from '../../../supabase/functions/_shared/aiPrompts';
-import { RELATED_VERSES_CREDIT } from '../tvHints';
+import { OPENBIBLE_NAME, OPENBIBLE_URL } from '../tvHints';
 import { TEST_PACK_PATH } from './fixtures';
 import { stubBundledFetch } from './bundledFetch';
 
@@ -64,7 +64,7 @@ describe('switch on', () => {
 
   it('the Ask AI panel credits OpenBible.info', () => {
     render(<AskAIOverlay pack={pack} slide={slide} initialQuestion={null} onClose={() => undefined} />);
-    expect(screen.getByTestId('ask-related-credit').textContent).toBe(RELATED_VERSES_CREDIT);
-    expect(RELATED_VERSES_CREDIT).toBe('相关经文：OpenBible.info（CC BY） · Related verses: OpenBible.info (CC BY)');
+    const link = [...screen.getByTestId('ask-sources').querySelectorAll('a')].find(a => a.textContent === OPENBIBLE_NAME);
+    expect(link?.getAttribute('href')).toBe(OPENBIBLE_URL);
   });
 });
