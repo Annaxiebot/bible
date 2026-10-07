@@ -142,6 +142,7 @@ const NewStudyPage: React.FC = () => {
           onSave={flush} onPreview={preview}
           autosave={{ status: autosave.status, error: autosave.error }}
           suggestion={suggestion}
+          onGuide={guide => setPhase(guide ? { kind: 'form', guide } : { kind: 'form' })}
         />
         {phase.kind === 'form' && <PackList packs={packs} onOpen={openSaved} />}
         <p className="text-slate-500" style={textStyle}>{NS_PRIVACY}</p>

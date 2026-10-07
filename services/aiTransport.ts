@@ -20,8 +20,8 @@
  */
 import { getApiKey, OPENROUTER_API_URL } from './openrouter';
 import { authManager, supabase, type AuthState } from './supabase';
-import type { AIRole } from '../supabase/functions/ai-proxy/policy';
-import { buildFinalMessages, isContentLanguage, PromptMessage } from '../supabase/functions/_shared/aiPrompts';
+import { packSourceProblem, type AIRole } from '../supabase/functions/ai-proxy/policy';
+import { buildFinalMessages, isContentLanguage, isPackSource, PromptMessage } from '../supabase/functions/_shared/aiPrompts';
 import { E2E_ACCESS_TOKEN, aiProxyUrl } from './aiProxyRoute';
 import { e2eLeader } from './e2eLeader';
 
@@ -75,13 +75,16 @@ async function hostedSession(): Promise<HostedSession | null> {
 /**
  * The OpenRouter body for an own-key request: the data form the proxy would
  * receive, turned into the proxy's final messages by the same builder
- * (server system message first; `content_language` consumed, not forwarded).
+ * (server system message first; `content_language` and `pack_source` consumed, not forwarded).
  */
 export function ownKeyBody(role: AIRole, body: string): string {
-  const { content_language: mode, messages, ...rest } = JSON.parse(body) as Record<string, unknown>;
+  const { content_language: mode, pack_source: source, messages, ...rest } = JSON.parse(body) as Record<string, unknown>;
   if (mode !== undefined && !isContentLanguage(mode)) throw new Error(`Unknown content_language: ${String(mode)}`);
+  const sourceProblem = packSourceProblem(role, source); // the proxy's own rule (ADR-0019), so both paths refuse alike
+  if (sourceProblem) throw new Error(sourceProblem);
   const sent = Array.isArray(messages) ? messages as PromptMessage[] : [];
-  return JSON.stringify({ ...rest, messages: buildFinalMessages(role, sent, isContentLanguage(mode) ? mode : undefined) });
+  const final = buildFinalMessages(role, sent, isContentLanguage(mode) ? mode : undefined, isPackSource(source) ? source : undefined);
+  return JSON.stringify({ ...rest, messages: final });
 }
 
 /**

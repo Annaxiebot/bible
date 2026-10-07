@@ -4,7 +4,8 @@
  * The scope guard says what it must, each mode has exactly one Ask-AI
  * language rule, Ask AI's system prompt points at rules that now sit in
  * the same message ("below", not "in the user message"), and the module
- * stays a pure leaf (no imports) so the edge function and the app share it.
+ * stays pure (its only import is its sibling aiPromptBlocks.ts, itself a
+ * leaf) so the edge function and the app share it.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
@@ -100,11 +101,14 @@ describe('RELATED VERSES (ADR-0015 §4)', () => {
   });
 });
 
-describe('a pure leaf module', () => {
-  it('imports nothing (the edge function and the browser bundle both load it)', () => {
-    const source = readFileSync(path.resolve(__dirname, '../aiPrompts.ts'), 'utf-8');
-    expect(source).not.toMatch(/^import /m);
-    expect(source).not.toMatch(/Deno\./);
+describe('pure modules', () => {
+  it('aiPrompts imports only its sibling block module, which imports nothing (the edge function and the browser bundle both load them)', () => {
+    const read = (file: string) => readFileSync(path.resolve(__dirname, '..', file), 'utf-8');
+    const prompts = read('aiPrompts.ts');
+    const imports = prompts.match(/^import .*$/gm) ?? [];
+    expect(imports.every(line => line.endsWith("from './aiPromptBlocks.ts';"))).toBe(true);
+    expect(read('aiPromptBlocks.ts')).not.toMatch(/^import /m);
+    for (const source of [prompts, read('aiPromptBlocks.ts')]) expect(source).not.toMatch(/Deno\./);
   });
 });
 

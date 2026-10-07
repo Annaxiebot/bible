@@ -8,7 +8,9 @@
  * and PACK_MAX_TOKENS are copies, pinned equal to services/aiDefaults.ts and
  * components/newstudy/packPrompt.ts by __tests__/aiProxy.test.ts.
  */
-import { AI_ROLES, AIRole, CONTENT_LANGUAGES, ContentLanguage, buildFinalMessages, isContentLanguage } from '../_shared/aiPrompts.ts';
+import {
+  AI_ROLES, AIRole, CONTENT_LANGUAGES, ContentLanguage, PackSource, buildFinalMessages, isContentLanguage, isPackSource,
+} from '../_shared/aiPrompts.ts';
 
 /** Pure enough for the browser too: services/aiTransport + components/setup/aiUsage import from here (one list, R3). */
 export { AI_ROLES };
@@ -155,6 +157,17 @@ function contentLanguage(value: unknown): { ok: true; mode?: ContentLanguage } |
   return isContentLanguage(value) ? { ok: true, mode: value } : { ok: false };
 }
 
+/**
+ * The study-guide switch (ADR-0019): absent, or "guide" on role 'pack'. Any
+ * other value, or the field on another role, is a 400 — no role can borrow the
+ * guide prompt, and a typo is not silently the passage prompt.
+ */
+export function packSourceProblem(role: AIRole, value: unknown): string | null {
+  if (value === undefined) return null;
+  if (role !== 'pack') return 'pack_source is only for role pack';
+  return isPackSource(value) ? null : 'pack_source must be guide';
+}
+
 function reasoningSwitch(value: unknown): ReasoningSwitch | undefined {
   if (typeof value !== 'object' || value === null) return undefined;
   const { enabled, exclude } = value as Record<string, unknown>;
@@ -173,13 +186,15 @@ export function validateRequest(body: unknown): Validation {
   if (problem) return invalid(problem);
   const language = contentLanguage(b.content_language);
   if (!language.ok) return invalid(`content_language must be one of ${CONTENT_LANGUAGES.join('|')}`);
+  const sourceProblem = packSourceProblem(b.role, b.pack_source);
+  if (sourceProblem) return invalid(sourceProblem);
   const temperature = typeof b.temperature === 'number' && b.temperature >= 0 && b.temperature <= MAX_TEMPERATURE
     ? b.temperature : undefined;
   return {
     ok: true,
     request: {
       role: b.role,
-      messages: buildFinalMessages(b.role, b.messages as ChatMessage[], language.mode),
+      messages: buildFinalMessages(b.role, b.messages as ChatMessage[], language.mode, b.pack_source as PackSource | undefined),
       stream: b.stream === true,
       maxTokens: clampMaxTokens(b.role, b.max_tokens),
       model: chooseModel(b.role, b.model),

@@ -1,6 +1,7 @@
 import path from "path";
 import { defineConfig, Plugin } from "vite";
 import react from "@vitejs/plugin-react";
+import { pdfjsCmaps } from "./scripts/vitePdfjsCmaps";
 
 // Custom plugin to redirect HTTP to HTTPS
 const httpsRedirect = (): Plugin => ({
@@ -50,7 +51,7 @@ export default defineConfig(() => {
           }
         }
       },
-      plugins: [react()],
+      plugins: [react(), pdfjsCmaps()],
       resolve: {
         alias: {
           "@": path.resolve(__dirname, "."),

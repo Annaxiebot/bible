@@ -4,7 +4,8 @@
  * POST /ai-proxy
  * Body: { role: 'ask'|'pack'|'adjust'|'sharing'|'study'|'pick', messages: [{role, content}],
  *         stream?, max_tokens?, temperature?, model?, reasoning?,
- *         content_language? (Ask AI: the pack's mode) }
+ *         content_language? (Ask AI: the pack's mode),
+ *         pack_source? ('guide': a pack from the leader's study-guide PDF, role pack only, ADR-0019) }
  *
  * Any signed-in leader may use AI with no key of their own: this function
  * calls OpenRouter with ONE server-side key (secret OPENROUTER_API_KEY).

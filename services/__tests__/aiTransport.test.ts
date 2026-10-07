@@ -20,7 +20,7 @@ vi.mock('../supabase', () => ({
   },
 }));
 
-import { SCOPE_GUARD } from '../../supabase/functions/_shared/aiPrompts';
+import { SCOPE_GUARD, PACK_FROM_GUIDE_SYSTEM_PROMPT } from '../../supabase/functions/_shared/aiPrompts';
 import { sendAIRequest, ownKeyBody, isAIAvailable, hostedUid, aiProxyUrl, AI_PROXY_FUNCTION, E2E_ACCESS_TOKEN } from '../aiTransport';
 
 const BODY = JSON.stringify({ model: 'google/gemini-2.5-flash', stream: true, max_tokens: 300, messages: [{ role: 'user', content: 'q' }] });
@@ -116,5 +116,20 @@ describe('isAIAvailable', () => {
 
   it('aiProxyUrl tolerates a trailing slash on the base', () => {
     expect(aiProxyUrl('https://p.supabase.co/')).toBe('https://p.supabase.co/functions/v1/ai-proxy');
+  });
+});
+
+describe('ownKeyBody: pack_source (ADR-0019)', () => {
+  const guideBody = (extra: Record<string, unknown>) => JSON.stringify({ ...JSON.parse(BODY), ...extra });
+
+  it('"guide" on pack is consumed: the guide system text goes first, the field is not forwarded', () => {
+    const body = JSON.parse(ownKeyBody('pack', guideBody({ pack_source: 'guide' })));
+    expect(body).not.toHaveProperty('pack_source');
+    expect(body.messages[0].content).toBe(`${SCOPE_GUARD}\n\n${PACK_FROM_GUIDE_SYSTEM_PROMPT}`);
+  });
+
+  it('refused like the proxy refuses it: another role, or another value, throws before anything is sent', () => {
+    expect(() => ownKeyBody('ask', guideBody({ pack_source: 'guide' }))).toThrow('pack_source is only for role pack');
+    expect(() => ownKeyBody('pack', guideBody({ pack_source: 'pdf' }))).toThrow('pack_source must be guide');
   });
 });

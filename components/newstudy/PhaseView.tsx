@@ -4,6 +4,8 @@
  * form → generating (streamed progress + Cancel) → failed (bilingual error +
  * Retry) → editor. The form is hidden until AI is available — signed in or
  * an own key (NewStudyPage renders the AI form above). State lives in NewStudyPage.
+ * Under the form, "从讲义 PDF 生成" (guide/GuideEntry, ADR-0019) reads a guide;
+ * the form phase then carries it and the form reopens on its passage.
  * generating → editor brings the editor's top into view (scrollToTop).
  */
 import React, { useEffect, useRef } from 'react';
@@ -15,9 +17,11 @@ import type { AutoSaveStatus } from './useAutoSave';
 import { NS_CANCEL, NS_RETRY, NS_BACK } from './newStudyStrings';
 import { textStyle, controlStyle, headingStyle, secondaryButtonClass, quietButtonClass } from './newStudyStyles';
 import type { NextStudy } from './nextStudy';
+import type { LoadedGuide } from './guide/loadGuide';
+import { GuideEntry } from './guide/GuideEntry';
 
 export type Phase =
-  | { kind: 'form' }
+  | { kind: 'form'; guide?: LoadedGuide }
   | { kind: 'generating'; req: StudyRequest; step: string; detail: string }
   | { kind: 'failed'; req: StudyRequest; message: string }
   | { kind: 'editor'; pack: StudyPack };
@@ -53,10 +57,23 @@ export interface PhaseViewProps {
   autosave: { status: AutoSaveStatus; error: string | null };
   /** Where the next study starts (useNextStudy); null while it is worked out (a split second after the packs load). */
   suggestion?: NextStudy | null;
+  /** A study guide was read (ADR-0019) or dropped (null): the form reopens with or without it. */
+  onGuide?: (guide: LoadedGuide | null) => void;
 }
 
+/** The form, and under it the study-guide entry; a read guide reopens the form on its passage (key). */
+const FormPhase: React.FC<{
+  guide?: LoadedGuide; suggestion: NextStudy; onGenerate: (req: StudyRequest) => void; onGuide: (guide: LoadedGuide | null) => void;
+}> = ({ guide, suggestion, onGenerate, onGuide }) => (
+  <>
+    <NewStudyForm key={guide ? `guide:${guide.name}:${guide.text.length}` : 'passage'} busy={false} onGenerate={onGenerate}
+      suggestion={suggestion} guide={guide} onDropGuide={() => onGuide(null)} />
+    {!guide && <GuideEntry onGuide={onGuide} />}
+  </>
+);
+
 const PhaseView: React.FC<PhaseViewProps> = ({
-  phase, configured, onGenerate, onCancel, onBack, onChange, onSave, onPreview, autosave, suggestion = null,
+  phase, configured, onGenerate, onCancel, onBack, onChange, onSave, onPreview, autosave, suggestion = null, onGuide = () => {},
 }) => {
   // The last committed kind: the editor scrolls up only when it replaces the progress line.
   const previous = useRef(phase.kind);
@@ -67,7 +84,7 @@ const PhaseView: React.FC<PhaseViewProps> = ({
       // The form waits for the suggestion (a split second after the packs load) and opens on it:
       // opening early and swapping later would drop anything the leader had already typed.
       return configured && suggestion
-        ? <NewStudyForm busy={false} onGenerate={onGenerate} suggestion={suggestion} />
+        ? <FormPhase guide={phase.guide} suggestion={suggestion} onGenerate={onGenerate} onGuide={onGuide} />
         : null;
     case 'generating':
       return <Progress step={phase.step} detail={phase.detail} onCancel={onCancel} />;
