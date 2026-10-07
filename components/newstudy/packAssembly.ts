@@ -17,6 +17,7 @@ import { getBookById } from '../../services/bibleBookData';
 import { GeneratedContent } from './generatedPack';
 import { SU_QR_BODY } from '../signup/signupStrings';
 import { halfWithoutKindLabel } from '../../supabase/functions/send-checkins/promptText';
+import type { LoadedGuide } from './guide/loadGuide';
 
 /** A passage inside one chapter (the editor's range change needs only this). */
 export interface VerseRange {
@@ -32,6 +33,8 @@ export interface StudyRequest extends VerseRange {
   date: string; // ISO yyyy-mm-dd
   /** How much English the model-drafted lines carry (ADR-0003 §1 note). */
   contentLanguage: ContentLanguage;
+  /** The leader's study guide, when the pack is arranged from their PDF (ADR-0019). */
+  guide?: LoadedGuide;
 }
 
 /** Section headings, as the sample pack writes them (Chinese first). */

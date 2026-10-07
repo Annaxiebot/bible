@@ -60,7 +60,13 @@ export interface PackSection {
   headingZh?: string;     // qr only — optional Chinese heading line
   image?: string;         // qr only — legacy static image path; ignored, the QR is drawn per pack
   url?: string;           // qr only — legacy static form URL; ignored, see Slide.signupUrl
+  origin?: SectionOrigin; // study-guide packs only (ADR-0019): copied from the leader's guide, or drafted by the AI
+  notVerbatim?: string[]; // guide sections only: lines not word for word in the guide (flagged in the editor)
 }
+
+/** Where a study-guide pack's section came from (ADR-0019 §5); absent on every other pack. */
+export type SectionOrigin = 'guide' | 'ai';
+const SECTION_ORIGINS: readonly SectionOrigin[] = ['guide', 'ai'];
 
 // Bump on pack-shape changes; appended to the pack URL so a 10-min CDN-cached pack never meets newer code.
 export const PACK_SCHEMA_VERSION = 2;
@@ -157,6 +163,12 @@ function parseSection(raw: unknown, index: number): PackSection {
   }
   if (s.kind === 'qr' && s.image !== undefined && typeof s.image !== 'string') {
     throw new Error(`StudyPack qr section ${index} legacy image must be a string when present`);
+  }
+  if (s.origin !== undefined && !SECTION_ORIGINS.includes(s.origin)) {
+    throw new Error(`StudyPack section ${index} origin must be guide | ai when present`);
+  }
+  if (s.notVerbatim !== undefined && !isStringArray(s.notVerbatim)) {
+    throw new Error(`StudyPack section ${index} notVerbatim must be a string[] when present`);
   }
   if (s.body !== undefined && !isStringArray(s.body)) {
     throw new Error(`StudyPack section ${index} (${s.kind}) body must be a string[]`);

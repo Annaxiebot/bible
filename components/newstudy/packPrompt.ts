@@ -41,6 +41,20 @@ export const PACK_LENGTH_LIMITS = [
   'closing 1 line; title and keyPhrase a few words. Be concrete, not wordy.',
 ].join('\n');
 
+/** How many items each section gets (the study-guide path keeps the guide's own counts for the sections it copies). */
+export const PACK_COUNTS = [
+  'COUNTS: context = 3 short paragraphs; originalLanguage = 2–3 notes on key',
+  'Greek/Hebrew words (transliterated, with the meaning); crossRefs = 4–5 real',
+  'Bible references written in English as "Book C:V" or "Book C:V-V" with a',
+  'one-line reason each; discussion = 5 questions, concrete, moving from the',
+  'text to the group\'s own week; lifeMenu = exactly these seven areas in this',
+  `order, one practice each: ${LIFE_AREAS.join('; ')}; reflection = one`,
+  'Tuesday check-in, one Thursday check-in, one weekend review; closing = the',
+  'question next Friday opens with, asking what happened when the chosen',
+  'practice met real life. keyPhrase = a short phrase quoted from the passage',
+  'with its verse number.',
+].join('\n');
+
 /** The user turn that asks the model to finish a reply cut off by max_tokens (one attempt). */
 export const PACK_CONTINUE_PROMPT =
   '继续输出未完成的 JSON，从中断处接着写，不要重复 · ' +
@@ -60,8 +74,9 @@ export interface PromptInput {
  * The JSON shape the model must return for a mode: a bilingual item has both
  * halves, a keywords mode only its own half (title and keyPhrase always both).
  * Kept as a literal template so the prompt and the validator agree.
+ * `extraKeys` ("key": value lines) follow closing — the study-guide path adds "fromGuide".
  */
-export function generatedShape(mode: ContentLanguage): string {
+export function generatedShape(mode: ContentLanguage, extraKeys: readonly string[] = []): string {
   const item = (zh: string, en: string, extra = '') => {
     const halves = mode === 'zh-keywords' ? [`"zh": "${zh}"`]
       : mode === 'en-keywords' ? [`"en": "${en}"`]
@@ -79,7 +94,8 @@ export function generatedShape(mode: ContentLanguage): string {
     `  "discussion": [${dots}],`,
     `  "lifeMenu": [${item('具体操练', 'concrete practice', '"area": "健康 Health", ')}],`,
     `  "reflection": {"tue": ${dots}, "thu": ${dots}, "weekend": ${dots}},`,
-    `  "closing": ${item('下周五的开场问题', 'the question next Friday opens with')}`,
+    `  "closing": ${item('下周五的开场问题', 'the question next Friday opens with')}${extraKeys.length ? ',' : ''}`,
+    ...extraKeys.map((key, i) => `  ${key}${i < extraKeys.length - 1 ? ',' : ''}`),
     '}',
   ].join('\n');
 }
@@ -87,15 +103,25 @@ export function generatedShape(mode: ContentLanguage): string {
 /** The bilingual shape (legacy packs' format; tests pin it). */
 export const GENERATED_SHAPE = generatedShape('bilingual');
 
-function formatPassage(verses: PackVerse[]): string {
+/** The passage as source material: each verse's 和合本 then English line. */
+export function formatPassage(verses: PackVerse[]): string {
   return verses.map(v => `${v.num} ${v.cuv}\n${v.num} ${v.en}`).join('\n');
+}
+
+/** The leader typed a lesson title: the model keeps it. */
+export function lessonTitleLine(lessonTitle: string): string {
+  return `The leader's lesson title is "${lessonTitle}" — keep it as the title (translate the missing half).`;
+}
+
+/** The JSON-shape instruction that closes the prompt. */
+export function strictShapeLine(shape: string): string {
+  return `Return STRICT JSON with exactly this shape (no extra keys, no comments; the shape is indented here only for reading — your output is not):\n${shape}`;
 }
 
 /** The user-turn prompt: passage, content contract, the mode's line rule, exact JSON shape, counts and totals. */
 export function buildPackPrompt(input: PromptInput): string {
   const contract = CONTENT_LANGUAGE_CONTRACTS[input.contentLanguage];
-  const titleLine = input.lessonTitle
-    ? `The leader's lesson title is "${input.lessonTitle}" — keep it as the title (translate the missing half).`
+  const titleLine = input.lessonTitle ? lessonTitleLine(input.lessonTitle)
     : 'Give the pack a short bilingual title taken from the passage\'s main theme.';
   return [
     `Draft a Friday small-group study pack for ${input.passageRef}.`,
@@ -103,20 +129,9 @@ export function buildPackPrompt(input: PromptInput): string {
     PACK_CONTENT_CONTRACT,
     contract.lineRule,
     titleLine,
-    [
-      'COUNTS: context = 3 short paragraphs; originalLanguage = 2–3 notes on key',
-      'Greek/Hebrew words (transliterated, with the meaning); crossRefs = 4–5 real',
-      'Bible references written in English as "Book C:V" or "Book C:V-V" with a',
-      'one-line reason each; discussion = 5 questions, concrete, moving from the',
-      'text to the group\'s own week; lifeMenu = exactly these seven areas in this',
-      `order, one practice each: ${LIFE_AREAS.join('; ')}; reflection = one`,
-      'Tuesday check-in, one Thursday check-in, one weekend review; closing = the',
-      'question next Friday opens with, asking what happened when the chosen',
-      'practice met real life. keyPhrase = a short phrase quoted from the passage',
-      'with its verse number.',
-    ].join('\n'),
+    PACK_COUNTS,
     `${PACK_LENGTH_LIMITS}\n${contract.totalTarget}`,
     PACK_COMPACT_JSON_RULE,
-    `Return STRICT JSON with exactly this shape (no extra keys, no comments; the shape is indented here only for reading — your output is not):\n${generatedShape(input.contentLanguage)}`,
+    strictShapeLine(generatedShape(input.contentLanguage)),
   ].join('\n\n');
 }

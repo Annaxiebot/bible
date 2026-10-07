@@ -131,6 +131,18 @@ describe('parseStudyPack', () => {
     expect(() => parseStudyPack(pack)).toThrow('legacy image');
   });
 
+  it('a study-guide pack\'s section origin (guide | ai) and notVerbatim lines parse; anything else is refused (ADR-0019)', () => {
+    const pack = JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8'));
+    const discussion = pack.sections.find((s: { kind: string }) => s.kind === 'discussion');
+    Object.assign(discussion, { origin: 'guide', notVerbatim: [discussion.questions[0]] });
+    expect(parseStudyPack(pack).sections.find(s => s.kind === 'discussion')).toMatchObject({ origin: 'guide' });
+    expect(buildSlides(parseStudyPack(pack))).toEqual(buildSlides(loadRealPack())); // the TV ignores both
+    discussion.origin = 'pdf';
+    expect(() => parseStudyPack(pack)).toThrow('origin must be guide | ai');
+    Object.assign(discussion, { origin: 'ai', notVerbatim: 'one line' });
+    expect(() => parseStudyPack(pack)).toThrow('notVerbatim must be a string[]');
+  });
+
   it('rejects scripture verses missing a translation', () => {
     const pack = JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8'));
     const scripture = pack.sections.find((s: { kind: string }) => s.kind === 'scripture');
