@@ -9,7 +9,7 @@ import { useEffect, useState } from 'react';
 import type { StudyPack } from '../studypack/packTypes';
 import { TRANSLATIONS } from '../studypack/principles';
 import { fetchBundledChapter } from '../../services/bibleDataSource';
-import { NextStudy, suggestNextStudy, VerseCounter } from './nextStudy';
+import { FIRST_STUDY, NextStudy, suggestNextStudy, VerseCounter } from './nextStudy';
 
 const bundledVerseCount: VerseCounter = async (bookId, chapter) => {
   const data = await fetchBundledChapter(bookId, chapter, TRANSLATIONS.zh.id);
@@ -21,7 +21,11 @@ export function useNextStudy(packs: readonly StudyPack[], loaded: boolean): Next
   useEffect(() => {
     if (!loaded) return;
     let live = true;
-    void suggestNextStudy(packs, bundledVerseCount).then(s => { if (live) setNext(s); });
+    suggestNextStudy(packs, bundledVerseCount)
+      // R5 (c): a failed suggestion must never keep the form closed (PhaseView waits for it);
+      // the leader still gets a usable form on the first study and can pick any passage.
+      .catch(() => FIRST_STUDY)
+      .then(s => { if (live) setNext(s); });
     return () => { live = false; };
   }, [packs, loaded]);
   return next;
