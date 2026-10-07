@@ -20,6 +20,8 @@ import { stampLeader } from './packAssembly';
 import { stampUpdated, schedulePackPush, deletePackEverywhere, subscribePackSyncStatus } from './packSync';
 import { syncPackSummary } from '../signup/packSummary';
 import { NS_ERR_STORAGE, NS_ERR_IMPORT } from './newStudyStrings';
+import { backupFileName, buildBackup, readBackup } from './packBackup';
+import { todayIso } from './NewStudyForm';
 
 export interface LocalPacks {
   packs: StudyPack[];
@@ -31,8 +33,10 @@ export interface LocalPacks {
   refresh: () => Promise<void>;
   save: (pack: StudyPack) => Promise<void>;
   remove: (id: string) => Promise<void>;
-  exportJson: (pack: StudyPack) => void;
-  importJson: (file: File) => Promise<void>;
+  /** Download every study as one backup file (packBackup.ts). */
+  exportBackup: () => void;
+  /** Restore a backup file (or an old single-pack export); returns how many studies were restored. */
+  importBackup: (file: File) => Promise<number>;
 }
 
 function describe(prefix: string, err: unknown): string {
@@ -93,20 +97,21 @@ export function useLocalPacks(): LocalPacks {
     await refresh();
   }, [refresh]);
 
-  const exportJson = useCallback((pack: StudyPack) => {
-    downloadFile(JSON.stringify(pack, null, 2), `${pack.id}.json`, 'application/json');
-  }, []);
+  const exportBackup = useCallback(() => {
+    downloadFile(buildBackup(packs, new Date().toISOString()), backupFileName(todayIso()), 'application/json');
+  }, [packs]);
 
-  const importJson = useCallback(async (file: File) => {
-    let pack: StudyPack;
+  const importBackup = useCallback(async (file: File): Promise<number> => {
+    let restored: StudyPack[];
     try {
-      pack = localizeImportedPack(JSON.parse(await file.text()));
+      restored = readBackup(JSON.parse(await file.text())).map(localizeImportedPack);
     } catch (err) {
       setError(describe(NS_ERR_IMPORT, err));
-      return;
+      return 0;
     }
-    await save(pack);
+    for (const pack of restored) await save(pack);
+    return restored.length;
   }, [save]);
 
-  return { packs, invalid, error, loaded, refresh, save, remove, exportJson, importJson };
+  return { packs, invalid, error, loaded, refresh, save, remove, exportBackup, importBackup };
 }

@@ -1,20 +1,22 @@
 /**
  * PackList.tsx — "我的查经包 My packs" · 本地查经包列表
  *
- * Edit (the editor at #/new/<id>), export JSON (download), sign-ups (the
- * leader list at #/leader/<id>), delete (with a bilingual confirm), import
- * JSON (file picker). Storage errors and the account sync line render inline.
+ * Edit (the editor at #/new/<id>), sign-ups (the leader list at
+ * #/leader/<id>), delete (with a bilingual confirm), and one quiet
+ * "备份与恢复 · Backup & restore" link (BackupPanel). Storage errors and the
+ * account sync line render inline.
  */
-import React, { useRef } from 'react';
+import React from 'react';
 import { StudyPack } from '../studypack/packTypes';
 import { LocalPacks } from './useLocalPacks';
 import { PackSyncLine } from './PackSyncLine';
 import { leaderHash } from '../leader/leaderRoute';
 import { newStudyHash } from '../landing/landingRoute';
 import {
-  NS_MY_PACKS, NS_NO_PACKS, NS_EDIT, NS_EXPORT, NS_IMPORT, NS_DELETE, NS_DELETE_CONFIRM, NS_INVALID_RECORDS, NS_SIGNUPS,
+  NS_MY_PACKS, NS_NO_PACKS, NS_EDIT, NS_DELETE, NS_DELETE_CONFIRM, NS_INVALID_RECORDS, NS_SIGNUPS,
 } from './newStudyStrings';
 import { textStyle, controlStyle, headingStyle, secondaryButtonClass, quietButtonClass } from './newStudyStyles';
+import BackupPanel from './BackupPanel';
 
 interface Props {
   packs: LocalPacks;
@@ -31,9 +33,6 @@ const PackRow: React.FC<{ pack: StudyPack; packs: LocalPacks; onOpen: (pack: Stu
         className={`${secondaryButtonClass} inline-flex items-center`} style={controlStyle}>
         {NS_EDIT}
       </a>
-      <button type="button" onClick={() => packs.exportJson(pack)} className={secondaryButtonClass} style={controlStyle}>
-        {NS_EXPORT}
-      </button>
       <a href={leaderHash(pack.id)} data-testid="pack-signups" className={`${secondaryButtonClass} inline-flex items-center`} style={controlStyle}>
         {NS_SIGNUPS}
       </a>
@@ -49,23 +48,10 @@ const PackRow: React.FC<{ pack: StudyPack; packs: LocalPacks; onOpen: (pack: Stu
 );
 
 const PackList: React.FC<Props> = ({ packs, onOpen }) => {
-  const fileRef = useRef<HTMLInputElement>(null);
   return (
     <section data-testid="pack-list" className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 className="font-bold text-amber-300" style={headingStyle}>{NS_MY_PACKS}</h2>
-        <button type="button" onClick={() => fileRef.current?.click()} className={secondaryButtonClass} style={controlStyle}>
-          {NS_IMPORT}
-        </button>
-        <input
-          ref={fileRef} type="file" accept="application/json,.json" className="hidden" data-testid="ns-import-file"
-          aria-label={NS_IMPORT}
-          onChange={e => {
-            const file = e.target.files?.[0];
-            if (file) void packs.importJson(file);
-            e.target.value = '';
-          }}
-        />
       </div>
       {packs.error && <p role="alert" className="text-red-300" style={textStyle}>{packs.error}</p>}
       <PackSyncLine />
@@ -79,6 +65,7 @@ const PackList: React.FC<Props> = ({ packs, onOpen }) => {
             {packs.packs.map(p => <PackRow key={p.id} pack={p} packs={packs} onOpen={onOpen} />)}
           </ul>
         )}
+      <BackupPanel packs={packs} />
     </section>
   );
 };

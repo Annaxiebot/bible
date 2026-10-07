@@ -8,7 +8,7 @@ import PackList from '../PackList';
 import { assemblePack } from '../packAssembly';
 import { validateGenerated } from '../generatedPack';
 import { JOHN3_GENERATED, JOHN3_REQUEST } from './fixtures';
-import { NS_SIGNUPS, NS_EDIT, NS_EXPORT, NS_DELETE } from '../newStudyStrings';
+import { NS_SIGNUPS, NS_EDIT, NS_DELETE, NS_BACKUP_TOGGLE, NS_BACKUP_DOWNLOAD } from '../newStudyStrings';
 import { leaderHash } from '../../leader/leaderRoute';
 import { newStudyHash } from '../../landing/landingRoute';
 import { fireEvent } from '@testing-library/react';
@@ -19,11 +19,11 @@ const pack = assemblePack(JOHN3_REQUEST, verses, validateGenerated(JOHN3_GENERAT
 
 const packs: LocalPacks = {
   packs: [pack], invalid: [], error: null, loaded: true,
-  refresh: vi.fn(), save: vi.fn(), remove: vi.fn(), exportJson: vi.fn(), importJson: vi.fn(),
+  refresh: vi.fn(), save: vi.fn(), remove: vi.fn(), exportBackup: vi.fn(), importBackup: vi.fn(),
 };
 
 describe('PackList', () => {
-  it('each row has an Edit link to #/new/<id> (opening in place), Export, a Sign-ups link to #/leader/<id>, and Delete', () => {
+  it('each row has an Edit link to #/new/<id> (opening in place), a Sign-ups link to #/leader/<id>, and Delete', () => {
     const onOpen = vi.fn();
     render(<PackList packs={packs} onOpen={onOpen} />);
     const row = screen.getByTestId('pack-row');
@@ -31,10 +31,19 @@ describe('PackList', () => {
     expect(edit).toHaveAttribute('href', newStudyHash(pack.id));
     fireEvent.click(edit);
     expect(onOpen).toHaveBeenCalledWith(pack);
-    expect(within(row).getByRole('button', { name: NS_EXPORT })).toBeInTheDocument();
+    expect(within(row).queryByText(/JSON/)).toBeNull(); // no per-pack JSON button (owner: too technical, rarely used)
     expect(within(row).getByRole('button', { name: NS_DELETE })).toBeInTheDocument();
     const link = within(row).getByRole('link', { name: NS_SIGNUPS });
     expect(link).toHaveAttribute('href', leaderHash(pack.id));
     expect(link).toHaveAttribute('data-testid', 'pack-signups');
+  });
+
+  it('backup & restore is one quiet link; its panel explains it and downloads every study as one file', () => {
+    render(<PackList packs={packs} onOpen={vi.fn()} />);
+    expect(screen.queryByTestId('backup-panel')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: NS_BACKUP_TOGGLE }));
+    fireEvent.click(screen.getByRole('button', { name: NS_BACKUP_DOWNLOAD }));
+    expect(packs.exportBackup).toHaveBeenCalledTimes(1);
+    expect(screen.getByTestId('pack-list').textContent).not.toMatch(/JSON/);
   });
 });

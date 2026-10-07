@@ -118,12 +118,19 @@ export const NS_ERR_DUPLICATE_SECTION = bilingualLine('这种段落只能有一�
 export const NS_MY_PACKS = bilingual('我的查经包', 'My packs');
 export const NS_NO_PACKS = bilingualLine('还没有查经包', 'No packs yet');
 export const NS_EDIT = bilingual('编辑', 'Edit');
-export const NS_EXPORT = bilingual('导出 JSON', 'Export JSON');
-export const NS_IMPORT = bilingual('导入 JSON', 'Import JSON');
+/** The one quiet link under My packs; most leaders never need it (signed-in studies save online). */
+export const NS_BACKUP_TOGGLE = bilingual('备份与恢复', 'Backup & restore');
+export const NS_BACKUP_NOTE = bilingualLine(
+  '登录后查经包自动保存在云端；备份文件适合想自己保存一份的人',
+  'When you are signed in, your studies are saved online automatically; a backup file is for keeping your own copy',
+);
+export const NS_BACKUP_DOWNLOAD = bilingual('下载备份文件', 'Download a backup file');
+export const NS_BACKUP_RESTORE = bilingual('从备份文件恢复', 'Restore from a backup file');
+export const NS_BACKUP_RESTORED = (n: number) => bilingualLine(`已恢复 ${n} 个查经包`, `Restored ${n} ${n === 1 ? 'study' : 'studies'}`);
 export const NS_DELETE = bilingual('删除', 'Delete');
 export const NS_SIGNUPS = bilingual('报名', 'Sign-ups');
 export const NS_DELETE_CONFIRM = bilingualLine('确定删除这个查经包？', 'Delete this study pack?');
-export const NS_ERR_IMPORT = bilingualLine('导入失败：文件不是有效的查经包', 'Import failed: the file is not a valid study pack');
+export const NS_ERR_IMPORT = bilingualLine('恢复失败：这不是有效的备份文件', 'Restore failed: this is not a valid backup file');
 export const NS_ERR_STORAGE = bilingualLine('浏览器存储出错', 'Browser storage error');
 export const NS_INVALID_RECORDS = bilingualLine('无法读取的记录', 'Unreadable records');
 

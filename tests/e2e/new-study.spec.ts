@@ -16,7 +16,7 @@ import { test, expect } from '@playwright/test';
 import { NEW_STUDY_LINE } from '../../components/landing/landingStrings';
 import { SETUP_TITLE, SETUP_SIGN_IN_TO_USE_AI } from '../../components/setup/setupStrings';
 import {
-  NS_TITLE, NS_BOOK, NS_GENERATE, NS_EDIT_TITLE, NS_SAVE, NS_SAVED, NS_AUTOSAVED, NS_PREVIEW, NS_EXPORT, NS_MY_PACKS, NS_EDIT,
+  NS_TITLE, NS_BOOK, NS_GENERATE, NS_EDIT_TITLE, NS_SAVE, NS_SAVED, NS_AUTOSAVED, NS_PREVIEW, NS_BACKUP_TOGGLE, NS_BACKUP_DOWNLOAD, NS_MY_PACKS, NS_EDIT,
   NS_SCRIPTURE_NOTE, NS_RETRY, NS_ERR_NO_JSON, NS_RANGE_UPDATED, NS_SECTION_REMOVE_CONFIRM,
   NS_CONTENT_LANGUAGE, NS_CONTENT_LANGUAGE_OPTIONS,
 } from '../../components/newstudy/newStudyStrings';
@@ -134,19 +134,21 @@ test.describe('New study', () => {
     await expect(page.getByText(NS_EDIT_TITLE)).toBeVisible();
     await expect(editor.getByText(/他必兴旺，我必衰微/).first()).toBeVisible();
 
-    // Back to the page: the pack is listed with Edit; Export downloads its JSON.
+    // Back to the page: the pack is listed with Edit; "Backup & restore" downloads every study in one file.
     await openNewStudy(page);
     const row = page.getByTestId('pack-row').first();
     await expect(row).toContainText('祂必兴旺，我必衰微');
     await expect(row.getByRole('link', { name: NS_EDIT })).toHaveAttribute('href', newStudyHash(PACK_ID));
+    await expect(page.getByTestId('pack-list')).not.toContainText('JSON');
+    await page.getByRole('button', { name: NS_BACKUP_TOGGLE }).click();
     const download = page.waitForEvent('download');
-    await row.getByRole('button', { name: NS_EXPORT }).click();
+    await page.getByRole('button', { name: NS_BACKUP_DOWNLOAD }).click();
     const file = await download;
-    expect(file.suggestedFilename()).toBe(`${PACK_ID}.json`);
+    expect(file.suggestedFilename()).toMatch(/^scripturetolife-studies-\d{4}-\d{2}-\d{2}\.json$/);
     const body = await (await file.createReadStream()).toArray();
-    const json = JSON.parse(Buffer.concat(body).toString('utf-8')) as { id: string; enVersion: string };
-    expect(json.id).toBe(PACK_ID);
-    expect(json.enVersion).toBe('BSB');
+    const json = JSON.parse(Buffer.concat(body).toString('utf-8')) as { packs: Array<{ id: string; enVersion: string }> };
+    expect(json.packs.map(p => p.id)).toContain(PACK_ID);
+    expect(json.packs.find(p => p.id === PACK_ID)!.enVersion).toBe('BSB');
   });
 
   test('editor: change the range to John 3:22–30 without regenerating, move a section, remove one with inline confirm → Preview order', async ({ page }) => {
