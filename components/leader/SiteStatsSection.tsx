@@ -15,11 +15,11 @@ import {
 import { textStyle } from '../newstudy/newStudyStyles';
 
 const FigureList: React.FC<{ figures: StatFigure[]; stats: SiteStats }> = ({ figures, stats }) => (
-  <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+  <dl className="flex flex-wrap gap-x-6 gap-y-2" style={textStyle}>
     {figures.map(f => (
-      <div key={f.key} data-testid={`site-stat-${f.key}`} className="rounded-lg border border-stl-border px-4 py-3">
-        <dt className="text-stl-gold font-semibold" style={{ fontSize: '1.75rem' }}>{stats[f.key].toLocaleString('en-US')}</dt>
-        <dd className="text-stl-text-2" style={textStyle}>{f.zh} {f.en}</dd>
+      <div key={f.key} data-testid={`site-stat-${f.key}`} className="flex items-baseline gap-2">
+        <dt className="font-semibold text-stl-gold">{stats[f.key].toLocaleString('en-US')}</dt>
+        <dd className="text-stl-text-2">{f.zh} {f.en}</dd>
       </div>
     ))}
   </dl>
@@ -30,13 +30,13 @@ const SiteStatsSection: React.FC = () => {
   const quiet = (text: string) => <p className="text-stl-text-3" style={textStyle}>{text}</p>;
   return (
     <section data-testid="lh-site-stats" className="flex flex-col gap-3 border-t border-stl-border pt-6">
-      <h2 className="font-semibold text-stl-text" style={textStyle}>{STATS_TITLE}</h2>
+      <h2 className="text-stl-text-2" style={textStyle}>{STATS_TITLE}</h2>
       {state.status === 'loading' && quiet(STATS_LOADING)}
       {state.status === 'failed' && <div data-testid="lh-site-stats-failed">{quiet(STATS_FAILED)}</div>}
       {state.status === 'ok' && (
         <>
           <FigureList figures={SITE_STAT_FIGURES.filter(f => !LIVING_KEYS.includes(f.key))} stats={state.stats} />
-          <h3 className="text-stl-text-2" style={textStyle}>{STATS_LIVING}</h3>
+          <h3 className="text-stl-text-3" style={textStyle}>{STATS_LIVING}</h3>
           <FigureList figures={SITE_STAT_FIGURES.filter(f => LIVING_KEYS.includes(f.key))} stats={state.stats} />
           {quiet(STATS_PRIVATE_NOTE)}
         </>

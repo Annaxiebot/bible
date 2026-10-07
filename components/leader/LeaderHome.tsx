@@ -19,7 +19,7 @@ import { NS_NO_PACKS, NS_INVALID_RECORDS } from '../newstudy/newStudyStrings';
 import { PackSyncLine } from '../newstudy/PackSyncLine';
 import { useLeaderSession } from './useLeaderSession';
 import { useLeaderPacks } from './leaderHomeData';
-import { LeaderPackRow, linkButtonClass } from './LeaderPackRow';
+import { LeaderPackRow, primaryLinkClass } from './LeaderPackRow';
 import { LH_TITLE, LH_SIGNIN, LH_LOADING, LD_BACK } from './leaderStrings';
 import { LeaderSignOut } from './LeaderSignOut';
 import SiteStatsSection from './SiteStatsSection';
@@ -45,7 +45,7 @@ const MyPacks: React.FC<{ uid: string }> = ({ uid }) => {
   const { packs, invalid, counts, error, countsError } = useLeaderPacks(uid);
   return (
     <section data-testid="lh-packs" className="flex flex-col gap-4">
-      <a href={NEW_STUDY_HASH} data-testid="lh-new" className={`${linkButtonClass} self-start`} style={controlStyle}>{NEW_STUDY_LINE}</a>
+      <a href={NEW_STUDY_HASH} data-testid="lh-new" className={`${primaryLinkClass} self-start`} style={controlStyle}>＋ {NEW_STUDY_LINE}</a>
       <PackSyncLine />
       {error && alert(error)}
       {countsError && alert(countsError)}
@@ -69,12 +69,14 @@ const LeaderHome: React.FC = () => {
     <div data-testid="leader-home" className="fixed inset-0 overflow-y-auto bg-stl-bg text-stl-text">
       <div className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-8 sm:px-6">
         <header className="flex items-start justify-between gap-4">
-          <h1 className="font-bold text-stl-gold" style={pageTitleStyle}>{LH_TITLE}</h1>
+          <div className="flex flex-col gap-1">
+            <h1 className="font-bold text-stl-gold" style={pageTitleStyle}>{LH_TITLE}</h1>
+            {session.uid && <LeaderSignOut email={session.email} />}
+          </div>
           <a href={LANDING_HASH} className="rounded-lg px-4 text-stl-text-2 hover:text-stl-text" style={controlStyle} aria-label={LD_BACK}>✕</a>
         </header>
         {!session.configured && alert(SU_ERR_NOT_CONFIGURED)}
         {session.configured && !session.loading && !session.uid && <SignInPrompt />}
-        {session.uid && <LeaderSignOut email={session.email} />}
         {session.uid && <MyPacks uid={session.uid} />}
         {session.uid && <SiteStatsSection />}
       </div>

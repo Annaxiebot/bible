@@ -57,7 +57,7 @@ export const LH_SIGNIN = bilingualLine('带领者请登录，在任何设备上�
 export const LH_LOADING = bilingualLine('读取查经包中', 'Loading your packs');
 export const LH_PRESENT = bilingual('放映', 'Present');
 export const LH_RESPONSES = bilingual('报名与反馈', 'Sign-ups & responses');
-export const LH_QR = bilingual('报名二维码', 'Sign-up QR');
+export const LH_QR = bilingual('二维码', 'QR');
 export const LH_ERR_COUNTS = bilingualLine('读取报名与分享人数失败', 'Could not load the sign-up and sharing counts');
 export function packCountsLine(signups: number, answers: number): string {
   return bilingualLine(`报名 ${signups} 人，分享 ${answers} 条`, `${signups} signed up, ${answers} shared`);

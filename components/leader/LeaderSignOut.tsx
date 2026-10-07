@@ -22,11 +22,11 @@ export const LeaderSignOut: React.FC<{ email: string | null }> = ({ email }) => 
     setError(failure ? failure.message : null);
   };
   return (
-    <div data-testid="leader-sign-out" className="flex flex-wrap items-center gap-3">
-      {email && <span className="text-stl-text-2" style={textStyle}>{email}</span>}
+    <div data-testid="leader-sign-out" className="flex flex-wrap items-center gap-x-2 text-stl-text-2" style={textStyle}>
+      {email && <span>{email}</span>}
+      {email && <span aria-hidden="true">·</span>}
       <button type="button" onClick={() => void signOut()} disabled={busy}
-        className="rounded-lg border border-stl-border px-4 text-stl-text-2 hover:text-stl-text disabled:opacity-60"
-        style={controlStyle}>
+        className="underline underline-offset-4 hover:text-stl-text disabled:opacity-60" style={controlStyle}>
         {SETUP_SIGN_OUT}
       </button>
       {error && <p role="alert" className="w-full text-red-300" style={textStyle}>{SETUP_SIGN_OUT_FAILED} · {error}</p>}
