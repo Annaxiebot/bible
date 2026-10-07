@@ -6,7 +6,8 @@
  * as well). The month key is UTC 'YYYY-MM', the same one consume_ai_quota
  * writes. A role never used this month shows 0/<default limit>; once used,
  * the row carries the limit the server applied. Ask, pack and study (the
- * personal app) always show; adjust and sharing once they have a row. A failed read is surfaced (R5).
+ * personal app) always show; adjust, sharing and pick (ADR-0016) once they
+ * have a row. A failed read is surfaced (R5).
  */
 import { useEffect, useState } from 'react';
 import { getSignupClient } from '../signup/signupClient';
@@ -14,7 +15,7 @@ import { AI_USAGE_TABLE, DEFAULT_MONTHLY_LIMITS, AIRole, isAIRole } from '../../
 import { UsageEntry } from './setupStrings';
 
 const ALWAYS_SHOWN: readonly AIRole[] = ['ask', 'pack', 'study'];
-const ROLE_ORDER: readonly AIRole[] = ['ask', 'pack', 'study', 'adjust', 'sharing'];
+const ROLE_ORDER: readonly AIRole[] = ['ask', 'pack', 'study', 'adjust', 'sharing', 'pick'];
 
 /** UTC 'YYYY-MM' — the consume_ai_quota month (pinned by database/__tests__/aiUsageSchema.test.ts). */
 export function currentUsageMonth(now: Date = new Date()): string {

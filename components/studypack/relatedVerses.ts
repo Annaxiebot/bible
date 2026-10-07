@@ -13,6 +13,8 @@
  *   4. keep the top RELATED_VERSES_MAX, at most RELATED_PER_BOOK per book;
  *   5. load their 和合本 + BSB text with the bundled-chapter loader
  *      (externalVerses.ts — no second Bible loader).
+ * ADR-0016: step 4 may instead be a question-aware pick from the whole
+ * ranked pool (relatedPick.ts, passed in as a TargetChooser).
  * A load failure never stops the answer: what loaded is used and the
  * failure is returned in `warnings` (and kept for tests in
  * lastRelatedVerses / window.__RELATED_VERSES__ in dev) — never a silent
@@ -51,7 +53,13 @@ export interface RankedTarget extends XrefTarget {
 }
 export interface PassageSpan { bookId: string; chapter: number; verses: ReadonlySet<number> }
 export interface RelatedVerse extends RelatedVerseText { ref: string; votes: number }
-export interface RelatedVersesResult { related: RelatedVerse[]; warnings: string[] }
+/** How the final list was chosen: the vote ranking (ADR-0015), or the question-aware pick call (ADR-0016). */
+export type RelatedSource = 'votes' | 'pick';
+export interface RelatedVersesResult { related: RelatedVerse[]; warnings: string[]; source: RelatedSource }
+/** A chooser's verdict: the targets to load, how they were chosen, and anything to report (R5). */
+export interface ChosenTargets { targets: RankedTarget[]; source: RelatedSource; warnings: string[] }
+/** Picks the final targets from the ranked pool; `byVotes` is today's top RELATED_VERSES_MAX. Must not reject. */
+export type TargetChooser = (pool: RankedTarget[], byVotes: RankedTarget[]) => Promise<ChosenTargets>;
 
 const COMPACT_REF = /^([1-3A-Z]{3})\.(\d+)\.(\d+)(?:-(\d+))?$/;
 
@@ -101,23 +109,42 @@ function sumTargets(file: XrefChapter, passage: PassageSpan, focus: ReadonlySet<
 }
 
 /**
- * Steps 2–4, pure: the ranked, capped targets (focus seeds' targets first,
- * then summed normalised score, raw votes, canonical order) plus any malformed refs met.
+ * Steps 2–3, pure: every target in rank order (focus seeds' targets first,
+ * then summed normalised score, raw votes, canonical order), a target that
+ * overlaps a better-ranked one dropped — the candidate pool (ADR-0016) —
+ * plus any malformed refs met. No per-book cap: that applies to the final list.
  */
-export function rankRelated(
+export function rankPool(
   file: XrefChapter, passage: PassageSpan, focus: ReadonlySet<number> = new Set()
 ): { targets: RankedTarget[]; malformed: string[] } {
   const malformed: string[] = [];
+  const pool: RankedTarget[] = [];
+  for (const t of sumTargets(file, passage, focus, malformed).sort(compareTargets)) {
+    if (!pool.some(p => overlaps(p, t))) pool.push(t);
+  }
+  return { targets: pool, malformed };
+}
+
+/** Step 4: the first `max` of `ordered`, at most RELATED_PER_BOOK per book, overlaps and repeats skipped. */
+export function capByBook(ordered: readonly RankedTarget[], max: number = RELATED_VERSES_MAX): RankedTarget[] {
   const picked: RankedTarget[] = [];
   const perBook = new Map<string, number>();
-  for (const t of sumTargets(file, passage, focus, malformed).sort(compareTargets)) {
-    if (picked.length === RELATED_VERSES_MAX) break;
+  for (const t of ordered) {
+    if (picked.length === max) break;
     if ((perBook.get(t.bookId) ?? 0) >= RELATED_PER_BOOK) continue;
     if (picked.some(p => overlaps(p, t))) continue;
     picked.push(t);
     perBook.set(t.bookId, (perBook.get(t.bookId) ?? 0) + 1);
   }
-  return { targets: picked, malformed };
+  return picked;
+}
+
+/** Steps 2–4, pure: the vote-ranked, capped targets (ADR-0015) plus any malformed refs met. */
+export function rankRelated(
+  file: XrefChapter, passage: PassageSpan, focus: ReadonlySet<number> = new Set()
+): { targets: RankedTarget[]; malformed: string[] } {
+  const { targets, malformed } = rankPool(file, passage, focus);
+  return { targets: capByBook(targets), malformed };
 }
 
 /** Passage verses the question names (bare "第7节 / v.7", or this book+chapter) — the seeds that rank first. */
@@ -166,6 +193,16 @@ function labelOf(t: XrefTarget, verses: number[]): string {
   return bilingualRefLabel(ref);
 }
 
+/** A target's whole range as a bilingual label ("以赛亚书 65:17 · Isaiah 65:17") — the pick call's candidate line. */
+export function targetLabel(t: XrefTarget): string {
+  const verses: number[] = [];
+  for (let v = t.from; v <= t.to; v++) verses.push(v);
+  return labelOf(t, verses);
+}
+
+/** Today's chooser (ADR-0015): the vote-ranked top RELATED_VERSES_MAX. */
+const byVotesOnly: TargetChooser = async (_pool, byVotes) => ({ targets: byVotes, source: 'votes', warnings: [] });
+
 /** Step 5: each target's 和合本 + BSB text; a failed load drops that entry with a warning. */
 async function withText(targets: RankedTarget[], warnings: string[]): Promise<RelatedVerse[]> {
   const loaded = await Promise.all(targets.map(async (t): Promise<RelatedVerse | null> => {
@@ -195,24 +232,32 @@ function remember(result: RelatedVersesResult): RelatedVersesResult {
   return result;
 }
 
-/** Steps 1–5 for one question. Never rejects: failures come back in `warnings`. */
-export async function loadRelatedVerses(pack: StudyPack, question: string): Promise<RelatedVersesResult> {
+/**
+ * Steps 1–5 for one question. `choose` picks the final targets from the
+ * pool (default: the vote ranking; ADR-0016's question-aware pick when on);
+ * it is not called when the pool is empty. Never rejects: failures come back in `warnings`.
+ */
+export async function loadRelatedVerses(
+  pack: StudyPack, question: string, choose: TargetChooser = byVotesOnly
+): Promise<RelatedVersesResult> {
   const warnings: string[] = [];
   const passage = packPassage(pack);
   if (!passage) {
     warnings.push(`passage book/chapter unknown: ${pack.passageRef}`);
-    return remember({ related: [], warnings });
+    return remember({ related: [], warnings, source: 'votes' });
   }
   let file: XrefChapter;
   try {
     file = await loadXrefChapter(passage.bookId, passage.chapter);
   } catch (err) {
     warnings.push((err as Error).message);
-    return remember({ related: [], warnings });
+    return remember({ related: [], warnings, source: 'votes' });
   }
-  const { targets, malformed } = rankRelated(file, passage, focusVerses(question, passage));
+  const { targets: pool, malformed } = rankPool(file, passage, focusVerses(question, passage));
   if (malformed.length) warnings.push(`malformed cross-references skipped: ${malformed.join(', ')}`);
-  return remember({ related: await withText(targets, warnings), warnings });
+  const chosen = pool.length > 0 ? await choose(pool, capByBook(pool)) : await byVotesOnly(pool, []);
+  warnings.push(...chosen.warnings);
+  return remember({ related: await withText(chosen.targets, warnings), warnings, source: chosen.source });
 }
 
 /**

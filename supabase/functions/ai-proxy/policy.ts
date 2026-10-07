@@ -32,9 +32,10 @@ export const ROLE_DEFAULT_MODEL: Readonly<Record<AIRole, string>> = {
   adjust: PACK_GENERATION_MODEL,
   sharing: PACK_GENERATION_MODEL,
   study: ASK_AI_MODEL,
+  pick: ASK_AI_MODEL,
 };
 
-/** The Ask-AI model + its client fallback chain — allowed for 'ask' and 'study'. */
+/** The Ask-AI model + its client fallback chain — allowed for 'ask', 'study' and 'pick' (Ask AI's first call, ADR-0016). */
 const ASK_ALLOWED_MODELS: readonly string[] = [ASK_AI_MODEL, ...ASK_AI_FALLBACK_MODELS];
 
 /** Per role: the only models a caller may request (the client's fallback chain stays honoured for Ask AI). */
@@ -44,12 +45,15 @@ export const ROLE_ALLOWED_MODELS: Readonly<Record<AIRole, readonly string[]>> = 
   adjust: [PACK_GENERATION_MODEL],
   sharing: [PACK_GENERATION_MODEL],
   study: ASK_ALLOWED_MODELS,
+  pick: ASK_ALLOWED_MODELS,
 };
 
 /**
  * pack = components/newstudy/packPrompt PACK_MAX_TOKENS (pinned). study is
  * twice ask: a personal-study answer is long-form and bilingual (中文 [SPLIT]
  * English, services/systemPrompts), so the same content is written twice.
+ * pick replies with at most 6 short reference codes (ADR-0016); the cap
+ * leaves room for a model that echoes each line's bilingual label too.
  */
 export const ROLE_MAX_TOKENS: Readonly<Record<AIRole, number>> = {
   ask: 2000,
@@ -57,6 +61,7 @@ export const ROLE_MAX_TOKENS: Readonly<Record<AIRole, number>> = {
   adjust: 4000,
   sharing: 3000,
   study: 4000,
+  pick: 160,
 };
 
 /** database/ai-usage-schema.sql names (pinned by database/__tests__/aiUsageSchema.test.ts). */
@@ -75,6 +80,7 @@ export const DEFAULT_MONTHLY_LIMITS: Readonly<Record<AIRole, number>> = {
   adjust: 100,
   sharing: 10,
   study: 100,
+  pick: 600,
 };
 
 /** The secret that overrides each role's monthly limit. */
@@ -84,6 +90,7 @@ export const MONTHLY_LIMIT_SECRET: Readonly<Record<AIRole, string>> = {
   adjust: 'AI_MONTHLY_ADJUST',
   sharing: 'AI_MONTHLY_SHARING',
   study: 'AI_MONTHLY_STUDY',
+  pick: 'AI_MONTHLY_PICK',
 };
 
 export interface ChatMessage { role: string; content: string }

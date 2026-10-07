@@ -12,6 +12,7 @@ import path from 'path';
 import {
   SCOPE_GUARD, ASK_AI_SYSTEM_PROMPT, ASK_AI_LANGUAGE_RULES, CONTENT_LANGUAGES, AI_ROLES, askSystemText, buildFinalMessages,
   ASK_AI_ANSWER_CONTRACT, ASK_AI_RELATED_VERSES_RULE, RELATED_VERSES_HEADING, formatRelatedVersesBlock, hasRelatedVersesBlock,
+  PICK_SYSTEM_PROMPT, formatPickRequest,
 } from '../aiPrompts.ts';
 
 describe('SCOPE_GUARD', () => {
@@ -103,5 +104,23 @@ describe('a pure leaf module', () => {
     const source = readFileSync(path.resolve(__dirname, '../aiPrompts.ts'), 'utf-8');
     expect(source).not.toMatch(/^import /m);
     expect(source).not.toMatch(/Deno\./);
+  });
+});
+
+describe('the pick call (ADR-0016)', () => {
+  it('system text: candidates only, up to 6, relevance over fame, references only, one per line, as written', () => {
+    expect(PICK_SYSTEM_PROMPT).toContain('From the CANDIDATES list only, choose up to 6 references');
+    expect(PICK_SYSTEM_PROMPT).toMatch(/prefer direct relevance to the question over fame/);
+    expect(PICK_SYSTEM_PROMPT).toMatch(/one per line, exactly as written in the list/);
+    expect(buildFinalMessages('pick', [{ role: 'user', content: 'x' }])[0].content).toBe(`${SCOPE_GUARD}\n\n${PICK_SYSTEM_PROMPT}`);
+  });
+
+  it('the user message is data: passage, question, one "REF label" line per candidate, no verse text', () => {
+    const text = formatPickRequest('罗马书 8:18–30 · Romans 8:18–30', 'Why does creation groan?', [{ ref: 'ISA.65.17', label: '以赛亚书 65:17 · Isaiah 65:17' }]);
+    expect(text.split('\n')).toEqual([
+      'PASSAGE: 罗马书 8:18–30 · Romans 8:18–30', 'QUESTION: Why does creation groan?',
+      'CANDIDATES (cross-references from OpenBible.info):', 'ISA.65.17 以赛亚书 65:17 · Isaiah 65:17',
+    ]);
+    expect(hasRelatedVersesBlock([{ role: 'user', content: text }])).toBe(false);
   });
 });

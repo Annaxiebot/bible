@@ -13,7 +13,8 @@
  */
 
 /** Who is asking — the proxy's quota role (policy.ts re-exports these, one list). */
-export const AI_ROLES = ['ask', 'pack', 'adjust', 'sharing', 'study'] as const;
+/** 'pick' = Ask AI's short first call that chooses related verses for the question (ADR-0016). */
+export const AI_ROLES = ['ask', 'pack', 'adjust', 'sharing', 'study', 'pick'] as const;
 export type AIRole = typeof AI_ROLES[number];
 
 /**
@@ -120,6 +121,33 @@ export function formatRelatedVersesBlock(entries: readonly RelatedVerseText[], v
   return lines.join('\n');
 }
 
+/**
+ * The 'pick' role's system text (ADR-0016): from the cross-reference
+ * candidates, choose the few that answer THIS question. The reply is parsed
+ * by exact match against the list (components/studypack/relatedPick.ts);
+ * anything else is ignored and counted.
+ */
+export const PICK_SYSTEM_PROMPT = [
+  'You choose cross-references for a church small group\'s Bible study.',
+  'From the CANDIDATES list only, choose up to 6 references that best help answer the QUESTION for a church',
+  'small group studying PASSAGE; prefer direct relevance to the question over fame. Reply with the references',
+  'only, one per line, exactly as written in the list (the code before the first space, e.g. ISA.65.17):',
+  'no numbering, no explanation.',
+].join('\n');
+
+/** One candidate for the pick call: the compact ref (ISA.65.17) and its bilingual label — no verse text. */
+export interface PickCandidate { ref: string; label: string }
+
+/** The pick call's user message — data only (ADR-0014): passage, question, candidates. */
+export function formatPickRequest(passageRef: string, question: string, candidates: readonly PickCandidate[]): string {
+  return [
+    `PASSAGE: ${passageRef}`,
+    `QUESTION: ${question}`,
+    'CANDIDATES (cross-references from OpenBible.info):',
+    ...candidates.map(c => `${c.ref} ${c.label}`),
+  ].join('\n');
+}
+
 const RELATED_BLOCK_START = new RegExp(`(^|\\n)${RELATED_VERSES_HEADING} \\(`);
 
 /** True when the latest user message carries a RELATED VERSES block (earlier turns hold only the questions). */
@@ -170,12 +198,13 @@ function roleSystemText(role: AIRole, mode?: ContentLanguage, related = false): 
   if (role === 'ask') return askSystemText(mode, related);
   if (role === 'pack' || role === 'adjust') return PACK_SYSTEM_PROMPT;
   if (role === 'sharing') return SHARING_SYSTEM_PROMPT;
+  if (role === 'pick') return PICK_SYSTEM_PROMPT;
   return null;
 }
 
 /**
  * The messages that go to the model, from the conversation the browser sent:
- * - ask / pack / adjust / sharing: every browser 'system' message is dropped;
+ * - ask / pack / adjust / sharing / pick: every browser 'system' message is dropped;
  *   one server system message (guard + the role's text) goes first;
  * - study: the guard goes first and the browser's messages follow unchanged
  *   (the personal app's editable prompt still applies, within scope);

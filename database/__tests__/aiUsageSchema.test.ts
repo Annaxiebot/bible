@@ -12,6 +12,9 @@ import { AI_USAGE_TABLE, QUOTA_FUNCTION, AI_ROLES } from '../../supabase/functio
 
 const sql = readFileSync(path.resolve(__dirname, '../ai-usage-schema.sql'), 'utf-8');
 const flat = sql.replace(/\s+/g, ' ');
+const pickRaw = readFileSync(path.resolve(__dirname, '../ai-usage-pick-role.sql'), 'utf-8');
+const pickSql = pickRaw.replace(/\s+/g, ' ');
+const roleCheck = `CHECK (role IN (${AI_ROLES.map(r => `'${r}'`).join(', ')}))`;
 
 describe('ai-usage-schema.sql', () => {
   it('creates the table the code reads, keyed by leader × month × role, cascading with the account', () => {
@@ -20,7 +23,7 @@ describe('ai-usage-schema.sql', () => {
     expect(flat).toContain('leader_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE');
     expect(flat).toContain('count INT NOT NULL DEFAULT 0');
     expect(flat).toContain('PRIMARY KEY (leader_id, month, role)');
-    expect(flat).toContain(`CHECK (role IN (${AI_ROLES.map(r => `'${r}'`).join(', ')}))`);
+    expect(flat).toContain(roleCheck);
     // Re-runnable: the CHECK is dropped and re-added, so a table made with an older role list widens.
     expect(flat).toContain(`ALTER TABLE ${AI_USAGE_TABLE} DROP CONSTRAINT IF EXISTS ai_usage_role_check;`);
     expect(flat).toContain(`ALTER TABLE ${AI_USAGE_TABLE} ADD CONSTRAINT ai_usage_role_check CHECK (role IN (`);
@@ -46,5 +49,13 @@ describe('ai-usage-schema.sql', () => {
 
   it('months are UTC YYYY-MM (the browser reads the same key: components/setup/aiUsage currentUsageMonth)', () => {
     expect(flat).toContain("to_char(timezone('UTC', now()), 'YYYY-MM')");
+  });
+
+  it('ai-usage-pick-role.sql (ADR-0016) widens the live CHECK to the same role list, re-runnably, and touches nothing else', () => {
+    expect(AI_ROLES).toContain('pick');
+    expect(pickSql).toContain(`ALTER TABLE ${AI_USAGE_TABLE} DROP CONSTRAINT IF EXISTS ai_usage_role_check;`);
+    expect(pickSql).toContain(`ALTER TABLE ${AI_USAGE_TABLE} ADD CONSTRAINT ai_usage_role_check ${roleCheck};`);
+    const statements = pickRaw.replace(/--[^\n]*/g, '').split(';').map(x => x.trim()).filter(Boolean);
+    expect(statements).toHaveLength(2);
   });
 });

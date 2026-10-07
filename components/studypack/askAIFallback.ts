@@ -17,6 +17,7 @@ import { AskAIMessage, resolveAskAIModel, stripSplitMarker } from './askAI';
 import { buildRequestBody, streamChatCompletionDetailed, StreamOutcome } from './askAIStream';
 import { AskAIError, FALLBACK_KINDS, asAskAIError, emptyError, timeoutError } from './askAIErrors';
 import { RELATED_VERSES_ENABLED, RelatedVerse, loadRelatedVerses } from './relatedVerses';
+import { QUESTION_AWARE_ENABLED, questionAwareChooser } from './relatedPick';
 
 export const ASK_AI_FIRST_TOKEN_TIMEOUT_MS = 20_000;
 
@@ -87,11 +88,17 @@ export function nextFallbackModel(tried: ReadonlySet<string>): string | undefine
   return askAIFallbackModels().find(id => !tried.has(id));
 }
 
-/** RELATED VERSES for this question (ADR-0015) — none while the switch is off: no fetch, today's request. */
-async function relatedFor(pack: StudyPack, question: string): Promise<RelatedVerse[]> {
+/**
+ * RELATED VERSES for this question (ADR-0015) — none while the switch is off: no fetch, today's request.
+ * With QUESTION_AWARE_ENABLED (ADR-0016) a short 'pick' call chooses them from the pool first.
+ */
+async function relatedFor(pack: StudyPack, question: string, signal: AbortSignal): Promise<RelatedVerse[]> {
   if (!RELATED_VERSES_ENABLED) return [];
-  // Failures are in the result's warnings (relatedVerses.lastRelatedVerses); the answer goes ahead with what loaded.
-  return (await loadRelatedVerses(pack, question)).related;
+  // Failures and the pick's fallback reason are in the result's warnings + source
+  // (relatedVerses.lastRelatedVerses); the answer goes ahead with what loaded.
+  if (!QUESTION_AWARE_ENABLED) return (await loadRelatedVerses(pack, question)).related;
+  const chooser = questionAwareChooser({ passageRef: pack.passageRef, question, model: resolveAskAIModel(), signal });
+  return (await loadRelatedVerses(pack, question, chooser)).related;
 }
 
 /**
@@ -121,7 +128,7 @@ export async function streamStudyAI(
     plan.push({ model: next, noReasoning: true });
   };
 
-  const related = await relatedFor(pack, question);
+  const related = await relatedFor(pack, question, signal);
   for (let attempt = plan.shift(); attempt; attempt = plan.shift()) {
     tried.add(attempt.model);
     onModel?.(attempt.model);

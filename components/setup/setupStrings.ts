@@ -31,7 +31,7 @@ export const SETUP_SIGN_IN_TO_USE_AI = AI_SIGN_IN_NEEDED;
 /** Usage labels, Chinese only after the bilingual "本月 This month:" prefix — except the personal app's, named as on the landing page. */
 export const SETUP_USAGE_PREFIX = bilingual('本月', 'This month');
 export const USAGE_ROLE_LABEL: Readonly<Record<AIRole, string>> = {
-  ask: '提问', pack: '查经包', adjust: '调整', sharing: '分享', study: bilingual(PERSONAL_TITLE_ZH, PERSONAL_TITLE_EN),
+  ask: '提问', pack: '查经包', adjust: '调整', sharing: '分享', study: bilingual(PERSONAL_TITLE_ZH, PERSONAL_TITLE_EN), pick: '选经文',
 };
 export interface UsageEntry { role: AIRole; count: number; limit: number }
 /** "本月 This month: 提问 12/300 · 查经包 1/10 · 个人研经 Personal Study 3/100" */
