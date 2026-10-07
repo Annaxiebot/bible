@@ -12,11 +12,11 @@
  * Per arm: "no such verse" refs (the CitationValidator, citations.ts), refs
  * cited from memory (relatedVerses.citedFromMemory), failed/empty answers.
  * A failed or empty answer is a FAILURE and loses its pair — never a pass (R14).
- * Then a blind judge (A/B order randomised per pair, de-randomised after).
+ * Then a blind judge, asked in both A/B orders; only a verdict that survives the swap counts.
  *
  * Usage:
  *   OPENROUTER_API_KEY=… node scripts/eval-related-verses.mjs <results.json> <vote.html> [fixture.json]
- * Costs real OpenRouter credit (2 answers + 1 judge call per question).
+ * Costs real OpenRouter credit (2 answers + 2 judge calls per question).
  *   node scripts/eval-related-verses.mjs --dry-run [fixture.json]
  * builds both requests for every question (no network, no key, no files)
  * and prints the related verses and request sizes.
@@ -29,7 +29,8 @@ import { blindPairs, votePageHtml } from './lib/evalVotePage.mjs';
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 const DEFAULT_FIXTURE = 'tests/fixtures/related-verses-eval.json';
 const TITLE = 'Scripture to Life related-verses eval';
-const JUDGE_MAX_TOKENS = 5;
+/** Room for a two-sentence reason before the verdict line (a bare-letter reply showed pure position bias). */
+const JUDGE_MAX_TOKENS = 400;
 
 function usage(message) {
   process.stderr.write(`${message}\nusage: OPENROUTER_API_KEY=… node scripts/eval-related-verses.mjs <results.json> <vote.html> [fixture.json]\n`);
@@ -74,29 +75,43 @@ function judgePrompt(item, first, second) {
     `ANSWER A:\n${first.text}`,
     `ANSWER B:\n${second.text}`,
     'Which answer better serves a church small group: faithful to Scripture, apt cross-references, clear?',
-    'Reply with exactly "A" or "B" and nothing else.',
+    'The order of the answers is random and means nothing. Give at most two sentences of reasons,',
+    'then a last line that is exactly "WINNER: A" or "WINNER: B".',
   ].join('\n\n');
 }
 
-/** Blind judge for one pair → 'control' | 'treatment' | null (+ the raw reply). A failed arm loses without a call. */
-async function judge(key, model, item) {
+/** One judge call with control as A (controlFirst) or as B → 'control' | 'treatment' | null + the raw reply. */
+async function judgeOnce(key, model, item, controlFirst) {
   const { control, treatment } = item;
-  if (control.failed || treatment.failed) {
-    const winner = control.failed && treatment.failed ? null : control.failed ? 'treatment' : 'control';
-    return { order: null, reply: 'not judged: an arm failed', winner };
-  }
-  const controlFirst = Math.random() < 0.5;
   const [first, second] = controlFirst ? [control, treatment] : [treatment, control];
   const res = await fetch(OPENROUTER_URL, {
     method: 'POST',
     headers: openRouterHeaders(key),
     body: JSON.stringify({ model, max_tokens: JUDGE_MAX_TOKENS, temperature: 0, messages: [{ role: 'user', content: judgePrompt(item, first, second) }] }),
   });
-  const order = controlFirst ? 'A=control' : 'A=treatment';
-  if (!res.ok) return { order, reply: `HTTP ${res.status}`, winner: null };
+  if (!res.ok) return { reply: `HTTP ${res.status}`, winner: null };
   const reply = ((await res.json()).choices?.[0]?.message?.content ?? '').trim();
-  if (reply !== 'A' && reply !== 'B') return { order, reply, winner: null };
-  return { order, reply, winner: (reply === 'A') === controlFirst ? 'control' : 'treatment' };
+  const letter = /WINNER:\s*([AB])\s*$/.exec(reply)?.[1];
+  if (!letter) return { reply, winner: null };
+  return { reply, winner: (letter === 'A') === controlFirst ? 'control' : 'treatment' };
+}
+
+/**
+ * Blind judge for one pair, asked in BOTH orders (R14: the first run's
+ * bare-letter judge answered "B" 12 of 12 — pure position bias). Only a
+ * verdict that survives the swap counts; a split is a tie (winner null).
+ * A failed arm loses without a call.
+ */
+async function judge(key, model, item) {
+  const { control, treatment } = item;
+  if (control.failed || treatment.failed) {
+    const winner = control.failed && treatment.failed ? null : control.failed ? 'treatment' : 'control';
+    return { order: null, reply: 'not judged: an arm failed', winner };
+  }
+  const asA = await judgeOnce(key, model, item, true);
+  const asB = await judgeOnce(key, model, item, false);
+  const winner = asA.winner !== null && asA.winner === asB.winner ? asA.winner : null;
+  return { order: 'both', reply: [asA.reply, asB.reply], winner };
 }
 
 function questionText(app, q) {
@@ -157,7 +172,7 @@ function printSummary(s) {
   const rows = ['answered', 'failed', 'noSuchVerse', 'citedFromMemory', 'judgeWins'];
   process.stdout.write(`\n${'measure'.padEnd(18)}${'control'.padStart(10)}${'treatment'.padStart(12)}\n`);
   for (const r of rows) process.stdout.write(`${r.padEnd(18)}${String(s.control[r]).padStart(10)}${String(s.treatment[r]).padStart(12)}\n`);
-  process.stdout.write(`judge undecided: ${s.judgeUndecided} of ${s.questions}\n`);
+  process.stdout.write(`judge split or undecided (order changed the verdict): ${s.judgeUndecided} of ${s.questions}\n`);
   if (s.treatmentWithoutBlock.length) process.stdout.write(`treatment had NO related verses (same as control): ${s.treatmentWithoutBlock.join(', ')}\n`);
   if (s.relatedWarnings.length) process.stdout.write(`related-verse warnings:\n  ${s.relatedWarnings.join('\n  ')}\n`);
 }
