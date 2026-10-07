@@ -8,7 +8,9 @@
  * hosted end with the same final messages for the same body.
  */
 import { describe, it, expect } from 'vitest';
-import { buildGuidePackPrompt, buildGuideRequestBody, FROM_GUIDE_SHAPE_KEY, GUIDE_FENCE_OPEN, GUIDE_FENCE_CLOSE } from '../guidePrompt';
+import {
+  buildGuidePackPrompt, buildGuideRequestBody, FROM_GUIDE_SHAPE_KEY, PASSAGE_SHAPE_KEY, NO_PASSAGE_LINE, GUIDE_FENCE_OPEN, GUIDE_FENCE_CLOSE,
+} from '../guidePrompt';
 import {
   PACK_COMPACT_JSON_RULE, PACK_COUNTS, PACK_LENGTH_LIMITS, PACK_MAX_TOKENS, generatedShape, buildPackPrompt,
 } from '../../packPrompt';
@@ -21,7 +23,7 @@ import { ownKeyBody } from '../../../../services/aiTransport';
 import { GUIDE_TEXT } from './guideFixtureRequest';
 
 const VERSES = [{ num: 1, cuv: '神的儿子，耶稣基督福音的起头。', en: 'This is the beginning of the gospel of Jesus Christ, the Son of God.' }];
-const INPUT = { passageRef: '马可福音 1:1 · Mark 1:1', verses: VERSES, contentLanguage: 'zh-keywords' as const, guideText: GUIDE_TEXT };
+const INPUT = { passage: { ref: '马可福音 1:1 · Mark 1:1', verses: VERSES }, contentLanguage: 'zh-keywords' as const, guideText: GUIDE_TEXT };
 
 describe('the user message', () => {
   const prompt = buildGuidePackPrompt(INPUT);
@@ -35,8 +37,20 @@ describe('the user message', () => {
     for (const rule of [PACK_CONTENT_CONTRACT, CONTENT_LANGUAGE_CONTRACTS['zh-keywords'].lineRule, PACK_COUNTS, PACK_LENGTH_LIMITS, PACK_COMPACT_JSON_RULE]) {
       expect(prompt).toContain(rule);
     }
-    expect(prompt).toContain(generatedShape('zh-keywords', [FROM_GUIDE_SHAPE_KEY]));
-    expect(generatedShape('zh-keywords', [FROM_GUIDE_SHAPE_KEY])).toMatch(/"closing": \{[^\n]*\},\n {2}"fromGuide": \["context", "originalLanguage", "discussion"\]\n\}$/);
+    expect(prompt).toContain(generatedShape('zh-keywords', [FROM_GUIDE_SHAPE_KEY, PASSAGE_SHAPE_KEY]));
+    expect(generatedShape('zh-keywords', [FROM_GUIDE_SHAPE_KEY, PASSAGE_SHAPE_KEY])).toMatch(
+      /"closing": \{[^\n]*\},\n {2}"fromGuide": \["context", "originalLanguage", "discussion"\],\n {2}"passage": "约翰福音 4:27-42"\n\}$/,
+    );
+  });
+
+  it('no passage from the heading (findPassage): no passage block, the AI is asked to name it', () => {
+    const open = buildGuidePackPrompt({ ...INPUT, passage: undefined });
+    expect(open).not.toContain('FULL PASSAGE');
+    expect(open).toContain(NO_PASSAGE_LINE);
+    expect(open).toContain('study pack for the passage the guide studies, following the GUIDE CONTRACT');
+    expect(open).toContain(`${GUIDE_FENCE_OPEN}\n${GUIDE_TEXT}\n${GUIDE_FENCE_CLOSE}`);
+    expect(open).toContain(PASSAGE_SHAPE_KEY);
+    expect(prompt).not.toContain(NO_PASSAGE_LINE);
   });
 
   it('not the guide contract: that is server-owned', () => {
@@ -46,7 +60,7 @@ describe('the user message', () => {
 
   it('the passage path is untouched by the shape\'s new parameter (control)', () => {
     expect(generatedShape('bilingual')).toBe(generatedShape('bilingual', []));
-    expect(buildPackPrompt({ ...INPUT })).not.toContain('fromGuide');
+    expect(buildPackPrompt({ passageRef: INPUT.passage.ref, verses: VERSES, contentLanguage: 'zh-keywords' })).not.toContain('fromGuide');
   });
 
   it('a typed lesson title is kept, as on the passage path', () => {

@@ -154,6 +154,12 @@ export const GUIDE_TEXT_HEADING = 'GUIDE TEXT';
 export const GUIDE_SECTION_KINDS = ['context', 'originalLanguage', 'discussion'] as const;
 export type GuideSectionKind = typeof GUIDE_SECTION_KINDS[number];
 
+/** The reply key naming the passage the guide studies (ADR-0019 amendment) — one constant for the rule and the parser (R3). */
+export const GUIDE_PASSAGE_FIELD = 'passage';
+
+/** Bullet markers that start a leader's suggested-answer line under a question (rule 6 names them; guideAnswers.ts detects them). */
+export const ANSWER_BULLET_MARKERS = ['•', '·', '-', '*', '‧', '▪'] as const;
+
 /** The guide contract (ADR-0003 §5–7, ADR-0019 §3), after the pack's JSON-only sentence. */
 export const PACK_FROM_GUIDE_RULES = [
   `GUIDE CONTRACT: the leader uploaded their own study guide; its text is the ${GUIDE_TEXT_HEADING} block in the user message.`,
@@ -168,9 +174,15 @@ export const PACK_FROM_GUIDE_RULES = [
   '5. GAPS ONLY: draft a section only when the guide has nothing for it, following the pack rules in the user message.',
   'The life menu, reflection and closing are always yours (the app\'s own layers), and so are the cross-references,',
   'which must be real Bible references (prefer those the guide names).',
-  '6. LEADER-ONLY material stays out of every section: hints (提示), reference answers (参考答案), leader notes',
-  '(组长注意, 带领提示) and timing notes.',
+  '6. LEADER-ONLY material stays out of every section: hints (提示), answers and reference answers (答案, 参考答案), leader notes',
+  '(组长注意, 带领提示) and timing notes. Bullet-point lines that sit directly under a discussion question — starting with',
+  `${ANSWER_BULLET_MARKERS.join(' ')} or a numbered sub-point such as (1), 1) or ① — are the leader's suggested answers or notes:`,
+  'never copy them into the pack, not as questions and not as context. Copy the question itself, never the lines under it.',
   '7. TITLE: the guide\'s own title when it has one (translate the missing half); keyPhrase is quoted from the passage, as always.',
+  `8. PASSAGE: in "${GUIDE_PASSAGE_FIELD}" name the one passage the guide studies, as "Book chapter:verse-verse" within one chapter`,
+  '(e.g. "约翰福音 4:27-42"), read from the guide itself (its title, heading, outline or questions) — even when the user message',
+  'names a passage; if the two differ, still write the guide\'s. When the user message gives no passage, this is how the app',
+  'learns it, and keyPhrase must then quote that passage.',
 ].join('\n');
 
 /** The study-guide pack's system text (ADR-0019): the pack's JSON-only sentence, then the guide contract. */

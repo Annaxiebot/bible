@@ -62,6 +62,16 @@ export interface PackSection {
   url?: string;           // qr only — legacy static form URL; ignored, see Slide.signupUrl
   origin?: SectionOrigin; // study-guide packs only (ADR-0019): copied from the leader's guide, or drafted by the AI
   notVerbatim?: string[]; // guide sections only: lines not word for word in the guide (flagged in the editor)
+  leaderAnswer?: string[]; // guide packs only: lines that match the guide's answer bullets (flagged in the editor)
+}
+
+/** A passage inside one chapter (packAssembly's VerseRange is this type). */
+export interface PassageRange { bookId: string; chapter: number; verseFrom: number; verseTo: number }
+
+function isPassageRange(v: unknown): v is PassageRange {
+  const r = v as Partial<PassageRange> | null;
+  return typeof r === 'object' && r !== null && typeof r.bookId === 'string'
+    && [r.chapter, r.verseFrom, r.verseTo].every(n => Number.isInteger(n));
 }
 
 /** Where a study-guide pack's section came from (ADR-0019 §5); absent on every other pack. */
@@ -87,6 +97,7 @@ export interface StudyPack {
   leaderId?: string;   // Supabase auth uid of the owning leader; absent = demo pack, no sign-up
   contentLanguage?: ContentLanguage;     // how much English the generated lines carry; absent = legacy "中文 · English"
   updatedAt?: string;  // ISO time of the leader's last save (packSync newer-wins, ADR-0006); absent on older packs
+  guidePassage?: PassageRange; // study-guide packs only: the passage the AI read in the guide (mismatch notice, ADR-0019)
   sections: PackSection[];
 }
 
@@ -167,8 +178,8 @@ function parseSection(raw: unknown, index: number): PackSection {
   if (s.origin !== undefined && !SECTION_ORIGINS.includes(s.origin)) {
     throw new Error(`StudyPack section ${index} origin must be guide | ai when present`);
   }
-  if (s.notVerbatim !== undefined && !isStringArray(s.notVerbatim)) {
-    throw new Error(`StudyPack section ${index} notVerbatim must be a string[] when present`);
+  for (const flags of ['notVerbatim', 'leaderAnswer'] as const) {
+    if (s[flags] !== undefined && !isStringArray(s[flags])) throw new Error(`StudyPack section ${index} ${flags} must be a string[] when present`);
   }
   if (s.body !== undefined && !isStringArray(s.body)) {
     throw new Error(`StudyPack section ${index} (${s.kind}) body must be a string[]`);
@@ -199,6 +210,7 @@ export function parseStudyPack(raw: unknown): StudyPack {
   if (p.contentLanguage !== undefined && !isContentLanguage(p.contentLanguage)) {
     throw new Error(`StudyPack contentLanguage must be one of ${CONTENT_LANGUAGES.join(' | ')}, got: ${String(p.contentLanguage)}`);
   }
+  if (p.guidePassage !== undefined && !isPassageRange(p.guidePassage)) throw new Error('StudyPack guidePassage must be a passage range when present');
   const sections = p.sections.map(parseSection);
   const kept: Record<string, unknown> = { ...p };
   for (const key of LEGACY_PACK_KEYS) delete kept[key];

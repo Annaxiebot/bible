@@ -11,7 +11,7 @@ import { describe, it, expect } from 'vitest';
 import { validateRequest, upstreamBody, packSourceProblem, ProxyRequest } from '../policy.ts';
 import {
   SCOPE_GUARD, PACK_SYSTEM_PROMPT, PACK_FROM_GUIDE_SYSTEM_PROMPT, PACK_FROM_GUIDE_RULES, GUIDE_SECTION_KINDS,
-  GUIDE_TEXT_HEADING, AI_ROLES, buildFinalMessages,
+  GUIDE_TEXT_HEADING, AI_ROLES, buildFinalMessages, ANSWER_BULLET_MARKERS, GUIDE_PASSAGE_FIELD,
 } from '../../_shared/aiPrompts.ts';
 
 const USER = { role: 'user', content: `${GUIDE_TEXT_HEADING}:\n<<<\n1. 耶稣为什么受洗？\n>>>` };
@@ -44,6 +44,23 @@ describe('pack_source "guide" on role pack', () => {
     expect(GUIDE_SECTION_KINDS).toEqual(['context', 'originalLanguage', 'discussion']);
     expect(PACK_FROM_GUIDE_RULES).toMatch(/GAPS ONLY/);
     expect(PACK_FROM_GUIDE_RULES).toMatch(/参考答案/);
+  });
+
+  it('the bullet rule: lines under a question are the leader\'s answers, never copied (ADR-0019 amendment)', () => {
+    for (const marker of ANSWER_BULLET_MARKERS) expect(PACK_FROM_GUIDE_RULES).toContain(marker);
+    expect(ANSWER_BULLET_MARKERS).toEqual(['•', '·', '-', '*', '‧', '▪']);
+    expect(PACK_FROM_GUIDE_RULES).toMatch(/directly under a discussion question/);
+    expect(PACK_FROM_GUIDE_RULES).toMatch(/numbered sub-point such as \(1\), 1\) or ①/);
+    expect(PACK_FROM_GUIDE_RULES).toMatch(/never copy them into the pack, not as questions and not as context/);
+    expect(PACK_FROM_GUIDE_RULES).toMatch(/答案, 参考答案/);
+    expect(PACK_FROM_GUIDE_RULES).toMatch(/提示/);
+  });
+
+  it('the passage field: required, read from the guide even when the user message names one', () => {
+    expect(GUIDE_PASSAGE_FIELD).toBe('passage');
+    expect(PACK_FROM_GUIDE_RULES).toContain(`8. PASSAGE: in "${GUIDE_PASSAGE_FIELD}" name the one passage the guide studies`);
+    expect(PACK_FROM_GUIDE_RULES).toMatch(/"约翰福音 4:27-42"/);
+    expect(PACK_FROM_GUIDE_RULES).toMatch(/if the two differ, still write the guide's/);
   });
 
   it('without the field the pack request is unchanged (control: today\'s system text, byte for byte)', () => {

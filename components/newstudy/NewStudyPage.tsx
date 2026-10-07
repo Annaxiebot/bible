@@ -28,6 +28,9 @@ import { useLocalPacks } from './useLocalPacks';
 import { useNextStudy } from './useNextStudy';
 import { useGeneration } from './useGeneration';
 import { useAutoSave } from './useAutoSave';
+import { todayIso } from './NewStudyForm';
+import { readDefaultContentLanguage } from './contentLanguageDefault';
+import { guideStudyRequest } from './guide/generateGuidePack';
 import { NS_TITLE, NS_INTRO, NS_PRIVACY, NS_BACK, NS_ERR_STORAGE } from './newStudyStrings';
 import { textStyle, controlStyle, quietButtonClass, pageTitleStyle } from './newStudyStyles';
 
@@ -142,7 +145,9 @@ const NewStudyPage: React.FC = () => {
           onSave={flush} onPreview={preview}
           autosave={{ status: autosave.status, error: autosave.error }}
           suggestion={suggestion}
-          onGuide={guide => setPhase(guide ? { kind: 'form', guide } : { kind: 'form' })}
+          onGuide={guide => (guide
+            ? void generate(guideStudyRequest(guide, todayIso(), readDefaultContentLanguage()))
+            : setPhase({ kind: 'form' }))}
         />
         {phase.kind === 'form' && <PackList packs={packs} onOpen={openSaved} />}
         <p className="text-slate-500" style={textStyle}>{NS_PRIVACY}</p>

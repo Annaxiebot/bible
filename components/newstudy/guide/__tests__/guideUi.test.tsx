@@ -16,7 +16,7 @@ import { GuideEntry, passageHint } from '../GuideEntry';
 import NewStudyForm from '../../NewStudyForm';
 import SectionEditor from '../../SectionEditor';
 import { adjustSection } from '../../adjustSection';
-import type { PackSection } from '../../../studypack/packTypes';
+import type { PackSection, StudyPack } from '../../../studypack/packTypes';
 import type { PdfDocLike } from '../guidePdf';
 import type { LoadedGuide } from '../loadGuide';
 import { detectGuidePassage } from '../guidePassage';
@@ -24,7 +24,10 @@ import { AJ_OPEN, AJ_SEND, AJ_CHIPS } from '../../adjustStrings';
 import { NS_GENERATE } from '../../newStudyStrings';
 import {
   GD_PICK, GD_ERR_NO_TEXT, GD_LOADED, GD_DROP, GD_PASSAGE_UNSURE, GD_FROM_GUIDE, GD_AI_DRAFTED, notVerbatimLine,
+  GD_ERR_NO_PASSAGE, leaderAnswerLine,
 } from '../guideStrings';
+import { GuidePassageNotice } from '../GuideMarks';
+import { LEAKED_ANSWER } from './guideFixtureNoPassage';
 import { LOADED_GUIDE, GUIDE_TEXT, GUIDE_REQUEST } from './guideFixtureRequest';
 import { GUIDE_QUESTIONS, TIDIED_QUESTION } from './guideFixture';
 
@@ -94,11 +97,54 @@ describe('NewStudyForm with a guide', () => {
 describe('useGeneration with a guide', () => {
   it('Cancel returns to the form with the guide still loaded (no second PDF pick)', async () => {
     const cancel = new DOMException('Generation cancelled', 'AbortError');
-    vi.spyOn(await import('../../generatePack'), 'generateStudyPack').mockRejectedValue(cancel);
+    vi.spyOn(await import('../generateGuidePack'), 'generateGuidePack').mockRejectedValueOnce(cancel);
     const setPhase = vi.fn();
     const { result } = renderHook(() => useGeneration(setPhase));
     await act(() => result.current.generate({ ...GUIDE_REQUEST }));
     expect(setPhase).toHaveBeenLastCalledWith({ kind: 'form', guide: LOADED_GUIDE });
+  });
+
+  it('no usable passage from the guide or the AI: the form reopens with the guide and the message (pick, then generate)', async () => {
+    const { GuidePassageNotFound } = await import('../generateGuidePack');
+    vi.spyOn(await import('../generateGuidePack'), 'generateGuidePack').mockRejectedValueOnce(new GuidePassageNotFound());
+    const setPhase = vi.fn();
+    const { result } = renderHook(() => useGeneration(setPhase));
+    await act(() => result.current.generate({ ...GUIDE_REQUEST, findPassage: true }));
+    expect(setPhase).toHaveBeenLastCalledWith({ kind: 'form', guide: LOADED_GUIDE, message: GD_ERR_NO_PASSAGE });
+  });
+});
+
+describe('NewStudyForm reopened to pick the passage', () => {
+  it('shows the message until the leader changes the passage; Generate sends their pick, not findPassage', async () => {
+    const onGenerate = vi.fn();
+    const unsure: LoadedGuide = { ...LOADED_GUIDE, passage: { range: null, confident: false } };
+    render(<NewStudyForm busy={false} onGenerate={onGenerate} guide={unsure} message={GD_ERR_NO_PASSAGE} />);
+    expect(screen.getByRole('alert')).toHaveTextContent(GD_ERR_NO_PASSAGE);
+    fireEvent.change(screen.getByTestId('ns-book'), { target: { value: 'JHN' } });
+    expect(screen.queryByRole('alert')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: NS_GENERATE }));
+    expect(onGenerate.mock.calls[0][0]).toMatchObject({ bookId: 'JHN', guide: unsure });
+    expect(onGenerate.mock.calls[0][0].findPassage).toBeUndefined();
+  });
+});
+
+describe('the passage notice', () => {
+  const pack = (guidePassage?: StudyPack['guidePassage']): StudyPack => ({
+    id: 'p', title: 't', date: '2026-10-09', passageRef: '马可福音 1:1–15 · Mark 1:1–15', enVersion: 'BSB', guidePassage,
+    sections: [{ kind: 'scripture', heading: 'h', verses: Array.from({ length: 15 }, (_, i) => ({ num: i + 1, cuv: 'c', en: 'e' })) }],
+  });
+
+  it('the AI read another passage than the pack uses: one quiet bilingual line', () => {
+    render(<GuidePassageNotice pack={pack({ bookId: 'MRK', chapter: 1, verseFrom: 9, verseTo: 13 })} />);
+    expect(screen.getByTestId('ns-guide-mismatch')).toHaveTextContent(
+      '讲义似乎在讲 马可福音 1:9–13，这里用的是 马可福音 1:1–15 · The guide seems to study Mark 1:9–13; this study uses Mark 1:1–15',
+    );
+  });
+
+  it('the same passage, or no AI reading (a passage pack): nothing', () => {
+    const { container } = render(<><GuidePassageNotice pack={pack({ bookId: 'MRK', chapter: 1, verseFrom: 1, verseTo: 15 })} />
+      <GuidePassageNotice pack={pack()} /></>);
+    expect(container).toBeEmptyDOMElement();
   });
 });
 
@@ -121,6 +167,13 @@ describe('SectionEditor in a guide pack', () => {
     expect(screen.getByTestId('ns-not-verbatim')).toHaveTextContent(notVerbatimLine(TIDIED_QUESTION));
     fireEvent.change(screen.getAllByRole('textbox')[1], { target: { value: GUIDE_QUESTIONS[2] } });
     expect(screen.queryByTestId('ns-not-verbatim')).toBeNull();
+  });
+
+  it('flags a line that looks like a leader\'s answer until the leader edits it', () => {
+    render(<Host initial={{ ...DISCUSSION, notVerbatim: [], questions: [GUIDE_QUESTIONS[0], LEAKED_ANSWER], leaderAnswer: [LEAKED_ANSWER] }} />);
+    expect(screen.getByTestId('ns-leader-answer')).toHaveTextContent(leaderAnswerLine(LEAKED_ANSWER));
+    fireEvent.change(screen.getAllByRole('textbox')[1], { target: { value: GUIDE_QUESTIONS[1] } });
+    expect(screen.queryByTestId('ns-leader-answer')).toBeNull();
   });
 
   it('an AI section says so; a section with no origin has no label (passage packs unchanged)', () => {
