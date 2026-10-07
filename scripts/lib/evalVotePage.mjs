@@ -46,8 +46,17 @@ button { font:inherit; padding:8px 16px; border-radius:8px; border:1px solid var
 #tally { margin-top:12px; color:var(--muted); }
 `;
 
+/** What Reveal calls each arm, and the page title — ADR-0015's evaluation by default. */
+export const RELATED_VERSES_ARMS = {
+  control: '对照 · control (today)',
+  treatment: '实验 · treatment (related verses)',
+  title: 'Related Verses Vote',
+  heading: '相关经文盲评 · Related verses blind vote',
+};
+
 const SCRIPT = `
 const pairs = JSON.parse(document.getElementById('pairs').textContent);
+const arms = JSON.parse(document.getElementById('arms').textContent);
 const main = document.querySelector('main');
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; };
 pairs.forEach((p, i) => {
@@ -57,7 +66,7 @@ pairs.forEach((p, i) => {
   for (const side of ['a', 'b']) {
     const ans = el('div', 'ans');
     const arm = side === 'a' ? p.aArm : (p.aArm === 'control' ? 'treatment' : 'control');
-    ans.append(el('h3', '', side.toUpperCase()), el('div', '', p[side]), el('div', 'arm', arm === 'control' ? '对照 · control (today)' : '实验 · treatment (related verses)'));
+    ans.append(el('h3', '', side.toUpperCase()), el('div', '', p[side]), el('div', 'arm', arm === 'control' ? arms.control : arms.treatment));
     const label = el('label');
     const radio = el('input'); radio.type = 'radio'; radio.name = 'v' + i; radio.value = arm;
     label.append(radio, document.createTextNode(' 选 ' + side.toUpperCase() + ' · prefer ' + side.toUpperCase()));
@@ -79,13 +88,15 @@ main.append(reveal, tally);
 `;
 
 /** The whole page; JSON is embedded with "<" escaped so no answer can close the script tag. */
-export function votePageHtml(pairs) {
+export function votePageHtml(pairs, arms = RELATED_VERSES_ARMS) {
   const data = JSON.stringify(pairs).replace(/</g, '\\u003c');
+  const armData = JSON.stringify(arms).replace(/</g, '\\u003c');
+  const escape = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;');
   return `<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Related Verses Vote</title><style>${STYLE}</style></head>
-<body><main><h1>相关经文盲评 · Related verses blind vote</h1>
+<title>${escape(arms.title)}</title><style>${STYLE}</style></head>
+<body><main><h1>${escape(arms.heading)}</h1>
 <p>每题两个回答，标签隐藏。选更适合小组查经的一个（忠于经文、交叉经文恰当、清楚），最后揭晓。 · Two answers per question, labels hidden: pick the one that better serves a church small group (faithful to Scripture, apt cross-references, clear), then reveal.</p>
-</main><script type="application/json" id="pairs">${data}</script><script>${SCRIPT}</script></body></html>
+</main><script type="application/json" id="pairs">${data}</script><script type="application/json" id="arms">${armData}</script><script>${SCRIPT}</script></body></html>
 `;
 }

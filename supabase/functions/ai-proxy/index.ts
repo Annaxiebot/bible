@@ -2,7 +2,7 @@
  * ai-proxy Edge Function · 本站AI代理 (ADR-0007)
  *
  * POST /ai-proxy
- * Body: { role: 'ask'|'pack'|'adjust'|'sharing'|'study', messages: [{role, content}],
+ * Body: { role: 'ask'|'pack'|'adjust'|'sharing'|'study'|'pick', messages: [{role, content}],
  *         stream?, max_tokens?, temperature?, model?, reasoning?,
  *         content_language? (Ask AI: the pack's mode) }
  *

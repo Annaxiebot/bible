@@ -175,7 +175,7 @@ describe('loadRelatedVerses — failures are reported, the answer goes ahead', (
   it('a pack without a book/chapter → a warning, not a fetch', async () => {
     const fetchMock = stubBundledFetch();
     const result = await loadRelatedVerses({ ...pack, passageRef: '箴言 1 · Proverbs 1' }, 'q');
-    expect(result).toEqual({ related: [], warnings: ['passage book/chapter unknown: 箴言 1 · Proverbs 1'] });
+    expect(result).toEqual({ related: [], source: 'votes', warnings: ['passage book/chapter unknown: 箴言 1 · Proverbs 1'] });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });

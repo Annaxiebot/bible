@@ -4,10 +4,12 @@
 -- paste this whole file → Run. Idempotent (IF NOT EXISTS / DROP POLICY IF
 -- EXISTS / CREATE OR REPLACE), so re-running is safe. Applied to the live
 -- project through the management API on 2026-10-03; the 'study' role (the
--- personal app, ADR-0007 "Personal app") widened the role CHECK on 2026-10-05.
+-- personal app, ADR-0007 "Personal app") widened the role CHECK on 2026-10-05;
+-- the 'pick' role (Ask AI's related-verse pick, ADR-0016) widens it again —
+-- on the live project apply ai-usage-pick-role.sql (the CHECK only).
 --
 -- What lives here: one counter per leader, per calendar month (UTC,
--- 'YYYY-MM'), per AI role ('ask' | 'pack' | 'adjust' | 'sharing' | 'study'). The
+-- 'YYYY-MM'), per AI role ('ask' | 'pack' | 'adjust' | 'sharing' | 'study' | 'pick'). The
 -- ai-proxy Edge Function counts every call it forwards; message content is
 -- never stored. `monthly_limit` records the limit in force at the last call
 -- so #/setup can show "12/300" without knowing the server's secrets.
@@ -34,7 +36,7 @@ CREATE TABLE IF NOT EXISTS ai_usage (
 -- re-run widens the CHECK on a table created with an older list.
 ALTER TABLE ai_usage DROP CONSTRAINT IF EXISTS ai_usage_role_check;
 ALTER TABLE ai_usage ADD CONSTRAINT ai_usage_role_check
-  CHECK (role IN ('ask', 'pack', 'adjust', 'sharing', 'study'));
+  CHECK (role IN ('ask', 'pack', 'adjust', 'sharing', 'study', 'pick'));
 
 ALTER TABLE ai_usage ENABLE ROW LEVEL SECURITY;
 
