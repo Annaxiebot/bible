@@ -25,6 +25,15 @@ export function bundledChapterUrl(
   return `${import.meta.env.BASE_URL}bible-data/${translation}/${bookId}/${chapter}.json`;
 }
 
+/**
+ * Static URL of a chapter's cross-reference file (OpenBible.info, CC BY —
+ * scripts/build-cross-refs.mjs, ADR-0015). Every chapter has one, so a miss
+ * is a failed load, never "no links".
+ */
+export function crossRefChapterUrl(bookId: string, chapter: number): string {
+  return `${import.meta.env.BASE_URL}bible-data/xref/${bookId}/${chapter}.json`;
+}
+
 function hasVerses(data: unknown): data is ChapterStorageData {
   return (
     typeof data === 'object' && data !== null &&

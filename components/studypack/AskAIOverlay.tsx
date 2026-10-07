@@ -9,8 +9,9 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StudyPack, Slide } from './packTypes';
 import { AskAIMessage } from './askAI';
 import {
-  ASK_AI_LABEL, ASK_INPUT_PLACEHOLDER, ASK_SUBMIT_LABEL, thinkingLine, modelLine,
+  ASK_AI_LABEL, ASK_INPUT_PLACEHOLDER, ASK_SUBMIT_LABEL, RELATED_VERSES_CREDIT, thinkingLine, modelLine,
 } from './tvHints';
+import { RELATED_VERSES_ENABLED } from './relatedVerses';
 import { useAskAI, AskAI } from './useAskAI';
 import AIErrorLine from './AIErrorLine';
 import AskAnswer from './AskAnswer';
@@ -194,6 +195,11 @@ const AskAIOverlay: React.FC<AskAIOverlayProps> = ({ pack, slide, initialQuestio
         <LatestQuestion ai={ai} />
         <Conversation ai={ai} pack={pack} />
         <QuestionForm ai={ai} />
+        {RELATED_VERSES_ENABLED && (
+          <p className="text-stl-text-3 shrink-0 mt-[0.5vh]" style={{ fontSize: '1.6vh' }} data-testid="ask-related-credit">
+            {RELATED_VERSES_CREDIT}
+          </p>
+        )}
       </div>
     </div>
   );

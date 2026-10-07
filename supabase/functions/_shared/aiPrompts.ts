@@ -82,6 +82,52 @@ export const ASK_AI_ANSWER_CONTRACT = [
   'as "let me know if you want more".',
 ].join('\n');
 
+/**
+ * First line of the RELATED VERSES block in the Ask-AI user message (ADR-0015
+ * §4) — data only: verses the TV found in the OpenBible.info cross-references.
+ * One constant for the block's writer and its detector (R3).
+ */
+export const RELATED_VERSES_HEADING = 'RELATED VERSES';
+
+/**
+ * The one sentence the answer contract gains when — and only when — the
+ * request carries a RELATED VERSES block (ADR-0015 §4). A request without the
+ * block gets today's system message byte for byte (the evaluation's control, R14).
+ */
+export const ASK_AI_RELATED_VERSES_RULE =
+  '7. RELATED VERSES: under "从整本圣经来看 · Across the whole Bible", cite only the study passage or the ' +
+  'RELATED VERSES given with the question; if none of them fits the question, say so plainly rather than ' +
+  'reaching for another verse.';
+
+/** One related verse group for the block: a bilingual label and its verses (和合本 + English). */
+export interface RelatedVerseText {
+  label: string;
+  verses: ReadonlyArray<{ num: number; cuv: string; en: string }>;
+}
+
+/**
+ * The RELATED VERSES block for the user message, or '' when there is none
+ * (no block → no rule sentence → today's request). `versions` names the two
+ * translations, e.g. "和合本 / BSB".
+ */
+export function formatRelatedVersesBlock(entries: readonly RelatedVerseText[], versions: string): string {
+  if (entries.length === 0) return '';
+  const lines = [`${RELATED_VERSES_HEADING} (cross-references from OpenBible.info, ranked by readers' votes; ${versions}):`];
+  for (const entry of entries) {
+    lines.push(`[${entry.label}]`);
+    for (const v of entry.verses) lines.push(`${v.num} ${v.cuv}\n${v.num} ${v.en}`);
+  }
+  return lines.join('\n');
+}
+
+const RELATED_BLOCK_START = new RegExp(`(^|\\n)${RELATED_VERSES_HEADING} \\(`);
+
+/** True when the latest user message carries a RELATED VERSES block (earlier turns hold only the questions). */
+export function hasRelatedVersesBlock(messages: readonly PromptMessage[]): boolean {
+  const lastUser = [...messages].reverse().find(m => m.role === 'user');
+  return !!lastUser && RELATED_BLOCK_START.test(lastUser.content);
+}
+
 /** Which language a pack of each mode is answered in on the TV (ADR-0003 §9). */
 export const ASK_AI_LANGUAGE_RULES: Readonly<Record<ContentLanguage, string>> = {
   'zh-keywords': 'CONTENT LANGUAGE (the leader chose this for the pack): answer in Simplified Chinese ' +
@@ -110,16 +156,18 @@ export interface PromptMessage { role: string; content: string }
  * that mode's language rule. Without one (a cached pre-ADR-0014 bundle whose
  * user message still carries the contract and the rule): the contract only,
  * so it appears twice for that one deploy round — accepted (ADR-0014).
+ * `related`: the request carries a RELATED VERSES block → the contract gains
+ * ASK_AI_RELATED_VERSES_RULE (ADR-0015); false → unchanged.
  */
-export function askSystemText(mode?: ContentLanguage): string {
-  const parts = [ASK_AI_SYSTEM_PROMPT, ASK_AI_ANSWER_CONTRACT];
+export function askSystemText(mode?: ContentLanguage, related = false): string {
+  const parts = [ASK_AI_SYSTEM_PROMPT, related ? `${ASK_AI_ANSWER_CONTRACT}\n${ASK_AI_RELATED_VERSES_RULE}` : ASK_AI_ANSWER_CONTRACT];
   if (mode) parts.push(ASK_AI_LANGUAGE_RULES[mode]);
   return parts.join('\n\n');
 }
 
 /** The role's own system text (adjust drafts a pack section, so it shares the pack's); null for 'study'. */
-function roleSystemText(role: AIRole, mode?: ContentLanguage): string | null {
-  if (role === 'ask') return askSystemText(mode);
+function roleSystemText(role: AIRole, mode?: ContentLanguage, related = false): string | null {
+  if (role === 'ask') return askSystemText(mode, related);
   if (role === 'pack' || role === 'adjust') return PACK_SYSTEM_PROMPT;
   if (role === 'sharing') return SHARING_SYSTEM_PROMPT;
   return null;
@@ -130,13 +178,15 @@ function roleSystemText(role: AIRole, mode?: ContentLanguage): string | null {
  * - ask / pack / adjust / sharing: every browser 'system' message is dropped;
  *   one server system message (guard + the role's text) goes first;
  * - study: the guard goes first and the browser's messages follow unchanged
- *   (the personal app's editable prompt still applies, within scope).
+ *   (the personal app's editable prompt still applies, within scope);
+ * - ask: the latest user message carrying a RELATED VERSES block adds the
+ *   one related-verses rule sentence (ADR-0015 §4).
  */
 export function buildFinalMessages(role: AIRole, messages: readonly PromptMessage[], mode?: ContentLanguage): PromptMessage[] {
-  const own = roleSystemText(role, mode);
+  const data = messages.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content }));
+  const own = roleSystemText(role, mode, hasRelatedVersesBlock(data));
   if (own === null) {
     return [{ role: 'system', content: SCOPE_GUARD }, ...messages.map(m => ({ role: m.role, content: m.content }))];
   }
-  const data = messages.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content }));
   return [{ role: 'system', content: `${SCOPE_GUARD}\n\n${own}` }, ...data];
 }

@@ -14,6 +14,7 @@ import { sendAIRequest, AIRole } from '../../services/aiTransport';
 import { StudyPack, Slide, packContentLanguage } from './packTypes';
 import { AskAIMessage, ASK_AI_MAX_TOKENS, buildAskAIPrompt } from './askAI';
 import { signInNeededError, errorFromStatus, hostedErrorFromStatus, streamError, ErrorReply } from './askAIErrors';
+import type { RelatedVerseText } from '../../supabase/functions/_shared/aiPrompts';
 
 /** One parsed SSE data event, reduced to what the app acts on. */
 export interface SSEEvent {
@@ -82,6 +83,8 @@ export interface AskAIRequestOptions {
   model: string;
   /** Turn reasoning off (OpenRouter `reasoning` param) and raise the token cap — the retry shape. */
   noReasoning?: boolean;
+  /** RELATED VERSES for the user message (ADR-0015); absent or empty → today's body exactly. */
+  related?: readonly RelatedVerseText[];
 }
 
 /** Token cap for the no-reasoning retry: room for an answer after a model that used to think first. */
@@ -109,7 +112,7 @@ export function buildRequestBody(
     content_language: packContentLanguage(pack),
     messages: [
       ...history.map(m => ({ role: m.role, content: m.content })),
-      { role: 'user', content: buildAskAIPrompt(pack, slide, question) },
+      { role: 'user', content: buildAskAIPrompt(pack, slide, question, opts.related) },
     ],
   });
 }

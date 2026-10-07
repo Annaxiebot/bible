@@ -16,6 +16,7 @@ import { StudyPack, Slide } from './packTypes';
 import { AskAIMessage, resolveAskAIModel, stripSplitMarker } from './askAI';
 import { buildRequestBody, streamChatCompletionDetailed, StreamOutcome } from './askAIStream';
 import { AskAIError, FALLBACK_KINDS, asAskAIError, emptyError, timeoutError } from './askAIErrors';
+import { RELATED_VERSES_ENABLED, RelatedVerse, loadRelatedVerses } from './relatedVerses';
 
 export const ASK_AI_FIRST_TOKEN_TIMEOUT_MS = 20_000;
 
@@ -86,6 +87,13 @@ export function nextFallbackModel(tried: ReadonlySet<string>): string | undefine
   return askAIFallbackModels().find(id => !tried.has(id));
 }
 
+/** RELATED VERSES for this question (ADR-0015) — none while the switch is off: no fetch, today's request. */
+async function relatedFor(pack: StudyPack, question: string): Promise<RelatedVerse[]> {
+  if (!RELATED_VERSES_ENABLED) return [];
+  // Failures are in the result's warnings (relatedVerses.lastRelatedVerses); the answer goes ahead with what loaded.
+  return (await loadRelatedVerses(pack, question)).related;
+}
+
 /**
  * Ask one question with a streamed answer. `onText` receives the accumulated,
  * [SPLIT]-stripped answer after every delta; `onModel` the model in play.
@@ -113,10 +121,11 @@ export async function streamStudyAI(
     plan.push({ model: next, noReasoning: true });
   };
 
+  const related = await relatedFor(pack, question);
   for (let attempt = plan.shift(); attempt; attempt = plan.shift()) {
     tried.add(attempt.model);
     onModel?.(attempt.model);
-    const body = buildRequestBody(pack, slide, history, question, attempt);
+    const body = buildRequestBody(pack, slide, history, question, { ...attempt, related });
     let outcome: StreamOutcome;
     try {
       outcome = await runAttempt(body, attempt, onText, onModel, signal);
