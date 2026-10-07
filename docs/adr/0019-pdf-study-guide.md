@@ -1,6 +1,6 @@
 # ADR-0019: A study pack from the leader's own study-guide PDF (2026-10-06)
 
-Status: proposed.
+Status: accepted (2026-10-06) — built and tested; not yet deployed (see Release order).
 
 ## Context
 
@@ -112,8 +112,9 @@ line (they have taken it over).
 (`components/studypack/packTypes.ts`, validated in `parseStudyPack`). The
 editor labels a guide section "讲义原文 · From the guide" and an AI section of a
 guide pack "AI 补充 · AI-drafted". A section changed with "AI 修改 Adjust with
-AI" becomes `ai`. Passage-generated and older packs carry neither field and
-render unchanged; the TV ignores both.
+AI" becomes `ai` (its 撤销 Undo restores the text but not the label — accepted;
+the leader can see the words are the guide's again). Passage-generated and
+older packs carry neither field and render unchanged; the TV ignores both.
 
 ### 6. The rest is the normal path
 
@@ -133,6 +134,15 @@ the same one continuation turn.
 - **`pack_source` is validated**: present with any value other than `"guide"`,
   or on any role other than `pack`, is a 400 (own key: an error before
   sending).
+- **Bundle (measured with `vite build`, master d3ecb9ec vs this change).**
+  pdfjs is its own lazy chunk (`pdf-*.js`, 458 kB / 136 kB gzip) plus its
+  worker (`pdf.worker.min-*.mjs`, 1.23 MB), both fetched only when a leader
+  picks a PDF. The entry chunk grew 2.3 kB (174.6 → 177.0 kB; the server
+  prompt texts it already carried, `_shared/aiPrompts.ts`, gained the guide
+  contract); the New-study chunk grew 9 kB (49.1 → 58.3 kB: the guide UI and
+  checks). `dist/pdfjs-cmaps/` adds 168 files, 1.6 MB, fetched one by one
+  only for PDFs with predefined CJK encodings. GitHub Pages serves `.mjs`
+  as JavaScript, which the module worker needs.
 - **Size.** 30 000 characters of guide + passage + rules stay under the
   proxy's 60 000-character message cap, including the one continuation turn
   (the cut-off reply, at most `PACK_MAX_TOKENS`, is resent once).

@@ -19,6 +19,7 @@ scripturetolife.org serves Chinese-speaking congregations. During the first week
 ### Guide content fidelity 讲义内容忠实
 
 5. **PDF path uses the guide literally.** A leader-uploaded study guide becomes a pack with its own intro, outline, and questions verbatim. The AI adds nothing uninvited; it only fills gaps the leader asks for.
+   *Built (2026-10-06):* ADR-0019 — the guide is read in the browser, its lines are checked word for word by code, and lines that differ are flagged in the editor.
 6. **Leader-only material never reaches the screen.** 提示 (hints) and 参考 (reference answers) from a 组长版 guide stay in the leader's copy; the TV shows the questions.
 7. **Our added layers are visibly ours.** Life menu, reflection prompts, QR sign-up, and the closing question are app-generated and must not be presented as part of the uploaded guide.
 
