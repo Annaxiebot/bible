@@ -18,6 +18,8 @@ import { buildRequestBody, streamChatCompletionDetailed, StreamOutcome } from '.
 import { AskAIError, FALLBACK_KINDS, asAskAIError, emptyError, timeoutError } from './askAIErrors';
 import { RELATED_VERSES_ENABLED, RelatedVerse, loadRelatedVerses } from './relatedVerses';
 import { QUESTION_AWARE_ENABLED, questionAwareChooser } from './relatedPick';
+import { ORIGINAL_WORDS_ENABLED, loadOriginalWords } from './originalWords';
+import type { OriginalWordsVerse } from '../../supabase/functions/_shared/aiPrompts';
 
 export const ASK_AI_FIRST_TOKEN_TIMEOUT_MS = 20_000;
 
@@ -102,6 +104,16 @@ async function relatedFor(pack: StudyPack, question: string, signal: AbortSignal
 }
 
 /**
+ * ORIGINAL WORDS for this question (ADR-0018) — none while the switch is off
+ * (no fetch, today's request), and none for a question that names no verse
+ * and selects no word. Failures are in originalWords.lastOriginalWords().warnings.
+ */
+async function originalFor(pack: StudyPack, question: string): Promise<OriginalWordsVerse[]> {
+  if (!ORIGINAL_WORDS_ENABLED) return [];
+  return (await loadOriginalWords(pack, question)).verses;
+}
+
+/**
  * Ask one question with a streamed answer. `onText` receives the accumulated,
  * trimmed answer after every delta; `onModel` the model in play.
  * A user abort via `signal` resolves cleanly with whatever has arrived.
@@ -128,11 +140,11 @@ export async function streamStudyAI(
     plan.push({ model: next, noReasoning: true });
   };
 
-  const related = await relatedFor(pack, question, signal);
+  const [related, original] = await Promise.all([relatedFor(pack, question, signal), originalFor(pack, question)]);
   for (let attempt = plan.shift(); attempt; attempt = plan.shift()) {
     tried.add(attempt.model);
     onModel?.(attempt.model);
-    const body = buildRequestBody(pack, slide, history, question, { ...attempt, related });
+    const body = buildRequestBody(pack, slide, history, question, { ...attempt, related, original });
     let outcome: StreamOutcome;
     try {
       outcome = await runAttempt(body, attempt, onText, onModel, signal);

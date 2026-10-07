@@ -54,6 +54,10 @@ export const RELATED_VERSES_ARMS = {
   heading: '相关经文盲评 · Related verses blind vote',
 };
 
+/** What the owner is asked to judge (ADR-0015/0016); an evaluation may pass its own `arms.instructions`. */
+const VOTE_INSTRUCTIONS = '每题两个回答，标签隐藏。选更适合小组查经的一个（忠于经文、交叉经文恰当、清楚），最后揭晓。 · ' +
+  'Two answers per question, labels hidden: pick the one that better serves a church small group (faithful to Scripture, apt cross-references, clear), then reveal.';
+
 const SCRIPT = `
 const pairs = JSON.parse(document.getElementById('pairs').textContent);
 const arms = JSON.parse(document.getElementById('arms').textContent);
@@ -96,7 +100,7 @@ export function votePageHtml(pairs, arms = RELATED_VERSES_ARMS) {
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>${escape(arms.title)}</title><style>${STYLE}</style></head>
 <body><main><h1>${escape(arms.heading)}</h1>
-<p>每题两个回答，标签隐藏。选更适合小组查经的一个（忠于经文、交叉经文恰当、清楚），最后揭晓。 · Two answers per question, labels hidden: pick the one that better serves a church small group (faithful to Scripture, apt cross-references, clear), then reveal.</p>
+<p>${escape(arms.instructions ?? VOTE_INSTRUCTIONS)}</p>
 </main><script type="application/json" id="pairs">${data}</script><script type="application/json" id="arms">${armData}</script><script>${SCRIPT}</script></body></html>
 `;
 }

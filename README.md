@@ -137,5 +137,8 @@ license: 和合本 Chinese Union Version (1919) and the Berean Standard Bible
 (dedicated to the public domain in 2023). The cross-references Ask AI
 uses to find related verses come from
 [OpenBible.info](https://www.openbible.info/labs/cross-references/)
-(CC BY). Photos and fonts keep their own licenses. See [NOTICE](NOTICE) for
+(CC BY). The Greek and Hebrew word data and brief lexicons Ask AI uses for
+word questions come from [STEP Bible](https://www.STEPBible.org)
+([STEPBible-Data](https://github.com/STEPBible/STEPBible-Data), CC BY 4.0).
+Photos and fonts keep their own licenses. See [NOTICE](NOTICE) for
 the full list.

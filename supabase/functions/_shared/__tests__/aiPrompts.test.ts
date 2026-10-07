@@ -13,6 +13,7 @@ import {
   SCOPE_GUARD, ASK_AI_SYSTEM_PROMPT, ASK_AI_LANGUAGE_RULES, CONTENT_LANGUAGES, AI_ROLES, askSystemText, buildFinalMessages,
   ASK_AI_ANSWER_CONTRACT, ASK_AI_RELATED_VERSES_RULE, RELATED_VERSES_HEADING, formatRelatedVersesBlock, hasRelatedVersesBlock,
   PICK_SYSTEM_PROMPT, formatPickRequest,
+  ORIGINAL_WORDS_HEADING, ASK_AI_ORIGINAL_WORDS_RULE, formatOriginalWordsBlock, hasOriginalWordsBlock,
 } from '../aiPrompts.ts';
 
 describe('SCOPE_GUARD', () => {
@@ -122,5 +123,36 @@ describe('the pick call (ADR-0016)', () => {
       'CANDIDATES (cross-references from OpenBible.info):', 'ISA.65.17 以赛亚书 65:17 · Isaiah 65:17',
     ]);
     expect(hasRelatedVersesBlock([{ role: 'user', content: text }])).toBe(false);
+  });
+});
+
+describe('the ORIGINAL WORDS block (ADR-0018)', () => {
+  const verse = {
+    label: '箴言 1:7 · Proverbs 1:7', language: 'Hebrew' as const,
+    words: [
+      { original: 'יִרְאַת', translit: "yir'at", strong: 'H3374', morph: '', gloss: '[the] fear of', lemma: 'יִרְאָה', lemmaTranslit: 'yirah', brief: 'fear: 1) fear' },
+      { original: 'בָּזוּ', translit: 'bazu', strong: 'H0936', morph: 'HVqp3cp', gloss: 'they despise' },
+    ],
+  };
+  const block = formatOriginalWordsBlock([verse]);
+
+  it('data only: heading, verse label with its language, one line per word (morph only when given)', () => {
+    expect(block.split('\n').slice(1)).toEqual([
+      '[箴言 1:7 · Proverbs 1:7 · Hebrew]',
+      "yir'at (יִרְאַת) · H3374 · [the] fear of — יִרְאָה (yirah): fear: 1) fear",
+      'bazu (בָּזוּ) · H0936 · HVqp3cp · they despise',
+    ]);
+    expect(formatOriginalWordsBlock([])).toBe('');
+  });
+
+  it('the rule is added only for Ask AI, only when the LATEST user message carries the block', () => {
+    const withBlock = `QUESTION: x\n\n${block}`;
+    expect(hasOriginalWordsBlock([{ role: 'user', content: withBlock }])).toBe(true);
+    expect(hasOriginalWordsBlock([{ role: 'user', content: withBlock }, { role: 'assistant', content: 'a' }, { role: 'user', content: 'q' }])).toBe(false);
+    expect(hasOriginalWordsBlock([{ role: 'user', content: `what are ${ORIGINAL_WORDS_HEADING} (here)?` }])).toBe(false);
+    expect(buildFinalMessages('ask', [{ role: 'user', content: withBlock }], 'bilingual')[0].content).toContain(`7. ${ASK_AI_ORIGINAL_WORDS_RULE}`);
+    for (const role of AI_ROLES.filter(r => r !== 'ask')) {
+      expect(buildFinalMessages(role, [{ role: 'user', content: withBlock }])[0].content).not.toContain(ASK_AI_ORIGINAL_WORDS_RULE);
+    }
   });
 });
