@@ -162,12 +162,18 @@ A blind comparison, like the 2026-10 model vote:
   no related verses found) is byte-identical to the pre-ADR request (pinned
   by hashes in `relatedPrompt.test.ts`). A long related range prints at most
   3 verses.
-- **Observed on real data**: summed votes lean to the passage's most-linked
-  verse (Matthew 6:25–34 → mostly links of 6:33, "seek first the kingdom";
-  Philippians 4:6 and 1 Peter 5:7 rank 11th and 12th). The question's words
-  do not steer the ranking, only verse numbers it names. The evaluation (§6)
-  will show whether this matters; a per-seed normalisation is the first
-  thing to try if it does.
+- **Per-seed normalisation** (amends §3 step 2): raw summed votes leaned to
+  the passage's most-linked verse — Matthew 6:25–34 gave six links of 6:33
+  alone ("seek first the kingdom"); Philippians 4:6 and 1 Peter 5:7 ranked
+  11th and 12th. Now each seed's links score votes ÷ that seed's top vote
+  (its best link = 1.0), summed per target; raw votes only break ties.
+  Question-named verses still rank first, applied after normalisation.
+  Top 6 now (no verse named): Matthew 6:25–34 → Philippians 4:6, 1 Peter
+  5:7, Psalm 55:22, Luke 12:31, Matthew 10:29–31, Luke 12:25–26 (picks from
+  ≥ 3 seed verses, pinned by a test); Romans 8:18–30 → Jeremiah 12:4,
+  1 John 3:2, Romans 12:12, Ephesians 1:11, Acts 3:21, Ephesians 1:4–5.
+  The question's words still do not steer the ranking, only verse numbers
+  it names.
 - **Evaluation**: `scripts/eval-related-verses.mjs` (`--dry-run` builds every
   request with no network). Fixture: `tests/fixtures/related-verses-eval.json`.
 

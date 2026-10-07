@@ -5,8 +5,10 @@
  *   1. seeds = the pack's passage verses; verses the question names inside
  *      the passage (a selection's "第7节 / verse 7", or a typed "v.7") rank first;
  *   2. load the passage chapter's cross-reference file
- *      (public/bible-data/xref/, OpenBible.info, CC BY) and sum votes per
- *      target across the seeds;
+ *      (public/bible-data/xref/, OpenBible.info, CC BY); each seed's links
+ *      score votes ÷ that seed's top vote (its best link = 1.0), summed per
+ *      target across the seeds — so one heavily-linked verse (Matthew 6:33)
+ *      cannot crowd out the rest of the passage;
  *   3. drop targets inside the passage (already on screen) and overlaps;
  *   4. keep the top RELATED_VERSES_MAX, at most RELATED_PER_BOOK per book;
  *   5. load their 和合本 + BSB text with the bundled-chapter loader
@@ -37,7 +39,16 @@ export const RELATED_VERSES_PER_REF = 3;
 export type XrefChapter = Record<string, Array<[string, number]>>;
 
 export interface XrefTarget { bookId: string; chapter: number; from: number; to: number }
-export interface RankedTarget extends XrefTarget { ref: string; votes: number; focus: boolean }
+export interface RankedTarget extends XrefTarget {
+  ref: string;
+  /** Sum of the seeds' normalised scores (each seed's best link = 1.0) — the ranking key. */
+  score: number;
+  /** Raw OpenBible votes summed across the seeds (tie-break, and reported to the evaluation). */
+  votes: number;
+  focus: boolean;
+  /** The passage verses that link here. */
+  seeds: number[];
+}
 export interface PassageSpan { bookId: string; chapter: number; verses: ReadonlySet<number> }
 export interface RelatedVerse extends RelatedVerseText { ref: string; votes: number }
 export interface RelatedVersesResult { related: RelatedVerse[]; warnings: string[] }
@@ -63,21 +74,27 @@ function insidePassage(t: XrefTarget, passage: PassageSpan): boolean {
 }
 
 function compareTargets(a: RankedTarget, b: RankedTarget): number {
-  return Number(b.focus) - Number(a.focus) || b.votes - a.votes ||
+  return Number(b.focus) - Number(a.focus) || b.score - a.score || b.votes - a.votes ||
     getBookIndex(a.bookId) - getBookIndex(b.bookId) || a.chapter - b.chapter || a.from - b.from;
 }
 
-/** Steps 2–3 for one chapter file: votes summed per target across the seeds, passage targets dropped. */
+/**
+ * Steps 2–3 for one chapter file: per-seed normalised scores (votes ÷ the
+ * seed's top vote, over all its links) summed per target; passage targets dropped.
+ */
 function sumTargets(file: XrefChapter, passage: PassageSpan, focus: ReadonlySet<number>, malformed: string[]): RankedTarget[] {
   const byRef = new Map<string, RankedTarget>();
   for (const seed of passage.verses) {
-    for (const [ref, votes] of file[String(seed)] ?? []) {
+    const links = file[String(seed)] ?? [];
+    const top = Math.max(0, ...links.map(([, votes]) => votes));
+    for (const [ref, votes] of links) {
       const target = parseCompactRef(ref);
       if (!target) { malformed.push(ref); continue; }
       if (insidePassage(target, passage)) continue;
+      const score = top > 0 ? votes / top : 0;
       const seen = byRef.get(ref);
-      if (seen) { seen.votes += votes; seen.focus ||= focus.has(seed); }
-      else byRef.set(ref, { ...target, ref, votes, focus: focus.has(seed) });
+      if (seen) { seen.score += score; seen.votes += votes; seen.focus ||= focus.has(seed); seen.seeds.push(seed); }
+      else byRef.set(ref, { ...target, ref, score, votes, focus: focus.has(seed), seeds: [seed] });
     }
   }
   return [...byRef.values()];
@@ -85,7 +102,7 @@ function sumTargets(file: XrefChapter, passage: PassageSpan, focus: ReadonlySet<
 
 /**
  * Steps 2–4, pure: the ranked, capped targets (focus seeds' targets first,
- * then summed votes, then canonical order) plus any malformed refs met.
+ * then summed normalised score, raw votes, canonical order) plus any malformed refs met.
  */
 export function rankRelated(
   file: XrefChapter, passage: PassageSpan, focus: ReadonlySet<number> = new Set()

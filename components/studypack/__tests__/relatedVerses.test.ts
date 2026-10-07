@@ -8,6 +8,7 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'fs';
+import path from 'path';
 import { parseStudyPack, StudyPack } from '../packTypes';
 import { clearExternalVerseCache } from '../externalVerses';
 import {
@@ -43,9 +44,22 @@ describe('parseCompactRef', () => {
 });
 
 describe('rankRelated', () => {
-  it('sums votes across seeds and ranks by the sum', () => {
-    const file: XrefChapter = { 25: [['PHP.4.6', 10], ['LUK.12.22', 30]], 34: [['PHP.4.6', 25]] };
-    expect(rankRelated(file, PASSAGE).targets.map(t => [t.ref, t.votes])).toEqual([['PHP.4.6', 35], ['LUK.12.22', 30]]);
+  it('scores each link as votes ÷ its seed\'s top vote, sums per target, ranks by the sum', () => {
+    const file: XrefChapter = { 25: [['LUK.12.22', 30], ['PHP.4.6', 10]], 34: [['PHP.4.6', 25]] };
+    const ranked = rankRelated(file, PASSAGE).targets;
+    expect(ranked.map(t => [t.ref, t.score, t.votes, t.seeds])).toEqual([
+      ['PHP.4.6', 10 / 30 + 1, 35, [25, 34]], ['LUK.12.22', 1, 30, [25]],
+    ]);
+  });
+
+  it('one heavily-linked seed cannot crowd out the others: every seed\'s best link scores 1.0', () => {
+    const file: XrefChapter = {
+      33: [['LUK.12.31', 500], ['MAT.5.6', 480], ['JHN.6.27', 380], ['ROM.14.17', 250]],
+      25: [['PHP.4.6', 40]],
+      34: [['1PE.5.7', 12]],
+    };
+    const refs = rankRelated(file, PASSAGE).targets.map(t => t.ref);
+    expect(refs.slice(0, 3)).toEqual(['LUK.12.31', 'PHP.4.6', '1PE.5.7']);
   });
 
   it('drops targets inside the passage (on screen already) but keeps the same chapter outside it', () => {
@@ -64,7 +78,8 @@ describe('rankRelated', () => {
       26: [['ISA.1.1', 40], ['ISA.2.1', 35], ['JER.1.1', 30], ['LUK.1.1', 25], ['ROM.1.1', 20]],
     };
     const refs = rankRelated(file, PASSAGE).targets.map(t => t.ref);
-    expect(refs).toEqual(['PSA.1.1', 'PSA.2.1', 'PRO.1.1', 'PRO.2.1', 'ISA.1.1', 'ISA.2.1']);
+    // Normalised: seed 25's best (PSA.1.1, 90) and seed 26's best (ISA.1.1, 40) both score 1.0; votes break the tie.
+    expect(refs).toEqual(['PSA.1.1', 'ISA.1.1', 'PSA.2.1', 'ISA.2.1', 'JER.1.1', 'PRO.1.1']);
     expect(refs).toHaveLength(RELATED_VERSES_MAX);
   });
 
@@ -98,8 +113,9 @@ describe('loadRelatedVerses — the real committed files', () => {
     expect(warnings).toEqual([]);
     expect(related).toHaveLength(RELATED_VERSES_MAX);
     const refs = related.map(r => r.ref);
-    // Summed votes favour 6:33's links ("seek first the kingdom") — ADR-0015 Consequences: votes favour well-known verses.
-    expect(refs).toEqual(['LUK.12.31', 'MAT.5.6', 'JHN.6.27', 'PSA.34.9-10', 'PSA.84.11-12', 'MRK.10.29-30']);
+    // Per-seed normalisation: before it, raw summed votes gave six links of 6:33 alone
+    // (LUK.12.31, MAT.5.6, JHN.6.27, PSA.34.9-10, PSA.84.11-12, MRK.10.29-30).
+    expect(refs).toEqual(['PHP.4.6', '1PE.5.7', 'PSA.55.22', 'LUK.12.31', 'MAT.10.29-31', 'LUK.12.25-26']);
     for (const r of related) {
       const t = parseCompactRef(r.ref)!;
       expect(t.bookId === 'MAT' && t.chapter === 6 && t.to >= 25).toBe(false);
@@ -112,6 +128,18 @@ describe('loadRelatedVerses — the real committed files', () => {
     for (const r of refs) perBook.set(r.split('.')[0], (perBook.get(r.split('.')[0]) ?? 0) + 1);
     expect(Math.max(...perBook.values())).toBeLessThanOrEqual(RELATED_PER_BOOK);
     expect(lastRelatedVerses()?.related).toEqual(related);
+  });
+
+  it('马太福音 6:25–34: the six picks come from at least three different seed verses', () => {
+    const file = JSON.parse(readFileSync(path.resolve(__dirname, '../../../public/bible-data/xref/MAT/6.json'), 'utf-8')) as XrefChapter;
+    const { targets } = rankRelated(file, PASSAGE);
+    expect(targets).toHaveLength(RELATED_VERSES_MAX);
+    const firstSeeds = new Set(targets.map(t => t.seeds.reduce((best, s) => {
+      const vote = (v: number) => file[String(v)].find(([r]) => r === t.ref)![1] / Math.max(...file[String(v)].map(([, n]) => n));
+      return vote(s) > vote(best) ? s : best;
+    })));
+    expect(firstSeeds.size).toBeGreaterThanOrEqual(3);
+    expect(new Set(targets.flatMap(t => t.seeds)).size).toBeGreaterThanOrEqual(3);
   });
 
   it('loads each chapter file once per session', async () => {
@@ -134,14 +162,14 @@ describe('loadRelatedVerses — failures are reported, the answer goes ahead', (
   it('a related verse whose text fails to load is left out with a warning; the rest stay', async () => {
     const real = stubBundledFetch();
     vi.stubGlobal('fetch', vi.fn(async (url: string) =>
-      String(url).includes('/JHN/6.json') && !String(url).includes('/xref/')
+      String(url).includes('/PHP/4.json') && !String(url).includes('/xref/')
         ? { ok: false, status: 404, json: async () => ({}) }
         : real(url)));
     const { related, warnings } = await loadRelatedVerses(pack, 'q');
-    expect(related.map(r => r.ref)).not.toContain('JHN.6.27');
+    expect(related.map(r => r.ref)).not.toContain('PHP.4.6');
     expect(related).toHaveLength(RELATED_VERSES_MAX - 1);
     expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toMatch(/^related verse text JHN\.6\.27: Bundled chapter unavailable/);
+    expect(warnings[0]).toMatch(/^related verse text PHP\.4\.6: Bundled chapter unavailable/);
   });
 
   it('a pack without a book/chapter → a warning, not a fetch', async () => {
