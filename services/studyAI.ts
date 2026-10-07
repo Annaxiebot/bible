@@ -18,7 +18,7 @@ import { ROLE_MAX_TOKENS, MAX_MESSAGES, MAX_TOTAL_CHARS } from '../supabase/func
 import { askAIModel } from './aiDefaults';
 
 /** OpenRouter X-Title for own-key requests (ASCII only). */
-export const STUDY_AI_TITLE = 'Scripture Scholar';
+export const STUDY_AI_TITLE = 'Scripture to Life';
 const STUDY_TEMPERATURE = 0.7;
 
 export interface StudyAIMessage { role: string; content: string }

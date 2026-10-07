@@ -138,7 +138,8 @@ export interface AIRequestMeta {
   title?: string;
 }
 
-const DEFAULT_TITLE = 'Scripture Scholar TV';
+/** OpenRouter X-Title (ASCII only): which part of the site sent the request. */
+const DEFAULT_TITLE = 'Scripture to Life TV';
 
 /** Send the body by the transport's route; a non-OK reply throws the mapped AskAIError. */
 async function openStream(body: string, signal: AbortSignal, meta: AIRequestMeta, requested: string): Promise<Response> {

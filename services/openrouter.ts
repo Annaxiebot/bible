@@ -46,7 +46,7 @@ export const testApiKey = async (apiKey: string, model?: string): Promise<ApiKey
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`,
         'HTTP-Referer': window.location.origin,
-        'X-Title': 'Scripture Scholar Test',
+        'X-Title': 'Scripture to Life Test',
       },
       body: JSON.stringify({
         model: testModel,

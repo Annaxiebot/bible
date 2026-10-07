@@ -74,7 +74,7 @@ test.describe('Landing page', () => {
     await expect(page.getByTestId('landing-page')).toHaveCount(0);
   });
 
-  test('open-app CTA navigates to the Scripture Scholar app', async ({ page }) => {
+  test('open-app CTA navigates to the personal study app', async ({ page }) => {
     await openLanding(page);
     await page.getByRole('link', { name: PERSONAL_CTA }).click();
     await expect(page).toHaveURL(/#app$/);

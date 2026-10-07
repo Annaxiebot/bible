@@ -10,6 +10,7 @@ import SyncStatusLine from './SyncStatusLine';
 import { autoSaveResearchService } from '../services/autoSaveResearchService';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 import { PERSONAL_AI_FEATURE_PAUSED } from './setup/setupStrings';
+import { BRAND_EN, PERSONAL_TITLE_ZH } from './landing/landingStrings';
 
 export interface BgDownloadProgress {
   cached: number;
@@ -251,8 +252,8 @@ const Sidebar: React.FC<SidebarProps> = ({
               圣
             </div>
             <div>
-              <h2 className="text-lg font-bold text-slate-800">Scripture Scholar</h2>
-              <p className="text-xs text-slate-500">圣经学研 {theme.emoji} {theme.nameZh}</p>
+              <h2 className="text-lg font-bold text-slate-800">{BRAND_EN}</h2>
+              <p className="text-xs text-slate-500">{PERSONAL_TITLE_ZH} {theme.emoji} {theme.nameZh}</p>
             </div>
           </div>
           {/* Sync: one line — local-only or signed in & synced (ADR-0010) */}
