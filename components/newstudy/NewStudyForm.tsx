@@ -61,6 +61,8 @@ interface Props {
   /** A study guide read from the leader's PDF (ADR-0019): its passage pre-fills the form, Generate sends it along. */
   guide?: LoadedGuide | null;
   onDropGuide?: () => void;
+  /** Shown as the form's error until the leader changes something (a guide whose passage must be picked). */
+  message?: string;
 }
 
 /** Optional lesson title + the lesson-number/date sub-grid. */
@@ -88,11 +90,11 @@ const LessonFields: React.FC<{ req: StudyRequest; update: (patch: Partial<StudyR
   </>
 );
 
-const NewStudyForm: React.FC<Props> = ({ busy, onGenerate, suggestion = null, guide = null, onDropGuide }) => {
+const NewStudyForm: React.FC<Props> = ({ busy, onGenerate, suggestion = null, guide = null, onDropGuide, message }) => {
   const [req, setReq] = useState<StudyRequest>(() => ({
     ...DEFAULT_REQUEST, ...suggestion, ...guide?.passage.range, date: todayIso(), contentLanguage: readDefaultContentLanguage(),
   }));
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(message ?? null);
   const update = (patch: Partial<StudyRequest>) => { setReq(r => ({ ...r, ...patch })); setError(null); };
   const range = useVerseRange(req, update);
 

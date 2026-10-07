@@ -4,8 +4,9 @@
  * form → generating (streamed progress + Cancel) → failed (bilingual error +
  * Retry) → editor. The form is hidden until AI is available — signed in or
  * an own key (NewStudyPage renders the AI form above). State lives in NewStudyPage.
- * Under the form, "从讲义 PDF 生成" (guide/GuideEntry, ADR-0019) reads a guide;
- * the form phase then carries it and the form reopens on its passage.
+ * Under the form, "从讲义 PDF 生成" (guide/GuideEntry, ADR-0019) reads a guide and
+ * generation starts at once. The form phase carries a guide only when the
+ * leader must pick its passage (none found — with the message) or cancelled.
  * generating → editor brings the editor's top into view (scrollToTop).
  */
 import React, { useEffect, useRef } from 'react';
@@ -21,7 +22,7 @@ import type { LoadedGuide } from './guide/loadGuide';
 import { GuideEntry } from './guide/GuideEntry';
 
 export type Phase =
-  | { kind: 'form'; guide?: LoadedGuide }
+  | { kind: 'form'; guide?: LoadedGuide; message?: string }
   | { kind: 'generating'; req: StudyRequest; step: string; detail: string }
   | { kind: 'failed'; req: StudyRequest; message: string }
   | { kind: 'editor'; pack: StudyPack };
@@ -57,17 +58,18 @@ export interface PhaseViewProps {
   autosave: { status: AutoSaveStatus; error: string | null };
   /** Where the next study starts (useNextStudy); null while it is worked out (a split second after the packs load). */
   suggestion?: NextStudy | null;
-  /** A study guide was read (ADR-0019) or dropped (null): the form reopens with or without it. */
+  /** A study guide was read (ADR-0019: generation starts) or dropped (null: the plain form). */
   onGuide?: (guide: LoadedGuide | null) => void;
 }
 
 /** The form, and under it the study-guide entry; a read guide reopens the form on its passage (key). */
 const FormPhase: React.FC<{
-  guide?: LoadedGuide; suggestion: NextStudy; onGenerate: (req: StudyRequest) => void; onGuide: (guide: LoadedGuide | null) => void;
-}> = ({ guide, suggestion, onGenerate, onGuide }) => (
+  guide?: LoadedGuide; message?: string; suggestion: NextStudy; onGenerate: (req: StudyRequest) => void;
+  onGuide: (guide: LoadedGuide | null) => void;
+}> = ({ guide, message, suggestion, onGenerate, onGuide }) => (
   <>
     <NewStudyForm key={guide ? `guide:${guide.name}:${guide.text.length}` : 'passage'} busy={false} onGenerate={onGenerate}
-      suggestion={suggestion} guide={guide} onDropGuide={() => onGuide(null)} />
+      suggestion={suggestion} guide={guide} onDropGuide={() => onGuide(null)} message={message} />
     {!guide && <GuideEntry onGuide={onGuide} />}
   </>
 );
@@ -84,7 +86,7 @@ const PhaseView: React.FC<PhaseViewProps> = ({
       // The form waits for the suggestion (a split second after the packs load) and opens on it:
       // opening early and swapping later would drop anything the leader had already typed.
       return configured && suggestion
-        ? <FormPhase guide={phase.guide} suggestion={suggestion} onGenerate={onGenerate} onGuide={onGuide} />
+        ? <FormPhase guide={phase.guide} message={phase.message} suggestion={suggestion} onGenerate={onGenerate} onGuide={onGuide} />
         : null;
     case 'generating':
       return <Progress step={phase.step} detail={phase.detail} onCancel={onCancel} />;

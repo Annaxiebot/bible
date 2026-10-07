@@ -15,6 +15,18 @@ export const GD_DROP = bilingualLine('不用讲义', 'Without the guide');
 /** "{ref}" = the passage found in the guide. */
 export const GD_PASSAGE_FOUND = bilingualLine('讲义的经文：{ref}，请确认', 'Passage in the guide: {ref} — please confirm');
 export const GD_PASSAGE_UNSURE = bilingualLine('没能确定讲义的经文，请选择', 'Could not tell the guide\'s passage — please choose');
+/** Neither the guide's heading nor the AI named a usable passage: the form asks the leader to pick it. */
+export const GD_ERR_NO_PASSAGE = bilingualLine(
+  '没能从讲义确定经文，请选择经文后再生成', 'Could not tell which passage the guide studies — please pick it, then generate'
+);
+/** Editor notice halves: "{guide}" = the passage the AI read in the guide, "{used}" = the pack's passage. */
+export const GD_PASSAGE_MISMATCH = { zh: '讲义似乎在讲 {guide}，这里用的是 {used}', en: 'The guide seems to study {guide}; this study uses {used}' };
+
+/** The notice, each half naming the passages in its own language. */
+export function passageMismatchLine(guide: { zh: string; en: string }, used: { zh: string; en: string }): string {
+  const fill = (half: 'zh' | 'en') => GD_PASSAGE_MISMATCH[half].replace('{guide}', guide[half]).replace('{used}', used[half]);
+  return bilingualLine(fill('zh'), fill('en'));
+}
 export const GD_PRIVACY = bilingualLine(
   'PDF 只在你的浏览器里读取；只有其中的文字发给 AI', 'The PDF is read in your browser; only its text goes to the AI'
 );
@@ -39,6 +51,13 @@ export const GD_ERR_UNREADABLE = bilingualLine('无法读取这份 PDF', 'This P
 export const GD_FROM_GUIDE = bilingualLine('讲义原文', 'From the guide');
 export const GD_AI_DRAFTED = bilingualLine('AI 补充', 'AI-drafted');
 export const GD_NOT_VERBATIM = bilingualLine('与讲义原文不符', 'not word-for-word from the guide');
+
+export const GD_LEADER_ANSWER = bilingualLine('疑似带领者答案', 'looks like a leader\'s answer');
+
+/** One line flagged as a leader-only answer, as the editor shows it. */
+export function leaderAnswerLine(line: string): string {
+  return `${GD_LEADER_ANSWER}：${line}`;
+}
 
 /** One flagged line as the editor shows it. */
 export function notVerbatimLine(line: string): string {

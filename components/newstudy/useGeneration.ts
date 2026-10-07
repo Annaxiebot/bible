@@ -3,10 +3,14 @@
  *
  * generate(): form → generating (progress updates) → editor | failed.
  * cancel(): aborts; the pipeline's AbortError returns the page to the form
- * (the leader's own choice, not a failure).
+ * (the leader's own choice, not a failure). A request with a study guide runs
+ * the guide pipeline (ADR-0019); when neither the guide nor the AI names a
+ * usable passage, the form reopens with the guide and the message, so the
+ * leader picks the passage and generates again.
  */
 import { useRef, useCallback } from 'react';
 import { generateStudyPack } from './generatePack';
+import { generateGuidePack, GuidePassageNotFound } from './guide/generateGuidePack';
 import { StudyRequest } from './packAssembly';
 import { Phase } from './PhaseView';
 
@@ -23,7 +27,7 @@ export function useGeneration(setPhase: (phase: Phase) => void): Generation {
     abortRef.current = controller;
     setPhase({ kind: 'generating', req, step: '', detail: '' });
     try {
-      const pack = await generateStudyPack(
+      const pack = await (req.guide ? generateGuidePack : generateStudyPack)(
         req,
         (step, detail = '') => setPhase({ kind: 'generating', req, step, detail }),
         controller.signal
@@ -33,6 +37,7 @@ export function useGeneration(setPhase: (phase: Phase) => void): Generation {
       // A cancel (Cancel button) is the leader's own choice: back to the form, no error.
       // A study guide stays loaded, so Cancel does not make the leader pick the PDF again.
       if ((err as Error).name === 'AbortError') { setPhase(req.guide ? { kind: 'form', guide: req.guide } : { kind: 'form' }); return; }
+      if (err instanceof GuidePassageNotFound && req.guide) { setPhase({ kind: 'form', guide: req.guide, message: err.message }); return; }
       setPhase({ kind: 'failed', req, message: (err as Error).message });
     }
   }, [setPhase]);

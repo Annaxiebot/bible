@@ -12,9 +12,8 @@
  * 3. Extract + validate the JSON, assemble the pack, validate the pack. An
  *    incomplete JSON for any other reason keeps NS_ERR_NO_JSON and names the
  *    served model.
- * With a study guide (req.guide, ADR-0019) step 2 sends the guide request
- * (guide/guidePrompt) and step 3 also marks each section's origin and the
- * guide lines that are not word for word (guide/guidePack).
+ * A pack from a study guide (req.guide, ADR-0019) runs guide/generateGuidePack,
+ * which reuses streamPackReply and parseGenerated from here.
  * Every failure throws a bilingual Error; a cancel throws an AbortError the
  * caller treats as "back to the form", not as a failure.
  */
@@ -29,8 +28,6 @@ import {
 } from './packPrompt';
 import { extractJsonObject, validateGenerated, GeneratedContent } from './generatedPack';
 import { assemblePack, passageLabel, StudyRequest, VerseRange } from './packAssembly';
-import { buildGuideRequestBody } from './guide/guidePrompt';
-import { markGuidePack } from './guide/guidePack';
 import {
   NS_STEP_VERSES, NS_STEP_AI, NS_STEP_VALIDATE, NS_PROGRESS_CHARS,
   NS_ERR_VERSES_UNAVAILABLE, NS_ERR_VERSES_OUT_OF_RANGE, NS_ERR_NO_JSON, NS_ERR_OUTPUT_LIMIT,
@@ -96,12 +93,12 @@ export function buildContinuationBody(body: string, partial: string): string {
   });
 }
 
-function cancelled(): Error {
+export function cancelled(): Error {
   return new DOMException('Generation cancelled', 'AbortError');
 }
 
 /** Both replies' text → the parsed object and its validated content. NS_ERR_NO_JSON names the served model when known. */
-function parseGenerated(text: string, model: string | null, req: StudyRequest): { raw: Record<string, unknown>; content: GeneratedContent } {
+export function parseGenerated(text: string, model: string | null, req: StudyRequest): { raw: Record<string, unknown>; content: GeneratedContent } {
   try {
     const raw = extractJsonObject(text);
     return { raw, content: validateGenerated(raw, req.contentLanguage) };
@@ -113,7 +110,7 @@ function parseGenerated(text: string, model: string | null, req: StudyRequest): 
 }
 
 /** Stream the first reply and, on finish_reason "length", one continuation; the concatenated text plus the last outcome. */
-async function streamPackReply(
+export async function streamPackReply(
   body: string,
   onProgress: ProgressReporter,
   signal: AbortSignal
@@ -145,22 +142,12 @@ export async function generateStudyPack(
   if (signal.aborted) throw cancelled();
 
   onProgress(NS_STEP_AI);
-  const { text, outcome, received } = await streamPackReply(requestBody(req, verses), onProgress, signal);
+  const { text, outcome, received } = await streamPackReply(buildPackRequestBody(req, verses), onProgress, signal);
   if (outcome.finishReason === FINISH_LENGTH) {
     throw new Error(NS_ERR_OUTPUT_LIMIT.replace(/\{n\}/g, String(received)));
   }
 
   onProgress(NS_STEP_VALIDATE);
-  const { raw, content } = parseGenerated(text, outcome.model, req);
-  const pack = assemblePack(req, verses, content);
-  return req.guide ? markGuidePack(pack, content, raw, req.guide.text, req.contentLanguage) : pack;
-}
-
-/** The passage path's body, or — with a study guide — the guide path's (ADR-0019). */
-function requestBody(req: StudyRequest, verses: PackVerse[]): string {
-  if (!req.guide) return buildPackRequestBody(req, verses);
-  return buildGuideRequestBody({
-    passageRef: passageLabel(req).ref, verses, contentLanguage: req.contentLanguage,
-    guideText: req.guide.text, lessonTitle: req.lessonTitle,
-  });
+  const { content } = parseGenerated(text, outcome.model, req);
+  return assemblePack(req, verses, content);
 }

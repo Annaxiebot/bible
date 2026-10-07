@@ -8,7 +8,7 @@
  * privacy line, QR sign-up line, closing lead line) are fixed here (ADR-0003
  * §7); the QR itself is drawn per pack from its id (signupRoute).
  */
-import { StudyPack, PackSection, PackVerse, parseStudyPack } from '../studypack/packTypes';
+import { StudyPack, PackSection, PackVerse, PassageRange, parseStudyPack } from '../studypack/packTypes';
 import { bilingual, bilingualLine, contentLine, ContentLanguage, TRANSLATIONS } from '../studypack/principles';
 import { bilingualRefLabel } from '../studypack/refLabel';
 import { HEADING_DETAIL_SEPARATOR } from '../studypack/slideText';
@@ -19,13 +19,8 @@ import { SU_QR_BODY } from '../signup/signupStrings';
 import { halfWithoutKindLabel } from '../../supabase/functions/send-checkins/promptText';
 import type { LoadedGuide } from './guide/loadGuide';
 
-/** A passage inside one chapter (the editor's range change needs only this). */
-export interface VerseRange {
-  bookId: string;
-  chapter: number;
-  verseFrom: number;
-  verseTo: number;
-}
+/** A passage inside one chapter (the editor's range change needs only this); defined once in packTypes. */
+export type VerseRange = PassageRange;
 
 export interface StudyRequest extends VerseRange {
   lessonTitle?: string;
@@ -35,6 +30,8 @@ export interface StudyRequest extends VerseRange {
   contentLanguage: ContentLanguage;
   /** The leader's study guide, when the pack is arranged from their PDF (ADR-0019). */
   guide?: LoadedGuide;
+  /** Guide only: the range above is a placeholder — the passage is the one the AI reads in the guide. */
+  findPassage?: boolean;
 }
 
 /** Section headings, as the sample pack writes them (Chinese first). */

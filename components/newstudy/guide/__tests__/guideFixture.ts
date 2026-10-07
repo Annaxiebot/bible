@@ -53,6 +53,7 @@ export const GUIDE_GENERATED = {
   reflection: { tue: zh('今天我在哪里听见神的呼召？'), thu: zh('我这周怎样悔改回转？'), weekend: zh('神的国怎样临到我这周？') },
   closing: zh('这一周你怎样回应「神的国近了」？'),
   fromGuide: ['context', 'discussion'],
+  passage: '马可福音 1:1-15',
 };
 
 export const GUIDE_REPLY_JSON = JSON.stringify(GUIDE_GENERATED);

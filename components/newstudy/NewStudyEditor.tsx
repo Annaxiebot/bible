@@ -21,6 +21,7 @@ import SectionToolbar from './SectionToolbar';
 import ScriptureRangeEditor from './ScriptureRangeEditor';
 import AddSectionMenu from './AddSectionMenu';
 import EditorActionBar from './EditorActionBar';
+import { GuidePassageNotice } from './guide/GuideMarks';
 import { motionScrollBehavior } from '../shared/reducedMotion';
 import { canMoveUp, canMoveDown, canRemove, moveItem, removeItem, insertItem } from './sectionRules';
 import {
@@ -127,6 +128,7 @@ const NewStudyEditor: React.FC<Props> = ({ pack, onChange, onSave, onPreview, on
           <SectionToolbar heading={section.heading}
             canUp={canMoveUp(pack.sections, i)} canDown={canMoveDown(pack.sections, i)} canRemove={canRemove(pack.sections, i)}
             onUp={() => move(i, -1)} onDown={() => move(i, 1)} onRemove={() => remove(i)} />
+          {i === firstScripture && <GuidePassageNotice pack={pack} />}
           {i === firstScripture && <ScriptureRangeEditor pack={pack} onApply={edit} />}
           <SectionEditor section={section} pack={pack} onPatch={patch => edit(withSection(pack, i, patch))} />
         </div>

@@ -39,7 +39,8 @@ export function normaliseRefText(text: string): string {
 
 interface Candidate { range: VerseRange; score: number }
 
-const keyOf = (r: VerseRange) => `${r.bookId} ${r.chapter}:${r.verseFrom}-${r.verseTo}`;
+/** One string per range ("MRK 1:1-15"), for comparing ranges. */
+export const rangeKey = (r: VerseRange): string => `${r.bookId} ${r.chapter}:${r.verseFrom}-${r.verseTo}`;
 
 /** "4 章 27-42 節" / "4章27至42节" / "第4章第27节" — chapter and verses with the book named elsewhere. */
 const CHAPTER_VERSE_FORM = /第?\s*(\d+)\s*章\s*第?\s*(\d+)(?:\s*[-–—至到]\s*(\d+))?\s*[節节]/g;
@@ -70,7 +71,7 @@ function candidates(text: string): Candidate[] {
     const book = getBookById(ref.bookId);
     if (!book || ref.chapter < 1 || ref.chapter > book.chapters) continue;
     const range = { bookId: ref.bookId, chapter: ref.chapter, verseFrom: Math.min(...ref.verses), verseTo: Math.max(...ref.verses) };
-    const key = keyOf(range);
+    const key = rangeKey(range);
     const seen = byKey.get(key);
     const first = seen ? 0 : (range.verseTo > range.verseFrom ? RANGE_SCORE : 0) + (ref.index < TITLE_ZONE_CHARS ? TITLE_SCORE : 0);
     byKey.set(key, { range, score: (seen?.score ?? 0) + first + 1 });

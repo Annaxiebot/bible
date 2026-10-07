@@ -1,16 +1,19 @@
 /**
  * guideGenerate.test.ts — the study-guide pipeline end to end, AI mocked · 讲义生成全流程 (ADR-0019)
  *
- * The fixture guide + a mocked reply go through the real generateStudyPack:
+ * The fixture guide + a mocked reply go through the real generateGuidePack:
  * verses from the bundled 和合本 + BSB files (never the guide, never the
  * model); the guide's questions and intro land verbatim and are marked
  * 'guide'; the one tidied question is in notVerbatim; the app's own layers
  * are 'ai'; the leader-only note appears nowhere. The request goes out as
  * role pack with pack_source "guide" (hosted) or with the guide system text
- * (own key). markGuidePack's own rules are pinned below.
+ * (own key). markGuidePack's own rules are pinned below. The passage flow
+ * (ADR-0019 amendment): rules confident → verses first, as before; not →
+ * the reply's "passage" picks the bundled verses; neither → GuidePassageNotFound.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { generateStudyPack } from '../../generatePack';
+import { generateGuidePack } from '../generateGuidePack';
 import { parseStudyPack, type StudyPack } from '../../../studypack/packTypes';
 import { STORAGE_KEYS } from '../../../../constants/storageKeys';
 import { OPENROUTER_API_URL } from '../../../../services/openrouter';
@@ -25,7 +28,7 @@ import { GUIDE_REQUEST, GUIDE_TEXT } from './guideFixtureRequest';
 const getItem = window.localStorage.getItem as ReturnType<typeof vi.fn>;
 const section = (pack: StudyPack, kind: string) => pack.sections.find(s => s.kind === kind)!;
 
-describe('generateStudyPack with a guide', () => {
+describe('generateGuidePack', () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
     getItem.mockReset().mockImplementation((k: string) => (k === STORAGE_KEYS.OPENROUTER_API_KEY ? 'unit-test-key' : null));
@@ -33,7 +36,7 @@ describe('generateStudyPack with a guide', () => {
 
   it('own key: the guide system text first, the guide as data, verses from the bundle; sections marked; one line flagged', async () => {
     const fetchMock = stubFetch(chunked(GUIDE_REPLY_JSON));
-    const pack = await generateStudyPack(GUIDE_REQUEST, () => {}, new AbortController().signal);
+    const pack = await generateGuidePack(GUIDE_REQUEST, () => {}, new AbortController().signal);
 
     const sent = JSON.parse(fetchMock.mock.calls.find(c => c[0] === OPENROUTER_API_URL)![1]!.body as string);
     expect(sent.messages[0].content).toContain(PACK_FROM_GUIDE_SYSTEM_PROMPT);
@@ -66,7 +69,7 @@ describe('generateStudyPack with a guide', () => {
     seams.__SUPABASE_E2E__ = { url: 'http://localhost:3000/e2e-supabase', anonKey: 'e2e-anon' };
     try {
       const fetchMock = stubFetch(chunked(GUIDE_REPLY_JSON));
-      await generateStudyPack(GUIDE_REQUEST, () => {}, new AbortController().signal);
+      await generateGuidePack(GUIDE_REQUEST, () => {}, new AbortController().signal);
       const body = JSON.parse(fetchMock.mock.calls.find(c => c[0].endsWith(HOSTED_PATH))![1]!.body as string);
       expect(body).toMatchObject({ role: 'pack', pack_source: 'guide' });
       expect(body.messages.some((m: { role: string }) => m.role === 'system')).toBe(false);

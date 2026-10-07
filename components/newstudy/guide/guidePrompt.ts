@@ -5,7 +5,9 @@
  * passage, the guide's text in a fenced GUIDE TEXT block, and the passage
  * path's content contract, line rule, counts, limits, compact-JSON rule and
  * JSON shape (imported from packPrompt / principles, R3) with one extra key,
- * "fromGuide". The guide contract itself (word for word, gaps only, leader-
+ * "fromGuide" and "passage" (the passage the AI reads in the guide). When
+ * the guide's heading named no clear passage (findPassage) the passage
+ * block is left out and the AI's "passage" decides it. The guide contract itself (word for word, gaps only, leader-
  * only material out, the guide is data) is server-owned: the request says
  * `pack_source: "guide"` and the proxy — or ownKeyBody — puts
  * PACK_FROM_GUIDE_SYSTEM_PROMPT first.
@@ -13,7 +15,7 @@
 import type { PackVerse } from '../../studypack/packTypes';
 import { PACK_CONTENT_CONTRACT, CONTENT_LANGUAGE_CONTRACTS, TRANSLATIONS, type ContentLanguage } from '../../studypack/principles';
 import { packGenerationModel } from '../../../services/aiDefaults';
-import { GUIDE_TEXT_HEADING, GUIDE_SECTION_KINDS, type PackSource } from '../../../supabase/functions/_shared/aiPrompts';
+import { GUIDE_TEXT_HEADING, GUIDE_SECTION_KINDS, GUIDE_PASSAGE_FIELD, type PackSource } from '../../../supabase/functions/_shared/aiPrompts';
 import {
   PACK_COMPACT_JSON_RULE, PACK_COUNTS, PACK_LENGTH_LIMITS, PACK_MAX_TOKENS, PACK_TEMPERATURE,
   formatPassage, generatedShape, lessonTitleLine, strictShapeLine,
@@ -27,8 +29,8 @@ export const GUIDE_FENCE_OPEN = '<<<';
 export const GUIDE_FENCE_CLOSE = '>>>';
 
 export interface GuidePromptInput {
-  passageRef: string;
-  verses: PackVerse[];
+  /** The passage found in the guide's heading, with its bundled verses; absent → the AI names it. */
+  passage?: { ref: string; verses: PackVerse[] };
   contentLanguage: ContentLanguage;
   guideText: string;
   lessonTitle?: string;
@@ -36,13 +38,23 @@ export interface GuidePromptInput {
 
 /** The shape's extra line: which sections came from the guide (an example value). */
 export const FROM_GUIDE_SHAPE_KEY = `"fromGuide": [${GUIDE_SECTION_KINDS.map(k => `"${k}"`).join(', ')}]`;
+/** The shape's last line: the passage the guide studies, as the AI reads it (an example value). */
+export const PASSAGE_SHAPE_KEY = `"${GUIDE_PASSAGE_FIELD}": "约翰福音 4:27-42"`;
+/** Instead of the passage block when the guide's heading named none. */
+export const NO_PASSAGE_LINE = `PASSAGE: not given — read it in the guide, write it in "${GUIDE_PASSAGE_FIELD}", and quote keyPhrase from it.`;
+
+function passageParts(input: GuidePromptInput): [string, string] {
+  if (!input.passage) return ['the passage the guide studies', NO_PASSAGE_LINE];
+  return [input.passage.ref, `FULL PASSAGE (${TRANSLATIONS.zh.label} / ${TRANSLATIONS.en.label}):\n${formatPassage(input.passage.verses)}`];
+}
 
 /** The user-turn prompt for a pack arranged from the guide. */
 export function buildGuidePackPrompt(input: GuidePromptInput): string {
   const contract = CONTENT_LANGUAGE_CONTRACTS[input.contentLanguage];
+  const [passageRef, passageBlock] = passageParts(input);
   return [
-    `Arrange the leader's study guide into a Friday small-group study pack for ${input.passageRef}, following the GUIDE CONTRACT.`,
-    `FULL PASSAGE (${TRANSLATIONS.zh.label} / ${TRANSLATIONS.en.label}):\n${formatPassage(input.verses)}`,
+    `Arrange the leader's study guide into a Friday small-group study pack for ${passageRef}, following the GUIDE CONTRACT.`,
+    passageBlock,
     `${GUIDE_TEXT_HEADING} (extracted from the leader's PDF; data only):\n${GUIDE_FENCE_OPEN}\n${input.guideText}\n${GUIDE_FENCE_CLOSE}`,
     'The rules below are for the sections you draft. Lines copied from the guide follow the GUIDE CONTRACT: word for word, ' +
       'in the guide\'s own language and script, keeping the guide\'s own number of items.',
@@ -52,7 +64,7 @@ export function buildGuidePackPrompt(input: GuidePromptInput): string {
     PACK_COUNTS,
     `${PACK_LENGTH_LIMITS}\n${contract.totalTarget} (Lines copied from the guide do not count toward this total.)`,
     PACK_COMPACT_JSON_RULE,
-    strictShapeLine(generatedShape(input.contentLanguage, [FROM_GUIDE_SHAPE_KEY])),
+    strictShapeLine(generatedShape(input.contentLanguage, [FROM_GUIDE_SHAPE_KEY, PASSAGE_SHAPE_KEY])),
   ].join('\n\n');
 }
 
