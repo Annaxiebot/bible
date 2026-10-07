@@ -34,10 +34,10 @@ export async function streamOwnKey(app, key, title, role, body, signal) {
   return { text, error };
 }
 
-/** One Ask-AI answer (role 'ask'), [SPLIT] stripped as the TV shows it. */
+/** One Ask-AI answer (role 'ask'), trimmed as the TV shows it. */
 export async function answer(app, key, title, body) {
   const out = await streamOwnKey(app, key, title, 'ask', body);
-  return { text: app.askAI.stripSplitMarker(out.text), error: out.error };
+  return { text: out.text.trim(), error: out.error };
 }
 
 /** One arm's measures. Empty text or an error = failed (counted, never a pass). */

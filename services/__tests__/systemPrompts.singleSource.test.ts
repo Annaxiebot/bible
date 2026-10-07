@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, resolve, relative } from 'node:path';
-import { BIBLE_SCHOLAR_SYSTEM_PROMPT, AI_LANGUAGE_DIRECTIVE, SPLIT_MARKER } from '../systemPrompts';
+import { BIBLE_SCHOLAR_SYSTEM_PROMPT } from '../systemPrompts';
 
 // R3 enforcement: the bilingual scholar system prompt lives in services/systemPrompts.ts.
 // Every other file that needs it must import — never copy. This test is the tripwire.
@@ -42,9 +42,7 @@ describe('R3: BIBLE_SCHOLAR_SYSTEM_PROMPT single source of truth', () => {
     expect(src).toMatch(/import\s*\{[^}]*BIBLE_SCHOLAR_SYSTEM_PROMPT[^}]*\}\s*from\s*['"]\.\.\/services\/systemPrompts['"]/);
   });
 
-  it('the exported prompt contains the [SPLIT] marker, the language directive, and LaTeX guidance', () => {
-    expect(BIBLE_SCHOLAR_SYSTEM_PROMPT).toContain(SPLIT_MARKER);
-    expect(BIBLE_SCHOLAR_SYSTEM_PROMPT).toContain(AI_LANGUAGE_DIRECTIVE.trim().split('\n')[0]);
-    expect(SPLIT_MARKER).toBe('[SPLIT]');
+  it('the exported prompt keeps its LaTeX guidance (the language/format rule is pinned in systemPrompts.language.test.ts)', () => {
+    expect(BIBLE_SCHOLAR_SYSTEM_PROMPT).toContain('LaTeX');
   });
 });

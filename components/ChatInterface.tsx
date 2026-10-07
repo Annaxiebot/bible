@@ -4,6 +4,7 @@ import { TIMING, LAYOUT } from '../constants/appConfig';
 import { ChatMessage } from '../types';
 import { streamStudyAI } from '../services/studyAI';
 import { BIBLE_SCHOLAR_SYSTEM_PROMPT } from '../services/systemPrompts';
+import { NO_ENGLISH_SECTION_NOTE, toHeadingForm } from '../services/bilingualAnswer';
 import { askAIModel } from '../services/aiDefaults';
 import { QuickAISetupDialog } from './setup/QuickAISetup';
 import { SETUP_TITLE, PERSONAL_AI_UNAVAILABLE_NOTE } from './setup/setupStrings';
@@ -109,21 +110,22 @@ interface MessageBubbleProps {
   onTextSelection?: (selectedText: string, position: { x: number; y: number }) => void;
   onQuote?: (text: string) => void;
   onDelete?: () => void;
+  streaming?: boolean; // still streaming: the English pane waits instead of saying there is none (ADR-0017)
 }
 
-const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, onSaveResearch, isSaved, onNavigate, currentBookId, onTextSelection, onQuote, onDelete }) => {
-  const { zh, en } = parseMessage(m.content, m.role);
-  const content = side === 'zh' ? zh : en;
+// TODO(R4): this file is ~4x over budget — split seam: MessageBubble (with BibleLink) moves to components/chat/MessageBubble.tsx.
+const MessageBubble: React.FC<MessageBubbleProps> = React.memo(({ m, side, onSaveResearch, isSaved, onNavigate, currentBookId, onTextSelection, onQuote, onDelete, streaming = false }) => {
+  const { zh, en } = parseMessage(m.content, m.role, streaming);
+  const content = (side === 'zh' ? zh : en) ?? '';
   const [copied, setCopied] = useState(false);
 
-  if (!content || content === 'Analysis in progress...') {
-    if (m.role === 'assistant') {
-       return (
-         <div className="flex justify-start opacity-40 italic text-xs p-4">
-           {side === 'zh' ? '正在整理中文解读...' : 'Synthesizing English commentary...'}
-         </div>
-       );
-    }
+  if (!content && m.role === 'assistant') {
+    const noEnglish = side === 'en' && en === null && !streaming;
+    return (
+      <div className="flex justify-start opacity-40 italic text-xs p-4">
+        {noEnglish ? NO_ENGLISH_SECTION_NOTE : side === 'zh' ? '正在整理中文解读...' : 'Synthesizing English commentary...'}
+      </div>
+    );
   }
 
   const handleMouseUp = (e: React.MouseEvent) => {
@@ -658,7 +660,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
     const quotePrefix = quotedText ? '> ' + quotedText + '\n\n' : '';
     const currentInput = quotePrefix + input;
     const userMessage: ChatMessage = { role: 'user', content: currentInput, timestamp: new Date() };
-    const history = messages.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.content }));
+    const history = messages.filter(m => m.role !== 'system').map(m => ({ role: m.role, content: m.role === 'assistant' ? toHeadingForm(m.content) : m.content }));
     setMessages(prev => [...prev, userMessage, { role: 'assistant', content: '', timestamp: new Date() }]);
     setInput('');
     setQuotedText(null);
@@ -769,7 +771,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
 
   const saveResearchEntry = async (message: ChatMessage, side: 'zh' | 'en', bookId: string, chapter: number, verses: number[], tags: string[], queryOverride?: string) => {
     const parsed = parseMessage(message.content, message.role);
-    const content = side === 'zh' ? parsed.zh : parsed.en;
+    const content = (side === 'zh' ? parsed.zh : parsed.en) ?? '';
     let query: string;
     if (queryOverride) {
       query = queryOverride;
@@ -925,7 +927,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
             <MessageBubble
               key={`${activeThreadId}-${idx}-${m.timestamp.getTime()}`}
               m={m}
-              side="zh"
+              side="zh" streaming={isTyping && idx === messages.length - 1}
               onSaveResearch={onSaveResearch}
               isSaved={savedMessageTimestamps.has(m.timestamp.getTime())}
               onNavigate={onNavigate}
@@ -1046,7 +1048,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
             <MessageBubble
               key={`${activeThreadId}-${idx}-${m.timestamp.getTime()}`}
               m={m}
-              side="en"
+              side="en" streaming={isTyping && idx === messages.length - 1}
               onSaveResearch={onSaveResearch}
               isSaved={savedMessageTimestamps.has(m.timestamp.getTime())}
               onNavigate={onNavigate}
@@ -1120,7 +1122,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
 
       {showSaveModal && researchToSave && (() => {
         const parsed = parseMessage(researchToSave.message.content, researchToSave.message.role);
-        const content = researchToSave.side === 'zh' ? parsed.zh : parsed.en;
+        const content = (researchToSave.side === 'zh' ? parsed.zh : parsed.en) ?? '';
         const messageIndex = messages.findIndex(m => m === researchToSave.message);
         const userMessage = messageIndex > 0 ? messages[messageIndex - 1] : null;
         const query = userMessage?.role === 'user' ? userMessage.content : 'AI Research';

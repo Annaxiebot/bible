@@ -27,15 +27,6 @@ export interface AskAIMessage {
   content: string;
 }
 
-/**
- * The shared scholar system prompt mandates a [SPLIT] bilingual format; our
- * rules ask the model not to, but strip it defensively for TV display. Also
- * applied to the accumulating text while streaming.
- */
-export function stripSplitMarker(text: string): string {
-  return text.replace(/\s*\[SPLIT\]\s*/g, '\n').trim();
-}
-
 function formatSlide(slide: Slide): string {
   const parts: string[] = [slide.heading];
   if (slide.question) parts.push(`Question: ${slide.question}`);

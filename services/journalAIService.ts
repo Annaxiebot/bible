@@ -21,6 +21,7 @@
  */
 
 import { chatStudyAI, streamStudyAI } from './studyAI';
+import { JOURNAL_LANGUAGE_DIRECTIVE } from './systemPrompts';
 import { emptyError } from '../components/studypack/askAIErrors';
 import { journalStorage } from './journalStorage';
 import { JournalEntry, SpiritualMemoryItem } from './idbService';
@@ -44,10 +45,9 @@ export async function streamAI(
   onChunk: (text: string) => void,
 ): Promise<StreamResult> {
   const timestamp = new Date().toISOString();
-  // Language directive as a USER-prompt prefix: journal requests send no system message.
-  const JOURNAL_LANG_DIRECTIVE = `INSTRUCTION (overrides any other language preference): Write your entire response in Simplified Chinese (简体中文) as the primary language, but keep key theological/technical terms, proper nouns, book names, and Bible references in English (e.g. covenant, atonement, Genesis 15:6, John 3:16). Optionally add a short Chinese gloss in parentheses after the first occurrence of an English term, e.g. "covenant（约）". Do NOT use the [SPLIT] format here — produce a single unified response in Chinese with English keywords embedded.\n\n`;
+  // services/systemPrompts JOURNAL_LANGUAGE_DIRECTIVE: a USER-prompt prefix (journal requests send no system message).
   // The personal app's one AI path (services/studyAI): own key → OpenRouter, signed in → ai-proxy role 'study'.
-  const { model } = await streamStudyAI(JOURNAL_LANG_DIRECTIVE + prompt, [], onChunk);
+  const { model } = await streamStudyAI(JOURNAL_LANGUAGE_DIRECTIVE + prompt, [], onChunk);
   return { model, timestamp };
 }
 

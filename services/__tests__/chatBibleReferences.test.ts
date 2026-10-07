@@ -39,16 +39,22 @@ describe('parseBibleReference', () => {
 });
 
 describe('parseMessage', () => {
-  it('splits assistant messages on [SPLIT]', () => {
-    const result = parseMessage('中文内容[SPLIT]English content', 'assistant');
-    expect(result.zh).toBe('中文内容');
-    expect(result.en).toBe('English content');
+  it('splits assistant answers on the section headings (ADR-0017)', () => {
+    const result = parseMessage('## 中文\n中文内容\n\n## English\nEnglish content', 'assistant');
+    expect(result).toEqual({ zh: '中文内容', en: 'English content' });
   });
 
-  it('returns content as zh for assistant without split', () => {
-    const result = parseMessage('Some response', 'assistant');
-    expect(result.zh).toBe('Some response');
-    expect(result.en).toBe('Analysis in progress...');
+  it('still splits a legacy assistant answer on [SPLIT]', () => {
+    const result = parseMessage('中文内容[SPLIT]English content', 'assistant');
+    expect(result).toEqual({ zh: '中文内容', en: 'English content' });
+  });
+
+  it('an assistant answer without an English section: all of it in zh, en null', () => {
+    expect(parseMessage('Some response', 'assistant')).toEqual({ zh: 'Some response', en: null });
+  });
+
+  it('while streaming, a half-written English heading is held back', () => {
+    expect(parseMessage('中文内容\n## Eng', 'assistant', true)).toEqual({ zh: '中文内容', en: null });
   });
 
   it('parses user messages with 中文/English markers', () => {

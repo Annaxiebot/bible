@@ -89,9 +89,9 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); });
 
 describe('streamStudyAI — happy path', () => {
-  it('streams accumulated [SPLIT]-stripped text, sends the pinned model/cap/history, reports the served model', async () => {
+  it('streams accumulated trimmed text, sends the pinned model/cap/history, reports the served model', async () => {
     const { fetchMock } = stubFetch(sseResponse([
-      content('中文 (v.25)。'), content('\n[SPLIT]\nEnglish'), content(' (v.25).'), DONE,
+      content('中文 (v.25)。'), content('\n\nEnglish'), content(' (v.25). '), DONE,
     ]));
     const { pack, slide } = loadPack();
     const seen: string[] = [];
@@ -99,7 +99,7 @@ describe('streamStudyAI — happy path', () => {
     const history = [{ role: 'user' as const, content: 'q1' }, { role: 'assistant' as const, content: 'a1' }];
     const result = await streamStudyAI(pack, slide, history, 'follow-up', t => seen.push(t), new AbortController().signal, m => models.push(m));
     expect(seen[0]).toBe('中文 (v.25)。');
-    expect(result).toEqual({ text: '中文 (v.25)。\nEnglish (v.25).', model: SERVED });
+    expect(result).toEqual({ text: '中文 (v.25)。\n\nEnglish (v.25).', model: SERVED });
     expect(models).toEqual([ASK_AI_MODEL, SERVED]); // requested, then the id the stream named
     const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
     expect(body).toMatchObject({ model: ASK_AI_MODEL, stream: true, max_tokens: ASK_AI_MAX_TOKENS });

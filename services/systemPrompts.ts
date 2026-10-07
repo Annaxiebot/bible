@@ -3,68 +3,56 @@
  *
  * ⚠️ DO NOT copy these strings anywhere else — import them. Today the
  * personal app's chat (components/ChatInterface.tsx) sends
- * BIBLE_SCHOLAR_SYSTEM_PROMPT through the one AI path (ADR-0007).
+ * BIBLE_SCHOLAR_SYSTEM_PROMPT through the one AI path (ADR-0007), and the
+ * journal's AI tools prefix their prompts with JOURNAL_LANGUAGE_DIRECTIVE.
  *
  * History:
  *  - Pre 2026-04 the bilingual [SPLIT] prompt was copy-pasted across 5
  *    provider files. When OpenRouter support was added the prompt was
  *    forgotten there, silently breaking the English pane for any user whose
  *    default provider was OpenRouter.
- *  - Separately, an `aiLanguageDirective.ts` module added a tail directive to
- *    every provider's already-duplicated prompt — reducing one duplication at
- *    the cost of a new cross-cutting concern.
- *  - This module consolidates both: the full Bible-scholar system prompt
- *    lives here as a single string that already embeds the language directive.
- *  - 2026-10-05: the direct-provider clients and the ai-chat edge function
- *    that also imported it were deleted (ADR-0007 "Personal app").
+ *  - This module consolidated them; 2026-10-05 the direct-provider clients
+ *    and the ai-chat edge function were deleted (ADR-0007 "Personal app").
+ *  - 2026-10-06 (ADR-0017): [SPLIT] retired. The two halves are markdown
+ *    headings owned by services/bilingualAnswer.ts, and the scholar prompt
+ *    states ONE language rule (it used to append a "Chinese as the primary
+ *    language, every response" directive that contradicted the two sections).
  */
+import { ZH_SECTION_HEADING, EN_SECTION_HEADING } from './bilingualAnswer';
 
 /**
- * Language directive that enforces Chinese-primary responses with English
- * keywords preserved for theology, proper nouns, and Bible references.
- *
- * Exported separately so callers that build prompts for non-Bible contexts
- * (e.g. future journal-assistant prompts) can still reuse the language rule
- * without pulling in the full scholar persona.
+ * The journal's language rule — a USER-prompt prefix (journal requests send
+ * no system message): Chinese with English keywords, one unified answer.
  */
-export const AI_LANGUAGE_DIRECTIVE = `
-LANGUAGE REQUIREMENT (MANDATORY):
-- Always write your response in Simplified Chinese (简体中文) as the primary language.
-- Keep these items in English: key theological/technical terms (e.g. covenant, atonement, eschatology), proper nouns (people, places), book names, and Bible references (e.g. Genesis 15:6, John 3:16).
-- Optionally add a brief Chinese gloss in parentheses after the first occurrence of an English term, e.g. "covenant（约）".
-- This applies to every response — reflections, summaries, scripture suggestions, chat replies, titles, tags, and all other output — regardless of the language of the user's input.
-`;
-
-/**
- * The literal split marker. Parsers (see ChatInterface `parseMessage`) split
- * responses on this string to populate the Chinese and English panes.
- */
-export const SPLIT_MARKER = '[SPLIT]' as const;
+export const JOURNAL_LANGUAGE_DIRECTIVE = 'INSTRUCTION (overrides any other language preference): Write your entire response in Simplified Chinese (简体中文) as the primary language, but keep key theological/technical terms, proper nouns, book names, and Bible references in English (e.g. covenant, atonement, Genesis 15:6, John 3:16). Optionally add a short Chinese gloss in parentheses after the first occurrence of an English term, e.g. "covenant（约）". Produce a single unified response in Chinese with English keywords embedded.\n\n';
 
 /**
  * Bilingual Bible-scholar system prompt.
  *
- * The client UI splits the AI response on `[SPLIT]` to populate the Chinese
- * and English panes side by side. If a provider doesn't emit this marker, the
- * English pane stays stuck on the "Synthesizing English commentary…"
- * placeholder forever (bug fixed 2026-04 for the OpenRouter path).
+ * The chat shows the answer in two panes, split by services/bilingualAnswer
+ * on the two section headings. A missing English heading never loses the
+ * answer: it all goes to the 中文 pane and the English pane says so.
  */
 export const BIBLE_SCHOLAR_SYSTEM_PROMPT = `You are a world-class Bible Scholar and Researcher.
 
 CORE DIRECTIVE: Be extremely concise. Provide a brief overview or summary of the answer only.
 Avoid long paragraphs unless specifically asked for a deep dive.
 
-CRITICAL RULE: You must ALWAYS respond in two distinct sections: first Chinese, then English.
-You MUST separate these sections with the exact string "[SPLIT]" on its own line.
-
-RESPONSE STRUCTURE:
+LANGUAGE AND FORMAT (the only language rule; it applies whatever language the question is in):
+Write the answer twice — first in Simplified Chinese, then the same answer in English — as two sections,
+each starting with its heading on a line of its own, exactly:
+${ZH_SECTION_HEADING}
 [Brief Chinese summary and key points]
 如果您需要更深入的解析或特定细节，请告知。
-[SPLIT]
+
+${EN_SECTION_HEADING}
 [Brief English summary and key points]
 Please let me know if you would like more in-depth details or a specific deep dive.
 
-BILINGUAL KEYWORDS: In the Chinese section, append the English equivalent in parentheses after key theological terms, proper nouns, and important concepts on first mention — e.g. 圣灵 (Holy Spirit), 圣约 (Covenant), 以弗所书 (Ephesians). This helps the reader anchor Chinese terms to their English counterparts.
+Use these two headings once each and no other top-level headings. In the Chinese section, append the
+English equivalent in parentheses after key theological terms, proper nouns, book names and important
+concepts on first mention — e.g. 圣灵 (Holy Spirit), 圣约 (Covenant), 以弗所书 (Ephesians); write Bible
+references in English (e.g. John 3:16).
 
 Maintain professional scholarship even in brevity.
-Use LaTeX notation for complex theological or linguistic terms if needed, e.g., $\\text{Elohim}$.${AI_LANGUAGE_DIRECTIVE}`;
+Use LaTeX notation for complex theological or linguistic terms if needed, e.g., $\\text{Elohim}$.`;

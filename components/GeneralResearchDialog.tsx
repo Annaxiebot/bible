@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useGeneralResearch } from '../hooks/useGeneralResearch';
 import { GeneralResearchEntry } from '../hooks/useGeneralResearch';
+import { splitBilingualAnswer } from '../services/bilingualAnswer';
 
 interface GeneralResearchDialogProps {
   onClose: () => void;
@@ -73,19 +74,10 @@ const GeneralResearchDialog: React.FC<GeneralResearchDialogProps> = ({ onClose }
     }
   }, [selectedId, entries, deleteEntry]);
 
+  // The one bilingual parser (ADR-0017): old entries still hold the retired [SPLIT] marker.
   const parseBilingualResponse = useMemo(() => {
-    const response = selectedEntry?.response ?? '';
-    const parts = response.split('[SPLIT]');
-    if (parts.length === 2) {
-      return {
-        chinese: parts[0].trim(),
-        english: parts[1].trim(),
-      };
-    }
-    return {
-      chinese: response,
-      english: null,
-    };
+    const { zh, en } = splitBilingualAnswer(selectedEntry?.response ?? '');
+    return { chinese: zh, english: en };
   }, [selectedEntry?.response]);
 
   return (

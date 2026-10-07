@@ -1,4 +1,5 @@
 import { BIBLE_BOOKS, CHINESE_ABBREV_TO_BOOK_ID } from '../constants';
+import { splitBilingualAnswer } from './bilingualAnswer';
 
 export interface BibleRef {
   bookId: string;
@@ -97,14 +98,13 @@ function parseEnglishReference(text: string): BibleRef | null {
   };
 }
 
-export function parseMessage(content: string, role: string) {
-  if (role === 'assistant') {
-    const parts = content.split('[SPLIT]');
-    if (parts.length >= 2) {
-      return { zh: parts[0]?.trim() || '', en: parts[1]?.trim() || '' };
-    }
-    return { zh: content, en: 'Analysis in progress...' };
-  }
+/**
+ * The 中文 / English pane texts of a chat message. An assistant answer is
+ * split by services/bilingualAnswer (ADR-0017; `en` null = no English
+ * section); `partial` while it is still streaming.
+ */
+export function parseMessage(content: string, role: string, partial = false): { zh: string; en: string | null } {
+  if (role === 'assistant') return splitBilingualAnswer(content, { partial });
 
   if (content.includes('中文:') && content.includes('English:')) {
     const zhMatch = content.match(/中文:([\s\S]*?)English:/);
