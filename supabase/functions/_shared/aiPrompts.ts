@@ -1,9 +1,7 @@
-// TODO(R4): at 297 lines this module is at its budget; the next addition first moves the
-// RELATED VERSES / ORIGINAL WORDS block builders into _shared/aiPromptBlocks.ts.
 /**
  * aiPrompts.ts — the server-owned AI system messages · 服务器端AI提示词 (ADR-0014)
  *
- * Pure leaf module (no Deno, no imports) read by two callers (R3):
+ * Pure module (no Deno; imports only its sibling aiPromptBlocks.ts) read by two callers (R3):
  *   - ai-proxy/policy.ts builds the final messages of every hosted request;
  *   - the app's services/aiTransport.ts builds the SAME final messages for
  *     a request sent with the user's own OpenRouter key.
@@ -12,7 +10,16 @@
  * editable prompt, which is kept AFTER the scope guard — role 'study').
  * The app's components (principles.ts, packPrompt.ts, sharingPrompt.ts)
  * re-export or import these texts; they keep no copies.
+ * The Ask-AI data blocks (RELATED VERSES, ORIGINAL WORDS) live in
+ * aiPromptBlocks.ts and are re-exported here, so callers import one module.
  */
+import { ASK_AI_ORIGINAL_WORDS_RULE, ASK_AI_RELATED_VERSES_RULE, hasOriginalWordsBlock, hasRelatedVersesBlock, type PromptMessage } from './aiPromptBlocks.ts';
+
+export {
+  RELATED_VERSES_HEADING, ASK_AI_RELATED_VERSES_RULE, formatRelatedVersesBlock, hasRelatedVersesBlock,
+  ORIGINAL_WORDS_HEADING, ASK_AI_ORIGINAL_WORDS_RULE, formatOriginalWordsBlock, hasOriginalWordsBlock,
+} from './aiPromptBlocks.ts';
+export type { PromptMessage, RelatedVerseText, OriginalWord, OriginalWordsVerse } from './aiPromptBlocks.ts';
 
 /** Who is asking — the proxy's quota role (policy.ts re-exports these, one list). */
 /** 'pick' = Ask AI's short first call that chooses related verses for the question (ADR-0016). */
@@ -86,44 +93,6 @@ export const ASK_AI_ANSWER_CONTRACT = [
 ].join('\n');
 
 /**
- * First line of the RELATED VERSES block in the Ask-AI user message (ADR-0015
- * §4) — data only: verses the TV found in the OpenBible.info cross-references.
- * One constant for the block's writer and its detector (R3).
- */
-export const RELATED_VERSES_HEADING = 'RELATED VERSES';
-
-/**
- * The one sentence the answer contract gains when — and only when — the
- * request carries a RELATED VERSES block (ADR-0015 §4). A request without the
- * block gets today's system message byte for byte (the evaluation's control, R14).
- */
-export const ASK_AI_RELATED_VERSES_RULE =
-  '7. RELATED VERSES: under "从整本圣经来看 · Across the whole Bible", cite only the study passage or the ' +
-  'RELATED VERSES given with the question; if none of them fits the question, say so plainly rather than ' +
-  'reaching for another verse.';
-
-/** One related verse group for the block: a bilingual label and its verses (和合本 + English). */
-export interface RelatedVerseText {
-  label: string;
-  verses: ReadonlyArray<{ num: number; cuv: string; en: string }>;
-}
-
-/**
- * The RELATED VERSES block for the user message, or '' when there is none
- * (no block → no rule sentence → today's request). `versions` names the two
- * translations, e.g. "和合本 / BSB".
- */
-export function formatRelatedVersesBlock(entries: readonly RelatedVerseText[], versions: string): string {
-  if (entries.length === 0) return '';
-  const lines = [`${RELATED_VERSES_HEADING} (cross-references from OpenBible.info, ranked by readers' votes; ${versions}):`];
-  for (const entry of entries) {
-    lines.push(`[${entry.label}]`);
-    for (const v of entry.verses) lines.push(`${v.num} ${v.cuv}\n${v.num} ${v.en}`);
-  }
-  return lines.join('\n');
-}
-
-/**
  * The 'pick' role's system text (ADR-0016): from the cross-reference
  * candidates, choose the few that answer THIS question. The reply is parsed
  * by exact match against the list (components/studypack/relatedPick.ts);
@@ -150,84 +119,6 @@ export function formatPickRequest(passageRef: string, question: string, candidat
   ].join('\n');
 }
 
-const RELATED_BLOCK_START = new RegExp(`(^|\\n)${RELATED_VERSES_HEADING} \\(`);
-
-function lastUserCarries(messages: readonly PromptMessage[], start: RegExp): boolean {
-  const lastUser = [...messages].reverse().find(m => m.role === 'user');
-  return !!lastUser && start.test(lastUser.content);
-}
-
-/** True when the latest user message carries a RELATED VERSES block (earlier turns hold only the questions). */
-export function hasRelatedVersesBlock(messages: readonly PromptMessage[]): boolean {
-  return lastUserCarries(messages, RELATED_BLOCK_START);
-}
-
-/**
- * First line of the ORIGINAL WORDS block (ADR-0018) — data only: the
- * selected or named verse's Greek/Hebrew words (STEP Bible, CC BY). One
- * constant for the block's writer and its detector (R3).
- */
-export const ORIGINAL_WORDS_HEADING = 'ORIGINAL WORDS';
-
-/**
- * The rule the answer contract gains when — and only when — the request
- * carries an ORIGINAL WORDS block (ADR-0018); numbered after rule 7 when that is present.
- */
-export const ASK_AI_ORIGINAL_WORDS_RULE =
-  "ORIGINAL WORDS: When you explain a word's original-language sense, use only the ORIGINAL WORDS for that verse: " +
-  "name the word, its transliteration and Strong's number as given; if the selected Chinese or English term matches " +
-  'none of them, say so rather than guessing.';
-
-/** One word of a verse; `lemma`/`lemmaTranslit`/`brief` come from the brief lexicon (absent if it failed to load). */
-export interface OriginalWord {
-  original: string;
-  translit: string;
-  strong: string;
-  /** Verbs only (tense, mood, stem); '' for other words. */
-  morph: string;
-  gloss: string;
-  lemma?: string;
-  lemmaTranslit?: string;
-  brief?: string;
-}
-
-/** One verse's words for the block: a bilingual label, the language, the words in text order. */
-export interface OriginalWordsVerse {
-  label: string;
-  language: 'Greek' | 'Hebrew';
-  words: readonly OriginalWord[];
-}
-
-/**
- * The ORIGINAL WORDS block for the user message, or '' when there is none
- * (no block → no rule → today's request). One line per word:
- * "translit (original) · Strong's · morph · gloss — lemma (translit): brief meaning";
- * the lexicon part is printed once per Strong's number in the block.
- */
-export function formatOriginalWordsBlock(verses: readonly OriginalWordsVerse[]): string {
-  if (verses.length === 0) return '';
-  const lines = [`${ORIGINAL_WORDS_HEADING} (STEP Bible tagged Greek/Hebrew text and brief lexicon, per verse in text order; ` +
-    "transliteration (original) · Strong's · morphology (verbs) · English gloss — dictionary form: brief meaning):"];
-  const explained = new Set<string>();
-  for (const verse of verses) {
-    lines.push(`[${verse.label} · ${verse.language}]`);
-    for (const w of verse.words) {
-      const head = [`${w.translit} (${w.original})`, w.strong, ...(w.morph ? [w.morph] : []), w.gloss].join(' · ');
-      const lexicon = w.brief && !explained.has(w.strong) ? ` — ${w.lemma} (${w.lemmaTranslit}): ${w.brief}` : '';
-      explained.add(w.strong);
-      lines.push(head + lexicon);
-    }
-  }
-  return lines.join('\n');
-}
-
-const ORIGINAL_BLOCK_START = new RegExp(`(^|\\n)${ORIGINAL_WORDS_HEADING} \\(`);
-
-/** True when the latest user message carries an ORIGINAL WORDS block. */
-export function hasOriginalWordsBlock(messages: readonly PromptMessage[]): boolean {
-  return lastUserCarries(messages, ORIGINAL_BLOCK_START);
-}
-
 /** Which language a pack of each mode is answered in on the TV (ADR-0003 §9). */
 export const ASK_AI_LANGUAGE_RULES: Readonly<Record<ContentLanguage, string>> = {
   'zh-keywords': 'CONTENT LANGUAGE (the leader chose this for the pack): answer in Simplified Chinese ' +
@@ -248,8 +139,6 @@ export const PACK_SYSTEM_PROMPT =
 export const SHARING_SYSTEM_PROMPT =
   'You summarise, for a small-group leader, what members of a Chinese-speaking Bible study group chose to share ' +
   'about last week\'s practice. Reply with exactly one JSON object and nothing else: no prose, no markdown fences.';
-
-export interface PromptMessage { role: string; content: string }
 
 /**
  * The Ask-AI system text after the guard. With a mode: the answer contract +
