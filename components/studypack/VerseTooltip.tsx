@@ -131,7 +131,7 @@ const VerseTooltip: React.FC<VerseTooltipProps> = ({ label, title = label, verse
           onMouseEnter={cancelHide}
           onMouseLeave={scheduleHide}
           onClick={e => e.stopPropagation()}
-          className="fixed overflow-y-auto tv-thin-scroll bg-stl-surface border border-stl-border rounded-lg p-[1.5vh] shadow-xl block cursor-default"
+          className="fixed overflow-y-auto tv-thin-scroll bg-stl-surface-2 border-2 border-stl-gold rounded-lg p-[1.5vh] shadow-[0_1.5vh_4vh_rgba(0,0,0,0.65)] block cursor-default"
           style={{
             left: placement.left,
             top: placement.top,

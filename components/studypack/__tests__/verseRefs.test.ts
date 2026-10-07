@@ -131,3 +131,24 @@ describe('pack resolution', () => {
     expect(resolveRef(one('vv.24–25'), index, chapter).map(v => v.num)).toEqual([25]);
   });
 });
+
+describe('findVerseRefs — words before a Chinese book name (regression: the TV linked "什么关于约翰福音4:27-42")', () => {
+  it('starts the reference at the book name, not at the words before it', () => {
+    const text = '请问你有什么关于约翰福音4:27-42或其他圣经经文的问题吗？';
+    const [ref] = findVerseRefs(text);
+    expect(ref.text).toBe('约翰福音4:27-42');
+    expect(text.slice(ref.index, ref.index + ref.length)).toBe('约翰福音4:27-42');
+    expect(ref).toMatchObject({ bookId: 'JHN', chapter: 4 });
+    expect(ref.verses).toContain(27);
+    expect(ref.verses).toContain(42);
+  });
+
+  it('leaves a run with no book name in it alone (times stay unknown, unlinked)', () => {
+    const [ref] = findVerseRefs('下午3:00见');
+    expect(ref).toMatchObject({ text: '下午3:00', bookId: null });
+  });
+
+  it('a whole-run book name is unchanged', () => {
+    expect(findVerseRefs('见约翰福音 3:16')[0].text).not.toContain('见');
+  });
+});

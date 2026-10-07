@@ -109,11 +109,35 @@ function parseMatch(text: string): Pick<VerseRef, 'bookId' | 'chapter' | 'verses
   return { bookId: null, chapter: null, verses: parseVerseList(bareVerseList(text)) };
 }
 
+const CJK_LEAD = /^[一-鿿]+/;
+
+/**
+ * A CJK "Book C:V" match whose run of characters is longer than its book name
+ * ("什么关于约翰福音4:27-42": the pattern takes up to 8 characters before the
+ * digits) → the same match starting at the longest known book-name suffix
+ * ("约翰福音4:27-42"), or null when no suffix names a book.
+ */
+function trimCjkLead(text: string): { skip: number; parsed: Pick<VerseRef, 'bookId' | 'chapter' | 'verses'> } | null {
+  const lead = CJK_LEAD.exec(text)?.[0] ?? '';
+  for (let skip = 1; skip < lead.length; skip++) {
+    const parsed = parseMatch(text.slice(skip));
+    if (parsed.bookId) return { skip, parsed };
+  }
+  return null;
+}
+
 /** All verse references in `text`, in order of appearance. */
 export function findVerseRefs(text: string): VerseRef[] {
   const refs: VerseRef[] = [];
   for (const m of text.matchAll(REF_PATTERN)) {
-    refs.push({ index: m.index ?? 0, length: m[0].length, text: m[0], ...parseMatch(m[0]) });
+    const index = m.index ?? 0;
+    const parsed = parseMatch(m[0]);
+    const trimmed = parsed.bookId === null && parsed.chapter !== null ? trimCjkLead(m[0]) : null;
+    if (trimmed) {
+      refs.push({ index: index + trimmed.skip, length: m[0].length - trimmed.skip, text: m[0].slice(trimmed.skip), ...trimmed.parsed });
+    } else {
+      refs.push({ index, length: m[0].length, text: m[0], ...parsed });
+    }
   }
   return refs;
 }
