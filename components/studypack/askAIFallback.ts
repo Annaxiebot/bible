@@ -13,7 +13,7 @@
  */
 import { askAIFallbackModels } from '../../services/aiDefaults';
 import { StudyPack, Slide } from './packTypes';
-import { AskAIMessage, resolveAskAIModel, stripSplitMarker } from './askAI';
+import { AskAIMessage, resolveAskAIModel } from './askAI';
 import { buildRequestBody, streamChatCompletionDetailed, StreamOutcome } from './askAIStream';
 import { AskAIError, FALLBACK_KINDS, asAskAIError, emptyError, timeoutError } from './askAIErrors';
 import { RELATED_VERSES_ENABLED, RelatedVerse, loadRelatedVerses } from './relatedVerses';
@@ -64,7 +64,7 @@ async function runAttempt(
   try {
     const outcome = await streamChatCompletionDetailed(
       body,
-      delta => { raw += delta; onText(stripSplitMarker(raw)); },
+      delta => { raw += delta; onText(raw.trim()); },
       inner.signal,
       { role: 'ask' },
       event => {
@@ -103,7 +103,7 @@ async function relatedFor(pack: StudyPack, question: string, signal: AbortSignal
 
 /**
  * Ask one question with a streamed answer. `onText` receives the accumulated,
- * [SPLIT]-stripped answer after every delta; `onModel` the model in play.
+ * trimmed answer after every delta; `onModel` the model in play.
  * A user abort via `signal` resolves cleanly with whatever has arrived.
  * Every failure rejects with an AskAIError (the overlay maps kind → buttons).
  */
@@ -144,7 +144,7 @@ export async function streamStudyAI(
     }
     const served = outcome.model ?? attempt.model;
     if (signal.aborted || outcome.text.length > 0) {
-      return { text: stripSplitMarker(outcome.text), model: served };
+      return { text: outcome.text.trim(), model: served };
     }
     last = emptyError(served, outcome.finishReason);
     if (last.kind === 'filtered') throw last;

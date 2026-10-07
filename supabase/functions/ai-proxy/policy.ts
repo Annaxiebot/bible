@@ -50,8 +50,8 @@ export const ROLE_ALLOWED_MODELS: Readonly<Record<AIRole, readonly string[]>> = 
 
 /**
  * pack = components/newstudy/packPrompt PACK_MAX_TOKENS (pinned). study is
- * twice ask: a personal-study answer is long-form and bilingual (中文 [SPLIT]
- * English, services/systemPrompts), so the same content is written twice.
+ * twice ask: a personal-study answer is long-form and bilingual (a 中文 then
+ * an English section, services/systemPrompts), so the same content is written twice.
  * pick replies with at most 6 short reference codes (ADR-0016); the cap
  * leaves room for a model that echoes each line's bilingual label too.
  */

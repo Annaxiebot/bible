@@ -5,7 +5,6 @@ import { parseStudyPack, buildSlides, StudyPack, Slide } from '../packTypes';
 import {
   buildAskAIPrompt,
   questionForSelection,
-  stripSplitMarker,
   resolveAskAIModel,
 } from '../askAI';
 import { DEFAULT_AI_SETUP, ASK_AI_MODEL, FREE_MODELS_ROUTER_ID, wireModelId } from '../../../services/aiDefaults';
@@ -205,8 +204,3 @@ describe('createSSEParser', () => {
   });
 });
 
-describe('stripSplitMarker', () => {
-  it('replaces [SPLIT] with a line break and trims', () => {
-    expect(stripSplitMarker('中文。\n[SPLIT]\nEnglish. ')).toBe('中文。\nEnglish.');
-  });
-});

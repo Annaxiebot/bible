@@ -10,6 +10,7 @@
 import { verseDataStorage } from './verseDataStorage';
 import { createMediaAttachment } from '../utils/mediaUtils';
 import { ChatMessage } from '../types';
+import { splitBilingualAnswer } from './bilingualAnswer';
 import { AIResearchEntry } from '../types/verseData';
 import { AUTO_SAVE } from '../constants/appConfig';
 import { STORAGE_KEYS } from '../constants/storageKeys';
@@ -110,17 +111,11 @@ class AutoSaveResearchService {
   }
 
   /**
-   * Parse message content to extract Chinese and English responses
+   * The answer's Chinese and English halves (services/bilingualAnswer, ADR-0017), or one text without an English section
    */
   private parseMessageContent(content: string): { zh: string; en: string } | { single: string } {
-    if (content.includes('[SPLIT]')) {
-      const parts = content.split('[SPLIT]');
-      return {
-        zh: parts[0]?.trim() || '',
-        en: parts[1]?.trim() || '',
-      };
-    }
-    return { single: content.trim() };
+    const { zh, en } = splitBilingualAnswer(content);
+    return en === null ? { single: zh } : { zh, en };
   }
 
   /**

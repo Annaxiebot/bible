@@ -45,14 +45,16 @@ export async function failOnOpenRouter(page: Page): Promise<() => number> {
 export const CHAT_ANSWER = '恩典是白白得来的礼物 Grace is a free gift';
 
 /**
- * Open #app's AI Chat as a signed-in user whose ai-proxy streams CHAT_ANSWER
- * (the personal app's one AI path, role 'study'). Returns the proxy calls.
+ * Open #app's AI Chat as a signed-in user whose ai-proxy streams `chunks`
+ * (default: CHAT_ANSWER in two halves) — the personal app's one AI path,
+ * role 'study'. Returns the proxy calls.
  */
-export async function openSignedInChat(page: Page, appHash: string): Promise<() => ProxyCall[]> {
+export async function openSignedInChat(page: Page, appHash: string, chunks?: readonly string[]): Promise<() => ProxyCall[]> {
   await signInAsLeader(page);
   const half = CHAT_ANSWER.length >> 1;
+  const parts = chunks ?? [CHAT_ANSWER.slice(0, half), CHAT_ANSWER.slice(half)];
   const delta = (content: string) => ({ model: 'google/gemini-2.5-flash', choices: [{ delta: { content } }] });
-  const calls = await mockProxy(page, { sse: sseBody([delta(CHAT_ANSWER.slice(0, half)), delta(CHAT_ANSWER.slice(half))]) });
+  const calls = await mockProxy(page, { sse: sseBody(parts.map(delta)) });
   await page.goto(`/${appHash}`);
   await page.waitForLoadState('networkidle');
   await page.click('text=AI Chat');

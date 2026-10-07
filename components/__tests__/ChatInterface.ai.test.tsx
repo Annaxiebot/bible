@@ -43,6 +43,8 @@ import ChatInterface from '../ChatInterface';
 import { SETUP_TITLE, SETUP_HOSTED_READY, SETUP_SIGN_IN_TO_USE_AI, SETUP_OPEN_BUTTON, PERSONAL_AI_UNAVAILABLE_NOTE } from '../setup/setupStrings';
 import { AI_SIGN_IN_NEEDED } from '../studypack/tvHints';
 import { BIBLE_SCHOLAR_SYSTEM_PROMPT } from '../../services/systemPrompts';
+import { NO_ENGLISH_SECTION_NOTE } from '../../services/bilingualAnswer';
+import { findChapterThread, loadThreadMessages } from '../../services/chatHistoryStorage';
 
 const getItemMock = window.localStorage.getItem as ReturnType<typeof vi.fn>;
 const SERVED = 'google/gemini-2.5-flash';
@@ -108,5 +110,49 @@ describe('ChatInterface — one AI path', () => {
     fireEvent.click(screen.getByRole('button', { name: SETUP_OPEN_BUTTON }));
     const dialog = await screen.findByRole('dialog', { name: SETUP_TITLE });
     expect(dialog).toHaveTextContent(SETUP_SIGN_IN_TO_USE_AI);
+  });
+});
+
+describe('ChatInterface — the two panes (ADR-0017: section headings, not [SPLIT])', () => {
+  const ZH = '恩典是白白得来的礼物。';
+  const EN = 'Grace is a free gift.';
+
+  it('a streamed heading-form answer fills the 中文 and English panes; no heading or marker shows as text', async () => {
+    session = { access_token: 'user-jwt' };
+    // Chunks split mid-heading, as a real stream does.
+    stubFetch([`## 中文\n${ZH}\n\n## Eng`, `lish\n${EN}`]);
+    render(<ChatInterface />);
+    send('What is grace?');
+    await waitFor(() => expect(screen.getByText(EN)).toBeInTheDocument());
+    expect(screen.getByText(ZH)).toBeInTheDocument();
+    expect(screen.queryByText(/## /)).toBeNull();
+    expect(screen.queryByText(NO_ENGLISH_SECTION_NOTE)).toBeNull();
+  });
+
+  it('an answer without the English heading: all of it in the 中文 pane, the English pane says there is none', async () => {
+    session = { access_token: 'user-jwt' };
+    stubFetch([ZH]);
+    render(<ChatInterface />);
+    send('What is grace?');
+    await waitFor(() => expect(screen.getByText(NO_ENGLISH_SECTION_NOTE)).toBeInTheDocument());
+    expect(screen.getByText(ZH)).toBeInTheDocument();
+  });
+
+  it('a stored legacy [SPLIT] thread still renders in both panes, and goes back to the model in the heading form', async () => {
+    session = { access_token: 'user-jwt' };
+    vi.mocked(findChapterThread).mockResolvedValueOnce({ id: 'old' } as Awaited<ReturnType<typeof findChapterThread>>);
+    vi.mocked(loadThreadMessages).mockResolvedValueOnce([
+      { role: 'user', content: 'Old question', timestamp: new Date(1) },
+      { role: 'assistant', content: `${ZH}\n[SPLIT]\n${EN}`, timestamp: new Date(2) },
+    ]);
+    const fetchMock = stubFetch(['## 中文\n好\n## English\nOK']);
+    render(<ChatInterface currentBookId="JHN" currentChapter={3} />);
+    await waitFor(() => expect(screen.getByText(EN)).toBeInTheDocument());
+    expect(screen.getByText(ZH)).toBeInTheDocument();
+    expect(screen.queryByText(/SPLIT/)).toBeNull();
+    send('Follow-up');
+    await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+    const body = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
+    expect(body.messages).toContainEqual({ role: 'assistant', content: `## 中文\n${ZH}\n\n## English\n${EN}` });
   });
 });

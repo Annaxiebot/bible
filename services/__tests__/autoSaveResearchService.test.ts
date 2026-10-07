@@ -173,7 +173,19 @@ describe('AutoSaveResearchService', () => {
       expect(verseDataStorage.addAIResearch).not.toHaveBeenCalled();
     });
 
-    it('should handle single language response (no SPLIT)', async () => {
+    it('a heading-form answer (ADR-0017) is saved as 中文 --- English, headings removed', async () => {
+      const result = await autoSaveResearchService.saveAIResearch({
+        message: { role: 'assistant', content: '## 中文\n恩典回答\n\n## English\nGrace answer', timestamp: new Date() },
+        query: 'grace?',
+        bookId: 'genesis',
+        chapter: 1,
+        verses: [1],
+      });
+      expect(result.success).toBe(true);
+      expect(vi.mocked(verseDataStorage.addAIResearch).mock.calls[0][3].response).toBe('恩典回答\n\n---\n\nGrace answer');
+    });
+
+    it('should handle single language response (no English section)', async () => {
       const singleLangMessage: ChatMessage = {
         role: 'assistant',
         content: 'This is a single language response',
