@@ -157,3 +157,77 @@ the same one continuation turn.
   system message says to ignore them, and the reply still goes through the
   full JSON validation and the verbatim flags. It cannot reach other roles
   or raise the quota.
+
+## Amendment (2026-10-06): automatic flow, the AI finds the passage, leader-only answers
+
+Owner feedback after testing a real guide (a 預查版, the leader's prep version):
+(1) guide formats vary and hard-coded rules break easily — let the AI read the
+PDF; "I just want it to work". The content was already arranged by the AI;
+the one rule-based step left was finding the passage. (2) The guide printed
+suggested answers as bullet points (•) under each discussion question; they
+are leader-only and must never reach the pack.
+
+### A1. Picking the PDF generates at once
+
+No form step and no confirmation: once the PDF is read, generation starts
+with today's date and the leader's remembered content language
+(`readDefaultContentLanguage`); the title comes from the guide. No lesson
+number is set — the guide names its own lesson, and next-study's number
+belongs to the leader's own series. Cancel returns to the form with the
+guide loaded, as before.
+
+### A2. Passage: rules as the fast path, the AI's reading otherwise
+
+- The reply gains a required field `"passage"` (`GUIDE_PASSAGE_FIELD`): the
+  passage the guide studies, read from the guide itself even when the user
+  message names one (server-owned rule 8 of `PACK_FROM_GUIDE_RULES`).
+- It is parsed with the app's one reference finder (`findVerseRefs` after
+  `normaliseRefText`), checked against the book table (the chapter exists)
+  and loaded from the bundled chapter (the verses exist)
+  (`guide/guideAIPassage.ts`). Anything else is "not found".
+- `detectGuidePassage` confident → that passage, its bundled verses sent
+  with the guide, exactly as before §2 (verses first).
+- Not confident → the request carries no passage (`findPassage`; the
+  user message says so) and the pipeline runs reply first, then the AI's
+  passage, then its bundled 和合本 + BSB verses, then assembly
+  (`guide/generateGuidePack.ts`). The AI never supplies verse text.
+- Neither → the form reopens with the guide loaded and
+  "没能从讲义确定经文，请选择经文后再生成 · Could not tell which passage the guide
+  studies — please pick it, then generate"; Generate then sends the leader's
+  pick as a known passage.
+- The AI's reading is stored on the pack (`guidePassage`, validated by
+  `parseStudyPack`). When it differs from the passage used, the editor shows
+  one quiet line above the range editor: "讲义似乎在讲 X，这里用的是 Y · The
+  guide seems to study X; this study uses Y". The rules' passage is not
+  overridden; the leader switches with the existing range editor, and the
+  line goes once the two agree. When the rules were confident and the AI's
+  passage is unusable, nothing is compared and nothing is shown (the pack
+  uses the guide's own heading).
+- The passage path (`generateStudyPack`) no longer has a guide branch; its
+  requests are unchanged (pinned by the existing generatePack tests and the
+  new-study e2e specs). `useGeneration` picks the pipeline by `req.guide`.
+
+### A3. Leader-only answer bullets
+
+- Rule 6 of the server prompt now also names 答案, and says that bullet lines
+  (`ANSWER_BULLET_MARKERS`: • · - * ‧ ▪, or numbered sub-points (1) 1) ①)
+  directly under a discussion question are the leader's suggested answers:
+  never copied, not as questions and not as context.
+- A code check makes a leak visible (`guide/guideAnswers.ts`, pure): the
+  guide's answer bullets are the bullet lines after a question line, until
+  the next question or heading (wrapped lines joined). A pack line that, under
+  the verbatim check's normalisation, is part of an answer or holds a whole
+  one — and is not also elsewhere in the guide — is stored in the section's
+  `leaderAnswer` and flagged "疑似带领者答案 · looks like a leader's answer",
+  exactly like the not-verbatim flag; editing the line clears it. It is a
+  heuristic flag, not a filter: the leader decides.
+
+### A4. Release
+
+Same order as above, and it is required again: the server prompt text
+changed (rules 6 and 8). 1. `supabase functions deploy ai-proxy` (with
+`_shared/aiPrompts.ts`). 2. Deploy the site. With the old function, a guide
+without a heading passage would get no "passage" field back and always land
+on the pick-the-passage form; the answer-bullet rule would be missing (the
+code flag still shows leaks). Own-key requests use the new text as soon as
+the site is deployed.
