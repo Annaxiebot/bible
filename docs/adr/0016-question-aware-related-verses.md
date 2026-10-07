@@ -158,6 +158,90 @@ is merged behind the switch; `database/ai-usage-pick-role.sql` is NOT
 applied and `ai-proxy` has NOT been redeployed with the `pick` role, so no
 pick call can happen in production.
 
+## Second attempt (setup) (2026-10-07)
+
+The "Next attempt" above, built; the switch stays **off** and nothing is
+applied or deployed.
+
+**1. Fixture fixed before the run.** `tests/fixtures/question-aware-eval-2.json`:
+34 questions over 8 passages (Matthew 6:25–34, Proverbs 1:1–19, John 3:22–36,
+Romans 8:18–30, John 4:27–42, Psalm 23, Mark 1:1–15, Philippians 4:4–9) —
+8 passage, 18 whole-Bible thematic, 8 selection questions; Chinese and
+English. It was committed (5ef45b71) before the pool and eval-script
+changes and before any AI output was seen. Same model
+(google/gemini-2.5-flash) and the same judge (anthropic/claude-sonnet-4.5,
+both orders, prompt unchanged) as the first run.
+`scripts/__tests__/questionAwareFixture.test.ts` pins its shape.
+
+**2. Two-hop pool, for the pick only** (`components/studypack/relatedSecondHop.ts`).
+The pick call (`questionAwareChooser`) now sees the passage's ranked pool
+widened by one hop:
+- the first `SECOND_HOP_SEEDS` (10) hop-1 candidates lend their own links
+  (their chapters' xref files, the same loader and session cache — at most
+  10 chapter files per question);
+- a hop-2 link scores `SECOND_HOP_WEIGHT` (0.5) × its parent's hop-1 score
+  × (votes ÷ that verse's top vote), summed across parents;
+- a target inside the passage or overlapping any hop-1 candidate is
+  dropped (hop 1 keeps its place and score);
+- both hops merge in one rank order (hop 1's own order kept), overlaps
+  dropped, cut at `RELATED_POOL_MAX` (still 120 — the pick requests stay
+  5.7–6.2k characters on the new fixture, and no evidence asked for more);
+- a chapter that fails to load is skipped and named in `warnings` (R5).
+
+**Unchanged:** the control (vote top 6 from hop 1), the pick's fill and
+every fallback (still the hop-1 vote ranking), the prompt, the parser, the
+timeout (it covers the pick call only; the extra xref loads are static,
+cached files before it). With the switch off no chooser runs, so no extra
+file is loaded and the request is byte-identical (the SHA-256 pins in
+`relatedPickRequests.test.ts` pass unchanged).
+
+**What the data gives** (real committed xref files, no focus verse):
+
+| passage | hop-1 pool | pick sees | from hop 2 | chapter files |
+|---|---|---|---|---|
+| Matthew 6:25–34 | 71 | 120 | 52 | 8 |
+| Proverbs 1:1–19 | 144 | 120 | 17 | 10 |
+| John 3:22–36 | 126 | 120 | 21 | 10 |
+| Romans 8:18–30 | 101 | 120 | 30 | 9 |
+| John 4:27–42 | 103 | 120 | 29 | 10 |
+| Psalm 23 | 57 | 120 | 64 | 10 |
+| Mark 1:1–15 | 100 | 120 | 40 | 8 |
+| Philippians 4:4–9 | 55 | 120 | 66 | 10 |
+
+- **2 Thessalonians 3:10, Genesis 2:15 and Proverbs 6:6–8 still do not
+  enter Matthew 6's pool.** No hop-1 candidate of Matthew 6:25–34 (all 71,
+  not just the top 10) links to them in the committed data (top 10 links
+  per verse, `XREF_PER_VERSE`), so no number of second-hop seeds can reach
+  them; a test pins this. The "work" questions will still depend on the
+  model citing from memory.
+- Matthew 6 gains, e.g., Psalm 37:5 (rank 4, via 1 Peter 5:7 + Psalm 55:22),
+  Proverbs 3:5–6 (15, via Philippians 4:6 — trust while planning),
+  Matthew 7:7–8 (57). Romans 14:17 moves 37 → 53.
+- Romans 8: Isaiah 65:17 40 → 44, Revelation 21:1 38 → 41 (both still seen).
+  John 3: Philippians 2:2 34 → 35.
+- Noise also enters (Matthew 6 via 2 Chronicles 9:20–22, Solomon's gold:
+  1 Kings 10:21, Esther 1:7, Daniel 5:2–3); the strict parser still only
+  accepts listed candidates.
+- Where hop 1 already exceeds 120 (Proverbs 1, John 3), hop-2 entries
+  displace the tail of hop 1 from what the pick sees.
+
+**3. Eval script.** `scripts/eval-question-aware.mjs` defaults to the new
+fixture (the first run's is still `tests/fixtures/related-verses-eval.json`
+as the last argument); the results add, per question, both arms' lists (as
+before) and for the treatment the hop-1 pool, the pool the pick saw, its
+hop-2 count and which final verses came from hop 2; the summary adds
+"picks from hop 2". `--dry-run` (no key, no network) runs the app's own
+chooser with a sender that sends nothing and prints the pool sizes and
+hop-2 counts. Run (≈34 × (1 pick + 2 answers + 2 judge) calls):
+
+    OPENROUTER_API_KEY=… node scripts/eval-question-aware.mjs results-0016b.json vote-0016b.html
+
+Same bar as before, not moved: switch on only if the treatment wins the
+order-proof judge, does not raise "no such verse" or "cited from memory",
+and the pick path is used for most questions.
+
+**Result:** not yet run.
+
 ## Release
 
 1. Code + tests, switch off (this change). Apply nothing yet.
