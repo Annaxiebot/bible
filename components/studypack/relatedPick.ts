@@ -4,19 +4,21 @@
  * ADR-0015 ranks the passage's cross-references by readers' votes, so the
  * verse that answers THIS question (Isaiah 65:17 for "creation renewed")
  * can sit at rank 40 and never reach the top 6. Here:
- *   1. the pool = the first RELATED_POOL_MAX ranked candidates (relatedVerses.rankPool);
+ *   1. the pool = the passage's ranked candidates (relatedVerses.rankPool)
+ *      widened by one hop (relatedSecondHop.widenPool), the first RELATED_POOL_MAX;
  *   2. a short first AI call (role 'pick', server-owned system text in
  *      _shared/aiPrompts PICK_SYSTEM_PROMPT) sees the passage, the question
  *      and the candidates as "REF label" lines — no verse text;
  *   3. its reply keeps only lines that exactly match a candidate (junk is
  *      ignored and counted), at most RELATED_VERSES_MAX, RELATED_PER_BOOK
- *      applied, the rest filled from the vote ranking.
+ *      applied, the rest filled from the vote ranking (hop 1 only).
  * Never blocks the answer: an error, an empty or all-invalid reply, or a
  * call slower than PICK_TIMEOUT_MS falls back to the vote top 6, and the
  * reason is in the result's warnings with source 'votes' (R5).
  */
 import { streamChatCompletionDetailed } from './askAIStream';
 import { ChosenTargets, RELATED_VERSES_MAX, RankedTarget, TargetChooser, capByBook, targetLabel } from './relatedVerses';
+import { XrefLoader, widenPool } from './relatedSecondHop';
 import { PickCandidate, formatPickRequest } from '../../supabase/functions/_shared/aiPrompts';
 import { ROLE_MAX_TOKENS } from '../../supabase/functions/ai-proxy/policy';
 
@@ -108,23 +110,32 @@ export interface PickOptions {
   signal: AbortSignal;
   send?: PickSender;
   timeoutMs?: number;
+  /** The second hop's chapter loader (default: the session-cached xref loader). */
+  loadChapter?: XrefLoader;
 }
 
-/** The ADR-0016 chooser. Never rejects: every fallback comes back as source 'votes' + a warning saying why. */
+/**
+ * The ADR-0016 chooser. The pick sees the two-hop pool; the fill and every
+ * fallback use the vote ranking (hop 1), unchanged. Never rejects: a
+ * fallback comes back as source 'votes' + a warning saying why. `pool` in
+ * the verdict = the candidates the pick saw (the evaluation reports it).
+ */
 export function questionAwareChooser(opts: PickOptions): TargetChooser {
-  return async (pool, byVotes): Promise<ChosenTargets> => {
+  return async (pool, byVotes, passage): Promise<ChosenTargets> => {
+    const wide = await widenPool(pool, passage, RELATED_POOL_MAX, opts.loadChapter);
     const fallback = (reason: string): ChosenTargets =>
-      ({ targets: byVotes, source: 'votes', warnings: [`pick fell back to votes: ${reason}`] });
-    const body = buildPickBody(opts.passageRef, opts.question, pickCandidates(pool), opts.model);
+      ({ targets: byVotes, source: 'votes', warnings: [...wide.warnings, `pick fell back to votes: ${reason}`], pool: wide.targets });
+    const body = buildPickBody(opts.passageRef, opts.question, pickCandidates(wide.targets), opts.model);
     const reply = await replyWithin(opts.send ?? sendPick, body, opts.signal, opts.timeoutMs ?? PICK_TIMEOUT_MS);
     if ('reason' in reply) return fallback(reply.reason);
     if (!reply.text.trim()) return fallback('empty reply');
-    const { picked, ignored } = parsePickReply(reply.text, pool);
+    const { picked, ignored } = parsePickReply(reply.text, wide.targets);
     if (picked.length === 0) return fallback(`no valid picks (${ignored.length} lines ignored)`);
     const targets = mergePicks(picked, pool);
-    const warnings = ignored.length ? [`pick ignored ${ignored.length} line(s): ${ignored.join(' | ')}`] : [];
+    const warnings = [...wide.warnings];
+    if (ignored.length) warnings.push(`pick ignored ${ignored.length} line(s): ${ignored.join(' | ')}`);
     const filled = targets.filter(t => !picked.includes(t)).length;
     if (filled) warnings.push(`pick gave ${targets.length - filled} valid, ${filled} filled from votes`);
-    return { targets, source: 'pick', warnings };
+    return { targets, source: 'pick', warnings, pool: wide.targets };
   };
 }

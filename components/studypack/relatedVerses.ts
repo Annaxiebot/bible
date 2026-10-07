@@ -56,10 +56,10 @@ export interface RelatedVerse extends RelatedVerseText { ref: string; votes: num
 /** How the final list was chosen: the vote ranking (ADR-0015), or the question-aware pick call (ADR-0016). */
 export type RelatedSource = 'votes' | 'pick';
 export interface RelatedVersesResult { related: RelatedVerse[]; warnings: string[]; source: RelatedSource }
-/** A chooser's verdict: the targets to load, how they were chosen, and anything to report (R5). */
-export interface ChosenTargets { targets: RankedTarget[]; source: RelatedSource; warnings: string[] }
+/** A chooser's verdict: the targets to load, how they were chosen, anything to report (R5), and the candidates it chose from when it widened the pool (ADR-0016 second hop). */
+export interface ChosenTargets { targets: RankedTarget[]; source: RelatedSource; warnings: string[]; pool?: RankedTarget[] }
 /** Picks the final targets from the ranked pool; `byVotes` is today's top RELATED_VERSES_MAX. Must not reject. */
-export type TargetChooser = (pool: RankedTarget[], byVotes: RankedTarget[]) => Promise<ChosenTargets>;
+export type TargetChooser = (pool: RankedTarget[], byVotes: RankedTarget[], passage: PassageSpan) => Promise<ChosenTargets>;
 
 const COMPACT_REF = /^([1-3A-Z]{3})\.(\d+)\.(\d+)(?:-(\d+))?$/;
 
@@ -71,17 +71,17 @@ export function parseCompactRef(ref: string): XrefTarget | null {
   return { bookId: m[1], chapter: Number(m[2]), from, to: m[4] ? Number(m[4]) : from };
 }
 
-function overlaps(a: XrefTarget, b: XrefTarget): boolean {
+export function overlaps(a: XrefTarget, b: XrefTarget): boolean {
   return a.bookId === b.bookId && a.chapter === b.chapter && a.from <= b.to && b.from <= a.to;
 }
 
-function insidePassage(t: XrefTarget, passage: PassageSpan): boolean {
+export function insidePassage(t: XrefTarget, passage: PassageSpan): boolean {
   if (t.bookId !== passage.bookId || t.chapter !== passage.chapter) return false;
   for (let v = t.from; v <= t.to; v++) if (passage.verses.has(v)) return true;
   return false;
 }
 
-function compareTargets(a: RankedTarget, b: RankedTarget): number {
+export function compareTargets(a: RankedTarget, b: RankedTarget): number {
   return Number(b.focus) - Number(a.focus) || b.score - a.score || b.votes - a.votes ||
     getBookIndex(a.bookId) - getBookIndex(b.bookId) || a.chapter - b.chapter || a.from - b.from;
 }
@@ -90,7 +90,7 @@ function compareTargets(a: RankedTarget, b: RankedTarget): number {
  * Steps 2–3 for one chapter file: per-seed normalised scores (votes ÷ the
  * seed's top vote, over all its links) summed per target; passage targets dropped.
  */
-function sumTargets(file: XrefChapter, passage: PassageSpan, focus: ReadonlySet<number>, malformed: string[]): RankedTarget[] {
+export function sumTargets(file: XrefChapter, passage: PassageSpan, focus: ReadonlySet<number>, malformed: string[]): RankedTarget[] {
   const byRef = new Map<string, RankedTarget>();
   for (const seed of passage.verses) {
     const links = file[String(seed)] ?? [];
@@ -255,7 +255,7 @@ export async function loadRelatedVerses(
   }
   const { targets: pool, malformed } = rankPool(file, passage, focusVerses(question, passage));
   if (malformed.length) warnings.push(`malformed cross-references skipped: ${malformed.join(', ')}`);
-  const chosen = pool.length > 0 ? await choose(pool, capByBook(pool)) : await byVotesOnly(pool, []);
+  const chosen = pool.length > 0 ? await choose(pool, capByBook(pool), passage) : await byVotesOnly(pool, [], passage);
   warnings.push(...chosen.warnings);
   return remember({ related: await withText(chosen.targets, warnings), warnings, source: chosen.source });
 }

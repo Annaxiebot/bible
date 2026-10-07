@@ -19,6 +19,7 @@ import {
   QUESTION_AWARE_ENABLED, RELATED_POOL_MAX, PICK_TIMEOUT_MS, PICK_MAX_TOKENS,
   pickCandidates, buildPickBody, parsePickReply, mergePicks, questionAwareChooser, PickSender,
 } from '../relatedPick';
+import { isSecondHop, widenPool } from '../relatedSecondHop';
 import { PICK_SYSTEM_PROMPT, formatPickRequest } from '../../../supabase/functions/_shared/aiPrompts';
 import { TEST_PACK_PATH } from './fixtures';
 import { stubBundledFetch } from './bundledFetch';
@@ -113,8 +114,10 @@ describe('parsePickReply + mergePicks', () => {
 
 describe('questionAwareChooser — never blocks the answer', () => {
   const byVotes = capByBook(romPool);
+  const romWide = () => widenPool(romPool, ROM8, RELATED_POOL_MAX);
   const choose = (send: PickSender, timeoutMs?: number) =>
-    questionAwareChooser({ passageRef: 'Romans 8:18–30', question: 'renewed creation?', model: 'm', signal: new AbortController().signal, send, timeoutMs })(romPool, byVotes);
+    questionAwareChooser({ passageRef: 'Romans 8:18–30', question: 'renewed creation?', model: 'm', signal: new AbortController().signal, send, timeoutMs })(romPool, byVotes, ROM8);
+  beforeEach(() => { stubBundledFetch(); });
 
   it('a valid reply → source pick, the picks first, filled from votes, the fill reported', async () => {
     const out = await choose(async () => 'ISA.65.17\nREV.21.1\nnonsense');
@@ -130,7 +133,7 @@ describe('questionAwareChooser — never blocks the answer', () => {
     ['all invalid', async () => 'Isaiah 65:17\nRevelation 21:1', 'no valid picks (2 lines ignored)'],
   ] as Array<[string, PickSender, string]>)('%s → the vote top 6 + the reason', async (_name, send, reason) => {
     const out = await choose(send);
-    expect(out).toEqual({ targets: byVotes, source: 'votes', warnings: [`pick fell back to votes: ${reason}`] });
+    expect(out).toEqual({ targets: byVotes, source: 'votes', warnings: [`pick fell back to votes: ${reason}`], pool: (await romWide()).targets });
   });
 
   it('slower than the timeout → aborted, the vote top 6', async () => {
@@ -140,13 +143,24 @@ describe('questionAwareChooser — never blocks the answer', () => {
     });
     const out = await choose(slow, 20);
     expect(aborted).toBe(true);
-    expect(out).toEqual({ targets: byVotes, source: 'votes', warnings: ['pick fell back to votes: timeout after 20 ms'] });
+    expect(out).toEqual({ targets: byVotes, source: 'votes', warnings: ['pick fell back to votes: timeout after 20 ms'], pool: (await romWide()).targets });
   });
 
-  it('sends the pick body built from the pool', async () => {
+  it('sends the pick body built from the two-hop pool, and returns that pool', async () => {
     const send = vi.fn<PickSender>(async () => 'ISA.65.17');
-    await choose(send);
-    expect(send.mock.calls[0][0]).toBe(buildPickBody('Romans 8:18–30', 'renewed creation?', pickCandidates(romPool), 'm'));
+    const out = await choose(send);
+    const wide = await romWide();
+    expect(wide.hop2).toBeGreaterThan(0);
+    expect(send.mock.calls[0][0]).toBe(buildPickBody('Romans 8:18–30', 'renewed creation?', pickCandidates(wide.targets), 'm'));
+    expect(out.pool).toEqual(wide.targets);
+  });
+
+  it('a hop-2 pick is kept; the fill still comes from the vote ranking (hop 1)', async () => {
+    const hop2 = (await romWide()).targets.find(isSecondHop)!;
+    const out = await choose(async () => hop2.ref);
+    expect(out.source).toBe('pick');
+    expect(out.targets[0].ref).toBe(hop2.ref);
+    expect(out.targets.slice(1)).toEqual(capByBook([hop2, ...romPool]).slice(1));
   });
 });
 
