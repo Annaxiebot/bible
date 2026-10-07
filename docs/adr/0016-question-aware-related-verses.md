@@ -1,8 +1,9 @@
 # ADR-0016: Ask AI picks the related verses for the question (2026-10-06)
 
-Status: proposed — built behind a switch that is OFF (`QUESTION_AWARE_ENABLED`
-in `components/studypack/relatedPick.ts`) until the evaluation below is run.
-Amends ADR-0015 §3 step 4. Roadmap P1 "Question-aware related verses".
+Status: evaluated 2026-10-06 — NOT switched on (`QUESTION_AWARE_ENABLED` stays
+false); the bar in the Evaluation section was not met. See "Evaluation result".
+The switch lives in `components/studypack/relatedPick.ts`. Amends ADR-0015 §3
+step 4. Roadmap P1 "Question-aware related verses".
 
 ## Context
 
@@ -113,6 +114,49 @@ Proverbs 1 144 (pick sees 120), John 3 126 (120), Romans 8 101; pick
 requests 4.1–6.0k characters.
 
 Result: not yet run.
+
+## Evaluation result (2026-10-06)
+
+`scripts/eval-question-aware.mjs`, the same 12 questions as ADR-0015.
+Control = today's ON behaviour (vote top 6); treatment = question-aware
+picks. Same model (google/gemini-2.5-flash) and parameters; judge
+anthropic/claude-sonnet-4.5, asked in both orders, only order-proof
+verdicts count.
+
+| measure | control (votes) | treatment (pick) |
+|---|---|---|
+| answered / failed | 12 / 0 | 12 / 0 |
+| "no such verse" refs | 0 | 0 |
+| cited from memory | 5 | 2 |
+| judge wins (consistent) | 5 | 3 |
+| split (order flipped it) | 4 | 4 |
+| pick path used | — | 12 of 12 (~0.8 s each; no fallback) |
+
+**Decision: keep it off.** The bar (treatment wins the order-proof judge)
+was not met, and the bar is not moved after seeing the result (R14).
+
+**What the run shows, for the next attempt:**
+- The picks fit the questions better on inspection — Romans 8 "why does
+  creation groan" → Genesis 3:17–19, Isaiah 65:17, Revelation 21:1 (votes:
+  Jeremiah 12:4, Ephesians 1:4–5); John 3 "he must increase" →
+  Philippians 2:9–11, 1 Peter 4:10–11 (votes: Matthew 28:18, Isaiah 54:5).
+- Where the control won, the judge's reasons point at verses the control
+  answer cited **from memory, outside both lists** — 2 Thessalonians 3:10
+  and Genesis 2:15 (work), Proverbs 6:6–8 (planning). They are not in the
+  passage's cross-reference pool at all, so better picking cannot supply
+  them; the judge also rewards breaking the "cite only these" rule.
+- n = 12 with 4 splits: too small to separate a 5–3 from noise.
+
+**Next attempt (not started):** (1) a larger fixed question set (≥30)
+written before the run; (2) widen the pool beyond the passage's own links
+(e.g. one more hop from the top candidates) so thematic verses like
+2 Thessalonians 3:10 can enter; (3) re-run against the same control and
+the same unchanged judge.
+
+Release state: the code (pick role, prompt, parser, fallback, eval script)
+is merged behind the switch; `database/ai-usage-pick-role.sql` is NOT
+applied and `ai-proxy` has NOT been redeployed with the `pick` role, so no
+pick call can happen in production.
 
 ## Release
 
