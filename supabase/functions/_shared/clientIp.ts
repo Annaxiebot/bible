@@ -7,10 +7,20 @@
  * function keeps its own salt secret (FEEDBACK_SALT, IP_HASH_SALT).
  */
 
-/** The caller's IP as the edge proxy reports it (first x-forwarded-for hop), else x-real-ip, else 'unknown'. */
+/**
+ * The caller's IP: cf-connecting-ip, else the first x-forwarded-for hop,
+ * else 'unknown'. Probed on the live project 2026-10-06 (a temporary echo
+ * function, since deleted): Supabase's edge sits behind Cloudflare, which
+ * sets cf-connecting-ip itself and refuses a request that sends its own
+ * (HTTP 403, error 1000); a client-sent X-Forwarded-For or X-Real-IP is
+ * dropped, the first x-forwarded-for hop is the real address, and
+ * x-real-ip is never set. So neither header can be faked to dodge the
+ * per-IP limits; cf-connecting-ip goes first as the one Cloudflare vouches for.
+ */
 export function clientIp(header: (name: string) => string | null): string {
+  const cloudflare = header('cf-connecting-ip')?.trim();
   const forwarded = header('x-forwarded-for')?.split(',')[0]?.trim();
-  return forwarded || header('x-real-ip')?.trim() || 'unknown';
+  return cloudflare || forwarded || 'unknown';
 }
 
 /** Hex SHA-256 of salt + ip: the raw address is never stored. */
