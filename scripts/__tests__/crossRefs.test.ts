@@ -15,6 +15,9 @@ import {
   OSIS_BOOK_ORDER, osisToAppIds, parseOsisVerse, compactTarget, parseLine, buildChapters,
 } from '../lib/crossRefs.mjs';
 
+/** Reads all 1,189 chapter files: fine alone (~1 s), slow when the full suite loads the disk. */
+const FILE_SCAN_TIMEOUT_MS = 30_000;
+
 const osis = osisToAppIds(BIBLE_BOOKS);
 const lastVerse = (book: string, chapter: number) => ({ 'HEB/6': 20, 'GEN/11': 32 } as Record<string, number>)[`${book}/${chapter}`] ?? 99;
 
@@ -99,5 +102,5 @@ describe('the committed public/bible-data/xref files', () => {
       }
     }
     expect(links).toBeGreaterThan(200_000);
-  });
+  }, FILE_SCAN_TIMEOUT_MS);
 });
