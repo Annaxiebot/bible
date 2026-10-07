@@ -1,0 +1,39 @@
+{
+  "about": "ADR-0018 blind evaluation, written 2026-10-06 BEFORE any run: word questions asked as the TV asks them (a selected word: askAI.questionForSelection with its verse; or a typed question naming a verse). Control = today's exact request (ORIGINAL_WORDS off; related verses as shipped); treatment = the same + the ORIGINAL WORDS block (+ the server rule). Read by scripts/eval-original-words.mjs. A pack is a committed pack file or built from the bundled 和合本 + BSB chapter.",
+  "model": "google/gemini-2.5-flash",
+  "judge": "anthropic/claude-sonnet-4.5",
+  "packs": [
+    { "id": "matt6", "file": "public/packs/2026-10-02-matt6.json" },
+    { "id": "prov1", "bookId": "PRO", "chapter": 1, "from": 1, "to": 19, "passageRef": "箴言 1:1–19 · Proverbs 1:1–19", "title": "敬畏耶和华 The Fear of the LORD", "contentLanguage": "zh-keywords" },
+    { "id": "john3", "bookId": "JHN", "chapter": 3, "from": 1, "to": 21, "passageRef": "约翰福音 3:1–21 · John 3:1–21", "title": "重生 Born Again", "contentLanguage": "bilingual" },
+    { "id": "john4", "bookId": "JHN", "chapter": 4, "from": 31, "to": 38, "passageRef": "约翰福音 4:31–38 · John 4:31–38", "title": "庄稼熟了 Fields Ripe for Harvest", "contentLanguage": "zh-keywords" },
+    { "id": "rom8", "bookId": "ROM", "chapter": 8, "from": 18, "to": 30, "passageRef": "罗马书 8:18–30 · Romans 8:18–30", "title": "受造之物的叹息 Creation Groans", "contentLanguage": "en-keywords" },
+    { "id": "ps23", "bookId": "PSA", "chapter": 23, "from": 1, "to": 6, "passageRef": "诗篇 23:1–6 · Psalm 23:1–6", "title": "耶和华是我的牧者 The LORD Is My Shepherd", "contentLanguage": "bilingual" },
+    { "id": "gen1", "bookId": "GEN", "chapter": 1, "from": 1, "to": 5, "passageRef": "创世记 1:1–5 · Genesis 1:1–5", "title": "起初 In the Beginning", "contentLanguage": "zh-keywords" },
+    { "id": "isa40", "bookId": "ISA", "chapter": 40, "from": 27, "to": 31, "passageRef": "以赛亚书 40:27–31 · Isaiah 40:27–31", "title": "从新得力 Renewed Strength", "contentLanguage": "zh-keywords" },
+    { "id": "php4", "bookId": "PHP", "chapter": 4, "from": 4, "to": 9, "passageRef": "腓立比书 4:4–9 · Philippians 4:4–9", "title": "神的平安 The Peace of God", "contentLanguage": "en-keywords" },
+    { "id": "eph2", "bookId": "EPH", "chapter": 2, "from": 1, "to": 10, "passageRef": "以弗所书 2:1–10 · Ephesians 2:1–10", "title": "本乎恩 By Grace", "contentLanguage": "zh-keywords" },
+    { "id": "mic6", "bookId": "MIC", "chapter": 6, "from": 6, "to": 8, "passageRef": "弥迦书 6:6–8 · Micah 6:6–8", "title": "行公义，好怜悯 Justice and Mercy", "contentLanguage": "bilingual" },
+    { "id": "heb11", "bookId": "HEB", "chapter": 11, "from": 1, "to": 6, "passageRef": "希伯来书 11:1–6 · Hebrews 11:1–6", "title": "信心 By Faith", "contentLanguage": "zh-keywords" }
+  ],
+  "questions": [
+    { "id": "p1", "pack": "prov1", "testament": "OT", "selection": "敬畏", "verse": 7 },
+    { "id": "p2", "pack": "prov1", "testament": "OT", "question": "In verse 7, what is the Hebrew word translated \"discipline\", and how is it different from knowledge?" },
+    { "id": "j1", "pack": "john3", "testament": "NT", "selection": "世人", "verse": 16 },
+    { "id": "j2", "pack": "john3", "testament": "NT", "selection": "独生子", "verse": 16 },
+    { "id": "j3", "pack": "john3", "testament": "NT", "question": "In verse 3, does \"born again\" mean \"again\" or \"from above\" in the Greek?" },
+    { "id": "j4", "pack": "john4", "testament": "NT", "selection": "食物", "verse": 34 },
+    { "id": "r1", "pack": "rom8", "testament": "NT", "selection": "益处", "verse": 28 },
+    { "id": "r2", "pack": "rom8", "testament": "NT", "question": "What is the Greek word behind \"groans\" in verse 22?" },
+    { "id": "s1", "pack": "ps23", "testament": "OT", "selection": "牧者", "verse": 1 },
+    { "id": "s2", "pack": "ps23", "testament": "OT", "selection": "want", "verse": 1 },
+    { "id": "m1", "pack": "matt6", "testament": "NT", "selection": "忧虑", "verse": 34 },
+    { "id": "m2", "pack": "matt6", "testament": "NT", "question": "第33节「先求」的「求」，原文是什么词？是什么意思？" },
+    { "id": "g1", "pack": "gen1", "testament": "OT", "selection": "创造", "verse": 1 },
+    { "id": "i1", "pack": "isa40", "testament": "OT", "selection": "等候", "verse": 31 },
+    { "id": "ph1", "pack": "php4", "testament": "NT", "selection": "挂虑", "verse": 6 },
+    { "id": "e1", "pack": "eph2", "testament": "NT", "selection": "恩", "verse": 8 },
+    { "id": "mi1", "pack": "mic6", "testament": "OT", "selection": "怜悯", "verse": 8 },
+    { "id": "h1", "pack": "heb11", "testament": "NT", "selection": "实底", "verse": 1 }
+  ]
+}

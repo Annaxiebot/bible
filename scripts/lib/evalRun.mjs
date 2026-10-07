@@ -53,26 +53,29 @@ export async function measure(app, pack, passage, result, related) {
   };
 }
 
-function judgePrompt(item, first, second) {
+/** The judge's question for the ADR-0015/0016 evaluations (cross-references); ADR-0018 passes its own. */
+export const DEFAULT_JUDGE_CRITERION = 'Which answer better serves a church small group: faithful to Scripture, apt cross-references, clear?';
+
+function judgePrompt(item, first, second, criterion) {
   return [
     `A church small group is studying ${item.passageRef} on a TV. The leader asked:`,
     item.question,
     `ANSWER A:\n${first.text}`,
     `ANSWER B:\n${second.text}`,
-    'Which answer better serves a church small group: faithful to Scripture, apt cross-references, clear?',
+    criterion,
     'The order of the answers is random and means nothing. Give at most two sentences of reasons,',
     'then a last line that is exactly "WINNER: A" or "WINNER: B".',
   ].join('\n\n');
 }
 
 /** One judge call with control as A (controlFirst) or as B → 'control' | 'treatment' | null + the raw reply. */
-async function judgeOnce(key, title, model, item, controlFirst) {
+async function judgeOnce(key, title, model, item, controlFirst, criterion) {
   const { control, treatment } = item;
   const [first, second] = controlFirst ? [control, treatment] : [treatment, control];
   const res = await fetch(OPENROUTER_URL, {
     method: 'POST',
     headers: openRouterHeaders(key, title),
-    body: JSON.stringify({ model, max_tokens: JUDGE_MAX_TOKENS, temperature: 0, messages: [{ role: 'user', content: judgePrompt(item, first, second) }] }),
+    body: JSON.stringify({ model, max_tokens: JUDGE_MAX_TOKENS, temperature: 0, messages: [{ role: 'user', content: judgePrompt(item, first, second, criterion) }] }),
   });
   if (!res.ok) return { reply: `HTTP ${res.status}`, winner: null };
   const reply = ((await res.json()).choices?.[0]?.message?.content ?? '').trim();
@@ -85,16 +88,16 @@ async function judgeOnce(key, title, model, item, controlFirst) {
  * Blind judge for one pair, asked in BOTH orders (R14: the first run's
  * bare-letter judge answered "B" 12 of 12 — pure position bias). Only a
  * verdict that survives the swap counts; a split is a tie (winner null).
- * A failed arm loses without a call.
+ * A failed arm loses without a call. `criterion`: the question the judge answers.
  */
-export async function judge(key, title, model, item) {
+export async function judge(key, title, model, item, criterion = DEFAULT_JUDGE_CRITERION) {
   const { control, treatment } = item;
   if (control.failed || treatment.failed) {
     const winner = control.failed && treatment.failed ? null : control.failed ? 'treatment' : 'control';
     return { order: null, reply: 'not judged: an arm failed', winner };
   }
-  const asA = await judgeOnce(key, title, model, item, true);
-  const asB = await judgeOnce(key, title, model, item, false);
+  const asA = await judgeOnce(key, title, model, item, true, criterion);
+  const asB = await judgeOnce(key, title, model, item, false, criterion);
   const winner = asA.winner !== null && asA.winner === asB.winner ? asA.winner : null;
   return { order: 'both', reply: [asA.reply, asB.reply], winner };
 }

@@ -1,11 +1,12 @@
 /**
  * evalAppModules.mjs — the app's REAL request builders, loaded into Node for
- * scripts/eval-related-verses.mjs (ADR-0015 §6) and eval-question-aware.mjs (ADR-0016).
+ * scripts/eval-related-verses.mjs (ADR-0015 §6), eval-question-aware.mjs (ADR-0016)
+ * and eval-original-words.mjs (ADR-0018).
  *
  * The evaluation must send exactly what the TV sends (R14), so it never
  * re-implements a prompt: Vite's SSR loader imports the TypeScript modules
  * themselves (askAIStream.buildRequestBody, aiTransport.ownKeyBody,
- * relatedVerses, relatedPick, citations). `envPrefix` exposes no VITE_* variable, so no
+ * relatedVerses, relatedPick, citations, originalWords, lexicalAccuracy). `envPrefix` exposes no VITE_* variable, so no
  * Supabase client is created. fetch() of a relative bible-data/ URL is
  * served from public/ (the static files the site serves); every other URL
  * goes to the real network.
@@ -44,7 +45,7 @@ export async function loadAppModules() {
     optimizeDeps: { noDiscovery: true, entries: [] }, // SSR loads node_modules directly; no browser pre-bundling scan
   });
   const load = p => server.ssrLoadModule(p);
-  const [packTypes, askAI, askAIStream, aiTransport, relatedVerses, citations, relatedPick] = await Promise.all([
+  const [packTypes, askAI, askAIStream, aiTransport, relatedVerses, citations, relatedPick, originalWords, lexicalAccuracy] = await Promise.all([
     load('/components/studypack/packTypes.ts'),
     load('/components/studypack/askAI.ts'),
     load('/components/studypack/askAIStream.ts'),
@@ -52,8 +53,13 @@ export async function loadAppModules() {
     load('/components/studypack/relatedVerses.ts'),
     load('/components/studypack/citations.ts'),
     load('/components/studypack/relatedPick.ts'),
+    load('/components/studypack/originalWords.ts'),
+    load('/components/studypack/lexicalAccuracy.ts'),
   ]);
-  return { packTypes, askAI, askAIStream, aiTransport, relatedVerses, citations, relatedPick, close: () => server.close() };
+  return {
+    packTypes, askAI, askAIStream, aiTransport, relatedVerses, citations, relatedPick, originalWords, lexicalAccuracy,
+    close: () => server.close(),
+  };
 }
 
 function readChapter(translation, bookId, chapter) {
