@@ -39,3 +39,8 @@ export const GD_ERR_UNREADABLE = bilingualLine('无法读取这份 PDF', 'This P
 export const GD_FROM_GUIDE = bilingualLine('讲义原文', 'From the guide');
 export const GD_AI_DRAFTED = bilingualLine('AI 补充', 'AI-drafted');
 export const GD_NOT_VERBATIM = bilingualLine('与讲义原文不符', 'not word-for-word from the guide');
+
+/** One flagged line as the editor shows it. */
+export function notVerbatimLine(line: string): string {
+  return `${GD_NOT_VERBATIM}：${line}`;
+}

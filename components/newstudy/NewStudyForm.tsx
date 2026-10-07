@@ -5,7 +5,8 @@
  * and verse range as native dropdowns driven by real data (verseRangeFields:
  * chapters from bibleBookData, verses from the bundled chapter). Optional
  * lesson title/number, date. Large type and ≥48px targets (newStudyStyles).
- * Validation errors are bilingual and inline.
+ * Validation errors are bilingual and inline. With a study guide (ADR-0019)
+ * the guide's banner sits on top and its passage pre-fills the dropdowns.
  */
 import React, { useState } from 'react';
 import { BIBLE_BOOKS, getBookById } from '../../services/bibleBookData';
@@ -19,6 +20,8 @@ import { useVerseRange, RangeSelects } from './verseRangeFields';
 import { readDefaultContentLanguage, rememberContentLanguage } from './contentLanguageDefault';
 import { CONTENT_LANGUAGES, DEFAULT_CONTENT_LANGUAGE, isContentLanguage } from '../studypack/principles';
 import { FIRST_STUDY, NextStudy } from './nextStudy';
+import type { LoadedGuide } from './guide/loadGuide';
+import { GuideBanner } from './guide/GuideEntry';
 
 /** Local ISO date (yyyy-mm-dd) for the date field's default. */
 export function todayIso(): string {
@@ -55,6 +58,9 @@ interface Props {
   onGenerate: (req: StudyRequest) => void;
   /** Where the next study starts (useNextStudy) — the form opens on it; absent → Mark 1:1–15. */
   suggestion?: NextStudy | null;
+  /** A study guide read from the leader's PDF (ADR-0019): its passage pre-fills the form, Generate sends it along. */
+  guide?: LoadedGuide | null;
+  onDropGuide?: () => void;
 }
 
 /** Optional lesson title + the lesson-number/date sub-grid. */
@@ -82,9 +88,9 @@ const LessonFields: React.FC<{ req: StudyRequest; update: (patch: Partial<StudyR
   </>
 );
 
-const NewStudyForm: React.FC<Props> = ({ busy, onGenerate, suggestion = null }) => {
+const NewStudyForm: React.FC<Props> = ({ busy, onGenerate, suggestion = null, guide = null, onDropGuide }) => {
   const [req, setReq] = useState<StudyRequest>(() => ({
-    ...DEFAULT_REQUEST, ...suggestion, date: todayIso(), contentLanguage: readDefaultContentLanguage(),
+    ...DEFAULT_REQUEST, ...suggestion, ...guide?.passage.range, date: todayIso(), contentLanguage: readDefaultContentLanguage(),
   }));
   const [error, setError] = useState<string | null>(null);
   const update = (patch: Partial<StudyRequest>) => { setReq(r => ({ ...r, ...patch })); setError(null); };
@@ -95,11 +101,12 @@ const NewStudyForm: React.FC<Props> = ({ busy, onGenerate, suggestion = null }) 
     const problem = validateRequest(req);
     if (problem) { setError(problem); return; }
     rememberContentLanguage(req.contentLanguage);
-    onGenerate({ ...req, lessonTitle: req.lessonTitle?.trim() || undefined });
+    onGenerate({ ...req, lessonTitle: req.lessonTitle?.trim() || undefined, ...(guide ? { guide } : {}) });
   };
 
   return (
     <form onSubmit={submit} data-testid="new-study-form" className="flex flex-col gap-5">
+      {guide && <GuideBanner guide={guide} onDrop={() => onDropGuide?.()} />}
       <label className={labelClass} style={textStyle}>
         <span>{NS_BOOK}</span>
         <select

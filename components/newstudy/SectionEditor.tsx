@@ -7,6 +7,8 @@
  * (title is edited at pack level; the QR is fixed). Used by NewStudyEditor.
  * Given the pack, an adjustable section (adjustPrompt.ADJUSTABLE_KINDS — never
  * scripture, title or qr) is wrapped in SectionAdjust ("AI 修改 Adjust with AI").
+ * A study-guide pack's section also shows where it came from and its
+ * non-verbatim lines (guide/GuideMarks, ADR-0019).
  */
 import React from 'react';
 import { PackSection } from '../studypack/packTypes';
@@ -14,6 +16,7 @@ import { NS_SCRIPTURE_NOTE, NS_QUESTION_ADD, NS_QUESTION_REMOVE } from './newStu
 import { textStyle, controlStyle, inputClass, secondaryButtonClass, quietButtonClass, labelClass } from './newStudyStyles';
 import SectionAdjust from './SectionAdjust';
 import { isAdjustable, AdjustPack } from './adjustPrompt';
+import GuideMarks from './guide/GuideMarks';
 
 /** Textarea text → body lines (blank lines dropped). */
 export function splitLines(text: string): string[] {
@@ -120,10 +123,17 @@ const SectionControl: React.FC<SectionEditorProps> = ({ section, onPatch }) => {
   }
 };
 
+/** "AI 修改" rewrites a guide section in the AI's words, so it is AI-drafted from then on (ADR-0019 §5). */
+function adjustedByAI(section: PackSection, patch: Partial<PackSection>): Partial<PackSection> {
+  return section.origin === 'guide' ? { ...patch, origin: 'ai', notVerbatim: [] } : patch;
+}
+
 const SectionEditor: React.FC<SectionEditorProps> = ({ section, onPatch, pack }) => {
   const control = <SectionControl section={section} onPatch={onPatch} />;
-  if (!pack || !isAdjustable(section.kind)) return control;
-  return <SectionAdjust section={section} pack={pack} onPatch={onPatch}>{control}</SectionAdjust>;
+  const body = !pack || !isAdjustable(section.kind) ? control : (
+    <SectionAdjust section={section} pack={pack} onPatch={patch => onPatch(adjustedByAI(section, patch))}>{control}</SectionAdjust>
+  );
+  return <GuideMarks section={section}>{body}</GuideMarks>;
 };
 
 export default SectionEditor;

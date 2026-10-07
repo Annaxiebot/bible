@@ -31,7 +31,8 @@ export function useGeneration(setPhase: (phase: Phase) => void): Generation {
       setPhase({ kind: 'editor', pack });
     } catch (err) {
       // A cancel (Cancel button) is the leader's own choice: back to the form, no error.
-      if ((err as Error).name === 'AbortError') { setPhase({ kind: 'form' }); return; }
+      // A study guide stays loaded, so Cancel does not make the leader pick the PDF again.
+      if ((err as Error).name === 'AbortError') { setPhase(req.guide ? { kind: 'form', guide: req.guide } : { kind: 'form' }); return; }
       setPhase({ kind: 'failed', req, message: (err as Error).message });
     }
   }, [setPhase]);
