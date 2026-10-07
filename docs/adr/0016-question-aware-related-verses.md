@@ -14,9 +14,13 @@ usually **in the pool already**, just below the top 6:
 
 | passage | question about | best verse | its rank in the pool |
 |---|---|---|---|
-| Romans 8:18–30 (pool 112) | a renewed creation | Isaiah 65:17 / Revelation 21:1 | 46 / 42 |
-| John 3:22–36 (pool 131) | humility in ministry | Philippians 2:2 | 34 |
-| Matthew 6:25–34 (pool 78) | faith and the kingdom | Romans 14:17 | 40 |
+| Romans 8:18–30 (pool 101) | a renewed creation | Isaiah 65:17 / Revelation 21:1 | 40 / 38 |
+| John 3:22–36 (pool 126) | humility in ministry | Philippians 2:2 | 34 |
+| Matthew 6:25–34 (pool 71) | faith and the kingdom | Romans 14:17 | 37 |
+
+(Pool = `rankPool`, overlapping ranges removed; counted before that, the
+pools were 112 / 131 / 78 and the ranks 46 / 42, 34, 40. Every one of these
+verses is inside the first `RELATED_POOL_MAX` = 120.)
 
 So the cheapest fix is not a bigger search but a better choice from the
 list we already have.
@@ -86,7 +90,8 @@ list we already have.
 
 ## Evaluation (before switching on, R14)
 
-`scripts/eval-question-aware.mjs` — CONTROL = today's ON behaviour (vote
+`scripts/eval-question-aware.mjs` (shares `scripts/lib/evalRun.mjs` with
+ADR-0015's script, so both evaluations measure and judge with one code) — CONTROL = today's ON behaviour (vote
 top 6), TREATMENT = question-aware picks; same model, parameters, passage
 and question; the arms differ only in the RELATED VERSES list. Same fixture
 and order-proof judge as ADR-0015. Reports per arm: answered / failed,
@@ -97,6 +102,15 @@ why); both related lists side by side in the results JSON; the blind-vote page.
 Switch on only if the treatment wins the order-proof judge, does not raise
 "no such verse" or "cited from memory", and the pick path is used for most
 questions (a mostly-fallback run measures nothing).
+
+Run (costs OpenRouter credit: 1 pick + 2 answers + 2 judge calls per question):
+
+    OPENROUTER_API_KEY=… node scripts/eval-question-aware.mjs results-0016.json vote-0016.html
+
+`--dry-run` (no key, no network) prints each question's pool size, the pick
+request size and the vote top 6. Pools on the fixture: Matthew 6 71,
+Proverbs 1 144 (pick sees 120), John 3 126 (120), Romans 8 101; pick
+requests 4.1–6.0k characters.
 
 Result: not yet run.
 

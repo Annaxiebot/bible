@@ -5,7 +5,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { JSDOM } from 'jsdom';
-import { blindPairs, votePageHtml } from '../lib/evalVotePage.mjs';
+import { blindPairs, votePageHtml, RELATED_VERSES_ARMS } from '../lib/evalVotePage.mjs';
 
 const item = (id: string, control: string, treatment: string, failed = false) => ({
   id, passageRef: '马太福音 6:25–34', question: `q-${id}`,
@@ -50,5 +50,17 @@ describe('votePageHtml', () => {
     (doc.querySelector('button') as HTMLButtonElement).click();
     expect(doc.body.classList.contains('revealed')).toBe(true);
     expect(doc.getElementById('tally')!.textContent).toBe('实验 treatment 1 · 对照 control 0 · 未投 unvoted 1');
+  });
+
+  it('names the arms per evaluation (ADR-0016) — escaped, and ADR-0015\'s names by default', () => {
+    const pairs = blindPairs([item('a', 'C1', 'T1')], () => 0.1);
+    const arms = { control: '对照 · vote top 6', treatment: '实验 · question-aware <b>', title: 'Pick <Vote>', heading: '选经文盲评 <x>' };
+    const doc = new JSDOM(votePageHtml(pairs, arms), { runScripts: 'dangerously' }).window.document;
+    expect([...doc.querySelectorAll('.arm')].map(e => e.textContent)).toEqual([arms.control, arms.treatment]);
+    expect(doc.title).toBe('Pick <Vote>');
+    expect(doc.querySelector('h1')!.textContent).toBe('选经文盲评 <x>');
+    const plain = new JSDOM(votePageHtml(pairs), { runScripts: 'dangerously' }).window.document;
+    expect(plain.title).toBe(RELATED_VERSES_ARMS.title);
+    expect(plain.querySelector('.arm')!.textContent).toBe('对照 · control (today)');
   });
 });

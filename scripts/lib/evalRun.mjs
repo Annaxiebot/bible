@@ -6,7 +6,6 @@
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { REPO_ROOT, serveBundledData, loadAppModules, buildPack } from './evalAppModules.mjs';
 
 export const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 export const DEFAULT_FIXTURE = 'tests/fixtures/related-verses-eval.json';
@@ -144,8 +143,12 @@ export function questionContext(app, packs, q) {
   return { pack, slide, passage: app.relatedVerses.packPassage(pack), question: questionText(app, q) };
 }
 
-/** Load the fixture, the app modules and the packs; run `fn`; always close the module server. */
+/**
+ * Load the fixture, the app modules and the packs; run `fn`; always close the module server.
+ * Vite is imported here, not at the top, so the pure helpers above load in a test without it.
+ */
 export async function withApp(fixturePath, fn) {
+  const { REPO_ROOT, serveBundledData, loadAppModules, buildPack } = await import('./evalAppModules.mjs');
   const fixture = JSON.parse(readFileSync(path.resolve(REPO_ROOT, fixturePath), 'utf-8'));
   serveBundledData();
   const app = await loadAppModules();
