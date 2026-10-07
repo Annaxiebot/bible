@@ -59,9 +59,9 @@ export const LOOP_HEADING_EN = 'Understand → Live → Flourish';
 export const NEW_STUDY_LINE = '新建查经 New study';
 export const NEW_STUDY_SUB = '输入经文，AI 生成查经包，大屏演示 · Enter a passage; a study pack is drafted in your browser';
 
-export const LEADER_ZH = '组长：上传查经讲义，变成大屏简报。';
-export const LEADER_EN =
-  'Group leaders: bring your study guide PDF — it becomes a presentation with an AI helper.';
+/** What a leader can do today (the PDF upload of ADR-0003 §5 was promised here before it existed). */
+export const LEADER_ZH = '组长：选一段经文，AI 起草查经包，大屏演示。';
+export const LEADER_EN = 'Group leaders: pick a passage; AI drafts the study, and it shows on the TV.';
 
 /* ---- 小组查经 Group band: how a Friday works ---- */
 /** NEW COPY: eyebrow, the heading's English tail, the "when" labels and the QR button. */
