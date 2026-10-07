@@ -42,6 +42,9 @@ export const VERSE_LOAD_ERROR = bilingual('无法加载', 'could not load');
 /** After a reference the AI cited that does not exist (citations.ts): shown as plain text + this mark, no popover. */
 export const NO_SUCH_VERSE_MARK = `（${bilingualLine('经文不存在', 'no such verse')}）`;
 
+/** CC BY credit for the cross-references Ask AI draws related verses from (ADR-0015; shown while the switch is on). */
+export const RELATED_VERSES_CREDIT = bilingualLine('相关经文：OpenBible.info（CC BY）', 'Related verses: OpenBible.info (CC BY)');
+
 /** Heading of the TV "verses cited" block under the latest Ask-AI answer. */
 export const VERSES_CITED_HEADING = bilingualLine('引用经文', 'Verses cited');
 

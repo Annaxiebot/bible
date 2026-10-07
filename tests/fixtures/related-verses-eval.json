@@ -1,0 +1,25 @@
+{
+  "about": "ADR-0015 §6 blind evaluation: the same questions, model and passage for the control (today's request) and the treatment (RELATED VERSES block + rule). Read by scripts/eval-related-verses.mjs. A pack is either a committed pack file or built from the bundled 和合本 + BSB chapter (bookId/chapter/from/to). A question with `selection` is asked exactly as the TV asks a selected word (askAI.questionForSelection).",
+  "model": "google/gemini-2.5-flash",
+  "judge": "anthropic/claude-sonnet-4.5",
+  "packs": [
+    { "id": "matt6", "file": "public/packs/2026-10-02-matt6.json" },
+    { "id": "prov1", "bookId": "PRO", "chapter": 1, "from": 1, "to": 19, "passageRef": "箴言 1:1–19 · Proverbs 1:1–19", "title": "敬畏耶和华 The Fear of the LORD", "contentLanguage": "zh-keywords" },
+    { "id": "john3", "bookId": "JHN", "chapter": 3, "from": 22, "to": 36, "passageRef": "约翰福音 3:22–36 · John 3:22–36", "title": "祂必兴旺 He Must Increase", "contentLanguage": "bilingual" },
+    { "id": "rom8", "bookId": "ROM", "chapter": 8, "from": 18, "to": 30, "passageRef": "罗马书 8:18–30 · Romans 8:18–30", "title": "受造之物的叹息 Creation Groans", "contentLanguage": "en-keywords" }
+  ],
+  "questions": [
+    { "id": "m1", "pack": "matt6", "kind": "passage", "question": "第27节说忧虑不能使寿数多加一刻，这和信心有什么关系？" },
+    { "id": "m2", "pack": "matt6", "kind": "thematic", "question": "整本圣经怎样讲论神的供应和我们工作的责任？" },
+    { "id": "m3", "pack": "matt6", "kind": "thematic", "question": "Does Jesus forbid planning for the future? How does the rest of Scripture balance this?" },
+    { "id": "p1", "pack": "prov1", "kind": "passage", "selection": "敬畏耶和华", "verse": 7 },
+    { "id": "p2", "pack": "prov1", "kind": "thematic", "question": "What does the whole Bible say about peer pressure and the company we keep?" },
+    { "id": "p3", "pack": "prov1", "kind": "thematic", "question": "智慧在旧约和新约中是怎样指向基督的？" },
+    { "id": "j1", "pack": "john3", "kind": "passage", "question": "施洗约翰说「他必兴旺，我必衰微」，这对今天的事奉有什么提醒？" },
+    { "id": "j2", "pack": "john3", "kind": "thematic", "question": "How does verse 36 relate to the whole Bible's teaching on the wrath of God?" },
+    { "id": "j3", "pack": "john3", "kind": "passage", "selection": "从天上来的", "verse": 31 },
+    { "id": "r1", "pack": "rom8", "kind": "thematic", "question": "Why does creation groan, and where else does the Bible speak of a renewed creation?" },
+    { "id": "r2", "pack": "rom8", "kind": "passage", "question": "第26节说圣灵替我们祷告，圣经其他地方怎样讲圣灵与祷告？" },
+    { "id": "r3", "pack": "rom8", "kind": "thematic", "question": "Does verse 28 mean that everything that happens is good? 圣经整体怎样回答苦难的问题？" }
+  ]
+}

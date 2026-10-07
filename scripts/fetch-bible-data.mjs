@@ -138,8 +138,9 @@ async function main() {
   const bsbStats = verifyTranslation('bsb', bsbData, books, VERSE_RANGE);
   const cuvStats = verifyTranslation('cuv', cuvData, books, VERSE_RANGE);
 
-  // Clean rebuild so stale chapters from earlier runs can't linger.
-  await rm(OUT_ROOT, { recursive: true, force: true });
+  // Clean rebuild so stale chapters from earlier runs can't linger — only
+  // the translation folders: public/bible-data/xref/ (build-cross-refs.mjs) stays.
+  for (const id of Object.keys(SOURCES)) await rm(path.join(OUT_ROOT, id), { recursive: true, force: true });
   const bsbFiles = await writeChapters('bsb', bsbData, books);
   const cuvFiles = await writeChapters('cuv', cuvData, books);
 

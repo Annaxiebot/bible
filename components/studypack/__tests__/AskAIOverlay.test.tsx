@@ -62,6 +62,12 @@ beforeEach(() => {
 });
 
 describe('AskAIOverlay (streaming)', () => {
+  it('shows no related-verses credit while the ADR-0015 switch is off', () => {
+    configureKey();
+    renderOverlay();
+    expect(screen.queryByTestId('ask-related-credit')).toBeNull();
+  });
+
   it('no key, signed out: the inline sign-in prompt (no key hints) and the input disabled', () => {
     renderOverlay();
     expect(screen.getByTestId('quick-ai-setup')).toBeInTheDocument();

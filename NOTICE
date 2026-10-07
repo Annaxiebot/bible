@@ -14,7 +14,7 @@ details.
 The following material is NOT covered by the code license and keeps its own
 terms:
 
-1. Bible text (public/bible-data/) - public domain
+1. Bible text (public/bible-data/cuv/, public/bible-data/bsb/) - public domain
    - cuv/: 和合本 Chinese Union Version (1919), public domain. Source: the
      open-bibles chi-cuv.usfx.xml corpus, converted from Traditional to
      Simplified characters (scripts/fetch-bible-data.mjs).
@@ -22,18 +22,26 @@ terms:
      2023. Source: https://bereanbible.com/bsb.txt, which carries the
      dedication.
 
-2. Photos (public/landing/) - Unsplash License (https://unsplash.com/license)
+2. Cross-references (public/bible-data/xref/) - Creative Commons Attribution
+   License (CC BY), as stated by the source
+   - OpenBible.info cross-references, https://www.openbible.info/labs/cross-references/
+     (data: https://a.openbible.info/data/cross-references.zip). Converted to
+     one file per chapter, keeping each verse's ten highest-voted links with
+     at least one vote (scripts/build-cross-refs.mjs, ADR-0015).
+   Ask AI credits OpenBible.info wherever it shows related verses.
+
+3. Photos (public/landing/) - Unsplash License (https://unsplash.com/license)
    - group.webp - Nicolas Lobos, https://unsplash.com/photos/qbazkeo-R1o
    - tv.webp    - Clay Banks, https://unsplash.com/photos/XwgC9tsm7jU
    - phone.webp - Nathan Dumlao, https://unsplash.com/photos/y440_q4e-0E
    The landing footer credits the photographers.
 
-3. Fonts - not stored in this repository; the page loads them at run time
+4. Fonts - not stored in this repository; the page loads them at run time
    - 霞鹜文楷 LXGW WenKai (lxgw-wenkai-webfont, via cdn.jsdelivr.net) -
      SIL Open Font License 1.1
    - Inter, Fraunces, Noto Serif SC, JetBrains Mono (via Google Fonts) -
      SIL Open Font License 1.1
 
-4. Third-party packages (package.json, installed into node_modules/) and
+5. Third-party packages (package.json, installed into node_modules/) and
    scripts loaded from CDNs (Tailwind CSS, KaTeX stylesheet) keep their own
    licenses.

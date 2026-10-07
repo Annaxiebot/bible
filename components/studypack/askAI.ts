@@ -8,6 +8,7 @@
 import { askAIModel, wireModelId } from '../../services/aiDefaults';
 import { StudyPack, Slide } from './packTypes';
 import { TRANSLATIONS } from './principles';
+import { RelatedVerseText, formatRelatedVersesBlock } from '../../supabase/functions/_shared/aiPrompts';
 
 /** The OpenRouter wire id the overlay sends: the configurable Ask-AI choice (services/aiDefaults askAIModel) mapped from any router alias. */
 export function resolveAskAIModel(): string {
@@ -77,11 +78,17 @@ export function questionForSelection(selected: string, verse: number | null = nu
  * `history` parameter. The answer contract and the pack's content-language
  * rule are server-owned (supabase/functions/_shared/aiPrompts askSystemText),
  * chosen by the request's `content_language`.
+ * `related` (ADR-0015, relatedVerses.ts): the RELATED VERSES block goes after
+ * the passage; none or empty → exactly the prompt without it.
  */
-export function buildAskAIPrompt(pack: StudyPack, slide: Slide, question: string): string {
+export function buildAskAIPrompt(
+  pack: StudyPack, slide: Slide, question: string, related: readonly RelatedVerseText[] = []
+): string {
+  const block = formatRelatedVersesBlock(related, `${TRANSLATIONS.zh.label} / ${TRANSLATIONS.en.label}`);
   return [
     `We are in a small-group TV presentation of ${pack.passageRef}.`,
     `FULL PASSAGE (${TRANSLATIONS.zh.label} / ${pack.enVersion}):\n${formatPassage(pack)}`,
+    ...(block ? [block] : []),
     `CURRENT SLIDE:\n${formatSlide(slide)}`,
     `QUESTION: ${question}`,
   ].join('\n\n');

@@ -1,6 +1,6 @@
 # ADR-0015: Ask AI finds related verses first, then explains them (2026-10-06)
 
-Status: proposed — not built. Roadmap P1 "BibleRetriever".
+Status: proposed — release steps 1–2 built, switch off (2026-10-06). Roadmap P1 "BibleRetriever".
 
 ## Context
 
@@ -138,6 +138,44 @@ A blind comparison, like the 2026-10 model vote:
   credit).
 - Out of scope here: the personal app (role `study`), pack generation, and
   original-language word data (roadmap P2, STEPBible).
+
+## Implementation notes (release steps 1–2, 2026-10-06)
+
+- **Source format confirmed**: `From Verse<TAB>To Verse<TAB>Votes`, header
+  carries `CC-BY`; 344,799 links, 3,521 with votes < 1 dropped; 225,008 kept
+  (top 10 per verse). 1,189 chapter files (one per chapter, `{}` when a
+  chapter has no links, so a 404 is always a failure), **3.64 MB** in total.
+- **Compact target ref**: `HEB.5.14` or `HEB.5.12-14` (same chapter). A
+  range crossing into the next chapter or book (655 links) keeps its start
+  chapter's part, cut at that chapter's last verse (bundled BSB).
+- **Book ids**: the script reads the app's ids from `services/bibleBookData.ts`
+  (`scripts/lib/books.mjs`, as `fetch-bible-data.mjs` does) and pairs them
+  in order with the source's 66 OSIS ids; a test pins the pairing.
+- **"Selected verse first"**: the TV passes the selection only inside the
+  question text ("在第7节中 … in verse 7"), so the focus seeds are the
+  passage verses the question names (`findVerseRefs`) — this also covers a
+  typed "v.7". Their links rank ahead of the summed-vote order.
+- **Prompt switch**: the rule sentence (§4) is added by the shared builder
+  when — and only when — the latest user message carries the
+  `RELATED VERSES (` block. No new request field; the proxy and own-key
+  paths agree by construction; a request without the block (switch off, or
+  no related verses found) is byte-identical to the pre-ADR request (pinned
+  by hashes in `relatedPrompt.test.ts`). A long related range prints at most
+  3 verses.
+- **Per-seed normalisation** (amends §3 step 2): raw summed votes leaned to
+  the passage's most-linked verse — Matthew 6:25–34 gave six links of 6:33
+  alone ("seek first the kingdom"); Philippians 4:6 and 1 Peter 5:7 ranked
+  11th and 12th. Now each seed's links score votes ÷ that seed's top vote
+  (its best link = 1.0), summed per target; raw votes only break ties.
+  Question-named verses still rank first, applied after normalisation.
+  Top 6 now (no verse named): Matthew 6:25–34 → Philippians 4:6, 1 Peter
+  5:7, Psalm 55:22, Luke 12:31, Matthew 10:29–31, Luke 12:25–26 (picks from
+  ≥ 3 seed verses, pinned by a test); Romans 8:18–30 → Jeremiah 12:4,
+  1 John 3:2, Romans 12:12, Ephesians 1:11, Acts 3:21, Ephesians 1:4–5.
+  The question's words still do not steer the ranking, only verse numbers
+  it names.
+- **Evaluation**: `scripts/eval-related-verses.mjs` (`--dry-run` builds every
+  request with no network). Fixture: `tests/fixtures/related-verses-eval.json`.
 
 ## Release
 
