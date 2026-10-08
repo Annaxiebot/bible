@@ -124,6 +124,9 @@ export const NS_ERR_DUPLICATE_SECTION = bilingualLine('这种段落只能有一�
 export const NS_MY_PACKS = bilingual('我的查经包', 'My packs');
 export const NS_NO_PACKS = bilingualLine('还没有查经包', 'No packs yet');
 export const NS_EDIT = bilingual('编辑', 'Edit');
+/** Under a long list of studies: show every one / back to the newest few. */
+export const NS_SHOW_ALL = (n: number) => bilingual(`显示全部 ${n} 个`, `Show all ${n}`);
+export const NS_SHOW_FEWER = bilingual('只显示最近的', 'Show the newest only');
 /** The one quiet link under My packs; most leaders never need it (signed-in studies save online). */
 export const NS_BACKUP_TOGGLE = bilingual('备份与恢复', 'Backup & restore');
 export const NS_BACKUP_NOTE = bilingualLine(

@@ -4,7 +4,7 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import PackList from '../PackList';
+import PackList, { PACK_LIST_PREVIEW, packMetaLine } from '../PackList';
 import { assemblePack } from '../packAssembly';
 import { validateGenerated } from '../generatedPack';
 import { JOHN3_GENERATED, JOHN3_REQUEST } from './fixtures';
@@ -45,5 +45,16 @@ describe('PackList', () => {
     fireEvent.click(screen.getByRole('button', { name: NS_BACKUP_DOWNLOAD }));
     expect(packs.exportBackup).toHaveBeenCalledTimes(1);
     expect(screen.getByTestId('pack-list').textContent).not.toMatch(/JSON/);
+  });
+
+  it('shows the newest 5 studies first, then "Show all N"; a passage already in the title is not repeated', () => {
+    const many = Array.from({ length: 7 }, (_, i) => ({ ...pack, id: `p${i}`, date: `2026-10-0${i + 1}` }));
+    render(<PackList packs={{ ...packs, packs: many }} onOpen={vi.fn()} />);
+    expect(screen.getAllByTestId('pack-row')).toHaveLength(PACK_LIST_PREVIEW);
+    expect(screen.getAllByTestId('pack-row')[0]).toHaveTextContent('2026-10-07');
+    fireEvent.click(screen.getByTestId('pack-show-all'));
+    expect(screen.getAllByTestId('pack-row')).toHaveLength(7);
+    expect(packMetaLine({ title: '第1课 X — 约翰福音 3:22–36', passageRef: '约翰福音 3:22–36 · John 3:22–36', date: '2026-10-02' })).toBe('2026-10-02');
+    expect(packMetaLine({ title: 'X', passageRef: '约翰福音 3:22–36 · John 3:22–36', date: '2026-10-02' })).toBe('约翰福音 3:22–36 · John 3:22–36 · 2026-10-02');
   });
 });
