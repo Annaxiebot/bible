@@ -22,7 +22,7 @@ vi.mock('../../../services/supabase', () => ({
     getState: () => ({ user, session: null, isAuthenticated: !!user, isLoading: false }),
     subscribe: (l: (s: unknown) => void) => { l({ user, session: null, isAuthenticated: !!user, isLoading: false }); return () => undefined; },
     getFullName: () => fullName,
-    signInWithGoogle: () => signInMock(),
+    signInWithGoogle: (returnTo?: string) => signInMock(returnTo),
   },
 }));
 
@@ -36,13 +36,14 @@ beforeEach(() => {
 });
 
 describe('LandingLeaderLink', () => {
-  it('signed out: one button "带领者登录 Leader sign-in" that starts Google sign-in', async () => {
+  it('signed out: one button "带领者登录 Leader sign-in" that starts Google sign-in back to #/leader', async () => {
     render(<LandingLeaderLink />);
     const button = screen.getByTestId('nav-leader-signin');
     expect(button.tagName).toBe('BUTTON');
     expect(button.textContent).toBe(`${NAV_LEADER_SIGNIN.zh} ${NAV_LEADER_SIGNIN.en}`);
     fireEvent.click(button);
     await waitFor(() => expect(signInMock).toHaveBeenCalledTimes(1));
+    expect(signInMock).toHaveBeenCalledWith(LEADER_HOME_HASH);   // not the landing it started on
     expect(screen.queryByRole('link')).toBeNull();
   });
 

@@ -13,10 +13,12 @@ import LeaderPage from '../LeaderPage';
 import { signupsToCsv, csvFilename, SignupRecord, AnswerRecord, TEST_CHECKIN_KIND } from '../leaderData';
 import {
   LD_TITLE, LD_SIGNIN, LD_NONE, LD_NOT_OWNER, countLine, LD_YES, LD_NO, LD_EXPORT, LD_TEST, LD_TEST_OK, LD_TEST_FAILED,
-  LD_COMMITMENTS, LD_FEEDBACK, answeredLine, areaCountLine, LD_STOP, LD_RESUME, LD_BY_MEMBER, LD_PAUSE,
+  LD_COMMITMENTS, LD_FEEDBACK, answeredLine, areaCountLine, LD_STOP, LD_RESUME, LD_BY_MEMBER, LD_PAUSE, LD_COL_NAME, LD_EMPTY_CELL,
 } from '../leaderStrings';
 import { SU_ERR_NOT_CONFIGURED, SU_DEMO_LINE, SU_SUMMARY_FAILED } from '../../signup/signupStrings';
 import { packSummaryFrom } from '../../signup/packSummary';
+import { CK_KIND_LABEL } from '../../checkin/checkinStrings';
+import { compactTime, fullTime } from '../leaderTime';
 
 const authState = { user: null as { id: string; email: string } | null, session: null, isAuthenticated: false, isLoading: false };
 const orderMock = vi.fn();
@@ -144,7 +146,7 @@ describe('LeaderPage', () => {
     expect(screen.getByTestId('leader-feedback')).toHaveTextContent('小明');
   });
 
-  it('shows 承诺 Commitments (who chose what, counts per area) and 反馈 Shared feedback (answers by kind, counts)', async () => {
+  it('shows 承诺 Commitments (who chose what, counts per area) and 反馈 Shared feedback (answer cards with kind, counts)', async () => {
     signIn();
     render(<LeaderPage packId={PACK_ID} />);
     const commitments = await screen.findByTestId('leader-commitments');
@@ -160,10 +162,46 @@ describe('LeaderPage', () => {
     const feedback = screen.getByTestId('leader-feedback');
     expect(feedback).toHaveTextContent(LD_FEEDBACK);
     expect(screen.getByTestId('leader-answered')).toHaveTextContent(answeredLine(1, 2));
-    expect(within(screen.getByTestId('leader-feedback-tue')).getByTestId('leader-answer')).toHaveTextContent('小明');
-    expect(within(screen.getByTestId('leader-feedback-tue')).getByTestId('leader-answer')).toHaveTextContent('做了两晚 · Two nights');
-    expect(within(screen.getByTestId('leader-feedback-thu')).queryByTestId('leader-answer')).toBeNull();
+    const cards = within(feedback).getAllByTestId('leader-answer');
+    expect(cards).toHaveLength(1);
+    expect(cards[0]).toHaveAttribute('data-kind', 'tue');
+    expect(within(cards[0]).getByTestId('leader-answer-name')).toHaveTextContent('小明');
+    expect(within(cards[0]).getByTestId('leader-answer-kind')).toHaveTextContent(CK_KIND_LABEL.tue);
+    expect(within(cards[0]).getByTestId('leader-answer-text')).toHaveTextContent('做了两晚 · Two nights');
+    expect(within(cards[0]).getByText(compactTime(ANSWERS[0].created_at))).toHaveAttribute('title', fullTime(ANSWERS[0].created_at));
     expect(answersEqMock.mock.calls).toEqual([['pack_id', PACK_ID], ['leader_id', LEADER_ID]]);
+  });
+
+  it('shared feedback comes first: gold count badge, newest answer first, before the sign-up table', async () => {
+    answersOrderMock.mockResolvedValue({ data: [
+      ANSWERS[0],
+      { id: 'a2', signup_id: '2', leader_id: LEADER_ID, kind: 'weekend', answer: '周末一起吃饭了', created_at: '2026-10-08T02:00:00Z' },
+    ], error: null });
+    signIn();
+    render(<LeaderPage packId={PACK_ID} />);
+    const table = await screen.findByTestId('leader-table');
+    const feedback = screen.getByTestId('leader-feedback');
+    expect(feedback.compareDocumentPosition(table) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getByTestId('leader-feedback-count')).toHaveTextContent('2');
+    const cards = within(feedback).getAllByTestId('leader-answer');
+    expect(cards.map(c => c.getAttribute('data-kind'))).toEqual(['weekend', 'tue']);   // newest first
+    expect(within(cards[0]).getByTestId('leader-answer-name')).toHaveTextContent('Ann');
+  });
+
+  it('the sign-up table: header row with Chinese over English, an empty phone as "—", compact time with the full one as a tooltip', async () => {
+    signIn();
+    render(<LeaderPage packId={PACK_ID} />);
+    const table = await screen.findByTestId('leader-table');
+    const head = within(table).getByTestId('leader-table-head');
+    const name = within(head).getAllByRole('columnheader')[0];
+    expect(name.textContent).toBe(LD_COL_NAME.replace(' ', ''));   // 姓名 on one line, Name on the next
+    expect(within(head).getAllByRole('columnheader')).toHaveLength(5);
+    const rows = within(table).getAllByTestId('leader-row');
+    expect(within(rows[1]).getByTestId('leader-phone')).toHaveTextContent(LD_EMPTY_CELL);
+    const time = within(rows[0]).getByTestId('leader-time');
+    expect(time).toHaveTextContent(compactTime(ROWS[0].created_at));
+    expect(time).toHaveAttribute('title', fullTime(ROWS[0].created_at));
+    expect(time).toHaveAttribute('dateTime', ROWS[0].created_at);
   });
 
   it('signed in as someone else: the not-your-pack line, no query, no list', async () => {

@@ -3,7 +3,8 @@
  *
  * Signed out → the gold "带领者登录 Leader sign-in" pill, a button that starts
  * the identity-only Google sign-in (useGoogleSignIn, the same hook as every
- * other sign-in button); an auth error renders under it. Signed in → the
+ * other sign-in button) and comes back to the leader home (#/leader), not
+ * the landing it started on; an auth error renders under it. Signed in → the
  * leader's first name (or email local part) as a pill link to the leader
  * home (#/leader, ADR-0006). ≥ 48px either way (.stl-pill-sm).
  */
@@ -20,7 +21,7 @@ const SIGNIN_LABEL = `${NAV_LEADER_SIGNIN.zh} ${NAV_LEADER_SIGNIN.en}`;
 
 const LandingLeaderLink: React.FC = () => {
   const session = useLeaderSession();
-  const { signIn, busy, error } = useGoogleSignIn();
+  const { signIn, busy, error } = useGoogleSignIn(LEADER_HOME_HASH);
   if (session.uid) {
     return (
       <Pill small href={LEADER_HOME_HASH} testId="nav-leader"

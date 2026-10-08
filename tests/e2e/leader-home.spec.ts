@@ -53,6 +53,7 @@ test.describe('Leader sign-in and home', () => {
     await expect(row).toHaveCount(1);
     await expect(row).toContainText(PACK_TITLE);
     await expect(row.getByTestId('lh-counts')).toHaveText(packCountsLine(2, 1));
+    await expect(row.getByTestId('lh-shared')).toHaveAttribute('data-has-shared', 'true');   // the gold badge
 
     await row.getByTestId('lh-edit').click();
     await expect(page).toHaveURL(new RegExp(`${newStudyHash(PACK_ID)}$`));

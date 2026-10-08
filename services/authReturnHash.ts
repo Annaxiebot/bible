@@ -2,9 +2,13 @@
  * authReturnHash.ts — come back to the same hash after Google sign-in · 登录后返回原页
  *
  * The OAuth redirect lands on the app root (the implicit flow owns the URL
- * fragment, so a hash route cannot ride in redirectTo). signInWithGoogle
- * remembers the current hash here; the auth manager restores it once the
- * session appears. Storage is injectable for the unit tests.
+ * fragment, so a hash route cannot ride in redirectTo — redirectTo stays
+ * origin + pathname, the allowed-redirect entry). signInWithGoogle
+ * remembers a return hash in sessionStorage here; the auth manager restores
+ * it once the session appears. The return hash is the page the sign-in
+ * started on, unless the caller names another (authReturnTarget): the
+ * landing nav's "Leader sign-in" names #/leader, since the landing itself is
+ * the bare root. Storage is injectable for the unit tests.
  */
 
 export const AUTH_RETURN_HASH_KEY = 'auth-return-hash';
@@ -13,6 +17,11 @@ export interface HashStore {
   getItem(key: string): string | null | undefined;
   setItem(key: string, value: string): void;
   removeItem(key: string): void;
+}
+
+/** Where a sign-in should come back to: the caller's explicit returnTo, else the page it started on. */
+export function authReturnTarget(currentHash: string, returnTo?: string): string {
+  return returnTo ?? currentHash;
 }
 
 /** Remember a hash route to return to; a bare root ('' or '#') clears any earlier one. */
