@@ -23,6 +23,7 @@ export async function openNewStudy(page: Page) {
  * leaves the form's own default in place.
  */
 export async function fillJohn3(page: Page, contentLanguage: ContentLanguage | null = 'bilingual') {
+  await openMoreOptions(page);
   if (contentLanguage) await page.getByTestId('ns-content-language').selectOption(contentLanguage);
   await page.getByTestId('ns-book').selectOption('JHN');
   await page.getByTestId('ns-chapter').selectOption('3');
@@ -30,6 +31,13 @@ export async function fillJohn3(page: Page, contentLanguage: ContentLanguage | n
   await expect(page.getByTestId('ns-verse-to')).toHaveValue('36');
   await page.getByTestId('ns-verse-from').selectOption('22');
   await page.getByTestId('ns-date').fill('2026-10-02');
+}
+
+/** Opens the "更多选项 · More options" fold (content language, lesson title/number, date) if it is closed. */
+export async function openMoreOptions(page: Page) {
+  const toggle = page.getByTestId('ns-more');
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
+  await expect(page.getByTestId('ns-content-language')).toBeVisible();
 }
 
 export function chunked(text: string, size = 200): string[] {

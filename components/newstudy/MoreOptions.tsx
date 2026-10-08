@@ -19,17 +19,22 @@ export function optionsSummary(req: StudyRequest): string {
   return [NS_CONTENT_LANGUAGE_SHORT[req.contentLanguage], lesson, title, req.date].filter(Boolean).join(' · ');
 }
 
+/** The header row: larger than body text so the fold is easy to see and tap (owner). */
+const headerStyle: React.CSSProperties = { ...controlStyle, fontSize: Number(textStyle.fontSize) * 1.15, minHeight: 56 };
+
 const MoreOptions: React.FC<{ summary: string; children: React.ReactNode }> = ({ summary, children }) => {
   const [open, setOpen] = useState(false);
   return (
-    <div className="flex flex-col gap-5">
+    <div className="rounded-xl border border-slate-700" data-testid="ns-more-box">
       <button type="button" onClick={() => setOpen(o => !o)} aria-expanded={open} data-testid="ns-more"
-        className="flex flex-wrap items-baseline gap-x-3 self-start text-left text-slate-300 hover:text-slate-100" style={controlStyle}>
-        <span className="underline underline-offset-4">{open ? '▾' : '▸'} {NS_MORE_OPTIONS}</span>
-        {!open && <span className="text-slate-500" style={textStyle} data-testid="ns-more-summary">{summary}</span>}
+        className="flex w-full flex-wrap items-center gap-x-3 px-4 py-3 text-left text-slate-200 hover:text-white" style={headerStyle}>
+        <span aria-hidden="true" className="text-amber-300" style={{ fontSize: '1.2em' }}>{open ? '▾' : '▸'}</span>
+        <span className="font-semibold">{NS_MORE_OPTIONS}</span>
+        <span className="text-slate-500" style={textStyle} data-testid="ns-more-summary">— {summary}</span>
       </button>
-      {/* Kept in the page while folded (hidden), so the form keeps its values and fields either way. */}
-      <div hidden={!open} className="flex flex-col gap-5" data-testid="ns-more-fields">{children}</div>
+      {/* Kept in the page while folded so the form keeps its values. The display class must be off when
+          folded: a "flex" class beats the hidden attribute (the first version never hid — owner report). */}
+      <div className={open ? 'flex flex-col gap-5 border-t border-slate-700 p-4' : 'hidden'} data-testid="ns-more-fields">{children}</div>
     </div>
   );
 };

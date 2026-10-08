@@ -12,7 +12,7 @@ import { NS_GENERATE, NS_EDIT_TITLE, NS_EDIT, NS_EDIT_HINTS } from '../../compon
 import { JOHN3_REPLY_JSON_ZH, JOHN3_KEYWORD_ZH, JOHN3_KEYWORD_DECREASE_ZH } from '../../components/newstudy/__tests__/fixtures';
 import { LIFE_AREAS, BILINGUAL_SEPARATOR } from '../../components/studypack/principles';
 import { injectApiKey, mockOpenRouterSequence, sseBody } from './helpers/tv';
-import { openNewStudy, fillJohn3, chunked } from './helpers/newStudy';
+import { openNewStudy, fillJohn3, chunked, openMoreOptions } from './helpers/newStudy';
 
 test.describe('New study · content language', () => {
   test('default content language (中文为主) + a mocked zh-keywords reply → editor → Preview shows Chinese-only lines with the English keyword in parentheses', async ({ page }) => {
@@ -20,6 +20,7 @@ test.describe('New study · content language', () => {
     const { bodies } = await mockOpenRouterSequence(page, [{ sse: sseBody(chunked(JOHN3_REPLY_JSON_ZH).map(c => ({ choices: [{ delta: { content: c } }] }))) }]);
     await openNewStudy(page);
     await fillJohn3(page, null);   // leave the form's own default in place
+    await openMoreOptions(page);
     await expect(page.getByTestId('ns-content-language')).toHaveValue('zh-keywords');
     await page.getByRole('button', { name: NS_GENERATE }).click();
 

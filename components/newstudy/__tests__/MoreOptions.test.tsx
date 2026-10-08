@@ -9,9 +9,11 @@ describe('MoreOptions', () => {
   it('folded by default: the summary shows, the fields are hidden; one click opens them', () => {
     render(<MoreOptions summary="中文为主 · 2026-10-07"><input data-testid="field" /></MoreOptions>);
     expect(screen.getByTestId('ns-more-summary')).toHaveTextContent('中文为主 · 2026-10-07');
-    expect(screen.getByTestId('ns-more-fields')).not.toBeVisible();
+    // jsdom applies no Tailwind CSS: pin the class that hides it (the real-browser check is in new-study.spec).
+    expect(screen.getByTestId('ns-more-fields')).toHaveClass('hidden');
+    expect(screen.getByTestId('ns-more-fields').className).not.toMatch(/\bflex\b/);
     fireEvent.click(screen.getByRole('button', { name: new RegExp(NS_MORE_OPTIONS) }));
-    expect(screen.getByTestId('ns-more-fields')).toBeVisible();
+    expect(screen.getByTestId('ns-more-fields')).not.toHaveClass('hidden');
     expect(screen.getByRole('button', { name: new RegExp(NS_MORE_OPTIONS) })).toHaveAttribute('aria-expanded', 'true');
   });
 

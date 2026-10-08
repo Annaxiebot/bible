@@ -26,7 +26,7 @@ import { PACK_CONTINUE_PROMPT } from '../../components/newstudy/packPrompt';
 import { JOHN3_REPLY_JSON } from '../../components/newstudy/__tests__/fixtures';
 import { LIFE_AREAS, DEFAULT_CONTENT_LANGUAGE } from '../../components/studypack/principles';
 import { injectApiKey, mockOpenRouterStream, mockOpenRouterSequence, sseBody, OPENROUTER_CHAT_URL } from './helpers/tv';
-import { PACK_ID, openNewStudy, fillJohn3, chunked } from './helpers/newStudy';
+import { PACK_ID, openNewStudy, fillJohn3, chunked, openMoreOptions } from './helpers/newStudy';
 
 test.describe('New study', () => {
   test('the landing has the New study line; #/new renders the Chinese-first form with senior-friendly type', async ({ page }) => {
@@ -58,6 +58,9 @@ test.describe('New study', () => {
     await expect(page.getByTestId('ns-verse-from')).toHaveValue('1');
     await expect(page.getByTestId('ns-verse-to')).toHaveValue('15');
     // 内容语言 Content language: a large native select, defaulting to 中文为主 (Chinese with English keywords).
+    // The optional fields start folded (really hidden — the first fold never hid), then open on one click.
+    await expect(page.getByTestId('ns-content-language')).toBeHidden();
+    await openMoreOptions(page);
     await expect(form.getByText(NS_CONTENT_LANGUAGE)).toBeVisible();
     const language = page.getByTestId('ns-content-language');
     await expect(language).toHaveJSProperty('tagName', 'SELECT');
