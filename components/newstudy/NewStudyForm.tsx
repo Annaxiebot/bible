@@ -22,6 +22,7 @@ import { CONTENT_LANGUAGES, DEFAULT_CONTENT_LANGUAGE, isContentLanguage } from '
 import { FIRST_STUDY, NextStudy } from './nextStudy';
 import type { LoadedGuide } from './guide/loadGuide';
 import { GuideBanner } from './guide/GuideEntry';
+import MoreOptions, { optionsSummary } from './MoreOptions';
 
 /** Local ISO date (yyyy-mm-dd) for the date field's default. */
 export function todayIso(): string {
@@ -120,8 +121,10 @@ const NewStudyForm: React.FC<Props> = ({ busy, onGenerate, suggestion = null, gu
         </select>
       </label>
       <RangeSelects value={req} control={range} prefix="ns" />
-      <ContentLanguageField req={req} update={update} />
-      <LessonFields req={req} update={update} />
+      <MoreOptions summary={optionsSummary(req)}>
+        <ContentLanguageField req={req} update={update} />
+        <LessonFields req={req} update={update} />
+      </MoreOptions>
       {error && <p role="alert" className="text-red-300" style={textStyle}>{error}</p>}
       <button type="submit" disabled={busy} className={primaryButtonClass} style={controlStyle} data-testid="ns-generate">
         {busy ? NS_GENERATING : NS_GENERATE}

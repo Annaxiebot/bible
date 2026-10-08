@@ -39,6 +39,12 @@ export const NS_CONTENT_LANGUAGE_OPTIONS: Record<ContentLanguage, string> = {
   bilingual: bilingual('中英双语', 'Bilingual (中文 · English)'),
   'en-keywords': bilingual('英文为主，关键词中文', 'English, Chinese keywords'),
 };
+/** The fold over the optional fields (content language, lesson title/number, date): most leaders keep the defaults. */
+export const NS_MORE_OPTIONS = bilingual('更多选项', 'More options');
+/** Short Chinese name of each content-language mode, for the fold's one-line summary. */
+export const NS_CONTENT_LANGUAGE_SHORT: Record<ContentLanguage, string> = {
+  'zh-keywords': '中文为主', bilingual: '中英双语', 'en-keywords': '英文为主',
+};
 export const NS_GENERATE = bilingual('生成查经包', 'Generate study pack');
 export const NS_GENERATING = bilingual('生成中…', 'Generating…');
 export const NS_CANCEL = bilingual('取消', 'Cancel');
