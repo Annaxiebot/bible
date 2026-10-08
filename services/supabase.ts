@@ -7,7 +7,7 @@
  */
 
 import { createClient, User, Session, AuthError } from '@supabase/supabase-js';
-import { rememberAuthReturn, takeAuthReturn } from './authReturnHash';
+import { rememberAuthReturn, takeAuthReturn, authReturnTarget } from './authReturnHash';
 
 // Get configuration from environment variables
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
@@ -158,12 +158,13 @@ class AuthManager {
     return () => this.listeners.delete(listener);
   }
 
-  /** Identity only: no sensitive scope, so no Google app verification (ADR-0004 §9). */
-  async signInWithGoogle(): Promise<{ error: AuthError | null }> {
+  /** Identity only: no sensitive scope, so no Google app verification (ADR-0004 §9).
+   *  returnTo: the hash to land on after sign-in; omitted → the hash the sign-in started on. */
+  async signInWithGoogle(returnTo?: string): Promise<{ error: AuthError | null }> {
     if (!supabase) {
       return { error: new Error('Supabase not configured') as unknown as AuthError };
     }
-    rememberAuthReturn(window.location.hash);
+    rememberAuthReturn(authReturnTarget(window.location.hash, returnTo));
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {

@@ -5,6 +5,8 @@
  * UnclaimedSignIn (claim a local pack) and the setup page's sync line. It
  * calls authManager.signInWithGoogle() (no Forms scope), reports busy while
  * the redirect starts, and surfaces the auth error for the caller to render.
+ * returnTo (optional): the hash to come back to; omitted → the page the tap
+ * was on (authReturnHash). Only the landing nav names one (#/leader).
  */
 import { useState, useCallback } from 'react';
 import { authManager } from '../../services/supabase';
@@ -16,17 +18,17 @@ export interface GoogleSignIn {
   error: string | null;
 }
 
-export function useGoogleSignIn(): GoogleSignIn {
+export function useGoogleSignIn(returnTo?: string): GoogleSignIn {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const signIn = useCallback(async () => {
     setError(null);
     setBusy(true);
-    const { error: authError } = await authManager.signInWithGoogle();
+    const { error: authError } = await authManager.signInWithGoogle(returnTo);
     setBusy(false);
     if (authError) setError(authError.message);
-  }, []);
+  }, [returnTo]);
 
   return { signIn, busy, error };
 }

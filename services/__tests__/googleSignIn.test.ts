@@ -11,10 +11,15 @@ import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
 const signInWithOAuth = vi.fn(async () => ({ error: null }));
+/** The auth manager's onAuthStateChange listener: calling it stands in for the OAuth redirect's session. */
+let authListener: ((event: string, session: unknown) => void) | null = null;
 vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
     auth: {
-      onAuthStateChange: () => ({ data: { subscription: { unsubscribe: () => undefined } } }),
+      onAuthStateChange: (cb: (event: string, session: unknown) => void) => {
+        authListener = cb;
+        return { data: { subscription: { unsubscribe: () => undefined } } };
+      },
       getSession: async () => ({ data: { session: null } }),
       signInWithOAuth: (...args: unknown[]) => signInWithOAuth(...(args as [])),
       signOut: async () => ({ error: null }),
@@ -46,6 +51,43 @@ describe('authManager.signInWithGoogle scopes', () => {
   });
 });
 
+type RedirectOptions = { options: { redirectTo: string } };
+
+describe('authManager.signInWithGoogle return page (the OAuth round trip)', () => {
+  // tests/utils/setup.ts stubs sessionStorage with no-op vi.fn()s; back it with a Map so the stored hash survives.
+  beforeEach(() => {
+    signInWithOAuth.mockClear();
+    const data = new Map<string, string>();
+    vi.mocked(window.sessionStorage.getItem).mockImplementation(k => data.get(k) ?? null);
+    vi.mocked(window.sessionStorage.setItem).mockImplementation((k, v) => { data.set(k, v); });
+    vi.mocked(window.sessionStorage.removeItem).mockImplementation(k => { data.delete(k); });
+  });
+
+  /** Start a sign-in on `startHash`, then simulate the redirect back: bare root, then the session arrives. */
+  async function roundTrip(startHash: string, returnTo?: string): Promise<string> {
+    const authManager = await loadAuthManager();
+    await new Promise(r => setTimeout(r, 0));   // initialize(): listener registered, no session yet
+    window.location.hash = startHash;
+    await authManager.signInWithGoogle(returnTo);
+    const { options } = (signInWithOAuth.mock.calls[0] as unknown as [RedirectOptions])[0];
+    expect(options.redirectTo).toBe(window.location.origin + window.location.pathname);   // no hash: the allowed redirect URL
+    window.location.hash = '';                  // the implicit flow lands on the bare root
+    authListener!('SIGNED_IN', { user: { id: 'uid-lead' } });
+    return window.location.hash;
+  }
+
+  it('landing nav (bare root, returnTo #/leader) comes back to the leader home', async () => {
+    expect(await roundTrip('', '#/leader')).toBe('#/leader');
+  });
+
+  it('every other entry comes back to the page it started on', async () => {
+    for (const start of ['#/leader', '#/leader/p1', '#app', '#/signup/p1', '#/setup']) {
+      signInWithOAuth.mockClear();
+      expect(await roundTrip(start), start).toBe(start);
+    }
+  });
+});
+
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap(name => {
     const path = join(dir, name);
@@ -63,10 +105,10 @@ const SIGN_IN_CALLERS = sourceFiles(join(__dirname, '..', '..', 'components'))
   .filter(f => f.calls.length > 0);
 
 describe('every sign-in caller is identity-only', () => {
-  it('no caller passes options', () => {
+  it('no caller passes options (a return hash is the only argument)', () => {
     expect(SIGN_IN_CALLERS.length).toBeGreaterThanOrEqual(2);   // AuthPanel, UnclaimedSignIn
     for (const { path, calls } of SIGN_IN_CALLERS) {
-      for (const call of calls) expect(call, path).toBe('signInWithGoogle()');
+      for (const call of calls) expect(call, path).toMatch(/^signInWithGoogle\((returnTo)?\)$/);
     }
   });
 });
