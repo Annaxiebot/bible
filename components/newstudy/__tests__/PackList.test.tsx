@@ -5,7 +5,8 @@ import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import PackList from '../PackList';
-import { PACK_LIST_PREVIEW, PACK_SEARCH_FROM, packMetaLine, searchPacks } from '../../shared/PackListing';
+import { PACK_LIST_PREVIEW, PACK_SEARCH_FROM, searchPacks } from '../../shared/PackListing';
+import { titleParts } from '../../shared/PackRowParts';
 import { assemblePack } from '../packAssembly';
 import { validateGenerated } from '../generatedPack';
 import { JOHN3_GENERATED, JOHN3_REQUEST } from './fixtures';
@@ -48,15 +49,17 @@ describe('PackList', () => {
     expect(screen.getByTestId('pack-list').textContent).not.toMatch(/JSON/);
   });
 
-  it('shows the newest 5 studies first, then "Show all N"; a passage already in the title is not repeated', () => {
+  it('shows the newest 5 studies first, then "Show all N"; the title splits into Chinese and English without the passage (shown as a chip)', () => {
     const many = Array.from({ length: 7 }, (_, i) => ({ ...pack, id: `p${i}`, date: `2026-10-0${i + 1}` }));
     render(<PackList packs={{ ...packs, packs: many }} onOpen={vi.fn()} />);
     expect(screen.getAllByTestId('pack-row')).toHaveLength(PACK_LIST_PREVIEW);
-    expect(screen.getAllByTestId('pack-row')[0]).toHaveTextContent('2026-10-07');
+    expect(within(screen.getAllByTestId('pack-row')[0]).getByTestId('date-tile')).toHaveAttribute('title', '2026-10-07');
     fireEvent.click(screen.getByTestId('pack-show-all'));
     expect(screen.getAllByTestId('pack-row')).toHaveLength(7);
-    expect(packMetaLine({ title: '第1课 X — 约翰福音 3:22–36', passageRef: '约翰福音 3:22–36 · John 3:22–36', date: '2026-10-02' })).toBe('2026-10-02');
-    expect(packMetaLine({ title: 'X', passageRef: '约翰福音 3:22–36 · John 3:22–36', date: '2026-10-02' })).toBe('约翰福音 3:22–36 · John 3:22–36 · 2026-10-02');
+    const ref = '箴言 2:1–22 · Proverbs 2:1–22';
+    expect(titleParts({ title: '第2课 家庭查经 Family Bible Study — 箴言 2:1–22', passageRef: ref })).toEqual({ zh: '第2课 家庭查经', en: 'Family Bible Study' });
+    expect(titleParts({ title: '莊稼已經熟了 The Harvest Is Ripe', passageRef: ref })).toEqual({ zh: '莊稼已經熟了', en: 'The Harvest Is Ripe' });
+    expect(titleParts({ title: '恩典', passageRef: ref })).toEqual({ zh: '恩典', en: '' });
   });
 
   it('with many studies a search box appears; it matches title, passage (Chinese or English) and date', () => {

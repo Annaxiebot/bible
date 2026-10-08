@@ -17,31 +17,26 @@ import {
 } from './newStudyStrings';
 import { textStyle, controlStyle, headingStyle } from './newStudyStyles';
 import BackupPanel from './BackupPanel';
-import { PackListing, packMetaLine } from '../shared/PackListing';
+import { PackListing } from '../shared/PackListing';
+import { DateTile, StudyHeading, TrashButton, studyRowClass, goldButtonClass, outlineButtonClass } from '../shared/PackRowParts';
 
 interface Props {
   packs: LocalPacks;
   onOpen: (pack: StudyPack) => void;
 }
 
-/** The quiet text-link look of a row's actions. */
-const rowLinkClass = 'inline-flex items-center px-2 text-slate-400 underline underline-offset-4 hover:text-slate-100';
-
-/** One compact line per study: the title opens it; Edit · Sign-ups · Delete are quiet links. */
+/** One study, design B: date tile · title + passage chip (opens it) · 编辑 Edit (gold) · 报名 Sign-ups · delete icon. */
 const PackRow: React.FC<{ pack: StudyPack; packs: LocalPacks; onOpen: (pack: StudyPack) => void }> = ({ pack, packs, onOpen }) => {
   // A real link (#/new/<id>) so the editor URL survives reload; the click opens it in place.
   const open = (e: React.MouseEvent) => { e.preventDefault(); onOpen(pack); };
   return (
-    <li data-testid="pack-row" className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-b border-slate-800 py-3">
-      <a href={newStudyHash(pack.id)} onClick={open} className="flex min-w-0 flex-col hover:text-amber-200">
-        <span className="truncate text-slate-100" style={textStyle}>{pack.title}</span>
-        <span className="text-slate-500" style={{ ...textStyle, fontSize: Number(textStyle.fontSize) * 0.85 }}>{packMetaLine(pack)}</span>
-      </a>
-      <div className="flex items-center">
-        <a href={newStudyHash(pack.id)} data-testid="pack-edit" onClick={open} className={rowLinkClass} style={controlStyle}>{NS_EDIT}</a>
-        <a href={leaderHash(pack.id)} data-testid="pack-signups" className={rowLinkClass} style={controlStyle}>{NS_SIGNUPS}</a>
-        <button type="button" onClick={() => { if (window.confirm(NS_DELETE_CONFIRM)) void packs.remove(pack.id); }}
-          className={rowLinkClass} style={controlStyle}>{NS_DELETE}</button>
+    <li data-testid="pack-row" className={studyRowClass}>
+      <DateTile date={pack.date} />
+      <a href={newStudyHash(pack.id)} onClick={open} className="flex min-w-0 flex-1"><StudyHeading pack={pack} /></a>
+      <div className="flex items-center gap-2">
+        <a href={newStudyHash(pack.id)} data-testid="pack-edit" onClick={open} className={goldButtonClass} style={controlStyle}>{NS_EDIT}</a>
+        <a href={leaderHash(pack.id)} data-testid="pack-signups" className={outlineButtonClass} style={controlStyle}>{NS_SIGNUPS}</a>
+        <TrashButton label={NS_DELETE} onClick={() => { if (window.confirm(NS_DELETE_CONFIRM)) void packs.remove(pack.id); }} />
       </div>
     </li>
   );

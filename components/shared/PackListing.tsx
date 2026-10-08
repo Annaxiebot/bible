@@ -30,12 +30,6 @@ export function searchPacks(packs: readonly StudyPack[], query: string): StudyPa
   return packs.filter(p => `${p.title} ${p.passageRef} ${p.date}`.toLowerCase().includes(q));
 }
 
-/** "约翰福音 4:27–42 · John 4:27–42 · 2026-10-05", leaving out the passage when the title already names it. */
-export function packMetaLine(pack: Pick<StudyPack, 'title' | 'passageRef' | 'date'>): string {
-  const zhRef = pack.passageRef.split(' · ')[0];
-  return pack.title.includes(zhRef) ? pack.date : `${pack.passageRef} · ${pack.date}`;
-}
-
 const quietLink = 'self-start text-stl-text-2 underline underline-offset-4 hover:text-stl-text';
 
 interface Props {

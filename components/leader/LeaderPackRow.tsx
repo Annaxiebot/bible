@@ -20,10 +20,8 @@ import { NS_EDIT } from '../newstudy/newStudyStrings';
 import { LH_PRESENT, LH_RESPONSES, LH_QR, signupCountLine, sharedCountLine } from './leaderStrings';
 import { textStyle, controlStyle } from '../newstudy/newStudyStyles';
 import { requestFullscreen } from '../studypack/fullscreen';
-import { packMetaLine } from '../shared/PackListing';
+import { DateTile, StudyHeading, studyRowClass, goldButtonClass, outlineButtonClass, quietRowLinkClass } from '../shared/PackRowParts';
 
-/** The row's grey line: a little smaller than the body (textStyle is a fixed px size). */
-const metaStyle: React.CSSProperties = { ...textStyle, fontSize: Number(textStyle.fontSize) * 0.85 };
 
 /** Shared answers waiting: a high-contrast gold badge (dark text on gold fill). */
 const sharedBadgeClass = 'inline-block whitespace-nowrap rounded-full bg-stl-gold px-3 font-semibold text-stl-bg';
@@ -41,8 +39,6 @@ const Counts: React.FC<{ counts: PackCounts }> = ({ counts }) => (
 /** The one gold action (Present on a card, New study on the page). */
 export const primaryLinkClass =
   'inline-flex items-center rounded-lg bg-stl-gold px-5 font-semibold text-stl-bg hover:bg-stl-gold-hover';
-/** A rarely used action: a quiet text link. */
-const quietLinkClass = 'inline-flex items-center px-2 text-stl-text-2 underline underline-offset-4 hover:text-stl-text';
 
 interface Props {
   pack: StudyPack;
@@ -53,20 +49,15 @@ interface Props {
 /** One compact row: title + a grey line (date, the passage when the title lacks it, the counts — shared as a badge);
  *  放映 Present the one gold action, the rest quiet links. The list around it is PackListing. */
 export const LeaderPackRow: React.FC<Props> = ({ pack, counts }) => (
-  <li data-testid="lh-pack" className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-stl-border py-3">
-    <div className="flex min-w-0 flex-col">
-      <span className="truncate font-semibold text-stl-text" style={textStyle}>{pack.title}</span>
-      <span className="text-stl-text-2" style={metaStyle}>
-        {packMetaLine(pack)}
-        {counts && <> · <Counts counts={counts} /></>}
-      </span>
-    </div>
-    <div className="flex flex-wrap items-center">
-      <a href={packHash(pack.id)} data-testid="lh-present" className={`${primaryLinkClass} mr-2`} style={controlStyle}
+  <li data-testid="lh-pack" className={studyRowClass}>
+    <DateTile date={pack.date} />
+    <StudyHeading pack={pack}>{counts && <Counts counts={counts} />}</StudyHeading>
+    <div className="flex flex-wrap items-center gap-2">
+      <a href={packHash(pack.id)} data-testid="lh-present" className={goldButtonClass} style={controlStyle}
         onClick={() => requestFullscreen()}>{LH_PRESENT}</a>
-      <a href={leaderHash(pack.id)} data-testid="lh-responses" className={quietLinkClass} style={controlStyle}>{LH_RESPONSES}</a>
-      <a href={newStudyHash(pack.id)} data-testid="lh-edit" className={quietLinkClass} style={controlStyle}>{NS_EDIT}</a>
-      <a href={qrHash(pack.id)} data-testid="lh-qr" className={quietLinkClass} style={controlStyle}>{LH_QR}</a>
+      <a href={leaderHash(pack.id)} data-testid="lh-responses" className={outlineButtonClass} style={controlStyle}>{LH_RESPONSES}</a>
+      <a href={newStudyHash(pack.id)} data-testid="lh-edit" className={quietRowLinkClass} style={controlStyle}>{NS_EDIT}</a>
+      <a href={qrHash(pack.id)} data-testid="lh-qr" className={quietRowLinkClass} style={controlStyle}>{LH_QR}</a>
     </div>
   </li>
 );
