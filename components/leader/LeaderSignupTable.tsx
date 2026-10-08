@@ -47,7 +47,8 @@ const Row: React.FC<{ row: SignupRecord }> = ({ row }) => (
     <td className={`${cell} min-w-[9em]`} data-label={LD_COL_CONSENT}>
       <span className="ld-consent flex flex-wrap items-center gap-x-3">
         <span>{row.consent_checkins ? LD_YES : LD_NO}</span>
-        <SubscriptionCell row={row} />
+        {/* No check-ins were asked for, so there are no emails to stop: no Stop link (owner). */}
+        {row.consent_checkins && <SubscriptionCell row={row} />}
       </span>
     </td>
     <td className={nowrap} data-label={LD_COL_TIME}>

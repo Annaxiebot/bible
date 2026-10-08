@@ -204,6 +204,17 @@ describe('LeaderPage', () => {
     expect(time).toHaveAttribute('dateTime', ROWS[0].created_at);
   });
 
+  it('a member who said No to check-ins gets no Stop link — there are no emails to stop', async () => {
+    signIn();
+    render(<LeaderPage packId={PACK_ID} />);
+    const rows = within(await screen.findByTestId('leader-table')).getAllByTestId('leader-row');
+    const byName = (name: string) => rows.find(r => r.textContent?.includes(name))!;
+    expect(within(byName('Ann')).queryByTestId('leader-stop')).toBeNull();   // consent_checkins: false
+    expect(within(byName('Ann')).queryByTestId('leader-subscription')).toBeNull();
+    const consenting = rows.find(r => within(r).queryByTestId('leader-stop'));
+    expect(consenting).toBeDefined();
+  });
+
   it('signed in as someone else: the not-your-pack line, no query, no list', async () => {
     signIn('uid-other');
     render(<LeaderPage packId={PACK_ID} />);
@@ -260,9 +271,9 @@ describe('LeaderPage', () => {
     expect(body.pack).toBeUndefined();  // text comes from pack_summaries, never the request
   });
 
-  it('each live roster row carries its Stop/Unsubscribed cell, and the study has the pause switch (ADR-0009)', async () => {
+  it('each live roster row that receives check-ins carries its Stop/Unsubscribed cell, and the study has the pause switch (ADR-0009)', async () => {
     signIn();
-    orderMock.mockResolvedValue({ data: [ROWS[0], { ...ROWS[1], unsubscribed_at: '2026-10-03T00:00:00Z', unsubscribed_by: 'member' }], error: null });
+    orderMock.mockResolvedValue({ data: [ROWS[0], { ...ROWS[1], consent_checkins: true, unsubscribed_at: '2026-10-03T00:00:00Z', unsubscribed_by: 'member' }], error: null });
     render(<LeaderPage packId={PACK_ID} />);
     const rows = within(await screen.findByTestId('leader-table')).getAllByTestId('leader-row');
     expect(within(rows[0]).getByRole('button', { name: LD_STOP })).toBeInTheDocument();
