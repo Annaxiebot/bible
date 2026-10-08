@@ -59,8 +59,16 @@ export const LH_PRESENT = bilingual('放映', 'Present');
 export const LH_RESPONSES = bilingual('报名与反馈', 'Sign-ups & responses');
 export const LH_QR = bilingual('二维码', 'QR');
 export const LH_ERR_COUNTS = bilingualLine('读取报名与分享人数失败', 'Could not load the sign-up and sharing counts');
+/** The leader home row's counts, in two parts so the shared part can be a badge (LeaderPackRow). */
+export function signupCountLine(signups: number): string {
+  return bilingualLine(`报名 ${signups} 人`, `${signups} signed up`);
+}
+export function sharedCountLine(answers: number): string {
+  return bilingualLine(`分享 ${answers} 条`, `${answers} shared`);
+}
+/** The whole counts text as rendered (lh-counts): the sign-up part, then the shared part. */
 export function packCountsLine(signups: number, answers: number): string {
-  return bilingualLine(`报名 ${signups} 人，分享 ${answers} 条`, `${signups} signed up, ${answers} shared`);
+  return `${signupCountLine(signups)} ${sharedCountLine(answers)}`;
 }
 
 // ---- stop / resume one member, pause the study (ADR-0009) ----

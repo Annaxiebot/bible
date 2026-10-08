@@ -110,6 +110,11 @@ describe('LeaderHome', () => {
     expect(rows[1]).toHaveTextContent('不要忧虑');
     await waitFor(() => expect(within(rows[0]).getByTestId('lh-counts')).toHaveTextContent(packCountsLine(2, 1)));
     expect(within(rows[1]).getByTestId('lh-counts')).toHaveTextContent(packCountsLine(1, 0));
+    // Shared > 0 is a gold badge that catches the eye; 0 shared stays quiet.
+    expect(within(rows[0]).getByTestId('lh-shared')).toHaveAttribute('data-has-shared', 'true');
+    expect(within(rows[0]).getByTestId('lh-shared')).toHaveClass('bg-stl-gold', 'text-stl-bg');
+    expect(within(rows[1]).getByTestId('lh-shared')).toHaveAttribute('data-has-shared', 'false');
+    expect(within(rows[1]).getByTestId('lh-shared')).not.toHaveClass('bg-stl-gold');
     const id = 'local-2026-10-09-jhn3';
     expect(within(rows[0]).getByTestId('lh-edit')).toHaveAttribute('href', newStudyHash(id));
     expect(within(rows[0]).getByTestId('lh-present')).toHaveAttribute('href', packHash(id));
