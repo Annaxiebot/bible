@@ -69,6 +69,11 @@ export const SU_PRACTICE_TITLE = bilingual('我本周的操练', 'My practice th
 export const SU_PRACTICE_INTRO = bilingualLine('从生活应用里选一项或多项（再点一下取消）', 'Pick one or more from the life menu (tap again to clear)');
 export const SU_PRACTICE_NOTE = bilingual('我的版本（可选）', 'My own version (optional)');
 export const SU_NEXT_STEP = bilingual('下一步', 'Next');
+/** A returning member: their details are remembered on this phone, so step 1 can submit at once. */
+export const suWelcomeBack = (name: string) => bilingualLine(`欢迎回来，${name}`, `Welcome back, ${name}`);
+export const SU_DETAILS_FILLED = bilingualLine('你的资料已填好，选好本周的操练就可以提交', 'Your details are filled in — choose this week\'s practice and submit');
+export const SU_EDIT_DETAILS = bilingual('修改资料', 'Edit my details');
+export const SU_NOT_YOU = bilingual('不是你？', 'Not you?');
 export const SU_PREV_STEP = bilingual('上一步', 'Back');
 export const SU_CONTACT_TITLE = bilingual('联系方式', 'How to reach you');
 export const SU_ERR_PRACTICE = SIGNUP_PROBLEM_TEXT['practice-none'];

@@ -40,6 +40,7 @@ import {
   PAPER_PAGE_CLASS, PAPER_COLUMN_CLASS, PAPER_HEAD_CLASS, PAPER_MUTED_CLASS, PAPER_ACCENT_CLASS, PAPER_ERROR_CLASS, PAPER_CARD_CLASS,
 } from '../shared/paperStyles';
 import PaperHeader from '../shared/PaperHeader';
+import { rememberMember } from './rememberedMember';
 
 const PackHeader: React.FC<{ state: SignupPackState }> = ({ state }) => {
   if (state.status === 'ready') {
@@ -108,6 +109,7 @@ const SignupPage: React.FC<{ packId: string }> = ({ packId }) => {
     const client = getSignupClient();
     if (!client) throw new Error(SU_ERR_NOT_CONFIGURED);
     const { id, replace, welcome } = await submitSignup(client, state.pack.id, form);
+    rememberMember(form);   // next week's QR scan opens with these details filled in (this phone only)
     const link = checkinUrl(id, undefined, window.location.origin, import.meta.env.BASE_URL);
     setDone({ consent: form.consent, practices: practiceLines(form), ownVersion: ownVersionOf(form), link, welcome, replace });
   };

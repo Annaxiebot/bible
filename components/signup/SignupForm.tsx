@@ -3,6 +3,9 @@
  *
  * Step 1 (PracticeStep): the commitment — any number of life-menu
  * practices (at least one), an optional own version; Next is gated on a choice.
+ * A member who signed up before on this phone (rememberedMember.ts) sees
+ * "欢迎回来 · Welcome back" and can submit from step 1; "修改资料" opens step 2,
+ * "不是你？" forgets the details.
  * Step 2: name (required), email (required — the check-in channel), phone (optional, with the
  * SMS-not-yet hint), consent (default on). Large type and ≥48px targets
  * from newStudyStyles (ADR-0003 §15); paper style and gold pills (shared/). Validation and submit errors render
@@ -12,9 +15,10 @@ import React, { useState } from 'react';
 import type { LifeMenuRow } from '../studypack/packTypes';
 import { SignupForm as SignupFormValues, EMPTY_SIGNUP, validateSignup, validatePractice, practiceLines, ownVersionOf } from './signupClient';
 import PracticeStep from './PracticeStep';
+import { readRememberedMember, forgetMember } from './rememberedMember';
 import {
   SU_NAME, SU_PHONE, SU_PHONE_HINT, SU_EMAIL, SU_CONSENT, SU_SUBMIT, SU_SUBMITTING, SU_PRIVACY,
-  SU_NEXT_STEP, SU_PREV_STEP, SU_CONTACT_TITLE, commitmentLine,
+  SU_NEXT_STEP, SU_PREV_STEP, SU_CONTACT_TITLE, commitmentLine, suWelcomeBack, SU_DETAILS_FILLED, SU_EDIT_DETAILS, SU_NOT_YOU,
 } from './signupStrings';
 import { textStyle, controlStyle, headingStyle } from '../newstudy/newStudyStyles';
 import {
@@ -59,8 +63,22 @@ const ContactFields: React.FC<{ form: SignupFormValues; set: (patch: Partial<Sig
   </>
 );
 
+/** A returning member on step 1: who the form is filled in for, and the ways out (edit, not you). */
+const WelcomeBack: React.FC<{ name: string; onEdit: () => void; onNotYou: () => void }> = ({ name, onEdit, onNotYou }) => (
+  <div data-testid="su-welcome-back" className="flex flex-col gap-1">
+    <p className={PAPER_ACCENT_CLASS} style={textStyle}>{suWelcomeBack(name)}</p>
+    <p className={PAPER_MUTED_CLASS} style={textStyle}>{SU_DETAILS_FILLED}</p>
+    <p className="flex flex-wrap gap-x-4" style={textStyle}>
+      <button type="button" data-testid="su-edit-details" onClick={onEdit} className="underline underline-offset-4" style={controlStyle}>{SU_EDIT_DETAILS}</button>
+      <button type="button" data-testid="su-not-you" onClick={onNotYou} className="underline underline-offset-4" style={controlStyle}>{SU_NOT_YOU}</button>
+    </p>
+  </div>
+);
+
 const SignupForm: React.FC<Props> = ({ rows, onSubmit }) => {
-  const [form, setForm] = useState<SignupFormValues>(EMPTY_SIGNUP);
+  // A member who signed up before on this phone starts with their details filled in (rememberedMember.ts).
+  const [remembered, setRemembered] = useState(readRememberedMember);
+  const [form, setForm] = useState<SignupFormValues>(() => ({ ...EMPTY_SIGNUP, ...remembered }));
   const [step, setStep] = useState<'practice' | 'contact'>('practice');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -92,8 +110,14 @@ const SignupForm: React.FC<Props> = ({ rows, onSubmit }) => {
     <form data-testid="signup-form" data-step={step} onSubmit={submit} noValidate className="flex flex-col gap-5">
       {step === 'practice' ? (
         <>
+          {remembered && (
+            <WelcomeBack name={remembered.name} onEdit={next}
+              onNotYou={() => { forgetMember(); setRemembered(null); set({ name: '', email: '', phone: '', consent: true }); }} />
+          )}
           <PracticeStep rows={rows} value={form} onChange={choice => set(choice)} />
-          <Pill testId="su-next" onClick={next} label={SU_NEXT_STEP} className="self-start" />
+          {remembered
+            ? <Pill type="submit" testId="su-submit" disabled={busy} label={busy ? SU_SUBMITTING : SU_SUBMIT} className="self-start" />
+            : <Pill testId="su-next" onClick={next} label={SU_NEXT_STEP} className="self-start" />}
         </>
       ) : (
         <>

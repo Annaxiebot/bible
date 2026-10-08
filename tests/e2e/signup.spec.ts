@@ -54,10 +54,11 @@ async function openSignup(page: Page, owned = true): Promise<Mocks> {
   return mocks;
 }
 
-/** Step 1 → step 2 with the first practice chosen. */
+/** Step 1 → step 2 with the first practice chosen (a member this phone remembers goes there by "修改资料 · Edit my details"). */
 async function choosePractice(page: Page, index = 0) {
   await page.getByTestId('su-practice').nth(index).click();
-  await page.getByTestId('su-next').click();
+  const returning = await page.getByTestId('su-edit-details').count();
+  await page.getByTestId(returning ? 'su-edit-details' : 'su-next').click();
   await expect(page.getByTestId('su-name')).toBeVisible();
 }
 
@@ -159,6 +160,35 @@ test.describe('Sign-up page', () => {
     expect(replaces()).toEqual([id]);
     expect(welcomes()).toEqual([id]);
     expect(direct).toEqual([]);   // no direct insert, replace RPC or welcome from the browser
+  });
+
+  test('a returning member: the next scan opens with their details filled in, and they submit from step 1; "Not you?" forgets them', async ({ page }) => {
+    const { bodies } = await openSignup(page);
+    await choosePractice(page);
+    await page.getByTestId('su-name').fill('小明');
+    await page.getByTestId('su-email').fill('ming@example.org');
+    await page.getByTestId('su-phone').fill('(408) 555-1234');
+    await page.getByRole('button', { name: SU_SUBMIT }).click();
+    await expect(page.getByTestId('signup-thanks')).toContainText(SU_THANKS);
+
+    // Next week: the same phone scans the QR again.
+    await page.reload();
+    await expect(page.getByTestId('su-welcome-back')).toContainText('欢迎回来，小明');
+    await expect(page.getByTestId('su-next')).toHaveCount(0);
+    await page.getByTestId('su-practice').nth(1).click();
+    await page.getByRole('button', { name: SU_SUBMIT }).click();   // straight from step 1
+    await expect(page.getByTestId('signup-thanks')).toContainText(SU_THANKS);
+    const second = bodies().at(-1) as { name: string; email: string; phone: string };
+    expect([second.name, second.email]).toEqual(['小明', 'ming@example.org']);
+    expect(second.phone).toBe('(408) 555-1234');   // sent as typed; the server normalises it
+
+    // A shared phone: "Not you?" clears the details and forgets them.
+    await page.reload();
+    await page.getByTestId('su-not-you').click();
+    await expect(page.getByTestId('su-welcome-back')).toHaveCount(0);
+    await expect(page.getByTestId('su-next')).toBeVisible();
+    await page.reload();
+    await expect(page.getByTestId('su-welcome-back')).toHaveCount(0);
   });
 
   test('three practices + an own version: the insert carries all three in practices (tap order) and the first two in the legacy columns; the thank-you lists all three, then the own version', async ({ page }) => {

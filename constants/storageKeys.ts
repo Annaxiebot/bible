@@ -52,6 +52,9 @@ export const STORAGE_KEYS = {
 
   // Legacy migration
   LEGACY_NOTES: 'scripture_scholar_notes',
+
+  // Sign-up: the member's own contact details, kept on their phone only (never synced)
+  SIGNUP_MEMBER: 'stl_signup_member',
 } as const;
 
 /** The value NEW_STUDY_GUIDE_DISMISSED holds once the first-visit card was dismissed (one place, R3). */
