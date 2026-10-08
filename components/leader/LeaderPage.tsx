@@ -1,6 +1,9 @@
 /**
  * LeaderPage.tsx — "#/leader/<packId>" · 组长名单页
  *
+ * Owner view, top to bottom: the count, 反馈 Shared feedback first (the
+ * part a leader comes to read, LeaderFeedback), the actions + pause, the
+ * sign-up table (LeaderSignupTable), then 承诺 Commitments.
  * Auth required: the leader session (useLeaderSession — the app's Supabase
  * session, or the dev-only __LEADER_E2E__ seam; data through getSignupClient,
  * which is the app's client in production) and, when signed out, renders the existing AuthPanel under a
@@ -30,11 +33,13 @@ import { useLocalPackClaim } from '../newstudy/claimLocalPacks';
 import {
   SignupRecord, AnswerRecord, fetchSignups, fetchAnswers, foldReplaced, signupsToCsv, csvFilename, sendTestCheckin,
 } from './leaderData';
-import { Commitments, Feedback } from './LeaderSections';
-import { SubscriptionCell, PauseToggle } from './LeaderOptOut';
+import { Commitments } from './LeaderSections';
+import { Feedback } from './LeaderFeedback';
+import { SignupTable } from './LeaderSignupTable';
+import { PauseToggle } from './LeaderOptOut';
 import {
-  LD_TITLE, LD_SIGNIN, LD_LOADING, LD_NONE, LD_NOT_OWNER, countLine, LD_COL_NAME, LD_COL_PHONE, LD_COL_EMAIL,
-  LD_COL_CONSENT, LD_COL_TIME, LD_YES, LD_NO, LD_EXPORT, LD_TEST, LD_TEST_SENDING, LD_TEST_OK, LD_TEST_NO_EMAIL, LD_BACK,
+  LD_TITLE, LD_SIGNIN, LD_LOADING, LD_NONE, LD_NOT_OWNER, countLine,
+  LD_EXPORT, LD_TEST, LD_TEST_SENDING, LD_TEST_OK, LD_TEST_NO_EMAIL, LD_BACK,
 } from './leaderStrings';
 import {
   textStyle, controlStyle, headingStyle, pageTitleStyle, secondaryButtonClass, quietButtonClass,
@@ -60,28 +65,6 @@ function useSignups(packId: string, leaderId: string): Rows {
   }, [packId, leaderId]);
   return rows;
 }
-
-const cell = 'py-3 pr-4 text-left align-top';
-
-const SignupTable: React.FC<{ rows: SignupRecord[] }> = ({ rows }) => (
-  <table data-testid="leader-table" className="w-full border-collapse" style={textStyle}>
-    <thead className="text-slate-400">
-      <tr>
-        <th className={cell}>{LD_COL_NAME}</th><th className={cell}>{LD_COL_PHONE}</th><th className={cell}>{LD_COL_EMAIL}</th>
-        <th className={cell}>{LD_COL_CONSENT}</th><th className={cell}>{LD_COL_TIME}</th>
-      </tr>
-    </thead>
-    <tbody>
-      {rows.map(r => (
-        <tr key={r.id} data-testid="leader-row" className="border-t border-slate-800 text-slate-100">
-          <td className={cell}>{r.name}</td><td className={cell}>{r.phone ?? ''}</td><td className={cell}>{r.email ?? ''}</td>
-          <td className={cell}>{r.consent_checkins ? LD_YES : LD_NO}<SubscriptionCell row={r} /></td>
-          <td className={cell}>{new Date(r.created_at).toLocaleString()}</td>
-        </tr>
-      ))}
-    </tbody>
-  </table>
-);
 
 const TestButton: React.FC<{ pack: StudyPack | null }> = ({ pack }) => {
   const [busy, setBusy] = useState(false);
@@ -116,12 +99,13 @@ const TestButton: React.FC<{ pack: StudyPack | null }> = ({ pack }) => {
 const OwnerView: React.FC<{ pack: StudyPack; leaderId: string }> = ({ pack, leaderId }) => {
   const rows = useSignups(pack.id, leaderId);
   const summary = useSummarySync(pack);
-  if (rows.status === 'loading') return <p className="text-slate-400" style={textStyle}>{LD_LOADING}</p>;
+  if (rows.status === 'loading') return <p className="text-stl-text-2" style={textStyle}>{LD_LOADING}</p>;
   if (rows.status === 'failed') return <p role="alert" className="text-red-300" style={textStyle}>{rows.message}</p>;
   return (
     <>
       {summary.status === 'failed' && <p role="alert" data-testid="summary-failed" className="text-red-300" style={textStyle}>{summary.message}</p>}
-      <p data-testid="leader-count" className="font-semibold text-slate-100" style={headingStyle}>{countLine(rows.rows.length)}</p>
+      <p data-testid="leader-count" className="font-semibold text-stl-text" style={headingStyle}>{countLine(rows.rows.length)}</p>
+      {rows.rows.length > 0 && <Feedback rows={rows.rows} answers={rows.answers} />}
       <div className="flex flex-wrap gap-3">
         <button type="button" data-testid="leader-export" disabled={rows.rows.length === 0}
           onClick={() => downloadFile(signupsToCsv(rows.rows, rows.answers), csvFilename(pack.id), 'text/csv;charset=utf-8')}
@@ -131,9 +115,8 @@ const OwnerView: React.FC<{ pack: StudyPack; leaderId: string }> = ({ pack, lead
         <TestButton pack={pack} />
       </div>
       <PauseToggle packId={pack.id} leaderId={leaderId} />
-      {rows.rows.length === 0 ? <p className="text-slate-500" style={textStyle}>{LD_NONE}</p> : <SignupTable rows={rows.rows} />}
+      {rows.rows.length === 0 ? <p className="text-stl-text-2" style={textStyle}>{LD_NONE}</p> : <SignupTable rows={rows.rows} />}
       {rows.rows.length > 0 && <Commitments rows={rows.rows} />}
-      {rows.rows.length > 0 && <Feedback rows={rows.rows} answers={rows.answers} />}
     </>
   );
 };
@@ -141,7 +124,7 @@ const OwnerView: React.FC<{ pack: StudyPack; leaderId: string }> = ({ pack, lead
 /** Signed in: demo pack → demo line; someone else's pack → not-owner line; own pack → the list. */
 const SignedInView: React.FC<{ pack: StudyPack | null; uid: string }> = ({ pack, uid }) => {
   if (!pack) return null;
-  if (!pack.leaderId) return <p data-testid="leader-demo" className="text-slate-300" style={textStyle}>{SU_DEMO_LINE}</p>;
+  if (!pack.leaderId) return <p data-testid="leader-demo" className="text-stl-text-2" style={textStyle}>{SU_DEMO_LINE}</p>;
   if (pack.leaderId !== uid) return <p data-testid="leader-not-owner" role="alert" className="text-red-300" style={textStyle}>{LD_NOT_OWNER}</p>;
   return <OwnerView pack={pack} leaderId={uid} />;
 };
@@ -160,12 +143,12 @@ const LeaderPage: React.FC<{ packId: string }> = ({ packId }) => {
   }, [packId, claim.version]);
 
   return (
-    <div data-testid="leader-page" className="fixed inset-0 overflow-y-auto bg-slate-950 text-slate-100">
+    <div data-testid="leader-page" className="fixed inset-0 overflow-y-auto bg-stl-bg text-stl-text">
       <div className="mx-auto flex max-w-4xl flex-col gap-6 px-4 py-8 sm:px-6">
         <header className="flex items-start justify-between gap-4">
           <div>
-            <h1 className="font-bold text-amber-300" style={pageTitleStyle}>{LD_TITLE}</h1>
-            <p className="mt-2 text-slate-300" style={textStyle}>{pack ? pack.title : packId}</p>
+            <h1 className="font-bold text-stl-gold" style={pageTitleStyle}>{LD_TITLE}</h1>
+            <p className="mt-2 text-stl-text-2" style={textStyle}>{pack ? pack.title : packId}</p>
             {packError && <p role="alert" className="text-red-300" style={textStyle}>{packError}</p>}
             {claim.failure && <p role="alert" className="text-red-300" style={textStyle}>{claim.failure}</p>}
           </div>
@@ -174,7 +157,7 @@ const LeaderPage: React.FC<{ packId: string }> = ({ packId }) => {
         {!session.configured && <p role="alert" className="text-red-300" style={textStyle}>{SU_ERR_NOT_CONFIGURED}</p>}
         {session.configured && !session.loading && !session.uid && (
           <div data-testid="leader-signin">
-            <p className="mb-4 text-slate-100" style={textStyle}>{LD_SIGNIN}</p>
+            <p className="mb-4 text-stl-text" style={textStyle}>{LD_SIGNIN}</p>
             <AuthPanel />
           </div>
         )}

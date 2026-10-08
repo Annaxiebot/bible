@@ -24,6 +24,8 @@ export const LD_COL_EMAIL = bilingual('邮箱', 'Email');
 export const LD_COL_CONSENT = bilingual('提醒', 'Check-ins');
 export const LD_COL_TIME = bilingual('时间', 'Time');
 export const LD_YES = bilingual('是', 'Yes');
+/** An empty cell (no phone, no email): a dash, never a blank. */
+export const LD_EMPTY_CELL = '—';
 export const LD_NO = bilingual('否', 'No');
 
 // ---- commitments + shared feedback (ADR-0004 §7) ----

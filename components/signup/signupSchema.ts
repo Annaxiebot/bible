@@ -15,6 +15,9 @@ export { SIGNUPS_TABLE };
 /** The edge function the leader's test send calls (the welcome is asked for by the signup function, ADR-0013). */
 export const SEND_CHECKINS_FUNCTION = 'send-checkins';
 
+/** pack_summaries: the check-in sender's text source per pack + the leader's pause switch (packSummary, leaderSubscription). */
+export const PACK_SUMMARIES_TABLE = 'pack_summaries';
+
 /** checkin_answers: a member's shared answer, written through the SECURITY DEFINER function below. */
 export const CHECKIN_ANSWERS_TABLE = 'checkin_answers';
 /** RPC the member page calls: share_checkin_answer(p_signup_id, p_kind, p_answer) → uuid. */

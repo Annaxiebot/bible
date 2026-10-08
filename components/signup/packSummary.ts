@@ -17,8 +17,10 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { PackVerse, StudyPack } from '../studypack/packTypes';
 import { supabase, authManager } from '../../services/supabase';
 import { SU_SUMMARY_FAILED } from './signupStrings';
+import { PACK_SUMMARIES_TABLE } from './signupSchema';
 
-export const PACK_SUMMARIES_TABLE = 'pack_summaries';
+/** Defined once in the pure signupSchema (e2e specs import it); re-exported for existing callers. */
+export { PACK_SUMMARIES_TABLE };
 
 export interface PackSummaryRow {
   pack_id: string;

@@ -2,7 +2,7 @@
  * LeaderOptOut.tsx — stop/resume one member, pause the study · 组长停发与暂停 (ADR-0009)
  *
  * SubscriptionCell sits in each live roster row: "停止提醒 · Stop emails"
- * while subscribed; "已退订 · Unsubscribed" with who once stopped — Resume
+ * (a quiet text button, ≥ 48px hit area) while subscribed; "已退订 · Unsubscribed" with who once stopped — Resume
  * only for a leader's stop (a member's own stop shows "成员本人已退订 · The
  * member unsubscribed themselves" and no Resume). PauseToggle is the
  * per-study switch (pack_summaries.checkins_paused). Writes go through
@@ -16,7 +16,9 @@ import { leaderSetSubscription, MemberChoiceError, fetchPackPaused, setPackPause
 import { LD_STOP, LD_RESUME, LD_UNSUBSCRIBED, LD_BY_MEMBER, LD_BY_LEADER, LD_PAUSE, LD_PAUSED } from './leaderStrings';
 import { textStyle, controlStyle } from '../newstudy/newStudyStyles';
 
-const smallButton = 'rounded-lg border border-stl-border px-3 text-stl-text hover:border-stl-gold disabled:opacity-60';
+/** Stop / Resume: a quiet underlined text button — small type, but the full ≥ 48px tall hit area (quietControlStyle). */
+const quietButton = 'inline-flex items-center px-1 text-stl-text-2 underline underline-offset-4 hover:text-stl-gold disabled:opacity-60';
+const quietControlStyle: React.CSSProperties = { ...controlStyle, fontSize: Number(textStyle.fontSize) * 0.85 };
 const describe = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
 type Stopped = UnsubscribedBy | null;   // null = subscribed
@@ -45,22 +47,22 @@ export const SubscriptionCell: React.FC<{ row: SignupRecord }> = ({ row }) => {
     }
   };
   return (
-    <div data-testid="leader-subscription" className="mt-2 flex flex-col items-start gap-1">
+    <span data-testid="leader-subscription" className="inline-flex flex-wrap items-center gap-x-3" style={{ fontSize: quietControlStyle.fontSize }}>
       {stopped === null ? (
         <button type="button" data-testid="leader-stop" disabled={busy} onClick={() => void set(true)}
-          className={smallButton} style={controlStyle}>{LD_STOP}</button>
+          className={`${quietButton} whitespace-nowrap`} style={quietControlStyle}>{LD_STOP}</button>
       ) : (
         <>
           <span data-testid="leader-unsubscribed" className="font-semibold text-stl-gold">{LD_UNSUBSCRIBED}</span>
           <span data-testid="leader-unsubscribed-by" className="text-stl-text-2">{stopped === 'member' ? LD_BY_MEMBER : LD_BY_LEADER}</span>
           {stopped === 'leader' && (
             <button type="button" data-testid="leader-resume" disabled={busy} onClick={() => void set(false)}
-              className={smallButton} style={controlStyle}>{LD_RESUME}</button>
+              className={quietButton} style={quietControlStyle}>{LD_RESUME}</button>
           )}
         </>
       )}
       {error && <span role="alert" className="text-red-300">{error}</span>}
-    </div>
+    </span>
   );
 };
 
