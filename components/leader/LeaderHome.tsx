@@ -24,6 +24,7 @@ import { LH_TITLE, LH_SIGNIN, LH_LOADING, LD_BACK } from './leaderStrings';
 import { LeaderSignOut } from './LeaderSignOut';
 import SiteStatsSection from './SiteStatsSection';
 import { textStyle, controlStyle, pageTitleStyle } from '../newstudy/newStudyStyles';
+import { PackListing } from '../shared/PackListing';
 
 const alert = (text: string) => <p role="alert" className="text-red-300" style={textStyle}>{text}</p>;
 
@@ -53,11 +54,9 @@ const MyPacks: React.FC<{ uid: string }> = ({ uid }) => {
       {packs === null && <p className="text-stl-text-2" style={textStyle}>{LH_LOADING}</p>}
       {packs?.length === 0 && <p className="text-stl-text-2" style={textStyle}>{NS_NO_PACKS}</p>}
       {packs && packs.length > 0 && (
-        <ul className="flex flex-col gap-3">
-          {packs.map(p => (
-            <LeaderPackRow key={p.id} pack={p} counts={counts ? (counts.get(p.id) ?? { signups: 0, answers: 0 }) : null} />
-          ))}
-        </ul>
+        <PackListing packs={packs} renderRow={p => (
+          <LeaderPackRow key={p.id} pack={p} counts={counts ? (counts.get(p.id) ?? { signups: 0, answers: 0 }) : null} />
+        )} />
       )}
     </section>
   );

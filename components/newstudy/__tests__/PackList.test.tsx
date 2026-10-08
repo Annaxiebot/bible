@@ -4,7 +4,8 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import PackList, { PACK_LIST_PREVIEW, PACK_SEARCH_FROM, packMetaLine, searchPacks } from '../PackList';
+import PackList from '../PackList';
+import { PACK_LIST_PREVIEW, PACK_SEARCH_FROM, packMetaLine, searchPacks } from '../../shared/PackListing';
 import { assemblePack } from '../packAssembly';
 import { validateGenerated } from '../generatedPack';
 import { JOHN3_GENERATED, JOHN3_REQUEST } from './fixtures';
