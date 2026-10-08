@@ -9,7 +9,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StudyPack, Slide } from './packTypes';
 import { AskAIMessage } from './askAI';
 import {
-  ASK_AI_LABEL, ASK_INPUT_PLACEHOLDER, ASK_SUBMIT_LABEL, thinkingLine, BACKUP_MODEL_NOTE,
+  ASK_AI_LABEL, ASK_QUESTION_LABEL, ASK_INPUT_PLACEHOLDER, ASK_SUBMIT_LABEL, thinkingLine, BACKUP_MODEL_NOTE,
   SOURCES_LABEL, OPENBIBLE_NAME, OPENBIBLE_URL, STEP_BIBLE_NAME, STEP_BIBLE_URL,
 } from './tvHints';
 import { RELATED_VERSES_ENABLED } from './relatedVerses';
@@ -40,23 +40,33 @@ function splitTurns(ai: AskAI) {
   };
 }
 
+/** A question in the conversation, right above its answer: a gold "问 Q" label, then the question. */
+const QuestionLine: React.FC<{ text: string; latest?: boolean }> = ({ text, latest = false }) => (
+  <p className="flex gap-[0.8vw] text-stl-text" style={questionStyle} data-testid={latest ? 'ask-question' : 'ask-earlier-question'}>
+    <span className="shrink-0 font-semibold text-stl-gold">{ASK_QUESTION_LABEL}</span>
+    <span>{text}</span>
+  </p>
+);
+
 const Message: React.FC<{ m: AskAIMessage; pack: StudyPack }> = ({ m, pack }) =>
-  m.role === 'user'
-    ? <p className="text-stl-text-2" style={questionStyle}>{`Q: ${m.content}`}</p>
-    : <AskAnswer text={m.content} pack={pack} />;
+  m.role === 'user' ? <QuestionLine text={m.content} /> : <AskAnswer text={m.content} pack={pack} />;
 
 const Conversation: React.FC<{ ai: AskAI; pack: StudyPack }> = ({ ai, pack }) => {
   const areaRef = useRef<HTMLDivElement>(null);
   const latestRef = useRef<HTMLDivElement>(null);
   const [setupOpen, setSetupOpen] = useState(false);
   const onSaved = () => { ai.markConfigured(); setSetupOpen(false); };
-  const { earlier, answer, turn } = splitTurns(ai);
+  const { earlier, question, answer, turn } = splitTurns(ai);
   const streaming = ai.streamingText !== null;
-  // Keep the latest turn's end in view — after each fit too, since the block
-  // also changes height without a new token (lazy markdown, shrink, fonts).
+  // The latest turn (its question + answer) in view — after each fit too, since the block also changes
+  // height without a new token (lazy markdown, shrink, fonts). When it fits, show it from its question
+  // down; when it cannot fit (a very long answer at the floor size), keep its newest text in view.
   const scrollToLatest = useCallback(() => {
+    const block = latestRef.current;
+    const area = areaRef.current;
     // Guarded: jsdom (vitest) does not implement scrollIntoView. No spacer after the block: it would add scroll height.
-    if (typeof latestRef.current?.scrollIntoView === 'function') latestRef.current.scrollIntoView({ block: 'end' });
+    if (!block || typeof block.scrollIntoView !== 'function') return;
+    block.scrollIntoView({ block: area && block.offsetHeight <= area.clientHeight ? 'start' : 'end' });
   }, []);
   useAnswerFit(areaRef, latestRef, { text: answer, streaming, turnKey: turn, onFitted: scrollToLatest });
   useEffect(scrollToLatest, [scrollToLatest, ai.messages.length, ai.loading, ai.streamingText]);
@@ -71,7 +81,8 @@ const Conversation: React.FC<{ ai: AskAI; pack: StudyPack }> = ({ ai, pack }) =>
         </div>
       )}
       {earlier.map((m, i) => <Message key={i} m={m} pack={pack} />)}
-      <div ref={latestRef} data-testid="ask-latest">
+      <div ref={latestRef} data-testid="ask-latest" className="space-y-[1.5vh]">
+        {question !== null && <QuestionLine text={question} latest />}
         {answer !== null && (
           <div data-testid={streaming ? 'streaming-answer' : undefined}>
             <AskAnswer text={answer} pack={pack} fit complete={!streaming} />
@@ -87,17 +98,6 @@ const Conversation: React.FC<{ ai: AskAI; pack: StudyPack }> = ({ ai, pack }) =>
         )}
       </div>
     </div>
-  );
-};
-
-/** Pinned under the header: the question being answered, at most two lines (full text on hover). */
-const LatestQuestion: React.FC<{ ai: AskAI }> = ({ ai }) => {
-  const { question } = splitTurns(ai);
-  if (question === null) return null;
-  return (
-    <p className="text-stl-text-2 line-clamp-2 mb-[1vh] shrink-0" style={questionStyle} title={question} data-testid="ask-question">
-      {`Q: ${question}`}
-    </p>
   );
 };
 
@@ -197,7 +197,6 @@ const AskAIOverlay: React.FC<AskAIOverlayProps> = ({ pack, slide, initialQuestio
             ✕
           </button>
         </div>
-        <LatestQuestion ai={ai} />
         <Conversation ai={ai} pack={pack} />
         <QuestionForm ai={ai} />
         <SourcesCredit />

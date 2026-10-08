@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
 import { readFileSync } from 'fs';
 import React from 'react';
 import { STORAGE_KEYS } from '../../../constants/storageKeys';
@@ -102,7 +102,9 @@ describe('AskAIOverlay (streaming)', () => {
     renderOverlay();
     fireEvent.change(screen.getByLabelText(/Ask AI question/), { target: { value: 'Why birds?' } });
     fireEvent.click(screen.getByRole('button', { name: /提问 Ask/ }));
-    expect(screen.getByText('Q: Why birds?')).toBeInTheDocument();
+    expect(screen.getByTestId('ask-question')).toHaveTextContent('Why birds?');
+    // The question sits in the conversation, in the latest turn, right above its answer (not pinned as a title).
+    expect(within(screen.getByTestId('ask-latest')).getByTestId('ask-question')).toBeInTheDocument();
 
     act(() => emit('Anxiety '));
     // Markdown renders lazily, so assert through waitFor
@@ -141,7 +143,7 @@ describe('AskAIOverlay (streaming)', () => {
   it('auto-sends an initial question exactly once and keeps the input for follow-ups', async () => {
     configureKey();
     renderOverlay(vi.fn(), 'Where does anxiety show up?');
-    expect(screen.getByText('Q: Where does anxiety show up?')).toBeInTheDocument();
+    expect(screen.getByTestId('ask-question')).toHaveTextContent('Where does anxiety show up?');
     await waitFor(() =>
       expect(screen.getByTestId('ask-answer')).toHaveTextContent('Answer (v.25).'));
     expect(streamStudyAIMock).toHaveBeenCalledTimes(1);
@@ -237,7 +239,7 @@ describe('AskAIOverlay (streaming)', () => {
     expect(streamStudyAIMock.mock.calls[1][2]).toEqual([]); // same (empty) history
     expect(streamStudyAIMock.mock.calls[1][3]).toBe('auto question');
     await waitFor(() => expect(screen.getByTestId('ask-answer')).toHaveTextContent('Answer (v.25).'));
-    expect(screen.getAllByText('Q: auto question')).toHaveLength(1);
+    expect(screen.getAllByText('auto question')).toHaveLength(1);
     expect(screen.queryByRole('alert')).toBeNull();
   });
 

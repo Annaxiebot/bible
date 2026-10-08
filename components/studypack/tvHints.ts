@@ -23,6 +23,8 @@ export const SIDEWAYS_HINT = bilingualLine('横屏观看更佳', 'Turn the phone
 
 /** The Ask-AI button / panel title. */
 export const ASK_AI_LABEL = bilingual('问一问', 'Ask AI');
+/** Before each question in the Ask AI conversation (right above its answer). */
+export const ASK_QUESTION_LABEL = bilingual('问', 'Q');
 
 /** Ask-AI input placeholder. */
 export const ASK_INPUT_PLACEHOLDER = bilingual('对这段经文提问…', 'Ask about this passage…');

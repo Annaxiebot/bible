@@ -27,7 +27,7 @@ async function askOnDiscussionSlide(page: Page) {
   await goToSlide(page, DEMO_SLIDE.discussion);
   await expect(page.getByText(/讨论 Discussion · 1\/5/)).toBeVisible();
   await page.keyboard.press('a');
-  await expect(page.getByText(/Q: 这一周，忧虑实际出现在哪里/)).toBeVisible();
+  await expect(page.getByTestId('ask-question')).toContainText(/这一周，忧虑实际出现在哪里/);
 }
 
 test.describe('Ask AI failures on the TV', () => {

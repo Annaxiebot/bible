@@ -41,7 +41,7 @@ test.describe('Hosted AI — signed in, no own key', () => {
     await page.keyboard.press('a');
 
     await expect(page.getByTestId('quick-ai-setup')).toHaveCount(0);
-    await expect(page.getByText(/Q: 这一周，忧虑实际出现在哪里/)).toBeVisible();
+    await expect(page.getByTestId('ask-question')).toContainText(/这一周，忧虑实际出现在哪里/);
     await expect(page.getByTestId('ask-answer')).toContainText('忧虑跟着财宝走 (v.25).');
     await expect(page.getByLabel(/Ask AI question/)).toBeEnabled();
 

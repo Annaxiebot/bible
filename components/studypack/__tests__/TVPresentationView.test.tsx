@@ -199,7 +199,7 @@ describe('TVPresentationView', () => {
     await renderLoaded();
     for (let i = 0; i < TO_FIRST_DISCUSSION; i++) fireEvent.keyDown(window, { key: 'ArrowRight' });
     fireEvent.keyDown(window, { key: 'a' });
-    expect(screen.getByText(/Q: 这一周，忧虑实际出现在哪里/)).toBeInTheDocument();
+    expect(screen.getByTestId('ask-question')).toHaveTextContent(/这一周，忧虑实际出现在哪里/);
     await waitFor(() =>
       expect(screen.getByTestId('ask-answer')).toHaveTextContent('It shows up at work (v.25).'));
     expect(streamStudyAIMock).toHaveBeenCalledTimes(1);

@@ -195,7 +195,7 @@ test.describe('Ask AI overlay', () => {
 
     await page.keyboard.press('a');
     // The slide's question appears as the already-submitted prompt…
-    await expect(page.getByText(/Q: 这一周，忧虑实际出现在哪里/)).toBeVisible();
+    await expect(page.getByTestId('ask-question')).toContainText(/这一周，忧虑实际出现在哪里/);
     // …and the (mocked) answer renders, with the input free for follow-ups.
     await expect(page.getByText('Anxiety follows the treasure (v.25).')).toBeVisible();
     await expect(page.getByLabel(/Ask AI question/)).toBeEnabled();
@@ -240,6 +240,6 @@ test.describe('Ask AI overlay', () => {
     await expect(setup.getByRole('button', { name: SETUP_OWN_KEY_TOGGLE })).toHaveCount(0);
     await expect(page.getByTestId('ask-ai-overlay')).not.toContainText(/OpenRouter|密钥/);
     await expect(page.getByLabel(/Ask AI question/)).toBeDisabled();
-    await expect(page.getByText(/Q: 这一周/)).toHaveCount(0); // nothing sent
+    await expect(page.getByTestId('ask-question')).toHaveCount(0); // nothing sent
   });
 });
