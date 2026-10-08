@@ -9,7 +9,7 @@
  * leaderSubscription; every failure is an inline alert.
  */
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../../services/supabase';
+import { getSignupClient } from '../signup/signupClient';
 import type { UnsubscribedBy } from '../../supabase/functions/send-checkins/optout';
 import type { SignupRecord } from './leaderData';
 import { leaderSetSubscription, MemberChoiceError, fetchPackPaused, setPackPaused } from './leaderSubscription';
@@ -31,10 +31,11 @@ export const SubscriptionCell: React.FC<{ row: SignupRecord }> = ({ row }) => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const set = async (stop: boolean) => {
-    if (!supabase) return;
+    const client = getSignupClient();
+    if (!client) return;
     setBusy(true);
     try {
-      const now = await leaderSetSubscription(supabase, row.id, stop);
+      const now = await leaderSetSubscription(client, row.id, stop);
       setStopped(now ? (stopped ?? 'leader') : null);
       setError(null);
     } catch (err) {
@@ -68,18 +69,20 @@ export const PauseToggle: React.FC<{ packId: string; leaderId: string }> = ({ pa
   const [paused, setPaused] = useState<boolean | null>(null);
   const [error, setError] = useState<string | null>(null);
   useEffect(() => {
-    if (!supabase) return;
+    const client = getSignupClient();
+    if (!client) return;
     let cancelled = false;
-    fetchPackPaused(supabase, packId)
+    fetchPackPaused(client, packId)
       .then(value => { if (!cancelled) setPaused(value); })
       .catch((err: unknown) => { if (!cancelled) setError(describe(err)); });
     return () => { cancelled = true; };
   }, [packId]);
   const toggle = async () => {
-    if (!supabase || paused === null) return;
+    const client = getSignupClient();
+    if (!client || paused === null) return;
     const next = !paused;
     try {
-      await setPackPaused(supabase, packId, leaderId, next);
+      await setPackPaused(client, packId, leaderId, next);
       setPaused(next);
       setError(null);
     } catch (err) {

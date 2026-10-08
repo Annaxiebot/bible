@@ -1,8 +1,9 @@
 /**
  * LeaderPage.tsx — "#/leader/<packId>" · 组长名单页
  *
- * Auth required: reuses the app's Supabase session (services/supabase
- * authManager) and, when signed out, renders the existing AuthPanel under a
+ * Auth required: the leader session (useLeaderSession — the app's Supabase
+ * session, or the dev-only __LEADER_E2E__ seam; data through getSignupClient,
+ * which is the app's client in production) and, when signed out, renders the existing AuthPanel under a
  * bilingual prompt. Signed in as the pack's owner (pack.leaderId = uid): the
  * pack's sign-ups (name, phone, email, consent, time), a count, 承诺
  * Commitments and 反馈 Shared feedback (LeaderSections), CSV export with
@@ -15,7 +16,9 @@
  * Every failure renders inline (role=alert).
  */
 import React, { useEffect, useState } from 'react';
-import { authManager, supabase, isSupabaseConfigured, type AuthState } from '../../services/supabase';
+import { authManager } from '../../services/supabase';
+import { getSignupClient } from '../signup/signupClient';
+import { useLeaderSession } from './useLeaderSession';
 import { AuthPanel } from '../AuthPanel';
 import { loadPack } from '../studypack/packSource';
 import type { StudyPack } from '../studypack/packTypes';
@@ -44,18 +47,13 @@ type Rows =
 
 const describe = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
-function useAuth(): AuthState {
-  const [auth, setAuth] = useState<AuthState>(authManager.getState());
-  useEffect(() => authManager.subscribe(setAuth), []);
-  return auth;
-}
-
 function useSignups(packId: string, leaderId: string): Rows {
   const [rows, setRows] = useState<Rows>({ status: 'loading' });
   useEffect(() => {
-    if (!supabase) return;
+    const client = getSignupClient();
+    if (!client) return;
     let cancelled = false;
-    Promise.all([fetchSignups(supabase, packId, leaderId), fetchAnswers(supabase, packId, leaderId)])
+    Promise.all([fetchSignups(client, packId, leaderId), fetchAnswers(client, packId, leaderId)])
       .then(([list, answers]) => { if (!cancelled) setRows({ status: 'ready', ...foldReplaced(list, answers) }); })
       .catch((err: unknown) => { if (!cancelled) setRows({ status: 'failed', message: describe(err) }); });
     return () => { cancelled = true; };
@@ -91,10 +89,11 @@ const TestButton: React.FC<{ pack: StudyPack | null }> = ({ pack }) => {
   const run = async () => {
     const email = authManager.getEmail();
     if (!email) { setLine({ ok: false, text: LD_TEST_NO_EMAIL }); return; }
-    if (!pack || !supabase) return;
+    const client = getSignupClient();
+    if (!pack || !client) return;
     setBusy(true);
     try {
-      await sendTestCheckin(supabase, pack, email, authManager.getFullName() ?? email);
+      await sendTestCheckin(client, pack, email, authManager.getFullName() ?? email);
       setLine({ ok: true, text: LD_TEST_OK });
     } catch (err) {
       setLine({ ok: false, text: describe(err) });
@@ -148,7 +147,7 @@ const SignedInView: React.FC<{ pack: StudyPack | null; uid: string }> = ({ pack,
 };
 
 const LeaderPage: React.FC<{ packId: string }> = ({ packId }) => {
-  const auth = useAuth();
+  const session = useLeaderSession();
   const claim = useLocalPackClaim(packId);
   const [pack, setPack] = useState<StudyPack | null>(null);
   const [packError, setPackError] = useState<string | null>(null);
@@ -172,14 +171,14 @@ const LeaderPage: React.FC<{ packId: string }> = ({ packId }) => {
           </div>
           <a href={NEW_STUDY_HASH} className={quietButtonClass} style={controlStyle} aria-label={LD_BACK}>✕</a>
         </header>
-        {!isSupabaseConfigured() && <p role="alert" className="text-red-300" style={textStyle}>{SU_ERR_NOT_CONFIGURED}</p>}
-        {isSupabaseConfigured() && !auth.isLoading && !auth.isAuthenticated && (
+        {!session.configured && <p role="alert" className="text-red-300" style={textStyle}>{SU_ERR_NOT_CONFIGURED}</p>}
+        {session.configured && !session.loading && !session.uid && (
           <div data-testid="leader-signin">
             <p className="mb-4 text-slate-100" style={textStyle}>{LD_SIGNIN}</p>
             <AuthPanel />
           </div>
         )}
-        {auth.isAuthenticated && auth.user && <SignedInView pack={pack} uid={auth.user.id} />}
+        {session.uid && <SignedInView pack={pack} uid={session.uid} />}
       </div>
     </div>
   );
