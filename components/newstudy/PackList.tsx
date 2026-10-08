@@ -13,7 +13,7 @@ import { PackSyncLine } from './PackSyncLine';
 import { leaderHash } from '../leader/leaderRoute';
 import { newStudyHash } from '../landing/landingRoute';
 import {
-  NS_MY_PACKS, NS_NO_PACKS, NS_EDIT, NS_DELETE, NS_SHOW_ALL, NS_SHOW_FEWER, NS_DELETE_CONFIRM, NS_INVALID_RECORDS, NS_SIGNUPS,
+  NS_MY_PACKS, NS_NO_PACKS, NS_EDIT, NS_DELETE, NS_SHOW_ALL, NS_SHOW_FEWER, NS_SEARCH_PACKS, NS_SEARCH_NONE, NS_DELETE_CONFIRM, NS_INVALID_RECORDS, NS_SIGNUPS,
 } from './newStudyStrings';
 import { textStyle, controlStyle, headingStyle } from './newStudyStyles';
 import BackupPanel from './BackupPanel';
@@ -60,10 +60,22 @@ const PackRow: React.FC<{ pack: StudyPack; packs: LocalPacks; onOpen: (pack: Stu
 
 /** How many studies show before "显示全部 · Show all". */
 export const PACK_LIST_PREVIEW = 5;
+/** From this many studies a search box appears (a leader may keep hundreds). */
+export const PACK_SEARCH_FROM = 8;
+
+/** Studies whose title, passage (Chinese or English) or date contains the query; case-insensitive. */
+export function searchPacks(packs: readonly StudyPack[], query: string): StudyPack[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [...packs];
+  return packs.filter(p => `${p.title} ${p.passageRef} ${p.date}`.toLowerCase().includes(q));
+}
 
 const PackList: React.FC<Props> = ({ packs, onOpen }) => {
   const [showAll, setShowAll] = useState(false);
-  const sorted = newestFirst(packs.packs);
+  const [query, setQuery] = useState('');
+  const sorted = searchPacks(newestFirst(packs.packs), query);
+  const searching = query.trim() !== '';
+  const shown = showAll || searching ? sorted : sorted.slice(0, PACK_LIST_PREVIEW);
   return (
     <section data-testid="pack-list" className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -78,10 +90,16 @@ const PackList: React.FC<Props> = ({ packs, onOpen }) => {
         ? <p className="text-slate-500" style={textStyle}>{NS_NO_PACKS}</p>
         : (
           <>
+            {packs.packs.length >= PACK_SEARCH_FROM && (
+              <input type="search" value={query} onChange={e => setQuery(e.target.value)} data-testid="pack-search"
+                placeholder={NS_SEARCH_PACKS} aria-label={NS_SEARCH_PACKS}
+                className="rounded-lg border border-slate-700 bg-slate-900 px-4 text-slate-100" style={controlStyle} />
+            )}
+            {searching && sorted.length === 0 && <p className="text-slate-500" style={textStyle}>{NS_SEARCH_NONE}</p>}
             <ul className="flex flex-col border-t border-slate-800">
-              {(showAll ? sorted : sorted.slice(0, PACK_LIST_PREVIEW)).map(p => <PackRow key={p.id} pack={p} packs={packs} onOpen={onOpen} />)}
+              {shown.map(p => <PackRow key={p.id} pack={p} packs={packs} onOpen={onOpen} />)}
             </ul>
-            {sorted.length > PACK_LIST_PREVIEW && (
+            {!searching && sorted.length > PACK_LIST_PREVIEW && (
               <button type="button" onClick={() => setShowAll(v => !v)} data-testid="pack-show-all"
                 className="self-start text-slate-400 underline underline-offset-4 hover:text-slate-100" style={controlStyle}>
                 {showAll ? NS_SHOW_FEWER : NS_SHOW_ALL(sorted.length)}

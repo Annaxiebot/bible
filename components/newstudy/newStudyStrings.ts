@@ -34,17 +34,17 @@ export const NS_LESSON_NUMBER = bilingual('第几课（可选）', 'Lesson numbe
 export const NS_DATE = bilingual('日期', 'Date');
 /** "内容语言 Content language": how much English the generated lines carry (ADR-0003 §1 note). */
 export const NS_CONTENT_LANGUAGE = bilingual('内容语言', 'Content language');
-export const NS_CONTENT_LANGUAGE_OPTIONS: Record<ContentLanguage, string> = {
-  'zh-keywords': bilingual('中文为主，关键词英文', 'Chinese, English keywords'),
-  bilingual: bilingual('中英双语', 'Bilingual (中文 · English)'),
-  'en-keywords': bilingual('英文为主，关键词中文', 'English, Chinese keywords'),
-};
-/** The fold over the optional fields (content language, lesson title/number, date): most leaders keep the defaults. */
-export const NS_MORE_OPTIONS = bilingual('更多选项', 'More options');
-/** Short Chinese name of each content-language mode, for the fold's one-line summary. */
+/** Short Chinese name of each content-language mode: the option labels below and the "More options" summary share it (R3). */
 export const NS_CONTENT_LANGUAGE_SHORT: Record<ContentLanguage, string> = {
   'zh-keywords': '中文为主', bilingual: '中英双语', 'en-keywords': '英文为主',
 };
+export const NS_CONTENT_LANGUAGE_OPTIONS: Record<ContentLanguage, string> = {
+  'zh-keywords': bilingual(`${NS_CONTENT_LANGUAGE_SHORT['zh-keywords']}，关键词英文`, 'Chinese, English keywords'),
+  bilingual: bilingual(NS_CONTENT_LANGUAGE_SHORT.bilingual, 'Bilingual (中文 · English)'),
+  'en-keywords': bilingual(`${NS_CONTENT_LANGUAGE_SHORT['en-keywords']}，关键词中文`, 'English, Chinese keywords'),
+};
+/** The fold over the optional fields (content language, lesson title/number, date): most leaders keep the defaults. */
+export const NS_MORE_OPTIONS = bilingual('更多选项', 'More options');
 export const NS_GENERATE = bilingual('生成查经包', 'Generate study pack');
 export const NS_GENERATING = bilingual('生成中…', 'Generating…');
 export const NS_CANCEL = bilingual('取消', 'Cancel');
@@ -127,6 +127,9 @@ export const NS_EDIT = bilingual('编辑', 'Edit');
 /** Under a long list of studies: show every one / back to the newest few. */
 export const NS_SHOW_ALL = (n: number) => bilingual(`显示全部 ${n} 个`, `Show all ${n}`);
 export const NS_SHOW_FEWER = bilingual('只显示最近的', 'Show the newest only');
+/** The search over a long list of studies (title, passage, date). */
+export const NS_SEARCH_PACKS = bilingual('搜索查经包：标题、经文或日期', 'Search: title, passage or date');
+export const NS_SEARCH_NONE = bilingualLine('没有找到', 'No matching studies');
 /** The one quiet link under My packs; most leaders never need it (signed-in studies save online). */
 export const NS_BACKUP_TOGGLE = bilingual('备份与恢复', 'Backup & restore');
 export const NS_BACKUP_NOTE = bilingualLine(

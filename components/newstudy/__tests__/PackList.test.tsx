@@ -4,7 +4,7 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import PackList, { PACK_LIST_PREVIEW, packMetaLine } from '../PackList';
+import PackList, { PACK_LIST_PREVIEW, PACK_SEARCH_FROM, packMetaLine, searchPacks } from '../PackList';
 import { assemblePack } from '../packAssembly';
 import { validateGenerated } from '../generatedPack';
 import { JOHN3_GENERATED, JOHN3_REQUEST } from './fixtures';
@@ -56,5 +56,23 @@ describe('PackList', () => {
     expect(screen.getAllByTestId('pack-row')).toHaveLength(7);
     expect(packMetaLine({ title: '第1课 X — 约翰福音 3:22–36', passageRef: '约翰福音 3:22–36 · John 3:22–36', date: '2026-10-02' })).toBe('2026-10-02');
     expect(packMetaLine({ title: 'X', passageRef: '约翰福音 3:22–36 · John 3:22–36', date: '2026-10-02' })).toBe('约翰福音 3:22–36 · John 3:22–36 · 2026-10-02');
+  });
+
+  it('with many studies a search box appears; it matches title, passage (Chinese or English) and date', () => {
+    const many = Array.from({ length: PACK_SEARCH_FROM }, (_, i) => ({ ...pack, id: `p${i}`, title: `第${i + 1}课 Study ${i + 1}`, date: `2026-09-1${i}` }));
+    many[3] = { ...many[3], passageRef: '箴言 2:1–22 · Proverbs 2:1–22' };
+    render(<PackList packs={{ ...packs, packs: many }} onOpen={vi.fn()} />);
+    fireEvent.change(screen.getByTestId('pack-search'), { target: { value: 'proverbs' } });
+    expect(screen.getAllByTestId('pack-row')).toHaveLength(1);
+    fireEvent.change(screen.getByTestId('pack-search'), { target: { value: '2026-09-1' } });
+    expect(screen.getAllByTestId('pack-row')).toHaveLength(PACK_SEARCH_FROM); // a search shows every match, not 5
+    fireEvent.change(screen.getByTestId('pack-search'), { target: { value: '启示录' } });
+    expect(screen.queryAllByTestId('pack-row')).toHaveLength(0);
+    expect(searchPacks(many, '  ')).toHaveLength(PACK_SEARCH_FROM);
+  });
+
+  it('few studies → no search box', () => {
+    render(<PackList packs={packs} onOpen={vi.fn()} />);
+    expect(screen.queryByTestId('pack-search')).toBeNull();
   });
 });
