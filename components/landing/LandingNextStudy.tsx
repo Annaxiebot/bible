@@ -17,7 +17,7 @@ import { loadPack } from '../studypack/packSource';
 import type { StudyPack } from '../studypack/packTypes';
 import SignupQr from '../signup/SignupQr';
 import { signupHash, currentSignupUrl } from '../signup/signupRoute';
-import { SU_QR_BODY, SU_DEMO_LINE } from '../signup/signupStrings';
+import { SU_QR_BODY } from '../signup/signupStrings';
 import { packHash } from './landingRoute';
 import {
   NEXT_SECTION_ID, NEXT_EYEBROW, NEXT_HEADING_ZH, NEXT_HEADING_EN, NEXT_DESC, NEXT_OPEN_CTA,
@@ -70,23 +70,14 @@ const PackSummary: React.FC<{ state: PackState }> = ({ state }) => {
   return <p className="ld-next-ref" data-testid="next-study-empty">{line}</p>;
 };
 
-/** QR + link for an owned pack; the demo line when the pack has no leader (or is not loaded). */
-const SignupPanel: React.FC<{ state: PackState }> = ({ state }) => {
-  const pack = state.status === 'ready' ? state.pack : null;
-  return (
-    <div data-testid="next-study-signup" className="ld-signup-panel">
-      {pack?.leaderId ? (
-        <>
-          <SignupQr url={currentSignupUrl(pack.id)} size="16rem" pack={pack} tone="paper" />
-          <p className="mt-4">{SU_QR_BODY}</p>
-          <a href={signupHash(pack.id)} className="ld-text-link">{NEXT_SIGNUP_LINK}</a>
-        </>
-      ) : (
-        <p data-testid="next-study-demo">{SU_DEMO_LINE}</p>
-      )}
-    </div>
-  );
-};
+/** QR + link for a pack a leader owns (the Sign up button only appears for one). */
+const SignupPanel: React.FC<{ pack: StudyPack }> = ({ pack }) => (
+  <div data-testid="next-study-signup" className="ld-signup-panel">
+    <SignupQr url={currentSignupUrl(pack.id)} size="16rem" pack={pack} tone="paper" />
+    <p className="mt-4">{SU_QR_BODY}</p>
+    <a href={signupHash(pack.id)} className="ld-text-link">{NEXT_SIGNUP_LINK}</a>
+  </div>
+);
 
 const KeyVerse: React.FC = () => {
   const verse = useBundledVerse(NEXT_VERSE_REF.zh);
@@ -104,6 +95,8 @@ const KeyVerse: React.FC = () => {
 const LandingNextStudy: React.FC<{ packId: string; children?: React.ReactNode }> = ({ packId, children }) => {
   const state = usePackSummary(packId);
   const [signupOpen, setSignupOpen] = useState(false);
+  // A demo pack (no leader) takes no sign-ups, so it gets no Sign up button at all (owner).
+  const owned = state.status === 'ready' && state.pack.leaderId ? state.pack : null;
   return (
     <LandingSection
       id={NEXT_SECTION_ID} tone="tint" eyebrow={NEXT_EYEBROW}
@@ -114,10 +107,12 @@ const LandingNextStudy: React.FC<{ packId: string; children?: React.ReactNode }>
           <PackSummary state={state} />
           <div className="ld-next-ctas">
             <Pill href={packHash(packId)} label={NEXT_OPEN_CTA} arrow testId="next-study-open" />
-            <Pill ghost onClick={() => setSignupOpen(open => !open)} expanded={signupOpen}
-              testId="next-study-signup-toggle" label={signupOpen ? NEXT_SIGNUP_CLOSE : NEXT_SIGNUP_CTA} />
+            {owned && (
+              <Pill ghost onClick={() => setSignupOpen(open => !open)} expanded={signupOpen}
+                testId="next-study-signup-toggle" label={signupOpen ? NEXT_SIGNUP_CLOSE : NEXT_SIGNUP_CTA} />
+            )}
           </div>
-          {signupOpen && <SignupPanel state={state} />}
+          {owned && signupOpen && <SignupPanel pack={owned} />}
         </div>
         <KeyVerse />
       </div>

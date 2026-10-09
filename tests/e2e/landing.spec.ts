@@ -20,7 +20,6 @@ import {
 } from '../../components/landing/landingStrings';
 import { SETUP_HASH, SAMPLE_PACK_ID } from '../../components/landing/landingRoute';
 import { signupHash } from '../../components/signup/signupRoute';
-import { SU_DEMO_LINE } from '../../components/signup/signupStrings';
 import { routeOwnedSamplePack, expectedSignupUrl } from './helpers/signup';
 import { SETUP_TITLE, SETUP_KEY_LABEL, SETUP_SAVE, SETUP_GET_KEY, SETUP_OWN_KEY_TOGGLE } from '../../components/setup/setupStrings';
 import { OPENROUTER_KEYS_URL } from '../../services/aiDefaults';
@@ -236,15 +235,14 @@ test.describe('Landing page', () => {
     await expect(page.getByTestId('tv-presentation')).toBeVisible();
   });
 
-  test('sign-up: the demo sample pack shows the no-sign-up line; an owned pack shows its QR and #/signup link', async ({ page }) => {
+  test('sign-up: the demo sample pack has no Sign up button; an owned pack shows its QR and #/signup link', async ({ page }) => {
     await openLanding(page);
-    await page.getByRole('button', { name: NEXT_SIGNUP_CTA }).click();
-    const panel = page.getByTestId('next-study-signup');
-    await expect(panel.getByTestId('next-study-demo')).toHaveText(SU_DEMO_LINE);
-    await expect(panel.getByTestId('signup-qr')).toHaveCount(0);
+    await expect(page.getByTestId('next-study-open')).toBeVisible();
+    await expect(page.getByRole('button', { name: NEXT_SIGNUP_CTA })).toHaveCount(0);
     await routeOwnedSamplePack(page);
     await openLanding(page);
     await page.getByRole('button', { name: NEXT_SIGNUP_CTA }).click();
+    const panel = page.getByTestId('next-study-signup');
     await expect(panel.getByTestId('signup-qr')).toHaveAttribute('data-signup-url', expectedSignupUrl(page));
     await expect(panel.getByTestId('signup-qr').locator('svg')).toBeVisible();
     await expect(panel.getByRole('link')).toHaveAttribute('href', signupHash(SAMPLE_PACK_ID));

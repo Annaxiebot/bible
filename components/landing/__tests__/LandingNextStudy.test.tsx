@@ -12,7 +12,7 @@ import { render, screen, fireEvent, cleanup, within, waitFor } from '@testing-li
 import LandingNextStudy from '../LandingNextStudy';
 import { packHash } from '../landingRoute';
 import { currentSignupUrl, signupHash } from '../../signup/signupRoute';
-import { SU_QR_BODY, SU_DEMO_LINE, qrAltText } from '../../signup/signupStrings';
+import { SU_QR_BODY, qrAltText } from '../../signup/signupStrings';
 import { PACK_SCHEMA_VERSION } from '../../studypack/packTypes';
 import {
   NEXT_EYEBROW, NEXT_HEADING_ZH, NEXT_HEADING_EN, NEXT_OPEN_CTA, NEXT_SIGNUP_CTA,
@@ -89,15 +89,12 @@ describe('LandingNextStudy', () => {
     expect(screen.getByRole('link', { name: NEXT_OPEN_CTA })).toHaveAttribute('href', packHash('2026-10-02-john3'));
   });
 
-  it('sign-up on a demo pack (no leaderId) reveals the bilingual no-sign-up line, no QR', async () => {
+  it('a demo pack (no leaderId) has no Sign up button at all — it takes no sign-ups (owner)', async () => {
     stubFetch(async () => ({ ok: true, json: async () => PACK }));
     render(<LandingNextStudy packId={PACK_ID} />);
     await screen.findByTestId('next-study-pack');
-    fireEvent.click(screen.getByRole('button', { name: NEXT_SIGNUP_CTA }));
-    const panel = screen.getByTestId('next-study-signup');
-    expect(within(panel).getByTestId('next-study-demo')).toHaveTextContent(SU_DEMO_LINE);
-    expect(panel.querySelector('[data-testid="signup-qr"]')).toBeNull();
-    expect(panel.querySelector('a')).toBeNull();
+    expect(screen.queryByRole('button', { name: NEXT_SIGNUP_CTA })).toBeNull();
+    expect(screen.queryByTestId('next-study-signup')).toBeNull();
   });
 
   it('sign-up on an owned pack reveals its QR (encoding its sign-up URL) and the #/signup link', async () => {
