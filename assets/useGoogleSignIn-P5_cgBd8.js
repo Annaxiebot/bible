@@ -1,0 +1,1 @@
+import{r as s}from"./vendor-react-IFO5CCoQ.js";import{I as u}from"./index-DyicJ0De.js";function g(r){const[n,t]=s.useState(!1),[o,e]=s.useState(null);return{signIn:s.useCallback(async()=>{e(null),t(!0);const{error:a}=await u.signInWithGoogle(r);t(!1),a&&e(a.message)},[r]),busy:n,error:o}}export{g as u};
