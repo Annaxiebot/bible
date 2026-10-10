@@ -3,7 +3,10 @@
  *
  * Opens over the current slide without losing position. Escape (or ✕)
  * closes the overlay only — slide navigation is suspended by the parent
- * while the overlay is open. Q&A is ephemeral (in-memory, per opening).
+ * while the overlay is open. Q&A is in-memory per opening — except on a
+ * study the signed-in leader owns (ADR-0021, useAskHistory): its saved
+ * exchanges are restored on open, each answer is saved, the limit notice
+ * sits under the latest answer, and a quiet Clear empties the view.
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StudyPack, Slide } from './packTypes';
@@ -15,6 +18,8 @@ import {
 import { RELATED_VERSES_ENABLED } from './relatedVerses';
 import { ORIGINAL_WORDS_ENABLED } from './originalWords';
 import { useAskAI, AskAI } from './useAskAI';
+import { useAskHistory, AskHistory } from './useAskHistory';
+import AskHistoryNotice, { AskClearButton } from './AskHistoryNotice';
 import AIErrorLine from './AIErrorLine';
 import AskAnswer from './AskAnswer';
 import { useAnswerFit } from './useAnswerFit';
@@ -51,7 +56,7 @@ const QuestionLine: React.FC<{ text: string; latest?: boolean }> = ({ text, late
 const Message: React.FC<{ m: AskAIMessage; pack: StudyPack }> = ({ m, pack }) =>
   m.role === 'user' ? <QuestionLine text={m.content} /> : <AskAnswer text={m.content} pack={pack} />;
 
-const Conversation: React.FC<{ ai: AskAI; pack: StudyPack }> = ({ ai, pack }) => {
+const Conversation: React.FC<{ ai: AskAI; pack: StudyPack; history: AskHistory }> = ({ ai, pack, history }) => {
   const areaRef = useRef<HTMLDivElement>(null);
   const latestRef = useRef<HTMLDivElement>(null);
   const [setupOpen, setSetupOpen] = useState(false);
@@ -96,6 +101,7 @@ const Conversation: React.FC<{ ai: AskAI; pack: StudyPack }> = ({ ai, pack }) =>
         {ai.error && (
           <AIErrorLine error={ai.error} style={questionStyle} onSetup={() => setSetupOpen(true)} onRetry={() => { void ai.retry(); }} />
         )}
+        <AskHistoryNotice history={history} style={questionStyle} />
       </div>
     </div>
   );
@@ -142,8 +148,10 @@ export interface AskAIOverlayProps {
   onClose: () => void;
 }
 
+// TODO(R4): over the 50-line function budget — split the auto-send and Escape effects into a useAskOverlayKeys hook.
 const AskAIOverlay: React.FC<AskAIOverlayProps> = ({ pack, slide, initialQuestion, onClose }) => {
-  const ai = useAskAI(pack, slide);
+  const history = useAskHistory(pack);
+  const ai = useAskAI(pack, slide, { restored: history.restored, onAnswered: history.save });
   const autoSentRef = useRef(false);
   const close = useCallback(() => {
     ai.cancel(); // abort an in-flight stream before leaving
@@ -153,11 +161,13 @@ const AskAIOverlay: React.FC<AskAIOverlayProps> = ({ pack, slide, initialQuestio
   // One-click smart open: submit the initial question immediately, once.
   // While AI is unavailable the question stays pending; it is sent as soon
   // as the leader signs in or a key is stored (ai.configured flips to true).
+  // On an owned study it also waits until the saved exchanges are in the conversation, so they come first.
+  const historyIn = history.ready && (history.restored === null || ai.restoredIn);
   useEffect(() => {
-    if (!initialQuestion || autoSentRef.current || !ai.configured) return;
+    if (!initialQuestion || autoSentRef.current || !ai.configured || !historyIn) return;
     autoSentRef.current = true;
     void ai.ask(initialQuestion);
-  }, [initialQuestion, ai]);
+  }, [initialQuestion, ai, historyIn]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -188,6 +198,7 @@ const AskAIOverlay: React.FC<AskAIOverlayProps> = ({ pack, slide, initialQuestio
           {!ai.loading && ai.model && ai.model !== askAIModel() && ai.messages.some(m => m.role === 'assistant') && (
             <p className="text-stl-text-3 truncate" style={questionStyle} data-testid="ask-backup-model">{BACKUP_MODEL_NOTE}</p>
           )}
+          <AskClearButton ai={ai} history={history} style={questionStyle} />
           <button
             onClick={close}
             className="text-stl-text-2 hover:text-stl-text px-3 py-1"
@@ -197,7 +208,7 @@ const AskAIOverlay: React.FC<AskAIOverlayProps> = ({ pack, slide, initialQuestio
             ✕
           </button>
         </div>
-        <Conversation ai={ai} pack={pack} />
+        <Conversation ai={ai} pack={pack} history={history} />
         <QuestionForm ai={ai} />
         <SourcesCredit />
       </div>

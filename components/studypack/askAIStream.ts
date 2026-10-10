@@ -15,6 +15,7 @@ import { StudyPack, Slide, packContentLanguage } from './packTypes';
 import { AskAIMessage, ASK_AI_MAX_TOKENS, buildAskAIPrompt } from './askAI';
 import { signInNeededError, errorFromStatus, hostedErrorFromStatus, streamError, ErrorReply } from './askAIErrors';
 import type { OriginalWordsVerse, RelatedVerseText } from '../../supabase/functions/_shared/aiPrompts';
+import { fitHistory } from '../../services/aiHistoryFit';
 
 /** One parsed SSE data event, reduced to what the app acts on. */
 export interface SSEEvent {
@@ -105,6 +106,7 @@ export function buildRequestBody(
   question: string,
   opts: AskAIRequestOptions
 ): string {
+  const prompt = buildAskAIPrompt(pack, slide, question, opts.related, opts.original);
   return JSON.stringify({
     model: opts.model,
     stream: true,
@@ -112,10 +114,8 @@ export function buildRequestBody(
     temperature: 0.7,
     ...(opts.noReasoning ? { reasoning: { enabled: false, exclude: true } } : {}),
     content_language: packContentLanguage(pack),
-    messages: [
-      ...history.map(m => ({ role: m.role, content: m.content })),
-      { role: 'user', content: buildAskAIPrompt(pack, slide, question, opts.related, opts.original) },
-    ],
+    // Restored history (ADR-0021) can be long: keep the newest turns that fit the proxy's caps.
+    messages: [...fitHistory(history, prompt.length, 1), { role: 'user', content: prompt }],
   });
 }
 

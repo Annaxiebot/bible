@@ -11,6 +11,7 @@ import { Page } from '@playwright/test';
 import { SIGNUPS_TABLE, CHECKIN_ANSWERS_TABLE, PACK_SUMMARIES_TABLE } from '../../../components/signup/signupSchema';
 import { E2E_LEADER_ID, E2E_SUPABASE_PATH, injectSupabaseOverride } from './signup';
 import { REPLACED_COLUMN } from '../../../supabase/functions/send-checkins/replaced';
+import { mockAskHistory } from './askHistory';
 
 export const E2E_LEADER = { uid: E2E_LEADER_ID, email: 'chris.leader@example.com', name: 'Chris Leader' };
 
@@ -45,7 +46,9 @@ export interface LeaderListRows { signups: Array<Record<string, unknown>>; answe
 /**
  * Answer the #/leader/<id> page's reads under the fake PostgREST base:
  * study_signups and checkin_answers return the given rows, pack_summaries
- * the not-paused switch (a single object, as maybeSingle asks for).
+ * the not-paused switch (a single object, as maybeSingle asks for), and the
+ * Ask AI history section an empty history (a spec that needs saved rows
+ * calls mockAskHistory after this; the later route wins).
  */
 export async function mockLeaderList(page: Page, rows: LeaderListRows) {
   await injectSupabaseOverride(page);
@@ -56,6 +59,7 @@ export async function mockLeaderList(page: Page, rows: LeaderListRows) {
     route.fulfill({ status: 200, headers: json, body: JSON.stringify(rows.answers) }));
   await page.route(`**${E2E_SUPABASE_PATH}/rest/v1/${PACK_SUMMARIES_TABLE}**`, route =>
     route.fulfill({ status: 200, headers: json, body: JSON.stringify({ checkins_paused: false }) }));
+  await mockAskHistory(page);
 }
 
 /** A leader's sign-up row as PostgREST returns it (SIGNUP_COLUMNS); `extra` overrides any column. */
