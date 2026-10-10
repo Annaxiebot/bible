@@ -41,6 +41,7 @@ vi.mock('../../../services/supabase', () => ({
   authManager: {
     getState: () => authState(),
     getUserId: () => signedInUid,
+    getFullName: () => null,   // read by useLeaderSession (the overlay's saved-history owner check, ADR-0021)
     subscribe: (l: (s: unknown) => void) => { authListeners.add(l); l(authState()); return () => authListeners.delete(l); },
     signInWithGoogle: vi.fn(async () => ({ error: null })),
     signOut: vi.fn(async () => ({ error: null })),

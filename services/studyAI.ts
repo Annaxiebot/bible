@@ -14,14 +14,15 @@
  */
 import { streamChatCompletionDetailed } from '../components/studypack/askAIStream';
 import { emptyError } from '../components/studypack/askAIErrors';
-import { ROLE_MAX_TOKENS, MAX_MESSAGES, MAX_TOTAL_CHARS } from '../supabase/functions/ai-proxy/policy';
+import { ROLE_MAX_TOKENS } from '../supabase/functions/ai-proxy/policy';
+import { fitHistory, HistoryMessage } from './aiHistoryFit';
 import { askAIModel } from './aiDefaults';
 
 /** OpenRouter X-Title for own-key requests (ASCII only). */
 export const STUDY_AI_TITLE = 'Scripture to Life';
 const STUDY_TEMPERATURE = 0.7;
 
-export interface StudyAIMessage { role: string; content: string }
+export type StudyAIMessage = HistoryMessage;
 
 export interface StudyAIOptions {
   /** A system message ahead of the history (the chat's scholar prompt); none when omitted. */
@@ -36,23 +37,7 @@ export interface StudyAIResult {
   model: string;
 }
 
-/**
- * The newest history that fits the proxy's limits (policy MAX_MESSAGES /
- * MAX_TOTAL_CHARS) next to the system message and the new prompt — older
- * turns drop first, so a long thread never turns into a 400.
- */
-export function fitHistory(history: readonly StudyAIMessage[], fixedChars: number, fixedMessages: number): StudyAIMessage[] {
-  const kept: StudyAIMessage[] = [];
-  let chars = fixedChars;
-  for (let i = history.length - 1; i >= 0; i--) {
-    const m = history[i];
-    if (m.role !== 'user' && m.role !== 'assistant') continue;
-    if (kept.length + fixedMessages >= MAX_MESSAGES || chars + m.content.length > MAX_TOTAL_CHARS) break;
-    kept.unshift({ role: m.role, content: m.content });
-    chars += m.content.length;
-  }
-  return kept;
-}
+export { fitHistory };
 
 /** The chat/completions body (OpenRouter shape; the transport adds role 'study' for the proxy). */
 export function buildStudyBody(prompt: string, history: readonly StudyAIMessage[], system?: string): string {

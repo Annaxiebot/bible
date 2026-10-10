@@ -14,6 +14,7 @@ import { TEST_PACK_PATH } from './fixtures';
 import { CONTENT_LANGUAGES, ASK_AI_SYSTEM_PROMPT, ASK_AI_ANSWER_CONTRACT, ASK_AI_LANGUAGE_RULES } from '../principles';
 import { ownKeyBody } from '../../../services/aiTransport';
 import { BIBLE_SCHOLAR_SYSTEM_PROMPT } from '../../../services/systemPrompts';
+import { MAX_MESSAGES, messagesProblem } from '../../../supabase/functions/ai-proxy/policy';
 
 function loadPack(): { pack: StudyPack; slide: Slide } {
   const pack = parseStudyPack(JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8')));
@@ -118,6 +119,16 @@ describe('Ask AI request', () => {
     for (const mode of CONTENT_LANGUAGES) {
       expect(JSON.parse(buildRequestBody({ ...pack, contentLanguage: mode }, slide, [], 'q', { model: 'm' })).content_language).toBe(mode);
     }
+  });
+
+  it('a long restored thread (ADR-0021) keeps the newest turns within the proxy caps — never a 400', () => {
+    const { pack, slide } = loadPack();
+    const history = Array.from({ length: 60 }, (_, i) => ({ role: i % 2 ? 'assistant' as const : 'user' as const, content: `turn ${i}` }));
+    const body = JSON.parse(buildRequestBody(pack, slide, history, 'q', { model: 'm' }));
+    expect(body.messages).toHaveLength(MAX_MESSAGES);
+    expect(body.messages[body.messages.length - 2].content).toBe('turn 59');
+    expect(body.messages[body.messages.length - 1].content).toBe(buildAskAIPrompt(pack, slide, 'q'));
+    expect(messagesProblem(body.messages)).toBeNull();
   });
 
   it('the final messages carry Ask AI\'s own prompt + contract + the mode\'s rule, not the Scripture Scholar one (which forced [SPLIT], LaTeX and a closing offer)', () => {

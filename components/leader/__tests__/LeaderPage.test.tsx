@@ -49,6 +49,8 @@ vi.mock('../../../services/supabase', () => ({
   isSupabaseConfigured: () => configured,
 }));
 vi.mock('../../AuthPanel', () => ({ AuthPanel: () => <div data-testid="auth-panel-stub" /> }));
+// Ask AI history (ADR-0021) has its own test (LeaderAskHistory.test.tsx); here only where and for whom it mounts.
+vi.mock('../LeaderAskHistory', () => ({ AskHistorySection: (p: { packId: string; leaderId: string }) => <section data-testid="ask-history-stub" data-pack={`${p.packId}|${p.leaderId}`} /> }));
 const downloadMock = vi.fn();
 vi.mock('../../../services/export/fileDownloader', () => ({ downloadFile: (...args: unknown[]) => downloadMock(...args) }));
 
@@ -170,6 +172,9 @@ describe('LeaderPage', () => {
     expect(within(cards[0]).getByTestId('leader-answer-text')).toHaveTextContent('做了两晚 · Two nights');
     expect(within(cards[0]).getByText(compactTime(ANSWERS[0].created_at))).toHaveAttribute('title', fullTime(ANSWERS[0].created_at));
     expect(answersEqMock.mock.calls).toEqual([['pack_id', PACK_ID], ['leader_id', LEADER_ID]]);
+    const history = screen.getByTestId('ask-history-stub');   // the leader's own Ask AI history, last
+    expect(history).toHaveAttribute('data-pack', `${PACK_ID}|${LEADER_ID}`);
+    expect(commitments.compareDocumentPosition(history) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('shared feedback comes first: gold count badge, newest answer first, before the sign-up table', async () => {
@@ -219,7 +224,7 @@ describe('LeaderPage', () => {
     signIn('uid-other');
     render(<LeaderPage packId={PACK_ID} />);
     expect(await screen.findByTestId('leader-not-owner')).toHaveTextContent(LD_NOT_OWNER);
-    expect(screen.queryByTestId('leader-table')).toBeNull();
+    for (const id of ['leader-table', 'ask-history-stub']) expect(screen.queryByTestId(id)).toBeNull();
     expect(eqMock).not.toHaveBeenCalled();
     expect(upsertMock).not.toHaveBeenCalled();
   });

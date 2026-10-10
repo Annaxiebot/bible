@@ -3,7 +3,8 @@
  *
  * Owner view, top to bottom: the count, 反馈 Shared feedback first (the
  * part a leader comes to read, LeaderFeedback), the actions + pause, the
- * sign-up table (LeaderSignupTable), then 承诺 Commitments.
+ * sign-up table (LeaderSignupTable), 承诺 Commitments, then the leader's
+ * own 问一问记录 Ask AI history (LeaderAskHistory, ADR-0021).
  * Auth required: the leader session (useLeaderSession — the app's Supabase
  * session, or the dev-only __LEADER_E2E__ seam; data through getSignupClient,
  * which is the app's client in production) and, when signed out, renders the existing AuthPanel under a
@@ -37,6 +38,7 @@ import { Commitments } from './LeaderSections';
 import { Feedback } from './LeaderFeedback';
 import { SignupTable } from './LeaderSignupTable';
 import { PauseToggle } from './LeaderOptOut';
+import { AskHistorySection } from './LeaderAskHistory';
 import {
   LD_TITLE, LD_SIGNIN, LD_LOADING, LD_NONE, LD_NOT_OWNER, countLine,
   LD_EXPORT, LD_TEST, LD_TEST_SENDING, LD_TEST_OK, LD_TEST_NO_EMAIL, LD_BACK,
@@ -117,6 +119,7 @@ const OwnerView: React.FC<{ pack: StudyPack; leaderId: string }> = ({ pack, lead
       <PauseToggle packId={pack.id} leaderId={leaderId} />
       {rows.rows.length === 0 ? <p className="text-stl-text-2" style={textStyle}>{LD_NONE}</p> : <SignupTable rows={rows.rows} />}
       {rows.rows.length > 0 && <Commitments rows={rows.rows} />}
+      <AskHistorySection packId={pack.id} leaderId={leaderId} />
     </>
   );
 };

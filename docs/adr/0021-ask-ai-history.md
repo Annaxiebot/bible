@@ -1,6 +1,6 @@
 # ADR-0021: Ask AI conversations are saved per study, for the leader only (2026-10-09)
 
-Status: accepted (owner, 2026-10-09). To be built.
+Status: accepted (owner, 2026-10-09). Built 2026-10-09; the SQL is not yet applied (see Release).
 
 ## Context
 
@@ -74,6 +74,36 @@ are deleted with the study or the account.
   cascading deletes (deleting the study or the user removes its history).
 - Storage stays small and bounded: ≤ 20 rows per study.
 - Not saved: exchanges on studies the viewer does not own.
+
+## Implementation notes (2026-10-09)
+
+- **SQL:** `database/ask-ai-history-schema.sql`. `pack_id` is a foreign key
+  to `study_packs(id)` `ON DELETE CASCADE` (deleting the study deletes its
+  history); `leader_id` to `auth.users` `ON DELETE CASCADE`. A pack that has
+  never synced (local only) has no `study_packs` row, so nothing can be
+  saved for it until it syncs; the save is refused and the panel shows the
+  quiet "这条问答未保存 · This answer was not saved" line.
+- **One writer, an RPC, not a trigger:** `save_ask_ai_exchange(p_pack_id,
+  p_question, p_answer, p_model, p_replace_oldest)` (SECURITY DEFINER,
+  uid from the session, the pack row locked `FOR UPDATE`). INSERT/UPDATE
+  are revoked from `authenticated`; SELECT/DELETE stay, under owner-only
+  RLS. The limit needs a caller's choice (replace or refuse) and a distinct
+  refusal (`SQLSTATE AH020` → the TV notice); a trigger can only refuse,
+  and a client-side delete-then-insert would race.
+- **The permission is a column on `study_packs`**
+  (`ask_ai_replace_oldest`, default false), so it syncs with the study and
+  goes with it. packSync's upsert sends only `id/leader_id/title/pack`,
+  and a PostgREST upsert updates only the columns it sends, so a pack save
+  never resets it. "Replace oldest" sets it inside the RPC (atomic with the
+  save); the RPC also honours it on its own, so another device's choice
+  holds without a reload. The leader page turns it off with an owner-scoped
+  UPDATE.
+- **Follow-up history** goes through `services/aiHistoryFit.fitHistory`
+  (shared with the personal chat): the newest turns that fit the proxy's
+  `MAX_MESSAGES` / `MAX_TOTAL_CHARS`, so 20 restored exchanges never cause
+  a 400.
+- **Leader page:** the section sits last, after Commitments — the
+  member-facing parts stay together; this is the leader's own material.
 
 ## Release
 
