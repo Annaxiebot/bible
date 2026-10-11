@@ -9,13 +9,15 @@ const html = readFileSync(path.join(root, 'public', WORSHIP_PAGE), 'utf-8');
 const links = [...html.matchAll(/href="([^"]+)"/g)].map(m => m[1]);
 
 describe('public/worship.html', () => {
-  it('lists 赞美之泉 Stream of Praise, then the Family Music Ministry playlist, as plain YouTube links without the si= share tracker', () => {
+  it('lists 赞美之泉, the Family Music Ministry playlist, CityAlight and the Gettys as plain YouTube links without the si= share tracker', () => {
     expect(html).toContain('Family Music Ministry');
     expect(html).toContain('赞美之泉');
     const youtube = links.filter(h => h.includes('youtube.com'));
     expect(youtube).toEqual([
       'https://www.youtube.com/@streamofpraise',
       'https://www.youtube.com/playlist?list=PL3nVTQe5EB2vH1aKcPy7EX-g3wAk9tYwe',
+      'https://www.youtube.com/@CityAlight',
+      'https://www.youtube.com/@KeithandKristynGetty',
     ]);
     expect(html).not.toMatch(/[?&]si=/);
   });
