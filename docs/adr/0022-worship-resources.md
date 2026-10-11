@@ -1,7 +1,6 @@
 # ADR-0022: Worship resources — a footer page first, a worship step in studies later (2026-10-11)
 
-Status: accepted for step 1 (to build once the owner sends the channel
-links); step 2 proposed — deferred until step 1 shows interest.
+Status: step 1 built 2026-10-11 (Family Music Ministry · Original Christian Songs playlist); step 2 proposed — deferred until step 1 shows interest.
 
 ## Context
 

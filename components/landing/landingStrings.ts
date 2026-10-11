@@ -55,6 +55,10 @@ export const LOOP_EYEBROW = '一个循环 · The loop';
 export const LOOP_HEADING_ZH = '明白，活出，兴盛';
 export const LOOP_HEADING_EN = 'Understand → Live → Flourish';
 
+/** Footer link to the worship resources page (public/worship.html, ADR-0022). */
+export const WORSHIP_LABEL = '敬拜资源 · Worship resources';
+export const WORSHIP_PAGE = 'worship.html';
+
 /** Third door: the leader generates a pack from a passage (#/new). */
 export const NEW_STUDY_LINE = '新建查经 New study';
 export const NEW_STUDY_SUB = '输入经文，AI 生成查经包，大屏演示 · Enter a passage; a study pack is drafted in your browser';

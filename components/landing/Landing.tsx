@@ -29,7 +29,7 @@ import { splitLabel } from '../studypack/principles';
 import { SETUP_HASH, NEW_STUDY_HASH, SAMPLE_PACK_ID } from './landingRoute';
 import {
   SITE_LINE, LOOP_LINE_ZH, LOOP_LINE_EN, NEW_STUDY_LINE, NEW_STUDY_SUB,
-  BRAND_EN, BRAND_ZH_LEAD, BRAND_ZH_HIGHLIGHT, NAV_LINKS, PHOTO_CREDIT,
+  BRAND_EN, BRAND_ZH_LEAD, BRAND_ZH_HIGHLIGHT, NAV_LINKS, PHOTO_CREDIT, WORSHIP_LABEL, WORSHIP_PAGE,
 } from './landingStrings';
 import { FEEDBACK_LABEL, feedbackHash } from '../../supabase/functions/_shared/feedback';
 import { SOURCE_REPO_URL, CONTRIBUTE_LABEL, EXTERNAL_LINK_PROPS } from '../shared/sourceRepo';
@@ -54,6 +54,7 @@ const Footer: React.FC = () => {
   const newStudy = splitLabel(NEW_STUDY_LINE);
   const [feedbackZh, feedbackEn] = FEEDBACK_LABEL.split(' · ');
   const [contributeZh, contributeEn] = CONTRIBUTE_LABEL.split(' · ');
+  const [worshipZh, worshipEn] = WORSHIP_LABEL.split(' · ');
   return (
     <footer className="ld-footer ld-dark" data-testid="landing-footer">
       <div className="ld-wrap">
@@ -67,6 +68,9 @@ const Footer: React.FC = () => {
             {NAV_LINKS.map(link => <SectionLink key={link.id} link={link} className="ld-foot-link" />)}
             <a className="ld-foot-link" href={NEW_STUDY_HASH}>
               {newStudy.zh}<span className="ld-nav-en">{newStudy.en}</span>
+            </a>
+            <a className="ld-foot-link" href={`${import.meta.env.BASE_URL}${WORSHIP_PAGE}`} data-testid="landing-worship-link">
+              {worshipZh}<span className="ld-nav-en">{worshipEn}</span>
             </a>
             <a className="ld-foot-link" href={feedbackHash('landing')} data-testid="landing-feedback-link">
               {feedbackZh}<span className="ld-nav-en">{feedbackEn}</span>
