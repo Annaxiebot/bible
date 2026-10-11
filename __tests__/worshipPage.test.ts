@@ -9,7 +9,7 @@ const html = readFileSync(path.join(root, 'public', WORSHIP_PAGE), 'utf-8');
 const links = [...html.matchAll(/href="([^"]+)"/g)].map(m => m[1]);
 
 describe('public/worship.html', () => {
-  it('lists 赞美之泉, the Family Music Ministry playlist, CityAlight, the Gettys and Hillsong Worship as plain YouTube links without the si= share tracker', () => {
+  it('lists 赞美之泉, the Family Music Ministry playlist, CityAlight, the Gettys, Hillsong Worship and Chris Tomlin as plain YouTube links without the si= share tracker', () => {
     expect(html).toContain('Family Music Ministry');
     expect(html).toContain('赞美之泉');
     const youtube = links.filter(h => h.includes('youtube.com'));
@@ -19,6 +19,7 @@ describe('public/worship.html', () => {
       'https://www.youtube.com/@CityAlight',
       'https://www.youtube.com/@KeithandKristynGetty',
       'https://www.youtube.com/@HillsongWorship',
+      'https://www.youtube.com/@ChrisTomlinMusic',
     ]);
     expect(html).not.toMatch(/[?&]si=/);
   });
