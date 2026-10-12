@@ -3,7 +3,8 @@
 Status: accepted (2026-10-11). Owner decision: the list of leaders (and
 similar site-wide information) must be visible only to the site's owner,
 through an admin portal. Built (database/admin-portal-schema.sql,
-components/admin/*); not yet released — see Release.
+components/admin/*); released 2026-10-11 (SQL applied, owner row
+present, live probe passed).
 
 ## Context
 
