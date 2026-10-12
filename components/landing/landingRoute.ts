@@ -4,7 +4,8 @@
  * Only a bare root URL (no hash at all, or a lone "#") shows the landing.
  * "#/pack/<id>" is TV presentation mode, "#/signup/<id>" the member sign-up
  * page, "#/qr/<id>" the leader's printable sign-up QR, "#/leader" the leader home, "#/leader/<id>" the leader's sign-up
- * list, "#/feedback[?from=…&pack=…]" the public feedback page (ADR-0011); every other hash — "#app"
+ * list, "#/feedback[?from=…&pack=…]" the public feedback page (ADR-0011), "#/admin" the
+ * site owner's portal (ADR-0023); every other hash — "#app"
  * and any bookmarked deep state we do not recognize — falls through to the
  * app, so existing bookmarks keep working.
  */
@@ -35,6 +36,9 @@ export const SETUP_HASH = '#/setup';
 /** Hash of the "新建查经 New study" page (leader generates a pack in the browser). */
 export const NEW_STUDY_HASH = '#/new';
 
+/** Hash of the site owner's portal (ADR-0023); the database decides who sees data. */
+export const ADMIN_HASH = '#/admin';
+
 const NEW_STUDY_PACK_RE = /^#\/new\/([A-Za-z0-9._-]+)$/;
 
 /** Editor hash for a saved local pack: "#/new/<packId>" reopens it in the editor (survives reload). */
@@ -48,7 +52,7 @@ export function getNewStudyPackIdFromHash(hash: string): string | null {
   return match ? match[1] : null;
 }
 
-export type RootView = 'landing' | 'setup' | 'app' | 'pack' | 'new' | 'signup' | 'qr' | 'leader' | 'leaderHome' | 'checkin' | 'checkinStop' | 'feedback';
+export type RootView = 'landing' | 'setup' | 'app' | 'pack' | 'new' | 'signup' | 'qr' | 'leader' | 'leaderHome' | 'checkin' | 'checkinStop' | 'feedback' | 'admin';
 
 /** Map a location.hash to the view the root gate should render. */
 export function resolveRootView(hash: string): RootView {
@@ -62,6 +66,7 @@ export function resolveRootView(hash: string): RootView {
   if (getFeedbackContextFromHash(hash)) return 'feedback';
   if (hash === '' || hash === '#') return 'landing';
   if (hash === SETUP_HASH) return 'setup';
+  if (hash === ADMIN_HASH) return 'admin';
   if (hash === NEW_STUDY_HASH || getNewStudyPackIdFromHash(hash)) return 'new';
   return 'app';
 }

@@ -23,8 +23,8 @@ import { requestFullscreen } from '../studypack/fullscreen';
 import { DateTile, StudyHeading, studyRowClass, goldButtonClass, outlineButtonClass, quietRowLinkClass } from '../shared/PackRowParts';
 
 
-/** Shared answers waiting: a high-contrast gold badge (dark text on gold fill). */
-const sharedBadgeClass = 'inline-block whitespace-nowrap rounded-full bg-stl-gold px-3 font-semibold text-stl-bg';
+/** Shared answers waiting: a high-contrast gold badge (dark text on gold fill). Also the admin's leaders table. */
+export const sharedBadgeClass = 'inline-block whitespace-nowrap rounded-full bg-stl-gold px-3 font-semibold text-stl-bg';
 
 /** "报名 N 人" then "分享 M 条": the shared part a gold badge when M > 0, quiet when 0. Text = packCountsLine. */
 const Counts: React.FC<{ counts: PackCounts }> = ({ counts }) => (

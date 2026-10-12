@@ -29,6 +29,15 @@ export const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 /** Where the link was followed from; anything else is dropped, never stored. */
 export const FEEDBACK_SOURCES = ['email', 'landing', 'tv', 'member'] as const;
 export type FeedbackSource = (typeof FEEDBACK_SOURCES)[number];
+/** Where a message came from, as the admin portal's feedback cards say it ("中文 · English", ADR-0023). */
+export const FEEDBACK_SOURCE_LABELS: Readonly<Record<FeedbackSource, string>> = {
+  email: '提醒邮件 · Check-in email',
+  landing: '首页 · Home page',
+  tv: '放映 · TV presentation',
+  member: '组员页面 · Member page',
+};
+/** A message stored without a known source. */
+export const FEEDBACK_SOURCE_UNKNOWN = '来源不明 · Source unknown';
 const PACK_ID_SHAPE = /^[A-Za-z0-9._-]{1,80}$/;
 
 export interface FeedbackContext {

@@ -100,6 +100,6 @@ describe('ask-ai-history-schema.sql', () => {
     expect(privacy).toContain("Ask AI questions and answers on a leader's own studies are saved to that leader's account");
     expect(privacy).toContain('are deleted with the study or the account');
     expect(privacy).toContain('apart from the Ask AI history on a leader\'s own studies');   // the relay line no longer says "nothing stored"
-    expect(privacy).toContain('更新 Updated 2026-10-09');
+    expect(privacy).toMatch(/更新 Updated \d{4}-\d{2}-\d{2}/);   // the exact date is pinned by the newest change's test
   });
 });

@@ -9,7 +9,7 @@
  */
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, within, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen, within, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { readFileSync } from 'fs';
 import { parseStudyPack } from '../../studypack/packTypes';
 import { TEST_PACK_PATH } from '../../studypack/__tests__/fixtures';
@@ -23,6 +23,9 @@ import { leaderHash } from '../leaderRoute';
 import { LH_SIGNIN, LH_ERR_COUNTS, packCountsLine } from '../leaderStrings';
 import { SETUP_SIGN_OUT, SETUP_SIGN_OUT_FAILED } from '../../setup/setupStrings';
 import { SITE_STATS_FN } from '../../stats/statsRules';
+import { IS_SITE_ADMIN_FN } from '../../admin/adminRules';
+import { AD_TITLE } from '../../admin/adminStrings';
+import { ADMIN_HASH } from '../../landing/landingRoute';
 
 let uid: string | null = 'uid-lead';
 let configured = true;
@@ -45,7 +48,13 @@ const fromMock = vi.fn((table: string) => ({
 }));
 /** site_stats answers like the SQL (totals only); any other function is unknown. */
 const SITE_TOTALS = { packs: 3, leaders: 2, meetings: 1, signups: 4, practices: 15, checkins_shared: 2, as_of: '2026-10-06T00:00:00Z' };
-const rpcMock = vi.fn(async (fn: string) => (fn === SITE_STATS_FN ? { data: SITE_TOTALS, error: null } : { data: null, error: { message: `unknown ${fn}` } }));
+/** is_site_admin answers `isAdmin` when set; unset → unknown function (the admin SQL not applied yet). */
+let isAdmin: boolean | null = null;
+const rpcMock = vi.fn(async (fn: string) => {
+  if (fn === SITE_STATS_FN) return { data: SITE_TOTALS, error: null };
+  if (fn === IS_SITE_ADMIN_FN && isAdmin !== null) return { data: isAdmin, error: null };
+  return { data: null, error: { message: `unknown ${fn}` } };
+});
 const authState = () => ({ user: uid ? { id: uid, email: 'lead@example.com' } : null, session: null, isAuthenticated: !!uid, isLoading: false });
 vi.mock('../../../services/supabase', () => ({
   get supabase() { return configured ? { from: fromMock, rpc: rpcMock } : null; },
@@ -69,6 +78,7 @@ beforeEach(async () => {
   uid = 'uid-lead';
   configured = true;
   countsError = null;
+  isAdmin = null;
   signInMock.mockReset().mockResolvedValue({ error: null });
   await idbService.clear('studypacks');
   rowsByTable[SIGNUPS_TABLE] = [
@@ -164,5 +174,37 @@ describe('LeaderHome', () => {
     render(<LeaderHome />);
     expect(screen.queryByTestId('leader-sign-out')).toBeNull();
     expect(screen.queryByTestId('lh-site-stats')).toBeNull();
+  });
+
+  it('a site admin: a quiet 管理 · Admin link to #/admin; the rest of the home is unchanged', async () => {
+    isAdmin = true;
+    render(<LeaderHome />);
+    const link = await screen.findByTestId('lh-admin');
+    expect(link).toHaveTextContent(AD_TITLE);
+    expect(link).toHaveAttribute('href', ADMIN_HASH);
+    expect(screen.getByTestId('lh-new')).toBeInTheDocument();
+    expect(screen.getByTestId('leader-sign-out')).toBeInTheDocument();
+    expect(rpcMock).toHaveBeenCalledWith(IS_SITE_ADMIN_FN);
+  });
+
+  it('a regular leader: no Admin link; a failed check (SQL not applied) shows no link and no error', async () => {
+    isAdmin = false;
+    render(<LeaderHome />);
+    await waitFor(() => expect(rpcMock).toHaveBeenCalledWith(IS_SITE_ADMIN_FN));
+    await screen.findByTestId('site-stat-packs');
+    expect(screen.queryByTestId('lh-admin')).toBeNull();
+    cleanup();
+    isAdmin = null;
+    render(<LeaderHome />);
+    await screen.findByTestId('site-stat-packs');
+    expect(screen.queryByTestId('lh-admin')).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('signed out: no admin check at all', () => {
+    uid = null;
+    rpcMock.mockClear();   // here only: site_stats is cached per session, so other tests read earlier calls
+    render(<LeaderHome />);
+    expect(rpcMock).not.toHaveBeenCalledWith(IS_SITE_ADMIN_FN);
   });
 });
