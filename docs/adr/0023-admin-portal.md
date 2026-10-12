@@ -1,8 +1,9 @@
 # ADR-0023: A site admin portal, visible only to the site's owner (2026-10-11)
 
-Status: proposed. Owner decision: the list of leaders (and similar
-site-wide information) must be visible only to the site's owner, through an
-admin portal. Not built yet.
+Status: accepted (2026-10-11). Owner decision: the list of leaders (and
+similar site-wide information) must be visible only to the site's owner,
+through an admin portal. Built (database/admin-portal-schema.sql,
+components/admin/*); not yet released — see Release.
 
 ## Context
 
@@ -75,10 +76,59 @@ admin portal. Not built yet.
   database, tested live.
 - Adding a second admin is a conscious SQL step.
 
-## Release (when built)
+## Implementation notes (2026-10-11)
 
-1. SQL: `site_admins`, `is_site_admin()`, `admin_leaders()`,
-   `admin_feedback()`; insert the owner's user id.
-2. Site: `#/admin` + the leader-home link for admins.
-3. Live probe (rolled back): owner allowed; another leader and anon refused.
-4. Privacy notice line.
+- **The admin is also a leader.** `#/leader` is unchanged for everyone; an
+  admin additionally sees a quiet "管理 · Admin" link under the sign-out
+  line (`AdminLink`), shown only when `is_site_admin()` answers true. While
+  checking, on false, or when the check fails (e.g. before the SQL is
+  applied) the link is simply absent — never an error on every leader's
+  home; `#/admin` itself shows any failure in full.
+- **Enforcement.** `assert_site_admin()` (no client grant) raises SQLSTATE
+  `AD403` unless `auth.uid()` is in `site_admins`; every `admin_*` function
+  calls it first, is `SECURITY DEFINER` with `search_path = public`, and is
+  executable by `authenticated` only (revoked from PUBLIC and `anon`).
+  `is_site_admin()` takes no argument, so it cannot probe other accounts.
+  The page reads `admin_*` only after a true `is_site_admin()`, and maps
+  `AD403` to "仅限管理员 · Admins only" as well.
+- **Functions.** `admin_leaders()`: id, email, full name
+  (`raw_user_meta_data` full_name, else name), joined, last sign-in,
+  studies (`study_packs`), live sign-ups (`replaced_at IS NULL`), shared
+  answers (`checkin_answers`), Ask AI uses this month. `admin_feedback()`:
+  id, message, email, context, created_at, newest first — never `ip_hash`.
+  `admin_stats()`: `site_stats()` plus `accounts` (auth users) and
+  `active_leaders`.
+- **"This month".** `ai_usage` is bucketed by UTC calendar month (the
+  quota's `month` key), so a Los Angeles month cannot be cut out of it:
+  Ask AI uses this month = the current quota month's `'ask'` count, the
+  same figure the leader's own quota shows (differs from an LA month only in
+  the last evening hours of a month). **Active leaders this month** =
+  distinct accounts that, since the start of the current calendar month in
+  America/Los_Angeles, signed in (`last_sign_in_at`), saved a study
+  (`study_packs.updated_at`) or used the site's AI (`ai_usage.updated_at`,
+  count > 0). Sign-in alone undercounts: a refreshed session never signs in
+  again.
+- **The first admin.** The SQL file ends with a separate, idempotent
+  `INSERT … SELECT id FROM auth.users WHERE email = 'csheargm@gmail.com'
+  ON CONFLICT DO NOTHING` (inserts nothing until that account has signed in).
+- **UI.** Tabs 带领者 Leaders (default) / 意见反馈 Feedback (count badge) /
+  统计 Stats. Leaders: totals row, the shared search box (`ListSearch`,
+  generalised from `PackListing`) from 8 leaders over name and email, the
+  sign-up table's style (stacked cards on phones), newest joined first,
+  times as local "2026-10-09 15:12" with the ISO time as tooltip, shared > 0
+  as the gold badge. Feedback: cards with the source label
+  (`FEEDBACK_SOURCE_LABELS`, feedback.ts) and a mailto reply link.
+- **Tests.** `database/__tests__/adminPortalSchema.test.ts` pins the SQL;
+  `adminPortal.live.test.ts` is the rolled-back probe (LIVE_DB=1);
+  unit tests in `components/admin/__tests__`, the leader home and the
+  landing router; `tests/e2e/admin.spec.ts` with RPCs faked under the SQL's
+  rule.
+
+## Release
+
+1. SQL: apply `database/admin-portal-schema.sql` (tables, functions, owner
+   insert); check `select * from site_admins` lists the owner.
+2. Live probe (rolled back): `LIVE_DB=1 npx vitest run
+   database/__tests__/adminPortal.live.test.ts` — owner allowed; another
+   leader gets AD403; anon refused; `site_admins` unreadable.
+3. Site: deploy (`#/admin`, the leader-home link, the privacy line).

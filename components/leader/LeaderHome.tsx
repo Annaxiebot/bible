@@ -9,6 +9,8 @@
  * responses · Sign-up QR links (LeaderPackRow), a "新建查经 New study" link
  * and the pack sync line. Every failure renders inline (role=alert).
  * Under the packs, "全站使用 · Site-wide" totals (SiteStatsSection, ADR-0012).
+ * A site admin also sees a quiet "管理 · Admin" link under the sign-out line
+ * (AdminLink, ADR-0023); nothing else differs.
  */
 import React from 'react';
 import { useGoogleSignIn } from '../signup/useGoogleSignIn';
@@ -25,6 +27,7 @@ import { LeaderSignOut } from './LeaderSignOut';
 import SiteStatsSection from './SiteStatsSection';
 import { textStyle, controlStyle, pageTitleStyle } from '../newstudy/newStudyStyles';
 import { PackListing } from '../shared/PackListing';
+import { AdminLink } from '../admin/AdminLink';
 
 const alert = (text: string) => <p role="alert" className="text-red-300" style={textStyle}>{text}</p>;
 
@@ -71,6 +74,7 @@ const LeaderHome: React.FC = () => {
           <div className="flex flex-col gap-1">
             <h1 className="font-bold text-stl-gold" style={pageTitleStyle}>{LH_TITLE}</h1>
             {session.uid && <LeaderSignOut email={session.email} />}
+            {session.uid && <AdminLink uid={session.uid} />}
           </div>
           <a href={LANDING_HASH} className="rounded-lg px-4 text-stl-text-2 hover:text-stl-text" style={controlStyle} aria-label={LD_BACK}>✕</a>
         </header>

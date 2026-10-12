@@ -29,7 +29,8 @@ const subLabelStyle: React.CSSProperties = { fontSize: Number(textStyle.fontSize
 const cell = 'px-4 py-3 text-left align-top';
 const nowrap = `${cell} whitespace-nowrap`;
 
-const Header: React.FC<{ label: string }> = ({ label }) => {
+/** A two-line bilingual column header (also used by the admin's leaders table). */
+export const Header: React.FC<{ label: string }> = ({ label }) => {
   const { zh, en } = splitLabel(label);
   return (
     <th scope="col" className={`${nowrap} font-semibold`}>

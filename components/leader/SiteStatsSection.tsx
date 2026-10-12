@@ -13,16 +13,10 @@ import {
   SiteStats, StatFigure,
 } from '../stats/statsRules';
 import { textStyle } from '../newstudy/newStudyStyles';
+import { Figures } from '../shared/Figures';
 
 const FigureList: React.FC<{ figures: StatFigure[]; stats: SiteStats }> = ({ figures, stats }) => (
-  <dl className="flex flex-wrap gap-x-6 gap-y-2" style={textStyle}>
-    {figures.map(f => (
-      <div key={f.key} data-testid={`site-stat-${f.key}`} className="flex items-baseline gap-2">
-        <dt className="font-semibold text-stl-gold">{stats[f.key].toLocaleString('en-US')}</dt>
-        <dd className="text-stl-text-2">{f.zh} {f.en}</dd>
-      </div>
-    ))}
-  </dl>
+  <Figures items={figures.map(f => ({ ...f, value: stats[f.key] }))} testIdPrefix="site-stat-" />
 );
 
 const SiteStatsSection: React.FC = () => {

@@ -5,7 +5,7 @@
  * app) and adds branches in front: a bare root URL renders the lazy-loaded
  * Landing page; "#/setup" renders it with the AI setup dialog open; "#/new"
  * (and "#/new/<id>") the New study page; "#/signup/<id>", "#/qr/<id>", "#/leader" (home),
- * "#/leader/<id>", "#/checkin/<signupId>", "#/checkin/<signupId>/stop" and "#/feedback" their pages. Keeps the touch-point in
+ * "#/leader/<id>", "#/checkin/<signupId>", "#/checkin/<signupId>/stop", "#/feedback" and "#/admin" their pages. Keeps the touch-point in
  * index.tsx to a single wrapper line, same pattern as StudyPackGate. Also
  * the one place the sign-in claim hook is installed (claimLocalPacks).
  */
@@ -29,6 +29,7 @@ const pageLoaders = {
   checkin: () => import('../checkin/CheckinPage'),
   checkinStop: () => import('../checkin/StopPage'),
   feedback: () => import('../feedback/FeedbackPage'),
+  admin: () => import('../admin/AdminPage'),
 };
 
 /**
@@ -50,6 +51,7 @@ const LeaderHome = lazy(pageLoaders.leaderHome);
 const CheckinPage = lazy(pageLoaders.checkin);
 const StopPage = lazy(pageLoaders.checkinStop);
 const FeedbackPage = lazy(pageLoaders.feedback);
+const AdminPage = lazy(pageLoaders.admin);
 
 const fallback = <div className="fixed inset-0 bg-stl-bg" />;
 
@@ -95,6 +97,9 @@ const LandingGate: React.FC<{ app: React.ReactElement }> = ({ app }) => {
   if (view === 'feedback') {
     const context = getFeedbackContextFromHash(window.location.hash)!;
     return <Suspense fallback={fallback}><FeedbackPage context={context} /></Suspense>;
+  }
+  if (view === 'admin') {
+    return <Suspense fallback={fallback}><AdminPage /></Suspense>;
   }
   if (view !== 'landing' && view !== 'setup') return <StudyPackGate app={app} />;
   return (

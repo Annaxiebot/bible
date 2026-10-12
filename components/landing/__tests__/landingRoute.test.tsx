@@ -9,7 +9,8 @@
 import React from 'react';
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, within, cleanup, fireEvent } from '@testing-library/react';
-import { resolveRootView, APP_HASH, SAMPLE_PACK_HASH, SETUP_HASH, NEW_STUDY_HASH, newStudyHash, getNewStudyPackIdFromHash } from '../landingRoute';
+import { resolveRootView, APP_HASH, SAMPLE_PACK_HASH, SETUP_HASH, NEW_STUDY_HASH, ADMIN_HASH, newStudyHash, getNewStudyPackIdFromHash } from '../landingRoute';
+import { AD_TITLE } from '../../admin/adminStrings';
 import {
   BRAND_EN, BRAND_ZH, GROUP_CTA, PERSONAL_CTA, GROUP_HEADING_EN, GROUP_PHOTOS, PHOTO_CREDIT,
   GROUP_TITLE_ZH, PERSONAL_TITLE_ZH, PERSONAL_TITLE_EN, LOOP_STEPS,
@@ -80,6 +81,12 @@ describe('resolveRootView', () => {
     expect(resolveRootView(feedbackHash('email', 'local-2026-10-02-jhn3'))).toBe('feedback');
     expect(resolveRootView('#/feedbackx')).toBe('app');
     expect(resolveRootView('#/feedback/x')).toBe('app');
+  });
+
+  it('routes #/admin (exactly) to the admin portal (ADR-0023)', () => {
+    expect(resolveRootView(ADMIN_HASH)).toBe('admin');
+    expect(resolveRootView('#/admin/x')).toBe('app');
+    expect(resolveRootView('#/adminx')).toBe('app');
   });
 
   it('falls through to the app on any unrecognized hash (bookmarked deep state)', () => {
@@ -245,6 +252,16 @@ describe('LandingGate', () => {
     expect(await screen.findByTestId('qr-page')).toBeInTheDocument();
     expect(screen.queryByTestId('landing-page')).toBeNull();
     vi.unstubAllGlobals();
+  });
+
+  it('#/admin renders the admin page, never the landing or the app; no admin session here, so no data', async () => {
+    window.location.hash = ADMIN_HASH;
+    render(<LandingGate app={app} />);
+    const page = await screen.findByTestId('admin-page');
+    expect(page).toHaveTextContent(AD_TITLE);
+    expect(screen.queryByTestId('admin-leaders')).toBeNull();
+    expect(screen.queryByTestId('landing-page')).toBeNull();
+    expect(screen.queryByTestId('the-app')).toBeNull();
   });
 
   it('the footer links 意见反馈 · Feedback to #/feedback?from=landing, which renders the feedback page', async () => {
