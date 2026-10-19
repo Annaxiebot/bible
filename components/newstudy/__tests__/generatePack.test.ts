@@ -15,7 +15,7 @@ import { PACK_GENERATION_MODEL } from '../../../services/aiDefaults';
 import { modelLine } from '../../studypack/tvHints';
 import {
   NS_STEP_VERSES, NS_STEP_AI, NS_STEP_VALIDATE, NS_ERR_NO_JSON, NS_ERR_VERSES_OUT_OF_RANGE,
-  NS_ERR_VERSES_UNAVAILABLE, NS_ERR_OUTPUT_LIMIT,
+  NS_ERR_VERSES_UNAVAILABLE, NS_ERR_OUTPUT_LIMIT, NS_VERSE_OMITTED_NOTE,
 } from '../newStudyStrings';
 import { stubFetch, chunked, HOSTED_PATH, SERVED_MODEL } from './packFetchStub';
 
@@ -37,6 +37,15 @@ describe('loadPassage', () => {
   it('rejects verses the chapter does not have', async () => {
     stubFetch([]);
     await expect(loadPassage({ ...JOHN3_REQUEST, verseTo: 99 })).rejects.toThrow(NS_ERR_VERSES_OUT_OF_RANGE);
+  });
+
+  it('loads a verse BSB omits (John 5:4) with the omission note, not an error', async () => {
+    stubFetch([]);
+    const verses = await loadPassage({ bookId: 'JHN', chapter: 5, verseFrom: 1, verseTo: 47 });
+    expect(verses).toHaveLength(47);
+    const v4 = verses.find(v => v.num === 4)!;
+    expect(v4.cuv).not.toBe(NS_VERSE_OMITTED_NOTE); // 和合本 carries the verse
+    expect(v4.en).toBe(NS_VERSE_OMITTED_NOTE);      // BSB omits it (textual variant)
   });
 
   it('reports an unavailable bundle bilingually', async () => {

@@ -65,6 +65,8 @@ export const NS_ERR_VERSES_UNAVAILABLE = bilingualLine(
   '无法读取内置经文（请检查网络或部署）', 'The bundled passage could not be loaded (check the connection or deployment)'
 );
 export const NS_ERR_VERSES_OUT_OF_RANGE = bilingualLine('这一章没有这些节', 'This chapter does not have those verses');
+/** Shown in place of verse text one translation omits (textual variant, e.g. BSB at John 5:4). */
+export const NS_VERSE_OMITTED_NOTE = `〔${bilingualLine('此节在该译本中省略', 'verse omitted in this translation')}〕`;
 export const NS_ERR_NO_JSON = bilingualLine(
   'AI 返回的内容格式有误，请重试', "The AI's reply was not in the expected format — please retry"
 );

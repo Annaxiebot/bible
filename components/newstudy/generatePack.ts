@@ -31,6 +31,7 @@ import { assemblePack, passageLabel, StudyRequest, VerseRange } from './packAsse
 import {
   NS_STEP_VERSES, NS_STEP_AI, NS_STEP_VALIDATE, NS_PROGRESS_CHARS,
   NS_ERR_VERSES_UNAVAILABLE, NS_ERR_VERSES_OUT_OF_RANGE, NS_ERR_NO_JSON, NS_ERR_OUTPUT_LIMIT,
+  NS_VERSE_OMITTED_NOTE,
 } from './newStudyStrings';
 
 export type ProgressReporter = (step: string, detail?: string) => void;
@@ -53,8 +54,10 @@ export async function loadPassage(req: VerseRange): Promise<PackVerse[]> {
   for (let num = req.verseFrom; num <= req.verseTo; num++) {
     const cuv = zhByNum.get(num);
     const enText = enByNum.get(num);
-    if (!cuv || !enText) throw new Error(NS_ERR_VERSES_OUT_OF_RANGE);
-    verses.push({ num, cuv, en: enText });
+    // A verse only one translation carries (textual variant, e.g. BSB omits John 5:4)
+    // still loads, with a note on the omitting side; out of range = missing in BOTH.
+    if (!cuv && !enText) throw new Error(NS_ERR_VERSES_OUT_OF_RANGE);
+    verses.push({ num, cuv: cuv ?? NS_VERSE_OMITTED_NOTE, en: enText ?? NS_VERSE_OMITTED_NOTE });
   }
   return verses;
 }
