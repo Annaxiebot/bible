@@ -35,9 +35,10 @@ type LoadState =
   | { status: 'ready'; verses: PackVerse[] };
 
 function useLazyVerses(verses?: PackVerse[], load?: () => Promise<PackVerse[]>) {
-  const [state, setState] = useState<LoadState>(
-    verses ? { status: 'ready', verses } : { status: 'idle' }
-  );
+  const [loaded, setState] = useState<LoadState>({ status: 'idle' });
+  // In-pack verses come straight from the prop: stored state would go stale
+  // when React reuses this component for a different reference.
+  const state: LoadState = verses ? { status: 'ready', verses } : loaded;
   const start = useCallback(() => {
     if (verses || !load) return;
     setState(prev => {

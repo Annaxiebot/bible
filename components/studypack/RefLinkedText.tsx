@@ -29,7 +29,7 @@ const InvalidRef: React.FC<{ text: string }> = ({ text }) => (
 const NONE: ReadonlySet<string> = new Set();
 
 /** A ref that resolves: a popover; one whose target cannot be determined: plain amber text. */
-function refTooltip(ref: VerseRef, key: number, pack: StudyPack, bookId: string | null, chapter: number | null): React.ReactNode {
+function refTooltip(ref: VerseRef, key: string, pack: StudyPack, bookId: string | null, chapter: number | null): React.ReactNode {
   const plan = planRef(ref, pack);
   return plan
     ? <VerseTooltip key={key} label={ref.text} title={bilingualRefLabel(ref, bookId, chapter)}
@@ -48,9 +48,12 @@ export function linkifyString(text: string, pack: StudyPack, invalid: ReadonlySe
   const chapter = packChapter(pack);
   findVerseRefs(text).forEach((ref, i) => {
     if (ref.index > cursor) out.push(text.slice(cursor, ref.index));
+    // Key carries the ref text: a slide change must remount the tooltip, or React
+    // reuses the one at the same position and its state shows the OLD slide's verses.
+    const key = `${i}:${ref.text}`;
     out.push(invalid.has(ref.text)
-      ? <InvalidRef key={i} text={ref.text} />
-      : refTooltip(ref, i, pack, bookId, chapter));
+      ? <InvalidRef key={key} text={ref.text} />
+      : refTooltip(ref, key, pack, bookId, chapter));
     cursor = ref.index + ref.length;
   });
   if (cursor < text.length) out.push(text.slice(cursor));
