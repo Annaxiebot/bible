@@ -74,3 +74,9 @@ was purely client-side.
 - Live on 2026-10-06 (migration applied twice, idempotent): `site_stats()` =
   packs 3, leaders 2, meetings 0, signups 4, practices 15, checkins_shared 2
   — far below the public threshold, so the landing is unchanged.
+
+## Amendment (2026-10-23)
+
+ADR-0025 applies these rules (aggregates only, no identifiers, the server
+decides what counts) to an anonymous New-study funnel that only the
+owner sees, on the admin portal's Stats tab.

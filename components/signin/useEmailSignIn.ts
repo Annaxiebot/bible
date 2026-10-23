@@ -6,11 +6,14 @@
  * email) → done (the code was accepted; the session then replaces the
  * sign-in UI). Every failure stays on its step with a bilingual line; "Use
  * another email" goes back to the address. Calls live in emailAuth.ts.
+ * A send with a well-formed address counts "sign-in started (email)"; an
+ * accepted code counts "finished" (anonymous funnel, ADR-0025).
  */
 import { useState, useCallback } from 'react';
 import { EMAIL_CODE_LENGTH } from '../../supabase/auth/emailSignIn';
 import { isEmailAddress, normalizeCode, sendSignInEmail, verifySignInCode } from './emailAuth';
 import { SI_ERR_EMAIL, SI_ERR_CODE } from './signInStrings';
+import { noteSignInStart, finishSignIn } from '../stats/funnelSignIn';
 
 export type EmailStep = 'closed' | 'email' | 'sent' | 'done';
 
@@ -43,6 +46,7 @@ export function useEmailSignIn(returnTo?: string): EmailSignIn {
 
   const send = useCallback(async () => {
     if (!isEmailAddress(email)) { setError(SI_ERR_EMAIL); return; }
+    noteSignInStart('email');
     setBusy(true);
     const failure = await sendSignInEmail(email, returnTo);
     setBusy(false);
@@ -56,6 +60,7 @@ export function useEmailSignIn(returnTo?: string): EmailSignIn {
     const failure = await verifySignInCode(email, code);
     setBusy(false);
     if (failure) { setError(failure.message); return; }
+    finishSignIn();
     setStep('done');
   }, [email, code]);
 

@@ -34,6 +34,7 @@ import { useAutoSave } from './useAutoSave';
 import { todayIso } from './NewStudyForm';
 import { readDefaultContentLanguage } from './contentLanguageDefault';
 import { guideStudyRequest } from './guide/generateGuidePack';
+import { useNewStudyOpened } from '../stats/funnel';
 import { NS_TITLE, NS_INTRO, NS_PRIVACY, NS_BACK, NS_ERR_STORAGE, NS_SAMPLE_NO_SIGNIN } from './newStudyStrings';
 import { textStyle, controlStyle, quietButtonClass, pageTitleStyle } from './newStudyStyles';
 
@@ -85,6 +86,7 @@ export function showPackList(signedIn: boolean, packs: Pick<LocalPacks, 'packs' 
 
 // TODO(R4): NewStudyPage is over the 50-line function budget — split the editor route + back/preview handlers into a hook.
 const NewStudyPage: React.FC = () => {
+  useNewStudyOpened(); // anonymous funnel count (ADR-0025)
   const access = useAIAccess();
   const configured = access.available;
   const [phase, setPhaseRaw] = useState<Phase>({ kind: 'form' });

@@ -56,6 +56,11 @@ export const STORAGE_KEYS = {
 
   // Sign-up: the member's own contact details, kept on their phone only (never synced)
   SIGNUP_MEMBER: 'stl_signup_member',
+
+  // Anonymous funnel (ADR-0025), this browser only, never synced or sent: when each repeatable
+  // count was last sent ({ event: ms }), and the sign-in in progress ({ method, until })
+  FUNNEL_LAST_SENT: 'stl_funnel_last_sent',
+  FUNNEL_SIGN_IN: 'stl_funnel_sign_in',
 } as const;
 
 /** The value NEW_STUDY_GUIDE_DISMISSED holds once the first-visit card was dismissed (one place, R3). */

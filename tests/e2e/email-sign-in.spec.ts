@@ -18,45 +18,9 @@ import {
 } from '../../components/signin/signInStrings';
 import { SETUP_SIGN_IN_TO_USE_AI } from '../../components/setup/setupStrings';
 import { AUTH_RETURN_HASH_KEY } from '../../services/authReturnHash';
-import { E2E_SUPABASE_PATH, E2E_LEADER_ID, injectSupabaseOverride } from './helpers/signup';
+import { injectSupabaseOverride } from './helpers/signup';
 import { openNewStudy } from './helpers/newStudy';
-
-const EMAIL = 'leader@example.org';
-const GOOD_CODE = '246810';
-
-interface AuthCalls { otp: Array<{ url: string; body: Record<string, unknown> }>; verify: Array<Record<string, unknown>> }
-
-/** Route the Auth endpoints: /otp answers `otpStatus`; /verify accepts GOOD_CODE only (else otp_expired, like GoTrue). */
-async function routeAuth(page: Page, otpStatus = 200): Promise<AuthCalls> {
-  const calls: AuthCalls = { otp: [], verify: [] };
-  await page.route(`**${E2E_SUPABASE_PATH}/auth/v1/otp**`, route => {
-    calls.otp.push({ url: route.request().url(), body: route.request().postDataJSON() });
-    if (otpStatus === 200) return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
-    return route.fulfill({
-      status: otpStatus, contentType: 'application/json',
-      body: JSON.stringify({ code: otpStatus, error_code: 'over_email_send_rate_limit', msg: 'email rate limit exceeded' }),
-    });
-  });
-  await page.route(`**${E2E_SUPABASE_PATH}/auth/v1/verify**`, route => {
-    const body = route.request().postDataJSON() as Record<string, unknown>;
-    calls.verify.push(body);
-    if (body.token !== GOOD_CODE) {
-      return route.fulfill({
-        status: 403, contentType: 'application/json',
-        body: JSON.stringify({ code: 403, error_code: 'otp_expired', msg: 'Token has expired or is invalid' }),
-      });
-    }
-    const now = Math.floor(Date.now() / 1000);
-    return route.fulfill({
-      status: 200, contentType: 'application/json',
-      body: JSON.stringify({
-        access_token: 'e2e-access', token_type: 'bearer', expires_in: 3600, expires_at: now + 3600, refresh_token: 'e2e-refresh',
-        user: { id: E2E_LEADER_ID, aud: 'authenticated', role: 'authenticated', email: EMAIL, app_metadata: { provider: 'email' }, user_metadata: {}, created_at: '2026-10-23T00:00:00Z' },
-      }),
-    });
-  });
-  return calls;
-}
+import { routeAuth, EMAIL, GOOD_CODE } from './helpers/emailAuth';
 
 async function startEmailSignIn(page: Page, typed: string) {
   await openNewStudy(page);

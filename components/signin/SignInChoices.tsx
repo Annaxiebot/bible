@@ -6,7 +6,8 @@
  * button (useGoogleSignIn) when Supabase is configured, and beside it the
  * quieter email choice that opens the email steps below (EmailSignInSteps).
  * `returnTo` as for Google: omitted → back to the page the sign-in started on.
- * A failed Google start renders as a red line (never swallowed).
+ * A failed Google start renders as a red line (never swallowed). Each start
+ * (Google tap, email send) is one anonymous funnel count (ADR-0025).
  */
 import React from 'react';
 import { isSupabaseConfigured } from '../../services/supabase';
@@ -17,6 +18,7 @@ import { useEmailSignIn } from './useEmailSignIn';
 import { emailSignInAvailable } from './emailAuth';
 import { EmailSignInSteps } from './EmailSignIn';
 import { SI_EMAIL_TOGGLE } from './signInStrings';
+import { noteSignInStart } from '../stats/funnelSignIn';
 
 const textStyle: React.CSSProperties = { fontSize: SETUP_MIN_FONT_PX, lineHeight: 1.5 };
 const controlStyle: React.CSSProperties = { ...textStyle, minHeight: SETUP_MIN_TAP_PX };
@@ -36,7 +38,7 @@ export const SignInChoices: React.FC<SignInChoicesProps> = ({ returnTo, googleTe
     <div data-testid="sign-in-choices" className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center gap-3">
         {withGoogle && (
-          <button type="button" data-testid={googleTestId} onClick={() => void google.signIn()} disabled={google.busy}
+          <button type="button" data-testid={googleTestId} onClick={() => { noteSignInStart('google'); void google.signIn(); }} disabled={google.busy}
             className="rounded-lg bg-stl-gold px-5 font-semibold text-stl-bg hover:bg-stl-gold-hover disabled:opacity-60" style={controlStyle}>
             {google.busy ? SU_SIGNING_IN : SU_SIGN_IN_GOOGLE}
           </button>

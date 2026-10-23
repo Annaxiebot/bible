@@ -133,3 +133,10 @@ present, live probe passed).
    database/__tests__/adminPortal.live.test.ts` — owner allowed; another
    leader gets AD403; anon refused; `site_admins` unreadable.
 3. Site: deploy (`#/admin`, the leader-home link, the privacy line).
+
+## Amendment (2026-10-23)
+
+The Stats tab also shows the anonymous New-study funnel (ADR-0025):
+`admin_funnel(p_days)`, guarded by `assert_site_admin()` like every
+`admin_*` function, read on its own when the tab opens so a failure
+never blanks the rest of the portal.

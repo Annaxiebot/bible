@@ -15,6 +15,7 @@ import { LEADER_HOME_HASH } from '../../components/leader/leaderRoute';
 import { LH_TITLE } from '../../components/leader/leaderStrings';
 import { ADMIN_HASH } from '../../components/landing/landingRoute';
 import { IS_SITE_ADMIN_FN, ADMIN_DATA_FNS } from '../../components/admin/adminRules';
+import { ADMIN_FUNNEL_FN } from '../../components/stats/funnelRules';
 import { AD_TITLE, AD_DENIED, AD_SEARCH, ownerOnlyLine } from '../../components/admin/adminStrings';
 import { FEEDBACK_SOURCE_LABELS } from '../../supabase/functions/_shared/feedback';
 import { ADMIN_LEADERS, ADMIN_FEEDBACK } from '../../components/admin/__tests__/adminFixtures';
@@ -61,8 +62,11 @@ test.describe('Admin portal', () => {
 
     await page.getByTestId('admin-tab-stats').click();
     await expect(page.getByTestId('admin-stat-active_leaders')).toContainText('3');
-    // Each admin function read on opening #/admin (dev StrictMode mounts effects twice, so compare the set).
-    expect([...new Set(server.calls.filter(c => c !== IS_SITE_ADMIN_FN))].sort()).toEqual([...ADMIN_DATA_FNS].sort());
+    // The anonymous New-study funnel (ADR-0025) under the totals, read when the tab opens.
+    await expect(page.getByTestId('admin-funnel-step-opened')).toContainText('8');
+    await expect(page.getByTestId('admin-funnel-day')).toHaveCount(2);
+    // Each admin function read on opening #/admin, the funnel on opening Stats (dev StrictMode mounts effects twice, so compare the set).
+    expect([...new Set(server.calls.filter(c => c !== IS_SITE_ADMIN_FN))].sort()).toEqual([...ADMIN_DATA_FNS, ADMIN_FUNNEL_FN].sort());
   });
 
   test('admin on a phone: each leader is a stacked card, no sideways scroll', async ({ page }) => {

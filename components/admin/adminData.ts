@@ -29,11 +29,12 @@ export type AdminDataState =
 /** The database's refusal (the guard's AD403), as opposed to any other failure. */
 export class AdminDeniedError extends Error {}
 
-const NOT_CONFIGURED = 'not configured';
+export const NOT_CONFIGURED = 'not configured';
 const describe = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
-async function callRpc(client: SupabaseClient, fn: string): Promise<unknown> {
-  const { data, error } = await client.rpc(fn);
+/** One admin RPC; AD403 → AdminDeniedError, any other error → Error naming the function. Also used by adminFunnelData. */
+export async function callRpc(client: SupabaseClient, fn: string, args?: Record<string, unknown>): Promise<unknown> {
+  const { data, error } = await (args ? client.rpc(fn, args) : client.rpc(fn));
   if (error?.code === ADMIN_DENIED_CODE) throw new AdminDeniedError(error.message);
   if (error) throw new Error(`${fn}: ${error.message}`);
   return data;

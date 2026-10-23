@@ -7,12 +7,17 @@
  * the guide pipeline (ADR-0019); when neither the guide nor the AI names a
  * usable passage, the form reopens with the guide and the message, so the
  * leader picks the passage and generates again.
+ * Each generate() is one anonymous funnel attempt (ADR-0025): Generate
+ * pressed, then exactly one outcome with the wait — ok (a pack), failed (an
+ * error, or no usable passage), or abandoned (Cancel, the tab closed, or
+ * New study left while it was still generating).
  */
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useEffect } from 'react';
 import { generateStudyPack } from './generatePack';
 import { generateGuidePack, GuidePassageNotFound } from './guide/generateGuidePack';
 import { StudyRequest } from './packAssembly';
 import { Phase } from './PhaseView';
+import { startGenerationFunnel, type GenerationFunnel } from '../stats/funnel';
 
 export interface Generation {
   generate: (req: StudyRequest) => Promise<void>;
@@ -21,10 +26,15 @@ export interface Generation {
 
 export function useGeneration(setPhase: (phase: Phase) => void): Generation {
   const abortRef = useRef<AbortController | null>(null);
+  const funnelRef = useRef<GenerationFunnel | null>(null);
+  // Leaving New study mid-generation: the leader walked away (a finished attempt ignores this).
+  useEffect(() => () => funnelRef.current?.settle('abandoned'), []);
 
   const generate = useCallback(async (req: StudyRequest) => {
     const controller = new AbortController();
     abortRef.current = controller;
+    const funnel = startGenerationFunnel();
+    funnelRef.current = funnel;
     setPhase({ kind: 'generating', req, step: '', detail: '' });
     try {
       const pack = await (req.guide ? generateGuidePack : generateStudyPack)(
@@ -32,11 +42,14 @@ export function useGeneration(setPhase: (phase: Phase) => void): Generation {
         (step, detail = '') => setPhase({ kind: 'generating', req, step, detail }),
         controller.signal
       );
+      funnel.settle('ok');
       setPhase({ kind: 'editor', pack });
     } catch (err) {
+      const aborted = (err as Error).name === 'AbortError';
+      funnel.settle(aborted ? 'abandoned' : 'failed');
       // A cancel (Cancel button) is the leader's own choice: back to the form, no error.
       // A study guide stays loaded, so Cancel does not make the leader pick the PDF again.
-      if ((err as Error).name === 'AbortError') { setPhase(req.guide ? { kind: 'form', guide: req.guide } : { kind: 'form' }); return; }
+      if (aborted) { setPhase(req.guide ? { kind: 'form', guide: req.guide } : { kind: 'form' }); return; }
       if (err instanceof GuidePassageNotFound && req.guide) { setPhase({ kind: 'form', guide: req.guide, message: err.message }); return; }
       setPhase({ kind: 'failed', req, message: (err as Error).message });
     }
