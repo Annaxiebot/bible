@@ -14,7 +14,7 @@ import {
 } from '../seo/prerender';
 import { drawOgPixels, OG_IMAGE_TAGLINE, OG_IMAGE_ALT, OG_IMAGE_WIDTH, GOLD_PALE } from '../seo/ogImage';
 import { SAMPLE_PACK_ID } from '../../components/landing/landingRoute';
-import { HERO_SUB_EN, GROUP_CTA, PERSONAL_CTA, NEW_STUDY_SIGNIN_NOTE } from '../../components/landing/landingStrings';
+import { HERO_SUB_EN, HERO_EYEBROW, GROUP_CTA, PERSONAL_CTA, NEW_STUDY_SIGNIN_NOTE } from '../../components/landing/landingStrings';
 
 const ROOT = path.resolve(__dirname, '../..');
 const PACKS_DIR = path.join(ROOT, 'public/packs');
@@ -168,6 +168,9 @@ describe.each(SITES)('delivered index.html (base $base)', (site) => {
     const root = d.getElementById('root')!;
     const h1 = root.querySelector('h1')!.textContent!;
     expect(h1).toContain('Group Bible study');
+    // R3: the fallback <h1> and the <title> render the app's hero eyebrow, not a copy of it.
+    expect(h1).toBe(HERO_EYEBROW.replace(' · ', ' '));
+    expect(d.title).toContain(HERO_EYEBROW);
     expect(h1).not.toMatch(/bilingual/i);
     expect(h1).not.toContain('双语');
     expect(root.textContent).toContain(HERO_SUB_EN);

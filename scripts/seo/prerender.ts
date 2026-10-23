@@ -15,12 +15,14 @@
  * Every URL is built from the site origin + Vite base path, so the default
  * /bible/ build and the deployed VITE_BASE_PATH=/ build are both correct.
  * scripts/seo/viteSeo.ts wires these into `vite build` and the dev server.
+ * TODO(R4): over the 300-line budget; split on the section markers below into
+ * text helpers, <head> meta, homepage fallback, study pages, sitemap/robots.
  */
 import fs from 'node:fs';
 import path from 'node:path';
 import {
   BRAND_EN, BRAND_ZH, HERO_SUB_ZH, HERO_SUB_EN, HERO_SOURCE_NOTE, GROUP_CTA, SAMPLE_NO_SIGNIN,
-  PERSONAL_CTA, NEW_STUDY_LINE, NEW_STUDY_SIGNIN_NOTE, AI_SIGNIN_NOTE,
+  PERSONAL_CTA, NEW_STUDY_LINE, NEW_STUDY_SIGNIN_NOTE, AI_SIGNIN_NOTE, HERO_EYEBROW,
 } from '../../components/landing/landingStrings';
 import { OG_IMAGE_FILE, OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT, OG_IMAGE_ALT } from './ogImage';
 
@@ -28,7 +30,7 @@ export const DEFAULT_SITE_ORIGIN = 'https://scripturetolife.org';
 export const STUDIES_DIR = 'studies';
 export const SKIP_LABEL = '跳到主要内容 · Skip to main content';
 
-export const HOME_TITLE = `${BRAND_ZH} · ${BRAND_EN} — 小组查经 · Group Bible study`;
+export const HOME_TITLE = `${BRAND_ZH} · ${BRAND_EN} — ${HERO_EYEBROW}`;
 export const HOME_DESCRIPTION = `${HERO_SUB_EN} ${HERO_SUB_ZH}`;
 
 export interface SeoSite {
@@ -210,8 +212,7 @@ const FALLBACK_ID = 'stl-fallback';
 /** Static homepage content inside #root. React replaces it on mount (index.tsx clears #root). */
 export function homeFallbackHtml(site: SeoSite, packs: PublicPack[], featuredId: string): string {
   const featured = packs.find(p => p.id === featuredId) ?? packs[0];
-  const sample = splitLine(SAMPLE_NO_SIGNIN);
-  const signin = splitLine(NEW_STUDY_SIGNIN_NOTE);
+  const [eyebrow, sample, signin] = [HERO_EYEBROW, SAMPLE_NO_SIGNIN, NEW_STUDY_SIGNIN_NOTE].map(splitLine);
   const cta = (label: string) => {
     const at = label.indexOf(' ');
     return `<span lang="zh-Hans">${escapeHtml(label.slice(0, at))}</span> <span lang="en">${escapeHtml(label.slice(at + 1))}</span>`;
@@ -224,7 +225,7 @@ export function homeFallbackHtml(site: SeoSite, packs: PublicPack[], featuredId:
       <main id="main-content" tabindex="-1">
         <header>
           <p class="stl-fb-brand"><span lang="zh-Hans">${escapeHtml(BRAND_ZH)}</span> · <span lang="en">${escapeHtml(BRAND_EN)}</span></p>
-          <h1><span lang="zh-Hans">小组查经</span> <span lang="en">Group Bible study</span></h1>
+          <h1><span lang="zh-Hans">${escapeHtml(eyebrow.zh)}</span> <span lang="en">${escapeHtml(eyebrow.en)}</span></h1>
           <p>${escapeHtml(HERO_SUB_ZH)}</p>
           <p lang="en">${escapeHtml(HERO_SUB_EN)}</p>
           <p class="stl-fb-note">${escapeHtml(HERO_SOURCE_NOTE.zh)} <span lang="en">${escapeHtml(HERO_SOURCE_NOTE.en)}</span></p>
