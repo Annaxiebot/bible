@@ -5,9 +5,9 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
-type Mode = 'reply' | 'crash' | 'throw';
+type Mode = 'reply' | 'crash' | 'throw' | 'dictionary-error';
 let mode: Mode = 'reply';
-let posts: Array<{ id: number; type: string; text?: string }> = [];
+let posts: Array<{ id: number; type: string; text?: string; direction?: string }> = [];
 
 class FakeWorker {
   private listeners: Record<string, Array<(e: unknown) => void>> = { message: [], error: [] };
@@ -15,11 +15,13 @@ class FakeWorker {
     if (mode === 'throw') throw new Error('Worker construction failed');
   }
   addEventListener(type: string, fn: (e: unknown) => void) { this.listeners[type]?.push(fn); }
-  postMessage(msg: { id: number; type: string; text?: string }) {
+  postMessage(msg: { id: number; type: string; text?: string; direction?: string }) {
     posts.push(msg);
     setTimeout(() => {
       if (mode === 'crash') {
         for (const fn of this.listeners.error) fn(new Event('error'));
+      } else if (mode === 'dictionary-error') {
+        for (const fn of this.listeners.message) fn({ data: { id: msg.id, error: 'dictionary unavailable' } });
       } else if (msg.type === 'preload') {
         for (const fn of this.listeners.message) fn({ data: { id: msg.id, ready: true } });
       } else {
@@ -86,5 +88,24 @@ describe('chineseConverter — main-thread fallback notifies', () => {
     expect(await c.toSimplifiedAsync('聖經')).toBe('圣经');
     await tick();
     expect(listener).toHaveBeenCalled();
+  });
+});
+
+describe('chineseConverter — one dictionary per script (OpenCC split)', () => {
+  it('a preload names its direction and is sent once per direction', async () => {
+    const c = await freshConverter();
+    await Promise.all([c.preloadConverter(true), c.preloadConverter(true)]);
+    await c.preloadConverter(false);
+    expect(posts.filter(p => p.type === 'preload').map(p => p.direction)).toEqual(['toSimp', 'toTrad']);
+  });
+
+  it('a dictionary the worker cannot load: the conversion retries on the main thread; a failed preload can be retried', async () => {
+    mode = 'dictionary-error';
+    const c = await freshConverter();
+    expect(await c.toSimplifiedAsync('聖經')).toBe('圣经');
+    await expect(c.preloadConverter(true)).rejects.toThrow('dictionary unavailable');
+    mode = 'reply';
+    await expect(c.preloadConverter(true)).resolves.toBeUndefined();
+    expect(posts.filter(p => p.type === 'preload')).toHaveLength(2);
   });
 });

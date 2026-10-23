@@ -13,12 +13,14 @@ export function useBibleSettings() {
   const prefs = useReaderPreferences();
   const isSimplified = prefs.chineseScript === 'simplified';
 
-  // Bundled CUV text is Simplified while API-cached text is Traditional,
-  // so both display modes convert — always preload the converter.
+  // Bundled CUV text is Simplified while API-cached text is Traditional, so both
+  // display modes convert: preload the current script's dictionary only (a 简
+  // reader never downloads the 1 MB 简→繁 table; toggling to 繁 preloads it).
   useEffect(() => {
     const defer = window.requestIdleCallback || ((cb: () => void) => setTimeout(cb, 200));
     // An unavailable worker/dictionary is not fatal: conversions fall back per call.
-    defer(() => { preloadConverter().catch(() => {}); });
+    defer(() => { preloadConverter(isSimplified).catch(() => {}); });
+    // Once, for the script at start-up (empty deps on purpose): a 简/繁 toggle preloads its own (BibleViewer).
   }, []);
 
   const setIsSimplified = useCallback((simplified: boolean) => {

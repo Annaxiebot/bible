@@ -33,8 +33,9 @@ const state = vi.hoisted(() => {
   return s;
 });
 
-// The main-thread fallback fails too (dictionary unavailable).
-vi.mock('opencc-js', () => ({ Converter: () => { throw new Error('dictionary unavailable'); } }));
+// The main-thread fallback fails too (dictionary unavailable), in both directions.
+vi.mock('opencc-js/t2cn', () => ({ Converter: () => { throw new Error('dictionary unavailable'); } }));
+vi.mock('opencc-js/cn2t', () => ({ Converter: () => { throw new Error('dictionary unavailable'); } }));
 
 afterAll(() => { delete (globalThis as { Worker?: unknown }).Worker; });
 

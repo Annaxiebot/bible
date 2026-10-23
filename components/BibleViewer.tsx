@@ -663,10 +663,9 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   }, [chapterData.bothSettled, chapterData.isOffline, selectedBook.id, selectedChapter]);
 
   const toggleChineseMode = () => {
-    // Persisted + broadcast by the reader-preferences store (Settings and other tabs follow).
+    // Persisted + broadcast by the reader-preferences store; preload only the new script's dictionary.
     setIsSimplified(!isSimplified);
-    // Both modes convert now (bundled text is Simplified), so always preload.
-    preloadConverter().catch(() => {});
+    preloadConverter(!isSimplified).catch(() => {});
   };
 
   const adjustFontSize = (delta: number) => {

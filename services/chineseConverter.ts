@@ -5,15 +5,19 @@
  * and Simplified Chinese using the opencc-js library, which implements the full
  * OpenCC dictionary (~7,000+ character mappings vs the previous 291-entry table).
  *
- * The opencc-js dictionary (~1MB) lives in a Web Worker so loading and
- * conversion never block the UI thread. A small LRU cache keeps recently
- * converted strings around so that hot-path (render) sync callers get the
- * correct result instantly on repeat calls.
+ * The opencc-js dictionaries live in a Web Worker so loading and conversion
+ * never block the UI thread, one direction at a time (services/chineseDictionary):
+ * 简 readers load only the small 繁→简 table; the 1 MB 简→繁 table loads on the
+ * first 繁 request. A small LRU cache keeps recently converted strings around
+ * so that hot-path (render) sync callers get the correct result instantly on
+ * repeat calls.
  *
  * Locales used:
  *   tw → cn  : Traditional (Taiwan) to Simplified
  *   cn → tw  : Simplified to Traditional (Taiwan)
  */
+
+import { createDictionaryLoader, type Convert, type ConvertDirection } from './chineseDictionary';
 
 const CACHE_LIMIT = 1000;
 
@@ -70,32 +74,30 @@ export function subscribeConverter(listener: () => void): () => void {
 interface PendingRequest {
   resolve: (value: string | void) => void;
   reject: (err: unknown) => void;
-  type: 'toSimp' | 'toTrad' | 'preload';
+  type: ConvertDirection | 'preload';
   text?: string;
 }
 
 let worker: Worker | null = null;
 let nextId = 1;
 const pending = new Map<number, PendingRequest>();
-let workerReady = false;
-let workerReadyPromise: Promise<void> | null = null;
+/** Worker preloads, per direction (a failed one is forgotten so a later preload retries). */
+const workerReady = new Map<ConvertDirection, Promise<void>>();
 
-// --- Test / no-Worker path (jsdom, Node) ---
+// --- Test / no-Worker path (jsdom, Node), and the fallback when the worker fails ---
 
-let syncToSimp: ((text: string) => string) | null = null;
-let syncToTrad: ((text: string) => string) | null = null;
-let syncLoadPromise: Promise<void> | null = null;
+const loadOnMainThread = createDictionaryLoader();
+let syncToSimp: Convert | null = null;
+let syncToTrad: Convert | null = null;
 
-function ensureSyncLoaded(): Promise<void> {
-  if (syncToSimp && syncToTrad) return Promise.resolve();
-  if (!syncLoadPromise) {
-    syncLoadPromise = import('opencc-js').then((opencc) => {
-      syncToSimp = opencc.Converter({ from: 'tw', to: 'cn' });
-      syncToTrad = opencc.Converter({ from: 'cn', to: 'tw' });
-      notifyConverted();
-    });
-  }
-  return syncLoadPromise;
+function ensureSyncLoaded(direction: ConvertDirection): Promise<Convert> {
+  return loadOnMainThread(direction).then((convert) => {
+    const first = direction === 'toSimp' ? !syncToSimp : !syncToTrad;
+    if (direction === 'toSimp') syncToSimp = convert;
+    else syncToTrad = convert;
+    if (first) notifyConverted();
+    return convert;
+  });
 }
 
 function workerAvailable(): boolean {
@@ -111,12 +113,16 @@ function getWorker(): Worker | null {
       { type: 'module' },
     );
     worker.addEventListener('message', (event: MessageEvent) => {
-      const data = event.data as { id: number; result?: string; ready?: true };
+      const data = event.data as { id: number; result?: string; ready?: true; error?: string };
       const req = pending.get(data.id);
       if (!req) return;
       pending.delete(data.id);
+      if (typeof data.error === 'string') {
+        // The worker could not load that dictionary: a conversion's reject (postToWorker) retries on the main thread.
+        req.reject(new Error(data.error));
+        return;
+      }
       if (data.ready) {
-        workerReady = true;
         req.resolve();
         notifyConverted();
         return;
@@ -137,8 +143,7 @@ function getWorker(): Worker | null {
       for (const req of pending.values()) req.reject(e);
       pending.clear();
       worker = null;
-      workerReady = false;
-      workerReadyPromise = null;
+      workerReady.clear();
     });
   } catch {
     worker = null;
@@ -146,9 +151,8 @@ function getWorker(): Worker | null {
   return worker;
 }
 
-async function convertOnMainThread(type: 'toSimp' | 'toTrad', text: string): Promise<string> {
-  await ensureSyncLoaded();
-  const result = type === 'toSimp' ? syncToSimp!(text) : syncToTrad!(text);
+async function convertOnMainThread(type: ConvertDirection, text: string): Promise<string> {
+  const result = (await ensureSyncLoaded(type))(text);
   cacheSet(type === 'toSimp' ? simpCache : tradCache, text, result);
   // Sync-only renderers wait on this too (worker construction failed or crashed).
   notifyConverted();
@@ -159,7 +163,7 @@ async function convertOnMainThread(type: 'toSimp' | 'toTrad', text: string): Pro
 // for every still-uncached verse, which would otherwise re-post the same text.
 const inFlight = new Map<string, Promise<string>>();
 
-function convertDeduped(type: 'toSimp' | 'toTrad', text: string, run: () => Promise<string>): Promise<string> {
+function convertDeduped(type: ConvertDirection, text: string, run: () => Promise<string>): Promise<string> {
   const key = `${type}:${text}`;
   const existing = inFlight.get(key);
   if (existing) return existing;
@@ -169,7 +173,7 @@ function convertDeduped(type: 'toSimp' | 'toTrad', text: string, run: () => Prom
 }
 
 function postToWorker(
-  type: 'toSimp' | 'toTrad',
+  type: ConvertDirection,
   text: string,
 ): Promise<string> {
   const w = getWorker();
@@ -195,8 +199,7 @@ export const toSimplifiedAsync = async (text: string): Promise<string> => {
   if (cached !== undefined) return cached;
   return convertDeduped('toSimp', text, async () => {
     if (!workerAvailable()) {
-      await ensureSyncLoaded();
-      const result = syncToSimp!(text);
+      const result = (await ensureSyncLoaded('toSimp'))(text);
       cacheSet(simpCache, text, result);
       return result;
     }
@@ -211,8 +214,7 @@ export const toTraditionalAsync = async (text: string): Promise<string> => {
   if (cached !== undefined) return cached;
   return convertDeduped('toTrad', text, async () => {
     if (!workerAvailable()) {
-      await ensureSyncLoaded();
-      const result = syncToTrad!(text);
+      const result = (await ensureSyncLoaded('toTrad'))(text);
       cacheSet(tradCache, text, result);
       return result;
     }
@@ -261,23 +263,27 @@ export const toTraditional = (text: string): string => {
   return text;
 };
 
-/** Pre-load the converter dictionary (call on app init or when simplified mode turns on). */
-export const preloadConverter = (): Promise<void> => {
-  if (!workerAvailable()) return ensureSyncLoaded();
-  if (workerReady) return Promise.resolve();
-  if (workerReadyPromise) return workerReadyPromise;
+/**
+ * Pre-load the dictionary one script needs (on app start, and when 简/繁 changes):
+ * simplified → the small 繁→简 table only; traditional → the 简→繁 table.
+ */
+export const preloadConverter = (simplified: boolean): Promise<void> => {
+  const direction: ConvertDirection = simplified ? 'toSimp' : 'toTrad';
+  const onMainThread = () => ensureSyncLoaded(direction).then(() => undefined);
+  if (!workerAvailable()) return onMainThread();
+  const existing = workerReady.get(direction);
+  if (existing) return existing;
   const w = getWorker();
-  if (!w) return ensureSyncLoaded();
-  workerReadyPromise = new Promise<void>((resolve, reject) => {
+  if (!w) return onMainThread();
+  const ready = new Promise<void>((resolve, reject) => {
     const id = nextId++;
-    pending.set(id, {
-      resolve: () => resolve(),
-      reject,
-      type: 'preload',
-    });
-    w.postMessage({ id, type: 'preload' });
+    pending.set(id, { resolve: () => resolve(), reject, type: 'preload' });
+    w.postMessage({ id, type: 'preload', direction });
   });
-  return workerReadyPromise;
+  workerReady.set(direction, ready);
+  // Callers handle the rejection; forgetting it here lets a later preload try again.
+  ready.catch(() => { if (workerReady.get(direction) === ready) workerReady.delete(direction); });
+  return ready;
 };
 
 /** Convert to the requested script (async; resolves to the real conversion once the dictionary is ready). */
