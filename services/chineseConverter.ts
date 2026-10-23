@@ -41,6 +41,30 @@ function cacheSet(cache: Map<string, string>, key: string, value: string): void 
   }
 }
 
+// --- Readiness notifications ---
+// The sync converters return the input unchanged until the dictionary (or a
+// worker result) is ready, so renderers subscribe and re-render when new
+// conversions land — otherwise 繁/简 could stay on the unconverted text.
+
+const listeners = new Set<() => void>();
+let notifyScheduled = false;
+
+function notifyConverted(): void {
+  if (notifyScheduled || listeners.size === 0) return;
+  notifyScheduled = true;
+  // Batch: one re-render for a chapter's worth of worker replies.
+  setTimeout(() => {
+    notifyScheduled = false;
+    for (const listener of [...listeners]) listener();
+  }, 0);
+}
+
+/** Called whenever the converter becomes ready or caches new results. Returns an unsubscribe. */
+export function subscribeConverter(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => { listeners.delete(listener); };
+}
+
 // --- Worker-backed path (browser) ---
 
 interface PendingRequest {
@@ -68,6 +92,7 @@ function ensureSyncLoaded(): Promise<void> {
     syncLoadPromise = import('opencc-js').then((opencc) => {
       syncToSimp = opencc.Converter({ from: 'tw', to: 'cn' });
       syncToTrad = opencc.Converter({ from: 'cn', to: 'tw' });
+      notifyConverted();
     });
   }
   return syncLoadPromise;
@@ -93,6 +118,7 @@ function getWorker(): Worker | null {
       if (data.ready) {
         workerReady = true;
         req.resolve();
+        notifyConverted();
         return;
       }
       if (typeof data.result === 'string') {
@@ -103,6 +129,7 @@ function getWorker(): Worker | null {
           cacheSet(tradCache, req.text, data.result);
         }
         req.resolve(data.result);
+        notifyConverted();
       }
     });
     worker.addEventListener('error', (e) => {
@@ -119,17 +146,41 @@ function getWorker(): Worker | null {
   return worker;
 }
 
+async function convertOnMainThread(type: 'toSimp' | 'toTrad', text: string): Promise<string> {
+  await ensureSyncLoaded();
+  const result = type === 'toSimp' ? syncToSimp!(text) : syncToTrad!(text);
+  cacheSet(type === 'toSimp' ? simpCache : tradCache, text, result);
+  // Sync-only renderers wait on this too (worker construction failed or crashed).
+  notifyConverted();
+  return result;
+}
+
+// One conversion per (direction, text) at a time: re-renders call the sync path
+// for every still-uncached verse, which would otherwise re-post the same text.
+const inFlight = new Map<string, Promise<string>>();
+
+function convertDeduped(type: 'toSimp' | 'toTrad', text: string, run: () => Promise<string>): Promise<string> {
+  const key = `${type}:${text}`;
+  const existing = inFlight.get(key);
+  if (existing) return existing;
+  const promise = run().finally(() => { inFlight.delete(key); });
+  inFlight.set(key, promise);
+  return promise;
+}
+
 function postToWorker(
   type: 'toSimp' | 'toTrad',
   text: string,
 ): Promise<string> {
   const w = getWorker();
-  if (!w) return Promise.resolve(text);
+  // No worker (construction failed): convert here rather than hand back the unconverted text.
+  if (!w) return convertOnMainThread(type, text);
   return new Promise<string>((resolve, reject) => {
     const id = nextId++;
     pending.set(id, {
       resolve: (v) => resolve(typeof v === 'string' ? v : text),
-      reject,
+      // A crashed worker must not leave the text unconverted: retry on the main thread.
+      reject: () => { convertOnMainThread(type, text).then(resolve, reject); },
       type,
       text,
     });
@@ -142,13 +193,15 @@ export const toSimplifiedAsync = async (text: string): Promise<string> => {
   if (!text) return text;
   const cached = cacheGet(simpCache, text);
   if (cached !== undefined) return cached;
-  if (!workerAvailable()) {
-    await ensureSyncLoaded();
-    const result = syncToSimp!(text);
-    cacheSet(simpCache, text, result);
-    return result;
-  }
-  return postToWorker('toSimp', text);
+  return convertDeduped('toSimp', text, async () => {
+    if (!workerAvailable()) {
+      await ensureSyncLoaded();
+      const result = syncToSimp!(text);
+      cacheSet(simpCache, text, result);
+      return result;
+    }
+    return postToWorker('toSimp', text);
+  });
 };
 
 /** Convert Simplified Chinese to Traditional (async, worker-backed). */
@@ -156,13 +209,15 @@ export const toTraditionalAsync = async (text: string): Promise<string> => {
   if (!text) return text;
   const cached = cacheGet(tradCache, text);
   if (cached !== undefined) return cached;
-  if (!workerAvailable()) {
-    await ensureSyncLoaded();
-    const result = syncToTrad!(text);
-    cacheSet(tradCache, text, result);
-    return result;
-  }
-  return postToWorker('toTrad', text);
+  return convertDeduped('toTrad', text, async () => {
+    if (!workerAvailable()) {
+      await ensureSyncLoaded();
+      const result = syncToTrad!(text);
+      cacheSet(tradCache, text, result);
+      return result;
+    }
+    return postToWorker('toTrad', text);
+  });
 };
 
 /**
@@ -184,7 +239,8 @@ export const toSimplified = (text: string): string => {
     return result;
   }
   // Kick off background conversion so repeat calls hit cache.
-  void toSimplifiedAsync(text);
+  // A failed background conversion just keeps the original text.
+  toSimplifiedAsync(text).catch(() => {});
   return text;
 };
 
@@ -201,7 +257,7 @@ export const toTraditional = (text: string): string => {
     cacheSet(tradCache, text, result);
     return result;
   }
-  void toTraditionalAsync(text);
+  toTraditionalAsync(text).catch(() => {});
   return text;
 };
 
@@ -223,3 +279,11 @@ export const preloadConverter = (): Promise<void> => {
   });
   return workerReadyPromise;
 };
+
+/** Convert to the requested script (async; resolves to the real conversion once the dictionary is ready). */
+export const toScriptAsync = (text: string, simplified: boolean): Promise<string> =>
+  simplified ? toSimplifiedAsync(text) : toTraditionalAsync(text);
+
+/** Convert to the requested script (sync, cache-backed — see {@link toSimplified}). */
+export const toScript = (text: string, simplified: boolean): string =>
+  simplified ? toSimplified(text) : toTraditional(text);

@@ -20,7 +20,7 @@ import { rememberTvReturn } from '../studypack/tvReturn';
 import { requestFullscreen, exitFullscreen } from '../studypack/fullscreen';
 import { QuickAISetupForm } from '../setup/QuickAISetup';
 import { useAIAccess } from '../setup/useAIAccess';
-import { NEW_STUDY_HASH, newStudyHash, getNewStudyPackIdFromHash, packHash } from '../landing/landingRoute';
+import { NEW_STUDY_HASH, newStudyHash, getNewStudyPackIdFromHash, packHash, SAMPLE_PACK_HASH } from '../landing/landingRoute';
 import PhaseView, { Phase } from './PhaseView';
 import PackList from './PackList';
 import FirstTimeGuide from './FirstTimeGuide';
@@ -31,7 +31,7 @@ import { useAutoSave } from './useAutoSave';
 import { todayIso } from './NewStudyForm';
 import { readDefaultContentLanguage } from './contentLanguageDefault';
 import { guideStudyRequest } from './guide/generateGuidePack';
-import { NS_TITLE, NS_INTRO, NS_PRIVACY, NS_BACK, NS_ERR_STORAGE } from './newStudyStrings';
+import { NS_TITLE, NS_INTRO, NS_PRIVACY, NS_BACK, NS_ERR_STORAGE, NS_SAMPLE_NO_SIGNIN } from './newStudyStrings';
 import { textStyle, controlStyle, quietButtonClass, pageTitleStyle } from './newStudyStyles';
 
 /**
@@ -136,6 +136,11 @@ const NewStudyPage: React.FC = () => {
         {!configured && (
           <div className="rounded-2xl border border-slate-700 bg-slate-900 p-6">
             <QuickAISetupForm onSaved={access.refresh} ownKeyOption={false} />
+            <p className="mt-4 text-slate-300" style={textStyle}>
+              <a href={SAMPLE_PACK_HASH} className="underline underline-offset-4 hover:text-amber-300" data-testid="new-study-sample-link">
+                {NS_SAMPLE_NO_SIGNIN}
+              </a>
+            </p>
           </div>
         )}
         {routeError && routeError.id !== editing?.id && (

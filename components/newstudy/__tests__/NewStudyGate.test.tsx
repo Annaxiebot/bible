@@ -12,6 +12,8 @@ import { render, screen } from '@testing-library/react';
 import { STORAGE_KEYS } from '../../../constants/storageKeys';
 import { idbService } from '../../../services/idbService';
 import { SETUP_SIGN_IN_TO_USE_AI, SETUP_OWN_KEY_TOGGLE } from '../../setup/setupStrings';
+import { NS_SAMPLE_NO_SIGNIN } from '../newStudyStrings';
+import { SAMPLE_PACK_HASH } from '../../landing/landingRoute';
 
 let signedInUid: string | null = null;
 const authState = () => ({
@@ -64,6 +66,21 @@ describe('NewStudyPage AI gate', () => {
     expect(screen.queryByTestId('new-study-form')).toBeNull();
     expect(screen.queryByRole('button', { name: SETUP_OWN_KEY_TOGGLE })).toBeNull();
     expect(screen.getByTestId('new-study-page').textContent).not.toMatch(/OpenRouter|密钥|\bkey\b/);
+  });
+
+  it('signed out → points to the complete sample, which needs no sign-in (2026-10 review)', () => {
+    withKey(null);
+    render(<NewStudyPage />);
+    const link = screen.getByRole('link', { name: NS_SAMPLE_NO_SIGNIN });
+    expect(link).toHaveAttribute('href', SAMPLE_PACK_HASH);
+  });
+
+  it('signed in → no sample detour', async () => {
+    withKey(null);
+    signedInUid = 'uid-leader-1';
+    render(<NewStudyPage />);
+    await screen.findByTestId('new-study-form');
+    expect(screen.queryByTestId('new-study-sample-link')).toBeNull();
   });
 
   it('signed out with an own key → the form (the direct path is unchanged)', async () => {

@@ -187,7 +187,7 @@ describe('chunkVerses', () => {
 });
 
 describe('buildSlides', () => {
-  const DEMO_SLIDE_COUNT = 23;
+  const DEMO_SLIDE_COUNT = 26;
 
   it('splits scripture into parts that fit, keyPhrase on part 1, emphasis on every part', () => {
     const slides = buildSlides(loadRealPack());
@@ -206,12 +206,13 @@ describe('buildSlides', () => {
     const slides = buildSlides(loadRealPack());
     expect(slides).toHaveLength(DEMO_SLIDE_COUNT);
     const discussion = slides.filter(s => s.kind === 'discussion');
-    expect(discussion).toHaveLength(5);
+    expect(discussion).toHaveLength(7);
     expect(discussion[0].questionNumber).toBe(1);
-    expect(discussion[4].questionNumber).toBe(5);
-    expect(discussion.every(s => s.questionTotal === 5)).toBe(true);
+    expect(discussion[6].questionNumber).toBe(7);
+    expect(discussion.every(s => s.questionTotal === 7)).toBe(true);
     expect(discussion.every(s => s.partTotal === undefined)).toBe(true);
-    expect(discussion[2].question).toContain('pulled apart, divided');
+    // Observation before interpretation (2026-10 review).
+    expect(discussion[0].question).toContain('List them before interpreting');
   });
 
   it('caps body text per slide and numbers continuation slides', () => {
@@ -256,7 +257,7 @@ describe('buildSlides', () => {
     expect(qrIndex).toBe(DEMO_SLIDE_COUNT - 2); // second to last, before closing
     expect(demoSlides[qrIndex - 1].kind).toBe('reflection');
     expect(demoSlides[qrIndex].signupUrl).toBeUndefined();
-    expect(demoSlides[qrIndex].heading).toBe('签到 Sign up');
+    expect(demoSlides[qrIndex].heading).toBe('报名 Sign up');
     expect(demoSlides[qrIndex + 1].kind).toBe('closing');
     const owned = parseStudyPack({ ...demo, leaderId: 'uid-lead' });
     const ownedQr = buildSlides(owned)[qrIndex];

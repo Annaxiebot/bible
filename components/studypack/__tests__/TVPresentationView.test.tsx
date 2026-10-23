@@ -6,7 +6,7 @@ import { STORAGE_KEYS } from '../../../constants/storageKeys';
 import { SAMPLE_PACK_ID, TEST_PACK_PATH } from './fixtures';
 import TVPresentationView from '../TVPresentationView';
 import { preloadMarkdown } from '../../LazyMarkdown';
-import { FIRST_SLIDE_HINT, ASK_AI_LABEL } from '../tvHints';
+import { FIRST_SLIDE_HINT, ASK_AI_LABEL, ASK_AI_SIGNIN_NOTE } from '../tvHints';
 import { SETUP_TITLE } from '../../setup/setupStrings';
 
 // Warm react-markdown outside every timed budget; see preloadMarkdown() for why.
@@ -16,9 +16,9 @@ await preloadMarkdown();
 const packJson = () => JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8'));
 
 // Demo pack slide map (pinned in packTypes.test.ts): 1 title, 2–6 scripture
-// 1/5–5/5, … 13–17 discussion, … 23 closing.
-const DEMO_SLIDES = 23;
-const TO_FIRST_DISCUSSION = 12; // ArrowRight presses from the title slide
+// 1/5–5/5, … 14–20 discussion (observation questions first), … 26 closing.
+const DEMO_SLIDES = 26;
+const TO_FIRST_DISCUSSION = 13; // ArrowRight presses from the title slide
 
 // Mirror of askAIFallback.ts streamStudyAI:
 // (pack, slide, history, question, onText, signal, onModel?) → Promise<{ text, model }>
@@ -129,10 +129,10 @@ describe('TVPresentationView', () => {
     mockFetchOk(packJson());
     await renderLoaded();
     for (let i = 0; i < TO_FIRST_DISCUSSION; i++) fireEvent.keyDown(window, { key: 'ArrowRight' });
-    expect(screen.getByText(/Where does anxiety actually show up/)).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: /讨论 Discussion · 1\/5/ })).toBeInTheDocument();
+    expect(screen.getByText(/List them before interpreting/)).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /讨论 Discussion · 1\/7/ })).toBeInTheDocument();
     fireEvent.keyDown(window, { key: 'ArrowRight' });
-    expect(screen.getByText(/serving two masters/)).toBeInTheDocument();
+    expect(screen.getByText(/point back to\?/)).toBeInTheDocument();
   });
 
   it('calls onExit on Escape and on the exit button', async () => {
@@ -199,12 +199,12 @@ describe('TVPresentationView', () => {
     await renderLoaded();
     for (let i = 0; i < TO_FIRST_DISCUSSION; i++) fireEvent.keyDown(window, { key: 'ArrowRight' });
     fireEvent.keyDown(window, { key: 'a' });
-    expect(screen.getByTestId('ask-question')).toHaveTextContent(/这一周，忧虑实际出现在哪里/);
+    expect(screen.getByTestId('ask-question')).toHaveTextContent(/耶稣叫我们不要为哪些事忧虑/);
     await waitFor(() =>
       expect(screen.getByTestId('ask-answer')).toHaveTextContent('It shows up at work (v.25).'));
     expect(streamStudyAIMock).toHaveBeenCalledTimes(1);
     expect(String(streamStudyAIMock.mock.calls[0][3]))
-      .toContain('Where does anxiety actually show up');
+      .toContain('List them before interpreting');
   });
 
   it('selected slide text beats the discussion question and is sent as an explain request', async () => {
@@ -223,7 +223,7 @@ describe('TVPresentationView', () => {
     const question = String(streamStudyAIMock.mock.calls[0][3]);
     expect(question).toContain('「飞鸟 the birds」在这段经文中是什么意思');
     expect(question).toContain('historical and cultural background');
-    expect(question).not.toContain('Where does anxiety');
+    expect(question).not.toContain('List them before interpreting');
     expect(removeAllRanges).toHaveBeenCalled(); // selection cleared after sending
   });
 
@@ -244,5 +244,38 @@ describe('TVPresentationView', () => {
     expect(screen.getByTestId('quick-ai-setup')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: SETUP_TITLE })).toBeInTheDocument();
     expect(streamStudyAIMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('TVPresentationView — 2026-10 review', () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+    (window.localStorage.getItem as ReturnType<typeof vi.fn>).mockReset().mockReturnValue(null);
+  });
+
+  it('signed out: the Ask AI pill discloses the Google sign-in requirement before the click', async () => {
+    mockFetchOk(packJson());
+    await renderLoaded();
+    const button = screen.getByRole('button', { name: ASK_AI_LABEL });
+    expect(screen.getByTestId('tv-ask-signin-note')).toHaveTextContent(ASK_AI_SIGNIN_NOTE);
+    expect(button).toHaveAccessibleDescription(ASK_AI_SIGNIN_NOTE);
+  });
+
+  it('with AI available, no sign-in note', async () => {
+    (window.localStorage.getItem as ReturnType<typeof vi.fn>)
+      .mockImplementation((key: string) => key === STORAGE_KEYS.OPENROUTER_API_KEY ? 'test-key' : null);
+    mockFetchOk(packJson());
+    await renderLoaded();
+    expect(screen.queryByTestId('tv-ask-signin-note')).toBeNull();
+  });
+
+  it('gives the tab a unique title per pack and restores it on exit', async () => {
+    document.title = 'before';
+    mockFetchOk(packJson());
+    const { unmount } = render(<TVPresentationView packId={SAMPLE_PACK_ID} onExit={vi.fn()} />);
+    await waitFor(() => expect(document.title).toContain(packJson().title));
+    expect(document.title).toContain('Scripture to Life');
+    unmount();
+    expect(document.title).toBe('before');
   });
 });

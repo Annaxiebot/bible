@@ -131,11 +131,18 @@ section.ld-dark::before {
 .ld-sub { max-width: 34em; margin: 28px auto 0; font-size: 1.375rem; }
 .ld-sub-zh { display: block; font-size: 1.5rem; }
 .ld-ctas { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 40px; }
+/* A CTA with its access line under it ("无需登录 · No sign-in needed" / "需用 Google 登录"). */
+.ld-cta { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.ld-cta-note { font-size: 0.95rem; color: var(--stl-ink-2); }
+.ld-dark .ld-cta-note { color: var(--stl-on-night-2); }
+/* Published Scripture vs AI drafts: always visible under the sub-line. */
+.ld-source-note { max-width: 40em; margin: 18px auto 0; font-size: 1.0625rem; color: var(--stl-ink-2); }
 .ld-loop-line { margin: 56px auto 0; font: 1rem/1.6 var(--ld-mono); color: var(--stl-ink-2); letter-spacing: 0.02em; }
 @media (max-width: 560px) {
   .ld-hero { padding: 56px 0 72px; }
   .ld-sub, .ld-sub-zh { font-size: 1.25rem; }
   .ld-hero .stl-pill { width: 100%; }
+  .ld-hero .ld-cta { width: 100%; }
 }
 
 /* ---- reduced motion: rings static (the waves are hidden), no transitions ---- */

@@ -8,6 +8,8 @@ export const STORAGE_KEYS = {
   ENGLISH_VERSION: 'bibleEnglishVersion',
   CHINESE_VERSION: 'bibleChineseVersion',
   CHINESE_MODE: 'bibleChineseMode',
+  // Reader interface language ('zh' | 'en') — independent of script and editions (services/readerPreferences)
+  UI_LANGUAGE: 'bibleUiLanguage',
   FONT_SIZE: 'bibleFontSize',
   VIEW_LAYOUT: 'bibleViewLayout',
   PREFERRED_LAYOUT: 'biblePreferredLayout',

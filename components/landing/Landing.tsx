@@ -28,13 +28,15 @@ import Pill from '../shared/Pill';
 import { splitLabel } from '../studypack/principles';
 import { SETUP_HASH, NEW_STUDY_HASH, SAMPLE_PACK_ID } from './landingRoute';
 import {
-  SITE_LINE, LOOP_LINE_ZH, LOOP_LINE_EN, NEW_STUDY_LINE, NEW_STUDY_SUB,
+  SITE_LINE, LOOP_LINE_ZH, LOOP_LINE_EN, NEW_STUDY_LINE, NEW_STUDY_SUB, NEW_STUDY_SIGNIN_NOTE, AI_SIGNIN_NOTE,
   BRAND_EN, BRAND_ZH_LEAD, BRAND_ZH_HIGHLIGHT, NAV_LINKS, PHOTO_CREDIT, WORSHIP_LABEL, WORSHIP_PAGE,
 } from './landingStrings';
 import { FEEDBACK_LABEL, feedbackHash } from '../../supabase/functions/_shared/feedback';
 import { SOURCE_REPO_URL, CONTRIBUTE_LABEL, EXTERNAL_LINK_PROPS } from '../shared/sourceRepo';
 import { useAIAccess } from '../setup/useAIAccess';
 import QuickAISetupDialog from '../setup/QuickAISetup';
+import SkipLink, { MAIN_CONTENT_ID } from '../shared/SkipLink';
+import { CtaWithNote } from './LandingHero';
 
 /** Third door: "新建查经 New study" → #/new, with its one-line description. */
 const NewStudyBlock: React.FC = () => {
@@ -42,10 +44,13 @@ const NewStudyBlock: React.FC = () => {
   return (
     <div className="ld-new-study">
       <div>
-        <div className="ld-new-study-t">{zh} <span className="ld-new-study-en">{en}</span></div>
+        <div className="ld-new-study-t">{zh} <span className="ld-new-study-en" lang="en">{en}</span></div>
         <div className="ld-new-study-s">{NEW_STUDY_SUB}</div>
+        <div className="ld-new-study-s" data-testid="landing-ai-signin-note">{AI_SIGNIN_NOTE}</div>
       </div>
-      <Pill ghost href={NEW_STUDY_HASH} label={NEW_STUDY_LINE} testId="landing-new-study-line" />
+      <CtaWithNote id="landing-new-study-note" note={NEW_STUDY_SIGNIN_NOTE}>
+        <Pill ghost href={NEW_STUDY_HASH} label={NEW_STUDY_LINE} testId="landing-new-study-line" describedBy="landing-new-study-note" />
+      </CtaWithNote>
     </div>
   );
 };
@@ -61,22 +66,22 @@ const Footer: React.FC = () => {
         <div className="ld-foot-grid">
           <div>
             <div className="ld-foot-brand" aria-hidden="true">{BRAND_ZH_LEAD}<span className="ld-hl">{BRAND_ZH_HIGHLIGHT}</span></div>
-            <div className="ld-foot-en">{BRAND_EN}</div>
-            <div className="ld-foot-loop">{LOOP_LINE_ZH}<br />{LOOP_LINE_EN}</div>
+            <div className="ld-foot-en" lang="en">{BRAND_EN}</div>
+            <div className="ld-foot-loop">{LOOP_LINE_ZH}<br /><span lang="en">{LOOP_LINE_EN}</span></div>
           </div>
           <div className="ld-foot-links">
             {NAV_LINKS.map(link => <SectionLink key={link.id} link={link} className="ld-foot-link" />)}
             <a className="ld-foot-link" href={NEW_STUDY_HASH}>
-              {newStudy.zh}<span className="ld-nav-en">{newStudy.en}</span>
+              {newStudy.zh}<span className="ld-nav-en" lang="en">{newStudy.en}</span>
             </a>
             <a className="ld-foot-link" href={`${import.meta.env.BASE_URL}${WORSHIP_PAGE}`} data-testid="landing-worship-link">
-              {worshipZh}<span className="ld-nav-en">{worshipEn}</span>
+              {worshipZh}<span className="ld-nav-en" lang="en">{worshipEn}</span>
             </a>
             <a className="ld-foot-link" href={feedbackHash('landing')} data-testid="landing-feedback-link">
-              {feedbackZh}<span className="ld-nav-en">{feedbackEn}</span>
+              {feedbackZh}<span className="ld-nav-en" lang="en">{feedbackEn}</span>
             </a>
             <a className="ld-foot-link" href={SOURCE_REPO_URL} {...EXTERNAL_LINK_PROPS} data-testid="landing-contribute-link">
-              {contributeZh}<span className="ld-nav-en">{contributeEn}</span>
+              {contributeZh}<span className="ld-nav-en" lang="en">{contributeEn}</span>
             </a>
           </div>
         </div>
@@ -102,8 +107,9 @@ const Landing: React.FC<{ setupOpen?: boolean }> = ({ setupOpen = false }) => {
 
   return (
     <div data-testid="landing-page" className="ld-root" lang="zh-Hans">
+      <SkipLink />
       <LandingNav />
-      <main>
+      <main id={MAIN_CONTENT_ID} tabIndex={-1}>
         <LandingHero />
         <LandingCards />
         <LandingGroup />

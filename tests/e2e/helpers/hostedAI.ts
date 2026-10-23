@@ -8,7 +8,7 @@
  * aborts) any direct OpenRouter request, which a signed-in user without a
  * key must never make.
  */
-import { Page } from '@playwright/test';
+import { Page, expect } from '@playwright/test';
 import { AI_PROXY_FUNCTION } from '../../../services/aiProxyRoute';
 import { injectSupabaseOverride, E2E_SUPABASE_PATH, E2E_LEADER_ID } from './signup';
 import { OPENROUTER_CHAT_URL, sseBody } from './tv';
@@ -56,7 +56,7 @@ export async function openSignedInChat(page: Page, appHash: string, chunks?: rea
   const delta = (content: string) => ({ model: 'google/gemini-2.5-flash', choices: [{ delta: { content } }] });
   const calls = await mockProxy(page, { sse: sseBody(parts.map(delta)) });
   await page.goto(`/${appHash}`);
-  await page.waitForLoadState('networkidle');
   await page.click('text=AI Chat');
+  await expect(page.locator('textarea')).toBeVisible();
   return calls;
 }

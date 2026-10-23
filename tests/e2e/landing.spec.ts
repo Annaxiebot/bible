@@ -226,7 +226,8 @@ test.describe('Landing page', () => {
     const block = page.getByTestId('next-study-pack');
     await expect(block).toContainText(pack.title);
     await expect(block).toContainText(pack.passageRef);
-    await expect(block).toContainText(pack.date);
+    // A fixed sample, not a dated schedule (2026-10 review).
+    await expect(block).not.toContainText(pack.date);
     const cta = page.getByRole('link', { name: NEXT_OPEN_CTA });
     await cta.scrollIntoViewIfNeeded();
     expect((await cta.boundingBox())!.height).toBeGreaterThanOrEqual(MIN_TAP_PX);

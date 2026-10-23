@@ -1,11 +1,14 @@
-import { fetchChapter as loadChapterFromSource } from '../services/bibleDataSource';
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 import { Verse, Book, SelectionInfo } from '../types';
 import { BIBLE_BOOKS } from '../constants';
 import { parseBibleReference } from '../services/bibleBookData';
-import { toSimplified, toTraditional, toSimplifiedAsync, preloadConverter } from '../services/chineseConverter';
+import { toScript, toSimplifiedAsync, preloadConverter } from '../services/chineseConverter';
 import { bibleStorage, BibleTranslation } from '../services/bibleStorage';
+import { useBilingualChapter } from '../hooks/useBilingualChapter';
+import { useChineseScript, useConverterUpdates } from '../hooks/useChineseScript';
+import { useReaderStrings } from './reader/useReaderStrings';
+import { bookLabel } from './reader/readerStrings';
 import { readingHistory } from '../services/readingHistory';
 import { verseDataStorage } from '../services/verseDataStorage';
 import { bookmarkStorage } from '../services/bookmarkStorage';
@@ -78,12 +81,23 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     return BIBLE_BOOKS[0];
   });
   const [selectedChapter, setSelectedChapter] = useState(initialChapter || 1);
-  const [leftVerses, setLeftVerses] = useState<Verse[]>([]);
-  const [rightVerses, setRightVerses] = useState<Verse[]>([]);
-  const [loading, setLoading] = useState(false);
   const [selectedVerses, setSelectedVerses] = useState<number[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const { isSimplified, setIsSimplified, chineseVersion, setChineseVersion, englishVersion, setEnglishVersion, fontSize, setFontSize } = useBibleSettings();
+  const { isSimplified, setIsSimplified, chineseVersion, setChineseVersion, englishVersion, setEnglishVersion, uiLanguage, fontSize, setFontSize } = useBibleSettings();
+  const strings = useReaderStrings();
+  // Each column loads, fails and retries on its own; a reply for an older chapter is dropped.
+  const chapterData = useBilingualChapter({
+    bookId: selectedBook.id,
+    chapter: selectedChapter,
+    totalVerses: selectedBook.totalVerses,
+    chineseVersion,
+    englishVersion,
+  });
+  const leftVerses = chapterData.chinese.verses;
+  const rightVerses = chapterData.english.verses;
+  // The Chinese column in the chosen script (bundled CUV is Simplified; 繁 must convert).
+  const chineseDisplay = useChineseScript(leftVerses, isSimplified);
+  // The swipe preview converts synchronously: re-render when the converter catches up.
+  useConverterUpdates();
   const {
     isDownloading, setIsDownloading,
     downloadProgress, setDownloadProgress,
@@ -512,7 +526,6 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
 
   useEffect(() => {
     const ctrl = { cancelled: false };
-    fetchChapterGuarded(ctrl);
     // Always preload adjacent chapters for smooth navigation
     // Preload next chapter
     if (selectedChapter < (selectedBook.chapters || 1)) {
@@ -641,111 +654,18 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     return null;
   };
 
-  const fetchChapterGuarded = async (ctrl: { cancelled: boolean }) => {
-    setLoading(true);
-    setError(null);
-
-    // First, try to load from cache for instant display
-    let loadedFromCache = false;
-    try {
-      const cachedCuv = await bibleStorage.getChapter(selectedBook.id, selectedChapter, chineseVersion as BibleTranslation);
-      const cachedWeb = await bibleStorage.getChapter(selectedBook.id, selectedChapter, englishVersion as BibleTranslation);
-
-      if (ctrl.cancelled) return;
-      if (cachedCuv && cachedWeb && cachedCuv.verses && cachedWeb.verses) {
-        // Use cached data immediately for instant loading
-        setLeftVerses(cachedCuv.verses);
-        setRightVerses(cachedWeb.verses);
-        loadedFromCache = true;
-        setLoading(false);
-        setError(null);
-
-        // Try to update from bundled data / network in background (don't show
-        // loading). Only save to cache, don't update state (avoids re-renders).
-        loadChapterFromSource(selectedBook.id, selectedChapter, chineseVersion as BibleTranslation, selectedBook.totalVerses)
-          .then(data => {
-            if (!ctrl.cancelled) {
-              bibleStorage.saveChapter(selectedBook.id, selectedChapter, chineseVersion as BibleTranslation, data).catch(() => {});
-            }
-          })
-          .catch(() => {});
-
-        loadChapterFromSource(selectedBook.id, selectedChapter, englishVersion as BibleTranslation, selectedBook.totalVerses)
-          .then(data => {
-            if (!ctrl.cancelled) {
-              bibleStorage.saveChapter(selectedBook.id, selectedChapter, englishVersion as BibleTranslation, data).catch(() => {});
-            }
-          })
-          .catch(() => {});
-      }
-    } catch (err) {
-      // silently handle
-    }
-
-    // If not loaded from cache, try bundled static data, then the API
-    if (!loadedFromCache) {
-      try {
-        const [cuvData, engData] = await Promise.all([
-          loadChapterFromSource(selectedBook.id, selectedChapter, chineseVersion as BibleTranslation, selectedBook.totalVerses),
-          loadChapterFromSource(selectedBook.id, selectedChapter, englishVersion as BibleTranslation, selectedBook.totalVerses)
-        ]);
-
-        if (ctrl.cancelled) return;
-        if (cuvData?.verses && engData?.verses) {
-          setLeftVerses(cuvData.verses);
-          setRightVerses(engData.verses);
-          setIsOffline(false);
-
-          // Save to IndexedDB in background (non-blocking)
-          Promise.all([
-            bibleStorage.saveChapter(selectedBook.id, selectedChapter, chineseVersion as BibleTranslation, cuvData),
-            bibleStorage.saveChapter(selectedBook.id, selectedChapter, englishVersion as BibleTranslation, engData)
-          ]).then(() => {
-            checkOfflineStatus();
-          }).catch(() => {});
-        }
-      } catch (fetchErr: unknown) {
-        if (ctrl.cancelled) return;
-        // If online fetch fails, try IndexedDB
-        try {
-          const cachedCuv = await bibleStorage.getChapter(selectedBook.id, selectedChapter, chineseVersion as BibleTranslation);
-          const cachedWeb = await bibleStorage.getChapter(selectedBook.id, selectedChapter, englishVersion as BibleTranslation);
-
-          if (ctrl.cancelled) return;
-          if (cachedCuv && cachedWeb) {
-            setLeftVerses(cachedCuv.verses);
-            setRightVerses(cachedWeb.verses);
-            setIsOffline(true);
-          } else {
-            setLeftVerses([]);
-            setRightVerses([]);
-            setError(`无法加载 ${selectedBook.name} 第 ${selectedChapter} 章。请检查网络连接。`);
-          }
-        } catch (storageErr) {
-          // TODO: use error reporting service
-          if (!ctrl.cancelled) {
-            setLeftVerses([]);
-            setRightVerses([]);
-          }
-        }
-      } finally {
-        if (!ctrl.cancelled) {
-          setSelectedVerses([]);
-          setLoading(false);
-        }
-      }
-    }
-  };
-
-  // Unguarded version for manual retries (not called from useEffect)
-  const fetchChapter = () => fetchChapterGuarded({ cancelled: false });
+  // Offline indicator and the offline-chapter list follow each finished chapter load.
+  useEffect(() => {
+    if (!chapterData.bothSettled) return;
+    setIsOffline(chapterData.isOffline);
+    checkOfflineStatus();
+  }, [chapterData.bothSettled, chapterData.isOffline, selectedBook.id, selectedChapter]);
 
   const toggleChineseMode = () => {
-    const newMode = !isSimplified;
-    setIsSimplified(newMode);
-    localStorage.setItem(STORAGE_KEYS.CHINESE_MODE, newMode ? 'simplified' : 'traditional');
+    // Persisted + broadcast by the reader-preferences store (Settings and other tabs follow).
+    setIsSimplified(!isSimplified);
     // Both modes convert now (bundled text is Simplified), so always preload.
-    preloadConverter();
+    preloadConverter().catch(() => {});
   };
 
   const adjustFontSize = (delta: number) => {
@@ -756,9 +676,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
 
   // Bundled CUV data is Simplified while API-cached data is Traditional, so
   // both display modes must actively convert rather than pass text through.
-  const processChineseText = (text: string): string => {
-    return isSimplified ? toSimplified(text) : toTraditional(text);
-  };
+  const processChineseText = (text: string): string => toScript(text, isSimplified);
   
   // Filter books based on debounced search term (prevents filtering on every keystroke)
   const filteredBooks = useMemo(() => 
@@ -768,6 +686,8 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     ),
     [debouncedBookSearchTerm]
   );
+
+  const bookDisplayName = uiLanguage === 'en' ? bookLabel(selectedBook.name, 'en') : selectedBook.name;
 
   const { handleDownloadCurrentChapter, handleDownloadCurrentBook, handleDownloadBible, handleAutoDownloadBible, handleResumeDownload } = useBibleDownload({
     selectedBookId: selectedBook.id,
@@ -921,6 +841,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
     <div 
       className={`h-full flex flex-col overflow-hidden ${isTransitioning ? 'select-none' : ''} ${vibeClassName || ''}`}
       ref={containerRef}
+      lang={strings.lang}
       onClick={handleEmptySpaceClick}
       onMouseUp={handleMouseUp}
       onTouchEnd={isIOS ? handleIOSTouchEnd : undefined}
@@ -942,10 +863,10 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         bookSearchRef={bookSearchRef}
         onBookSearchTermChange={setBookSearchTerm}
         onBookDropdownOpen={() => { setShowBookDropdown(true); setBookSearchTerm(''); }}
-        onBookSelect={(book) => { setSelectedBook(book); setSelectedChapter(1); setShowBookDropdown(false); setBookSearchTerm(''); }}
+        onBookSelect={(book) => { setSelectedBook(book); setSelectedChapter(1); setSelectedVerses([]); setShowBookDropdown(false); setBookSearchTerm(''); }}
         offlineChapters={offlineChapters}
         chaptersWithContent={chaptersWithContent}
-        onChapterChange={setSelectedChapter}
+        onChapterChange={(chapter) => { setSelectedChapter(chapter); setSelectedVerses([]); }}
         fontSize={fontSize}
         onAdjustFontSize={adjustFontSize}
         isSimplified={isSimplified}
@@ -983,16 +904,9 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         onSidebarToggle={onSidebarToggle}
         chineseVersion={chineseVersion}
         englishVersion={englishVersion}
-        onChineseVersionChange={(v) => {
-          setChineseVersion(v);
-          localStorage.setItem(STORAGE_KEYS.CHINESE_VERSION, v);
-          window.dispatchEvent(new Event('bibleChineseVersionChanged'));
-        }}
-        onEnglishVersionChange={(v) => {
-          setEnglishVersion(v);
-          localStorage.setItem(STORAGE_KEYS.ENGLISH_VERSION, v);
-          window.dispatchEvent(new Event('bibleEnglishVersionChanged'));
-        }}
+        // The store normalizes (a stale 'cunp' → CUV), persists and notifies Settings / other tabs.
+        onChineseVersionChange={setChineseVersion}
+        onEnglishVersionChange={setEnglishVersion}
         allVersesSelected={allVersesSelected}
         selectedVersesCount={selectedVerses.length}
       />
@@ -1084,13 +998,17 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         )}
         <BibleVersePanel
           language="chinese"
-          verses={leftVerses}
+          verses={chineseDisplay.verses}
           selectedVerses={selectedVerses}
           bookmarkedVerses={bookmarkedVerses}
           verseData={verseData}
           fontSize={fontSize}
           isSimplified={isSimplified}
-          loading={loading}
+          loading={chapterData.chinese.status === 'loading'}
+          status={chapterData.chinese.status}
+          offline={chapterData.chinese.offline}
+          bookName={bookDisplayName}
+          onRetry={() => chapterData.retry('chinese')}
           scrollRef={leftScrollRef}
           contentMeasureRef={leftContentMeasureRef}
           annotationRef={chineseAnnotationRef}
@@ -1169,7 +1087,8 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
                 setVSplitOffset(vSplitOffset > 50 ? 50 : 0);
               }}
               className="p-px hover:bg-slate-200 rounded transition-colors flex items-center justify-center group"
-              title={vSplitOffset > 50 ? "Center divider" : "Maximize English"}
+              title={vSplitOffset > 50 ? strings.centerDivider : strings.maximizeEnglish}
+              aria-label={vSplitOffset > 50 ? strings.centerDivider : strings.maximizeEnglish}
               style={{ height: '14px', width: '14px' }}
             >
               <svg className="w-3 h-3 text-slate-500 group-hover:text-slate-700 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1199,7 +1118,8 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
                 setVSplitOffset(vSplitOffset < 50 ? 50 : 100);
               }}
               className="p-px hover:bg-slate-200 rounded transition-colors flex items-center justify-center group"
-              title={vSplitOffset < 50 ? "Center divider" : "Maximize Chinese"}
+              title={vSplitOffset < 50 ? strings.centerDivider : strings.maximizeChinese}
+              aria-label={vSplitOffset < 50 ? strings.centerDivider : strings.maximizeChinese}
               style={{ height: '14px', width: '14px' }}
             >
               <svg className="w-3 h-3 text-slate-500 group-hover:text-slate-700 transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1217,7 +1137,11 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
           verseData={verseData}
           fontSize={fontSize}
           isSimplified={isSimplified}
-          loading={loading}
+          loading={chapterData.english.status === 'loading'}
+          status={chapterData.english.status}
+          offline={chapterData.english.offline}
+          bookName={bookDisplayName}
+          onRetry={() => chapterData.retry('english')}
           scrollRef={rightScrollRef}
           contentMeasureRef={rightContentMeasureRef}
           annotationRef={englishAnnotationRef}
@@ -1240,32 +1164,8 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         />
       </div>
       
-      {/* Non-blocking error notification */}
-      {error && (
-        <div className="absolute bottom-4 right-4 bg-red-500 text-white px-4 py-3 rounded-lg shadow-lg flex items-center gap-2 animate-in slide-in-from-bottom-2 max-w-md">
-          <svg className="w-5 h-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-          </svg>
-          <div className="flex-1">
-            <span className="text-sm block">{error}</span>
-            <button 
-              onClick={() => {
-                setError(null);
-                fetchChapter(); // Retry loading
-              }}
-              className="text-xs mt-1 underline hover:no-underline"
-            >
-              点击重试
-            </button>
-          </div>
-          <button onClick={() => setError(null)} className="ml-2 hover:text-red-100 shrink-0">
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-      )}
-      
+      {/* Load errors are shown per column, inside each BibleVersePanel (the other language keeps reading). */}
+
       {/* Reading History Modal */}
       {showReadingHistory && (
         <ReadingHistory
@@ -1291,12 +1191,12 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
         <button
           onClick={handleRestoreAlignment}
           className="fixed bottom-8 right-4 z-50 flex items-center gap-2 px-4 py-3 rounded-2xl shadow-2xl border-2 border-amber-300 bg-amber-50 hover:bg-amber-100 transition-all hover:scale-105 active:scale-95"
-          title="Annotations are misaligned. Tap to restore original font size and layout. 标注未对齐，点击恢复"
+          title={strings.restoreAlignmentTitle}
         >
           <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
           </svg>
-          <span className="text-sm font-bold text-amber-700">恢复对齐</span>
+          <span className="text-sm font-bold text-amber-700">{strings.restoreAlignment}</span>
         </button>
       )}
 

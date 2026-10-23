@@ -18,6 +18,7 @@ import type { VerseData } from '../../types/verseData';
 import { verseDataStorage } from '../verseDataStorage';
 import { readingHistory, type ChapterHistory, type ReadingPosition } from '../readingHistory';
 import { SYNCED_SETTINGS_KEYS } from '../syncService';
+import { notifyReaderPreferencesChanged } from '../readerPreferences';
 import { importReadingHistory } from './fullBackupImporter';
 import { downloadFile } from './fileDownloader';
 
@@ -133,6 +134,8 @@ async function mergeSections(b: Partial<PersonalBackup>, imported: Record<Person
       imported.settings++;
     }
   }
+  // Same-tab readers (header, Settings) re-read restored editions / language / script.
+  if (imported.settings > 0) notifyReaderPreferencesChanged();
 }
 
 /** The events the views (and, when signed in, the sync push) already listen to. */

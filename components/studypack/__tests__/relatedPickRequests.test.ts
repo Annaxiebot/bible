@@ -16,7 +16,7 @@ import { STORAGE_KEYS } from '../../../constants/storageKeys';
 import { PICK_SYSTEM_PROMPT, SCOPE_GUARD, PromptMessage, RELATED_VERSES_HEADING } from '../../../supabase/functions/_shared/aiPrompts';
 import { validateRequest, ASK_AI_MODEL } from '../../../supabase/functions/ai-proxy/policy';
 import { ownKeyBody } from '../../../services/aiTransport';
-import { TEST_PACK_PATH } from './fixtures';
+import { REQUEST_HASH_PACK_PATH } from './fixtures';
 
 // Original-word retrieval is not under test here (originalWords tests cover it): with the
 // ADR-0018 switch on it finds nothing, so these requests stay exactly what this file pins.
@@ -37,7 +37,7 @@ import { QUESTION_AWARE_ENABLED, buildPickBody, pickCandidates } from '../relate
 import { clearRelatedVersesCache, lastRelatedVerses, loadRelatedVerses } from '../relatedVerses';
 import { clearExternalVerseCache } from '../externalVerses';
 
-const pack = parseStudyPack(JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8')));
+const pack = parseStudyPack(JSON.parse(readFileSync(REQUEST_HASH_PACK_PATH, 'utf-8')));
 const slide = buildSlides(pack)[0];
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 const getItemMock = window.localStorage.getItem as ReturnType<typeof vi.fn>;

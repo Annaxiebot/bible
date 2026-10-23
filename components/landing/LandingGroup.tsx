@@ -38,7 +38,7 @@ const LandingGroup: React.FC = () => (
           <figcaption>
             <span className="ld-when">{photo.when}</span>
             <span className="ld-cap-zh">{photo.caption.zh}</span>
-            <span className="ld-cap-en">{photo.caption.en}</span>
+            <span className="ld-cap-en" lang="en">{photo.caption.en}</span>
           </figcaption>
         </figure>
       ))}

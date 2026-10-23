@@ -1,6 +1,8 @@
 import React from 'react';
 import { Book } from '../types';
 import { useSeasonTheme } from '../hooks/useSeasonTheme';
+import { useReaderPreferences, ENGLISH_EDITIONS, ChineseScript } from '../services/readerPreferences';
+import { readerStrings, bookLabel } from './reader/readerStrings';
 
 interface BibleHeaderProps {
   // Navigation
@@ -133,11 +135,18 @@ const BibleHeader: React.FC<BibleHeaderProps> = ({
   selectedVersesCount,
 }) => {
   const { theme } = useSeasonTheme();
+  const { uiLanguage } = useReaderPreferences();
+  const s = readerStrings(uiLanguage);
+  const script: ChineseScript = isSimplified ? 'simplified' : 'traditional';
+  // 中文 keeps the full bilingual book name; English shows the English half.
+  const bookName = (name: string) => (uiLanguage === 'en' ? bookLabel(name, 'en') : name);
+  const chooseScript = (target: ChineseScript) => { if (target !== script) onToggleChineseMode(); };
 
   return (
     <div
       className={`flex items-center justify-between px-3 py-2 border-b bg-slate-50 sticky top-0 z-10 shrink-0 shadow-sm ${isIPhone ? 'gap-2' : ''}`}
       onClick={e => e.stopPropagation()}
+      lang={s.lang}
     >
       <div className={`flex ${isIPhone ? 'gap-1' : 'gap-3'} items-center`}>
         {/* App Title integrated into Bible controls - responsive positioning */}
@@ -150,7 +159,7 @@ const BibleHeader: React.FC<BibleHeaderProps> = ({
         >
           <div className="w-8 h-8 rounded-lg flex items-center justify-center text-white font-bold shadow-sm" style={{ backgroundColor: theme.accent }}>圣</div>
           {!isIPhone && (
-            <h1 className="text-lg font-bold tracking-tight text-slate-800">经学研</h1>
+            <h1 className="text-lg font-bold tracking-tight text-slate-800">{s.appTitle}</h1>
           )}
           {!showSidebarToggle && (
             <svg className="w-4 h-4 text-slate-400 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -163,7 +172,8 @@ const BibleHeader: React.FC<BibleHeaderProps> = ({
           onClick={() => onNavigateChapter('prev')}
           disabled={!canNavigatePrev}
           className="p-1.5 rounded hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          title="上一章"
+          title={s.prevChapter}
+          aria-label={s.prevChapter}
         >
           <svg className="w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
@@ -173,12 +183,13 @@ const BibleHeader: React.FC<BibleHeaderProps> = ({
           <input
             type="text"
             className={`p-1.5 rounded border bg-white text-sm focus:ring-2 focus:ring-indigo-500 font-medium ${isIPhone ? 'w-24' : 'w-40'}`}
-            value={showBookDropdown ? bookSearchTerm : selectedBook.name}
+            value={showBookDropdown ? bookSearchTerm : bookName(selectedBook.name)}
+            aria-label={s.bookSearchLabel}
             onChange={(e) => onBookSearchTermChange(e.target.value)}
             onFocus={() => {
               onBookDropdownOpen();
             }}
-            placeholder="搜索书卷..."
+            placeholder={s.bookSearchPlaceholder}
           />
           {showBookDropdown && (
             <div className="absolute top-full mt-1 w-full max-h-60 overflow-y-scroll bg-white border border-slate-200 rounded-lg shadow-lg z-50 book-dropdown-scroll">
@@ -191,11 +202,11 @@ const BibleHeader: React.FC<BibleHeaderProps> = ({
                       book.id === selectedBook.id ? 'bg-indigo-100 font-semibold' : ''
                     }`}
                   >
-                    {book.name}
+                    {bookName(book.name)}
                   </button>
                 ))
               ) : (
-                <div className="px-3 py-2 text-sm text-slate-500">没有找到匹配的书卷</div>
+                <div className="px-3 py-2 text-sm text-slate-500">{s.noBookMatch}</div>
               )}
             </div>
           )}
@@ -204,6 +215,8 @@ const BibleHeader: React.FC<BibleHeaderProps> = ({
           className={`p-1.5 rounded border bg-white text-sm focus:ring-2 focus:ring-indigo-500 font-medium ${isIPhone ? 'w-16' : 'w-24'}`}
           value={selectedChapter}
           onChange={(e) => onChapterChange(Number(e.target.value))}
+          aria-label={s.chapterSelectLabel}
+          title={s.chapterSelectLabel}
         >
           {Array.from({ length: selectedBook.chapters || 1 }, (_, i) => i + 1).map(num => {
             const chapterIsOffline = offlineChapters.has(`${selectedBook.id}_${num}`);
@@ -217,7 +230,7 @@ const BibleHeader: React.FC<BibleHeaderProps> = ({
 
             return (
               <option key={num} value={num}>
-                {indicators}{isIPhone ? num : `第 ${num} 章`}
+                {indicators}{isIPhone ? num : s.chapterOption(num)}
               </option>
             );
           })}
@@ -226,7 +239,8 @@ const BibleHeader: React.FC<BibleHeaderProps> = ({
           onClick={() => onNavigateChapter('next')}
           disabled={!canNavigateNext}
           className="p-1.5 rounded hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
-          title="下一章"
+          title={s.nextChapter}
+          aria-label={s.nextChapter}
         >
           <svg className="w-5 h-5 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -237,23 +251,21 @@ const BibleHeader: React.FC<BibleHeaderProps> = ({
           className={`p-1.5 rounded border bg-white text-sm focus:ring-2 focus:ring-indigo-500 font-medium ${isIPhone ? 'w-16' : 'w-auto'}`}
           value={chineseVersion}
           onChange={(e) => onChineseVersionChange(e.target.value)}
-          title="中文版本"
+          title={s.chineseEditionLabel}
+          aria-label={s.chineseEditionLabel}
         >
+          {/* CUNP withdrawn for now (owner request) — CUV is the only Chinese edition offered. */}
           <option value="cuv">{isIPhone ? 'CUV' : '和合本 CUV'}</option>
-          <option value="cunp">{isIPhone ? 'CUNP' : '新標點 CUNP'}</option>
         </select>
         <select
           className={`p-1.5 rounded border bg-white text-sm focus:ring-2 focus:ring-indigo-500 font-medium ${isIPhone ? 'w-16' : 'w-auto'}`}
           value={englishVersion}
           onChange={(e) => onEnglishVersionChange(e.target.value)}
-          title="English version"
+          title={s.englishEditionLabel}
+          aria-label={s.englishEditionLabel}
         >
-          <option value="bsb">BSB</option>
-          <option value="web">{isIPhone ? 'WEB' : 'WEB'}</option>
-          <option value="kjv">{isIPhone ? 'KJV' : 'KJV'}</option>
-          <option value="asv">{isIPhone ? 'ASV' : 'ASV'}</option>
-          <option value="bbe">{isIPhone ? 'BBE' : 'BBE'}</option>
-          <option value="ylt">{isIPhone ? 'YLT' : 'YLT'}</option>
+          {/* The same six editions Settings lists (services/readerPreferences ENGLISH_EDITIONS). */}
+          {ENGLISH_EDITIONS.map(e => <option key={e.id} value={e.id} title={e.name}>{e.short}</option>)}
         </select>
       </div>
       <div className={`flex items-center ${isIPhone ? 'gap-1' : 'gap-3'}`}>
@@ -268,10 +280,12 @@ const BibleHeader: React.FC<BibleHeaderProps> = ({
           style={{
             backgroundColor: isAnnotationMode ? 'rgba(251, 191, 36, 0.15)' : undefined,
           }}
-          title={isAnnotationMode ? '退出标注 Exit annotation' : '标注经文 Annotate verses'}
+          title={isAnnotationMode ? s.exitAnnotateTitle : s.annotateTitle}
+          aria-label={isAnnotationMode ? s.exitAnnotateTitle : s.annotateTitle}
+          aria-pressed={isAnnotationMode}
         >
-          <span className="text-sm">{isAnnotationMode ? '✏️' : '✏️'}</span>
-          {!isIPhone && <span className="text-xs font-medium">{isAnnotationMode ? '标注中' : '标注'}</span>}
+          <span className="text-sm" aria-hidden="true">✏️</span>
+          {!isIPhone && <span className="text-xs font-medium">{isAnnotationMode ? s.annotating : s.annotate}</span>}
         </button>
 
         {/* Search Button */}
@@ -282,38 +296,58 @@ const BibleHeader: React.FC<BibleHeaderProps> = ({
               ? 'bg-indigo-100 border-indigo-300 text-indigo-600'
               : 'bg-white border-slate-200 hover:border-indigo-300'
           }`}
-          title="搜索经文 Search verses"
+          title={s.searchTitle}
+          aria-label={s.searchTitle}
+          aria-pressed={showSearch}
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
           </svg>
-          {!isIPhone && <span className="text-xs font-medium">搜索</span>}
+          {!isIPhone && <span className="text-xs font-medium">{s.search}</span>}
         </button>
 
         {/* Reading History Button */}
         <button
           onClick={onShowReadingHistory}
           className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-full border border-slate-200 hover:border-indigo-300 transition-colors shadow-sm"
-          title="阅读历史"
+          title={s.historyTitle}
+          aria-label={s.historyTitle}
         >
-          <span className="text-sm">📚</span>
-          {!isIPhone && <span className="text-xs font-medium text-slate-600">历史</span>}
+          <span className="text-sm" aria-hidden="true">📚</span>
+          {!isIPhone && <span className="text-xs font-medium text-slate-600">{s.history}</span>}
         </button>
 
         {!isIPhone && (
-          <button
-            onClick={onToggleChineseMode}
-            className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-full border border-slate-200 hover:border-indigo-300 transition-colors shadow-sm"
-            title="切换简繁体"
+          // Two pressed-state buttons, so the current script and the action are never confused.
+          <div
+            role="group"
+            aria-label={s.scriptLabel}
+            title={s.scriptStatus(script)}
+            data-testid="script-control"
+            className="flex items-center p-0.5 bg-white rounded-full border border-slate-200 shadow-sm"
           >
-            <span className="text-xs font-medium text-slate-600">{isSimplified ? '简' : '繁'}</span>
-          </button>
+            {(['simplified', 'traditional'] as const).map(target => (
+              <button
+                key={target}
+                type="button"
+                lang={target === 'simplified' ? 'zh-Hans' : 'zh-Hant'}
+                aria-pressed={script === target}
+                onClick={() => chooseScript(target)}
+                className={`px-2.5 py-1 rounded-full text-xs font-medium transition-colors ${
+                  script === target ? 'bg-indigo-600 text-white' : 'text-slate-600 hover:bg-slate-100'
+                }`}
+              >
+                {target === 'simplified' ? '简' : '繁'}
+              </button>
+            ))}
+          </div>
         )}
         <div className="flex items-center gap-1 px-2 py-1 bg-white rounded-full border border-slate-200 shadow-sm">
           <button
             onClick={() => onAdjustFontSize(-2)}
             className="p-0.5 hover:bg-slate-100 rounded transition-colors"
-            title="缩小字体"
+            title={s.fontSmaller}
+            aria-label={s.fontSmaller}
             disabled={fontSize <= 12}
           >
             <svg className="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -324,7 +358,8 @@ const BibleHeader: React.FC<BibleHeaderProps> = ({
           <button
             onClick={() => onAdjustFontSize(2)}
             className="p-0.5 hover:bg-slate-100 rounded transition-colors"
-            title="放大字体"
+            title={s.fontLarger}
+            aria-label={s.fontLarger}
             disabled={fontSize >= 36}
           >
             <svg className="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -337,18 +372,18 @@ const BibleHeader: React.FC<BibleHeaderProps> = ({
             <button
               onClick={onStopDownload}
               className="flex items-center gap-1 px-2 py-1 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors shadow-sm"
-              title="停止下载"
+              title={s.stopDownload}
             >
               <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
               </svg>
-              <span className="text-xs font-medium">停止</span>
+              <span className="text-xs font-medium">{s.stop}</span>
             </button>
             <div className="flex items-center gap-2 px-2 py-1 bg-white rounded-full border border-slate-200 shadow-sm">
               <div className="w-3 h-3 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
               <div className="flex flex-col items-start">
                 <span className="text-xs font-medium text-slate-600">
-                  {autoDownloadInProgress ? '自动 ' : ''}{downloadProgress}%
+                  {autoDownloadInProgress ? s.autoPrefix : ''}{downloadProgress}%
                   {downloadTimeRemaining && ` • ${downloadTimeRemaining}`}
                 </span>
                 {downloadStatus && (
@@ -361,7 +396,7 @@ const BibleHeader: React.FC<BibleHeaderProps> = ({
           </div>
         )}
         <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest hidden lg:block">
-          {allVersesSelected ? '已选全章' : (selectedVersesCount > 0 ? `已选 ${selectedVersesCount} 节` : '点击经文或高亮文字')}
+          {allVersesSelected ? s.allSelected : (selectedVersesCount > 0 ? s.selectedCount(selectedVersesCount) : s.selectHint)}
         </div>
         <div className="h-4 w-[1px] bg-slate-200 hidden lg:block"></div>
 
@@ -371,7 +406,9 @@ const BibleHeader: React.FC<BibleHeaderProps> = ({
             <button
               onClick={onToggleMobileMenu}
               className="p-1.5 bg-white rounded-lg border border-slate-200 hover:bg-slate-50 transition-colors shadow-sm"
-              title="更多选项"
+              title={s.moreOptions}
+              aria-label={s.moreOptions}
+              aria-expanded={showMobileMenu}
             >
               <svg className="w-4 h-4 text-slate-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z" />
@@ -389,8 +426,8 @@ const BibleHeader: React.FC<BibleHeaderProps> = ({
                   }}
                   className="w-full px-3 py-2 text-left text-sm hover:bg-slate-50 transition-colors"
                 >
-                  <span className="text-slate-700">切换简繁体</span>
-                  <span className="float-right text-slate-500">{isSimplified ? '简' : '繁'}</span>
+                  <span className="text-slate-700">{s.scriptLabel}</span>
+                  <span className="float-right text-slate-500">{s.scriptStatus(script)}</span>
                 </button>
               </div>
             )}
@@ -398,7 +435,7 @@ const BibleHeader: React.FC<BibleHeaderProps> = ({
         )}
         <div className="flex items-center gap-1.5 px-3 py-1 bg-white rounded-full border border-slate-200 shadow-sm">
           <div className={`w-1.5 h-1.5 rounded-full ${isOffline ? 'bg-green-500' : 'bg-indigo-500 animate-pulse'}`}></div>
-          <span className="text-[10px] font-bold text-slate-500">{isOffline ? '离线模式' : '在线'}</span>
+          <span className="text-[10px] font-bold text-slate-500">{isOffline ? s.offline : s.online}</span>
           <span className="text-[8px] text-slate-400 ml-1">v2.2.0</span>
         </div>
       </div>

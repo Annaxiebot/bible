@@ -2,6 +2,11 @@ import path from "path";
 import { defineConfig, Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { pdfjsCmaps } from "./scripts/vitePdfjsCmaps";
+import { seoPrerender } from "./scripts/seo/viteSeo";
+
+// The pack the homepage fallback features; pinned equal to SAMPLE_PACK_ID (components/landing/landingRoute.ts)
+// by scripts/__tests__/seoPrerender.test.ts — landingRoute itself pulls app modules the config should not bundle.
+const FEATURED_PACK_ID = "2026-10-02-matt6";
 
 // Custom plugin to redirect HTTP to HTTPS
 const httpsRedirect = (): Plugin => ({
@@ -51,7 +56,7 @@ export default defineConfig(() => {
           }
         }
       },
-      plugins: [react(), pdfjsCmaps()],
+      plugins: [react(), pdfjsCmaps(), seoPrerender({ featuredPackId: FEATURED_PACK_ID })],
       resolve: {
         alias: {
           "@": path.resolve(__dirname, "."),

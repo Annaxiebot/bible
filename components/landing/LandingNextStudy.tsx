@@ -1,10 +1,10 @@
 /**
- * LandingNextStudy.tsx — "下次查经 Next study": the current pack · 下次查经
+ * LandingNextStudy.tsx — "完整示范 Complete sample": a public pack · 完整示范
  *
  * Takes a pack id (today the sample pack; later a "current pack" setting)
  * and loads it through the same seam TV mode uses (packSource.loadPack →
- * public/packs/<id>.json?schema=N). A card shows title, passage and date
- * with two pills: open the pack in TV mode, and reveal this pack's sign-up
+ * public/packs/<id>.json?schema=N). A card shows title and passage — no
+ * date: the sample is not a maintained schedule (2026-10 review) — with two pills: open the pack in TV mode, and reveal this pack's sign-up
  * QR + link (drawn from the pack id by SignupQr / signupRoute) — or the
  * demo line when the pack has no owning leader. Beside it, a dark panel
  * quotes the key verse from the bundled data. `children` (the New study
@@ -22,6 +22,7 @@ import { packHash } from './landingRoute';
 import {
   NEXT_SECTION_ID, NEXT_EYEBROW, NEXT_HEADING_ZH, NEXT_HEADING_EN, NEXT_DESC, NEXT_OPEN_CTA,
   NEXT_SIGNUP_CTA, NEXT_SIGNUP_CLOSE, NEXT_SIGNUP_LINK, NEXT_NONE_YET, NEXT_LOADING, NEXT_VERSE_REF,
+  SAMPLE_NO_SIGNIN,
 } from './landingStrings';
 import { TRANSLATIONS } from '../studypack/principles';
 import LandingSection, { splitBilingual } from './LandingSection';
@@ -53,16 +54,16 @@ function usePackSummary(packId: string): PackState {
 
 const PackSummary: React.FC<{ state: PackState }> = ({ state }) => {
   if (state.status === 'ready') {
-    const { title, passageRef, date } = state.pack;
+    const { title, passageRef } = state.pack;
     const at = title.indexOf(' ');
     const ref = splitBilingual(passageRef);
     return (
       <div data-testid="next-study-pack">
         <p className="ld-next-title">
-          {at < 0 ? title : <>{title.slice(0, at)}{' '}<span className="ld-h2-en">{title.slice(at + 1)}</span></>}
+          {at < 0 ? title : <>{title.slice(0, at)}{' '}<span className="ld-h2-en" lang="en">{title.slice(at + 1)}</span></>}
         </p>
-        <p className="ld-next-ref"><b className="ld-hl">{ref.zh}</b>{ref.en && ` · ${ref.en}`}</p>
-        <p className="ld-next-date">{date}</p>
+        <p className="ld-next-ref"><b className="ld-hl">{ref.zh}</b>{ref.en && <> · <span lang="en">{ref.en}</span></>}</p>
+        <p className="ld-next-date">{SAMPLE_NO_SIGNIN}</p>
       </div>
     );
   }

@@ -18,6 +18,7 @@ import {
   canSync,
 } from './supabase';
 import { STORAGE_KEYS } from '../constants/storageKeys';
+import { notifyReaderPreferencesChanged, READER_PREF_KEYS } from './readerPreferences';
 import { notesStorage } from './notesStorage';
 import { annotationStorage, AnnotationRecord } from './annotationStorage';
 import { readingHistory } from './readingHistory';
@@ -550,6 +551,7 @@ export const SYNCED_SETTINGS_KEYS: string[] = [
   STORAGE_KEYS.ENGLISH_VERSION,
   STORAGE_KEYS.CHINESE_VERSION,
   STORAGE_KEYS.CHINESE_MODE,
+  STORAGE_KEYS.UI_LANGUAGE,
   STORAGE_KEYS.FONT_SIZE,
   STORAGE_KEYS.VIEW_LAYOUT,
 ];
@@ -584,12 +586,16 @@ async function syncSettings(forceRemotePull = false): Promise<void> {
     // Pull from remote if remote is newer OR if forced (manual/full sync)
     if (forceRemotePull || remoteTime > syncState.lastSettingsSync) {
       // Remote is newer — merge remote into local (remote wins)
+      const changedPrefs: string[] = [];
       for (const [key, val] of Object.entries(remoteSettings).filter(([k]) => isSyncableSettingKey(k))) {
         if (val && SYNCED_SETTINGS_KEYS.includes(key)) {
+          if (localStorage.getItem(key) !== val && (READER_PREF_KEYS as readonly string[]).includes(key)) changedPrefs.push(key);
           localStorage.setItem(key, val);
           localSettings[key] = val;
         }
       }
+      // localStorage writes fire no event in this tab: tell the open reader and Settings.
+      if (changedPrefs.length > 0) notifyReaderPreferencesChanged(changedPrefs);
     }
   }
 

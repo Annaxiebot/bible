@@ -11,12 +11,35 @@ export const CHINESE_TRANSLATIONS: ReadonlySet<BibleTranslation> = new Set<Bible
   'cuv', 'cunp',
 ]);
 
+/** Chinese edition every reader gets; also the fallback for unknown or withdrawn editions. */
+export const DEFAULT_CHINESE_VERSION: BibleTranslation = 'cuv';
+
+/**
+ * Chinese editions offered in the UI. CUNP is withdrawn for now (owner request), so it stays in
+ * BibleTranslation/CHINESE_TRANSLATIONS only to recognise previously cached data.
+ */
+export const SELECTABLE_CHINESE_VERSIONS: readonly BibleTranslation[] = ['cuv'];
+
+/** Maps a stored/synced Chinese edition to a selectable one — a stale 'cunp' becomes 'cuv'. */
+export function normalizeChineseVersion(version: string | null | undefined): BibleTranslation {
+  return SELECTABLE_CHINESE_VERSIONS.includes(version as BibleTranslation)
+    ? (version as BibleTranslation)
+    : DEFAULT_CHINESE_VERSION;
+}
+
+/** English editions the reader offers (labels: services/readerPreferences ENGLISH_EDITIONS). */
+export const ENGLISH_TRANSLATIONS: ReadonlySet<BibleTranslation> = new Set<BibleTranslation>([
+  'bsb', 'web', 'kjv', 'asv', 'bbe', 'ylt',
+]);
+
 /** Default English version for users with no stored preference (BSB is bundled offline). */
 export const DEFAULT_ENGLISH_VERSION: BibleTranslation = 'bsb';
 
 /** The reader's chosen English version (sidebar setting), else the default — one reader for every caller. */
 export function chosenEnglishVersion(): BibleTranslation {
-  return (localStorage.getItem(STORAGE_KEYS.ENGLISH_VERSION) as BibleTranslation | null) || DEFAULT_ENGLISH_VERSION;
+  const saved = localStorage.getItem(STORAGE_KEYS.ENGLISH_VERSION) as BibleTranslation | null;
+  // An unknown or Chinese value (corrupt / synced from an old build) must not be fetched as English.
+  return saved && ENGLISH_TRANSLATIONS.has(saved) ? saved : DEFAULT_ENGLISH_VERSION;
 }
 
 class BibleStorageService {

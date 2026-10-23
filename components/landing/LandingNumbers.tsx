@@ -31,7 +31,7 @@ const Figures: React.FC<{ figures: readonly Figure[]; testId: string; className:
         <dt className="ld-figure ld-hl">{figure.value}</dt>
         <dd>
           <span className="ld-figure-zh">{figure.zh}</span>
-          <span className="ld-en">{figure.en}</span>
+          <span className="ld-en" lang="en">{figure.en}</span>
           {figure.note && <span className="ld-figure-note">{figure.note}</span>}
         </dd>
       </div>
