@@ -31,7 +31,8 @@ export const DEFAULT_SITE_ORIGIN = 'https://scripturetolife.org';
 export const STUDIES_DIR = 'studies';
 
 export const HOME_TITLE = `${BRAND_ZH} · ${BRAND_EN} — ${HERO_EYEBROW}`;
-export const HOME_DESCRIPTION = `${HERO_SUB_EN} ${HERO_SUB_ZH}`;
+/** Chinese first (ADR-0003 §1): the description, og:description and twitter:description share it. */
+export const HOME_DESCRIPTION = `${HERO_SUB_ZH} ${HERO_SUB_EN}`;
 
 export interface SeoSite {
   /** "https://scripturetolife.org" — no trailing slash. */
@@ -282,15 +283,16 @@ function bilingualKeyPhrase(phrase: string): string {
   return `<span lang="zh-Hans">${escapeHtml(phrase.slice(0, at).trim())}</span> <span lang="en">${escapeHtml(phrase.slice(at))}</span>`;
 }
 
-/** Unique per pack: title + passage + the pack's own first context line. */
+/** Unique per pack: title + passage + the pack's own first context line — Chinese first, then English. */
 export function studyDescription(pack: PublicPack): string {
   const ref = splitLine(pack.passageRef);
+  const title = splitHeading(pack.title);
   const context = pack.sections.find(s => s.kind === 'context')?.body ?? [];
-  const firstEn = context.map(l => splitLine(l).en).find(Boolean) ?? '';
+  const [firstZh, firstEn] = (['zh', 'en'] as const).map(lang => context.map(l => splitLine(l)[lang]).find(Boolean) ?? '');
   const questions = pack.sections.find(s => s.kind === 'discussion')?.questions?.length ?? 0;
-  const head = `${splitHeading(pack.title).en || pack.title} — a bilingual (Chinese/English) group Bible study on ${ref.en || ref.zh}`;
-  const tail = questions ? ` with ${questions} discussion questions.` : '.';
-  return truncate(`${head}${tail} ${firstEn} ${ref.zh}双语查经。`, 300);
+  const zh = `${title.zh}：${ref.zh}双语小组查经${questions ? `，${questions} 道讨论题` : ''}。${firstZh}`;
+  const en = `${title.en || pack.title} — a bilingual (Chinese/English) group Bible study on ${ref.en || ref.zh}${questions ? ` with ${questions} discussion questions` : ''}.`;
+  return truncate(`${zh} ${en} ${firstEn}`, 300);
 }
 
 export function studyTitle(pack: PublicPack): string {

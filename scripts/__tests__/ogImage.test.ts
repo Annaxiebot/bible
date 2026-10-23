@@ -1,41 +1,56 @@
-/** ogImage — the social card is a valid 1200×630 PNG (Open Graph / Twitter need a raster image). */
+/**
+ * ogImage — public/og-image.png is a valid 1200×630 PNG (Open Graph / Twitter
+ * need a raster image) rendered from the CURRENT card: it records the sha256
+ * of the ogCardHtml() it came from, so a change to the card or to a string it
+ * shows fails here until `node scripts/seo/render-og-image.mjs` is re-run.
+ */
 import { describe, it, expect } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import { inflateSync } from 'node:zlib';
-import { ogImagePng, crc32, OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT } from '../seo/ogImage';
+import {
+  OG_IMAGE_FILE, OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT, OG_CARD_HASH_KEY, pngChunks, pngText, withPngText,
+} from '../seo/ogImage';
+import { ogCardHash } from '../seo/ogCard';
 
-describe('ogImagePng', () => {
-  const png = ogImagePng();
+const png = fs.readFileSync(path.resolve(__dirname, '../../public', OG_IMAGE_FILE));
 
-  it('has the PNG signature and a 1200×630 RGB header', () => {
-    expect([...png.subarray(0, 8)]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-    expect(png.toString('ascii', 12, 16)).toBe('IHDR');
-    expect(png.readUInt32BE(16)).toBe(OG_IMAGE_WIDTH);
-    expect(png.readUInt32BE(20)).toBe(OG_IMAGE_HEIGHT);
-    expect(png[24]).toBe(8);
-    expect(png[25]).toBe(2);
+describe('public/og-image.png', () => {
+  it('is a 1200×630 8-bit PNG with valid chunk CRCs, ending in IEND', () => {
+    const chunks = pngChunks(png);
+    expect(chunks[0].type).toBe('IHDR');
+    expect(chunks[0].data.readUInt32BE(0)).toBe(OG_IMAGE_WIDTH);
+    expect(chunks[0].data.readUInt32BE(4)).toBe(OG_IMAGE_HEIGHT);
+    expect(chunks[0].data[8]).toBe(8);
+    expect(chunks.every(c => c.crcOk)).toBe(true);
+    expect(chunks.at(-1)!.type).toBe('IEND');
+    expect(chunks.some(c => c.type === 'IDAT')).toBe(true);
   });
 
-  it('every chunk CRC is valid, it ends with IEND, and the pixels decompress to the right size', () => {
-    let at = 8;
-    const types: string[] = [];
-    let idat = Buffer.alloc(0);
-    while (at < png.length) {
-      const len = png.readUInt32BE(at);
-      const type = png.toString('ascii', at + 4, at + 8);
-      const data = png.subarray(at + 8, at + 8 + len);
-      expect(png.readUInt32BE(at + 8 + len)).toBe(crc32(png.subarray(at + 4, at + 8 + len)));
-      if (type === 'IDAT') idat = Buffer.concat([idat, data]);
-      types.push(type);
-      at += 12 + len;
-    }
-    expect(types).toEqual(['IHDR', 'IDAT', 'IEND']);
-    expect(inflateSync(idat).length).toBe((OG_IMAGE_WIDTH * 3 + 1) * OG_IMAGE_HEIGHT);
+  it('was rendered from the current card (re-run scripts/seo/render-og-image.mjs if not)', () => {
+    expect(pngText(png)[OG_CARD_HASH_KEY]).toBe(ogCardHash());
   });
 
-  it('is small enough for social crawlers (< 1 MB) and not a blank image', () => {
+  it('is small enough for social crawlers and not a blank image', () => {
     expect(png.length).toBeLessThan(1_000_000);
-    // One IDAT: after signature (8) + IHDR chunk (25) + IDAT length/type (8); before its CRC (4) + IEND (12).
-    const raw = inflateSync(png.subarray(41, png.length - 16));
-    expect(new Set(raw.subarray(0, 50_000)).size).toBeGreaterThan(5);
+    const idat = Buffer.concat(pngChunks(png).filter(c => c.type === 'IDAT').map(c => c.data));
+    const raw = inflateSync(idat);
+    expect(new Set(raw.subarray(0, 200_000)).size).toBeGreaterThan(20);
+  });
+});
+
+describe('PNG text chunk helpers', () => {
+  it('withPngText adds a readable tEXt chunk before IEND and keeps every CRC valid', () => {
+    const base = withPngText(png, 'probe', 'one');
+    const out = withPngText(base, 'second', 'two');
+    expect(pngText(out)).toMatchObject({ probe: 'one', second: 'two' });
+    const chunks = pngChunks(out);
+    expect(chunks.every(c => c.crcOk)).toBe(true);
+    expect(chunks.at(-1)!.type).toBe('IEND');
+  });
+
+  it('pngChunks refuses a non-PNG and a truncated PNG', () => {
+    expect(() => pngChunks(Buffer.from('not a png at all'))).toThrow(/not a PNG/);
+    expect(() => pngChunks(png.subarray(0, 40))).toThrow(/truncated/);
   });
 });

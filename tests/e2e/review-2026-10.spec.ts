@@ -113,10 +113,14 @@ test.describe('landing — copy, disclosure, keyboard', () => {
     await expect(page.locator('main')).toHaveCount(1);
   });
 
-  test('delivered head carries description, canonical, Open Graph and Twitter tags', async ({ page }) => {
+  test('delivered head carries description, canonical, Open Graph and Twitter tags, Chinese first', async ({ page }) => {
     await page.goto('./');
     await expect(page.locator('meta[name="description"]')).toHaveAttribute('content', /into a group study/);
     await expect(page.locator('meta[name="description"]')).not.toHaveAttribute('content', /bilingual group study/);
+    // Chinese first in what a share preview shows (owner, 2026-10-23).
+    for (const sel of ['meta[name="description"]', 'meta[property="og:description"]', 'meta[name="twitter:description"]', 'meta[property="og:image:alt"]']) {
+      await expect(page.locator(sel)).toHaveAttribute('content', /^[\u3400-\u9fff]/);
+    }
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', /^https:\/\/scripturetolife\.org\//);
     await expect(page.locator('meta[property="og:image"]')).toHaveAttribute('content', /og-image\.png$/);
     await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute('content', 'summary_large_image');
