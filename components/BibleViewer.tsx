@@ -28,6 +28,7 @@ import { useBibleContextMenu } from '../hooks/useBibleContextMenu';
 import AnnotationToolbar from './AnnotationToolbar';
 import BibleSearchPanel from './BibleSearchPanel';
 import BibleHeader from './BibleHeader';
+import { FONT_SIZE_MIN, FONT_SIZE_MAX } from './reader/ReaderTools';
 import BibleVersePanel from './BibleVersePanel';
 
 interface BibleViewerProps {
@@ -669,7 +670,7 @@ const BibleViewer: React.FC<BibleViewerProps> = ({
   };
 
   const adjustFontSize = (delta: number) => {
-    const newSize = Math.min(Math.max(fontSize + delta, 12), 36);
+    const newSize = Math.min(Math.max(fontSize + delta, FONT_SIZE_MIN), FONT_SIZE_MAX);
     setFontSize(newSize);
     localStorage.setItem(STORAGE_KEYS.FONT_SIZE, newSize.toString());
   };

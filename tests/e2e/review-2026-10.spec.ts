@@ -5,28 +5,12 @@
  * OpenRouter) is blocked; chapter failures are injected with local routes.
  * No sign-in, no AI request, no sign-up is ever made.
  */
-import { test, expect, Page, BrowserContext } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { APP_HASH, SAMPLE_PACK_ID } from '../../components/landing/landingRoute';
 import {
   GROUP_CTA, NEW_STUDY_SIGNIN_NOTE, PERSONAL_CTA,
 } from '../../components/landing/landingStrings';
-
-const MATT7_LAST_READ = JSON.stringify({ bookId: 'MAT', bookName: '马太福音 Matthew', chapter: 7, timestamp: 1 });
-
-async function blockExternalApis(context: BrowserContext) {
-  await context.route(/bible-api\.com|supabase\.co|openrouter\.ai|\/bible-api\//, route => route.abort());
-}
-
-async function openMatthew7(page: Page, prefs: Record<string, string> = {}) {
-  await page.addInitScript(([lastRead, extra]) => {
-    localStorage.setItem('bibleLastRead', lastRead as string);
-    for (const [k, v] of Object.entries(extra as Record<string, string>)) localStorage.setItem(k, v);
-  }, [MATT7_LAST_READ, prefs] as const);
-  await page.goto(`./${APP_HASH}`);
-}
-
-const zhColumn = (page: Page) => page.getByTestId('reader-column-chinese');
-const enColumn = (page: Page) => page.getByTestId('reader-column-english');
+import { blockExternalApis, openMatthew7, zhColumn, enColumn } from './helpers/reader';
 
 test.beforeEach(async ({ context }) => { await blockExternalApis(context); });
 
