@@ -20,8 +20,9 @@ import { MAIN_CONTENT_ID, SKIP_LINK_LABEL } from '../../shared/SkipLink';
 describe('landing copy (2026-10 review)', () => {
   it('hero says concretely what the site does, in both languages', () => {
     expect(HERO_SUB_EN).toBe(
-      'Turn a Bible passage into a bilingual group study. Draft discussion questions, present them on your TV, and keep your group connected with mid-week check-ins.');
-    expect(HERO_SUB_ZH).toMatch(/双语小组查经/);
+      'Turn a Bible passage into a group study. Draft discussion questions, present them on your TV, and keep your group connected with mid-week check-ins.');
+    expect(HERO_SUB_ZH).toContain('小组查经');
+    expect(HERO_SUB_ZH).not.toContain('双语小组查经');
     render(<LandingHero />);
     expect(screen.getByTestId('hero-sub')).toHaveTextContent(HERO_SUB_EN);
     expect(screen.getByText(HERO_SUB_EN)).toHaveAttribute('lang', 'en');

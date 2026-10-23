@@ -17,16 +17,16 @@ export const SITE_LINE = 'Scripture to Life · scripturetolife.org';
 export const HOME_LINK_LABEL = '返回首页 · Home';
 
 /** Hero sub-line (2026-10 review: say concretely what the site does). */
-export const HERO_SUB_ZH = '把一段经文变成双语小组查经——起草讨论题，在电视上演示，再用周中提醒让小组彼此连结。';
+export const HERO_SUB_ZH = '把一段经文变成小组查经——起草讨论题，在电视上演示，再用周中提醒让小组彼此连结。';
 export const HERO_SUB_EN =
-  'Turn a Bible passage into a bilingual group study. Draft discussion questions, present them on your TV, and keep your group connected with mid-week check-ins.';
+  'Turn a Bible passage into a group study. Draft discussion questions, present them on your TV, and keep your group connected with mid-week check-ins.';
 /** The line under the sub-line: what is published Scripture and what is an AI draft. */
 export const HERO_SOURCE_NOTE = {
   zh: '经文直接取自已出版的圣经译本（和合本、BSB）；讨论题等查经内容由 AI 起草，组长审阅、修改后再用。',
   en: 'Scripture comes straight from published Bible translations (CUV, BSB); discussion questions and other study material are AI drafts that the leader reviews and edits.',
 } as const;
 /** NEW COPY: hero eyebrow. */
-export const HERO_EYEBROW = '双语小组查经 · Bilingual group Bible study';
+export const HERO_EYEBROW = '小组查经 · Group Bible study';
 
 export const GROUP_TITLE_ZH = '小组查经';
 export const GROUP_TITLE_EN = 'Group Bible Study';

@@ -21,7 +21,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
       
       - name: Install dependencies
@@ -35,13 +35,14 @@ jobs:
         run: npm run test:coverage
         continue-on-error: false
       
+      # shell: bash runs with -eo pipefail, so a failing vite build fails the step
+      # through the tee. check-build-log.mjs ignores file/asset names (a chunk called
+      # AIErrorLine-xxxx.js is not an error); pinned by scripts/__tests__/checkBuildLog.test.ts.
       - name: Build (must succeed with zero warnings)
+        shell: bash
         run: |
           npm run build 2>&1 | tee build.log
-          if grep -iE "error|warning.*Duplicate|warning.*unused" build.log; then
-            echo "❌ Build has errors or warnings. Fix them before merging."
-            exit 1
-          fi
+          node scripts/check-build-log.mjs build.log
       
       - name: Security audit
         run: npm audit --audit-level=high
@@ -64,7 +65,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '24'
           cache: 'npm'
       
       - name: Install dependencies

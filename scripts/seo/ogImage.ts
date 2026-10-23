@@ -12,14 +12,16 @@ import { deflateSync } from 'node:zlib';
 export const OG_IMAGE_WIDTH = 1200;
 export const OG_IMAGE_HEIGHT = 630;
 export const OG_IMAGE_FILE = 'og-image.png';
-export const OG_IMAGE_ALT = 'Scripture to Life — Bilingual group Bible study: gold lettering beside concentric gold rings on a dark background';
+export const OG_IMAGE_ALT = 'Scripture to Life — Group Bible study: gold lettering beside concentric gold rings on a dark background';
+/** The tagline the card draws under the wordmark (bitmap font: uppercase only). */
+export const OG_IMAGE_TAGLINE = 'GROUP BIBLE STUDY';
 
 type RGB = [number, number, number];
 
 const BG_TOP: RGB = [24, 20, 16];
 const BG_BOTTOM: RGB = [40, 31, 22];
 const GOLD: RGB = [232, 184, 92];
-const GOLD_PALE: RGB = [242, 223, 180];
+export const GOLD_PALE: RGB = [242, 223, 180];
 const RING: RGB = [150, 116, 60];
 
 /** 5×7 glyphs, one string of five 0/1 per row. Only the letters the card uses. */
@@ -72,8 +74,8 @@ function drawText(px: Uint8Array, text: string, x0: number, y0: number, scale: n
   }
 }
 
-/** Raw RGB pixels of the card. */
-export function drawOgPixels(): Uint8Array {
+/** Raw RGB pixels of the card. `tagline` is a parameter only so tests can compare renders. */
+export function drawOgPixels(tagline: string = OG_IMAGE_TAGLINE): Uint8Array {
   const W = OG_IMAGE_WIDTH, H = OG_IMAGE_HEIGHT;
   const px = new Uint8Array(W * H * 3);
   const cx = 1010, cy = 315;
@@ -96,7 +98,7 @@ export function drawOgPixels(): Uint8Array {
     }
   }
   drawText(px, 'SCRIPTURE TO LIFE', 80, 200, 10, GOLD);
-  drawText(px, 'BILINGUAL GROUP BIBLE STUDY', 84, 320, 5, GOLD_PALE);
+  drawText(px, tagline, 84, 320, 5, GOLD_PALE);
   drawText(px, 'SCRIPTURETOLIFE.ORG', 84, 470, 4, GOLD);
   return px;
 }

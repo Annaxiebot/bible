@@ -12,6 +12,7 @@ import {
   loadPublicPacks, studyPageHtml, studyTitle, studyDescription, sitemapXml, robotsTxt, transformIndexHtml,
   homeFallbackHtml, normalizeBase, normalizeOrigin, validatePublicPack, escapeHtml, splitHeading, SeoSite, PublicPack,
 } from '../seo/prerender';
+import { drawOgPixels, OG_IMAGE_TAGLINE, OG_IMAGE_ALT, OG_IMAGE_WIDTH, GOLD_PALE } from '../seo/ogImage';
 import { SAMPLE_PACK_ID } from '../../components/landing/landingRoute';
 import { HERO_SUB_EN, GROUP_CTA, PERSONAL_CTA, NEW_STUDY_SIGNIN_NOTE } from '../../components/landing/landingStrings';
 
@@ -165,7 +166,10 @@ describe.each(SITES)('delivered index.html (base $base)', (site) => {
 
   it('the root carries a meaningful homepage, with links that keep hash routes working', () => {
     const root = d.getElementById('root')!;
-    expect(root.querySelector('h1')!.textContent).toContain('Bilingual group Bible study');
+    const h1 = root.querySelector('h1')!.textContent!;
+    expect(h1).toContain('Group Bible study');
+    expect(h1).not.toMatch(/bilingual/i);
+    expect(h1).not.toContain('双语');
     expect(root.textContent).toContain(HERO_SUB_EN);
     const hrefs = [...root.querySelectorAll('a')].map(a => a.getAttribute('href'));
     expect(hrefs).toContain(`${site.base}#/pack/${SAMPLE_PACK_ID}`);
@@ -211,5 +215,29 @@ describe('helpers', () => {
 
   it('refuses an index.html without the empty root (would otherwise ship no fallback)', () => {
     expect(() => transformIndexHtml('<title>x</title><div id="root">x</div>', SITES[0], packs, SAMPLE_PACK_ID)).toThrow(/root/);
+  });
+});
+
+describe('social card tagline', () => {
+  // Tagline row: drawn at x=84, y=320, scale 5 (35px tall, 30px per glyph).
+  const paleXs = (px: Uint8Array) => {
+    const xs: number[] = [];
+    for (let y = 320; y < 355; y++) for (let x = 0; x < OG_IMAGE_WIDTH; x++) {
+      const o = (y * OG_IMAGE_WIDTH + x) * 3;
+      if (px[o] === GOLD_PALE[0] && px[o + 1] === GOLD_PALE[1] && px[o + 2] === GOLD_PALE[2]) xs.push(x);
+    }
+    return xs;
+  };
+
+  it('the renderer draws GROUP BIBLE STUDY, not the old bilingual tagline', () => {
+    expect(OG_IMAGE_TAGLINE).toBe('GROUP BIBLE STUDY');
+    expect(OG_IMAGE_ALT).not.toMatch(/bilingual/i);
+    const card = drawOgPixels();
+    expect(Buffer.from(card).equals(Buffer.from(drawOgPixels('GROUP BIBLE STUDY')))).toBe(true);
+    expect(Buffer.from(card).equals(Buffer.from(drawOgPixels('BILINGUAL GROUP BIBLE STUDY')))).toBe(false);
+    const xs = paleXs(card);
+    expect(xs.length).toBeGreaterThan(0);
+    expect(Math.min(...xs)).toBeGreaterThanOrEqual(84);
+    expect(Math.max(...xs)).toBeLessThan(84 + OG_IMAGE_TAGLINE.length * 30);
   });
 });

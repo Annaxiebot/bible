@@ -28,7 +28,7 @@ export const DEFAULT_SITE_ORIGIN = 'https://scripturetolife.org';
 export const STUDIES_DIR = 'studies';
 export const SKIP_LABEL = '跳到主要内容 · Skip to main content';
 
-export const HOME_TITLE = `${BRAND_ZH} · ${BRAND_EN} — 双语小组查经 · Bilingual group Bible study`;
+export const HOME_TITLE = `${BRAND_ZH} · ${BRAND_EN} — 小组查经 · Group Bible study`;
 export const HOME_DESCRIPTION = `${HERO_SUB_EN} ${HERO_SUB_ZH}`;
 
 export interface SeoSite {
@@ -224,7 +224,7 @@ export function homeFallbackHtml(site: SeoSite, packs: PublicPack[], featuredId:
       <main id="main-content" tabindex="-1">
         <header>
           <p class="stl-fb-brand"><span lang="zh-Hans">${escapeHtml(BRAND_ZH)}</span> · <span lang="en">${escapeHtml(BRAND_EN)}</span></p>
-          <h1><span lang="zh-Hans">双语小组查经</span> <span lang="en">Bilingual group Bible study</span></h1>
+          <h1><span lang="zh-Hans">小组查经</span> <span lang="en">Group Bible study</span></h1>
           <p>${escapeHtml(HERO_SUB_ZH)}</p>
           <p lang="en">${escapeHtml(HERO_SUB_EN)}</p>
           <p class="stl-fb-note">${escapeHtml(HERO_SOURCE_NOTE.zh)} <span lang="en">${escapeHtml(HERO_SOURCE_NOTE.en)}</span></p>

@@ -130,7 +130,8 @@ test.describe('landing — copy, disclosure, keyboard', () => {
 
   test('delivered head carries description, canonical, Open Graph and Twitter tags', async ({ page }) => {
     await page.goto('./');
-    await expect(page.locator('meta[name="description"]')).toHaveAttribute('content', /bilingual group study/);
+    await expect(page.locator('meta[name="description"]')).toHaveAttribute('content', /into a group study/);
+    await expect(page.locator('meta[name="description"]')).not.toHaveAttribute('content', /bilingual group study/);
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', /^https:\/\/scripturetolife\.org\//);
     await expect(page.locator('meta[property="og:image"]')).toHaveAttribute('content', /og-image\.png$/);
     await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute('content', 'summary_large_image');
