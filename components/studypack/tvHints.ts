@@ -93,6 +93,9 @@ export function quotaLine(limit: number): string {
   return bilingualLine(`本月AI次数已用完（${limit}次）`, `this month's AI limit is reached (${limit})`);
 }
 
+/** Proxy 429 { error: 'daily-cap' }: the site's pack generations for today are used up (ADR-0007 "Caps"). */
+export const AI_DAILY_CAP_REACHED = bilingualLine('今天的生成次数已满，请明天再试', "Today's generation limit is reached, try tomorrow");
+
 /** Proxy 402 { error: 'no-credit' }: the site's OpenRouter credit is spent (a hard cap). */
 export const AI_CREDIT_USED_UP = bilingualLine('AI 额度已用完，请联系管理员', 'AI credit used up, contact the admin');
 

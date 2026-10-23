@@ -13,7 +13,7 @@ import {
   AI_SIGN_IN_NEEDED, AI_CREDITS_MESSAGE, AI_INVALID_KEY_MESSAGE, AI_REQUEST_FAILED,
   modelUnavailableLine, httpDetail, streamErrorLine, timeoutLine, withModel,
   AI_EMPTY, AI_BUDGET_SPENT, AI_FILTERED, AI_NETWORK_ERROR,
-  quotaLine, AI_CREDIT_USED_UP, AI_SERVICE_PAUSED,
+  quotaLine, AI_CREDIT_USED_UP, AI_SERVICE_PAUSED, AI_DAILY_CAP_REACHED,
 } from './tvHints';
 
 export type AskAIErrorKind =
@@ -21,6 +21,7 @@ export type AskAIErrorKind =
   | 'invalid-key'
   | 'no-credits'
   | 'quota'
+  | 'daily-cap'
   | 'credit-used-up'
   | 'service-paused'
   | 'model-unavailable'
@@ -100,6 +101,7 @@ export function hostedErrorFromStatus(status: number, data: ErrorReply, model: s
   if (status === 401) return new AskAIError('sign-in-needed', AI_SIGN_IN_NEEDED, model, status);
   const code = typeof data.error === 'string' ? data.error : null;
   if (code === 'quota') return new AskAIError('quota', quotaLine(data.limit ?? 0), model, status);
+  if (code === 'daily-cap') return new AskAIError('daily-cap', AI_DAILY_CAP_REACHED, model, status);
   if (code === 'no-credit') return new AskAIError('credit-used-up', AI_CREDIT_USED_UP, model, status);
   if (status === 503) return new AskAIError('service-paused', `${AI_SERVICE_PAUSED} · ${httpDetail(status, code ?? '')}`, model, status);
   if (code) return new AskAIError('http-error', `${AI_REQUEST_FAILED} · ${httpDetail(status, data.detail ?? code)}`, model, status);

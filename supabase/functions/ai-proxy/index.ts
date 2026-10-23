@@ -16,9 +16,11 @@
  * - The server owns the system message (ADR-0014, _shared/aiPrompts): a
  *   scope guard + the role's rules go first; a browser system message is
  *   dropped (kept after the guard only for the personal app, role 'study').
- * - Per-leader monthly quota per role: consume_ai_quota (database/
- *   ai-usage-schema.sql) via the service client; limits from secrets
- *   AI_MONTHLY_* (policy.monthlyLimit). Over the limit → 429 quota.
+ * - Per-leader monthly quota per role and the site-wide daily pack cap:
+ *   consume_ai_quota_daily (database/ai-daily-cap-schema.sql, wrapping
+ *   consume_ai_quota) via the service client; limits from secrets AI_MONTHLY_*,
+ *   the owner's AI_MONTHLY_*_OWNER and AI_DAILY_PACK_CAP (caps.ts). Over the
+ *   month → 429 quota; over the site's day → 429 daily-cap.
  * - Kill switch AI_PROXY_ENABLED='0' → 503 disabled; no key → 503
  *   not-configured; OpenRouter 402 → 402 no-credit (responses.ts).
  * - Stream: OpenRouter's SSE body is passed through unchanged; non-stream
@@ -27,7 +29,8 @@
  * Deno-only imports stay in this file; the helpers are plain TS under vitest.
  */
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
-import { validateRequest, upstreamBody, monthlyLimit, ProxyRequest, QUOTA_FUNCTION } from './policy.ts';
+import { validateRequest, upstreamBody, ProxyRequest } from './policy.ts';
+import { callerMonthlyLimit, dailyCap, DAILY_QUOTA_FUNCTION, IS_SITE_ADMIN_FUNCTION } from './caps.ts';
 import {
   corsHeaders, isAllowedOrigin, preAuthGate, quotaFailure, upstreamFailure, logLine,
   OPENROUTER_CHAT_URL, SITE_ORIGIN, SITE_TITLE, Failure,
@@ -43,22 +46,39 @@ function json(origin: string | null, status: number, body: unknown): Response {
   });
 }
 
-/** The uid behind a user JWT (null when the header is missing or invalid). Same shape as send-checkins. */
-async function callerUid(request: Request): Promise<string | null> {
+type CallerClient = ReturnType<typeof createClient>;
+
+/** The user behind a user JWT and a client acting as them (null when the header is missing or invalid). Same shape as send-checkins. */
+async function caller(request: Request): Promise<{ uid: string; client: CallerClient } | null> {
   const auth = request.headers.get('Authorization') ?? '';
   if (!auth.startsWith('Bearer ')) return null;
   const client = createClient(env('SUPABASE_URL'), env('SUPABASE_ANON_KEY'), { global: { headers: { Authorization: auth } } });
   const { data, error } = await client.auth.getUser();
-  return error ? null : data.user?.id ?? null;
+  const uid = error ? null : data.user?.id ?? null;
+  return uid ? { uid, client } : null;
 }
 
-/** Count this call against the leader's month; a Failure when over the limit. Throws on a DB error. */
-async function consumeQuota(uid: string, req: ProxyRequest): Promise<Failure | null> {
-  const limit = monthlyLimit(req.role, env);
+/**
+ * Owner or admin (caps.ts)? Asked as the caller, so the database decides
+ * (ADR-0023). A failed check falls back to the leader's limit on purpose:
+ * that is the safe side, AI keeps working, and the failure is logged.
+ */
+async function callerIsAdmin(client: CallerClient): Promise<boolean> {
+  const { data, error } = await client.rpc(IS_SITE_ADMIN_FUNCTION);
+  if (error) console.info(`[ai-proxy] ${IS_SITE_ADMIN_FUNCTION} failed: ${error.message}`);
+  return !error && data === true;
+}
+
+/** Count this call against the leader's month and the site's day; a Failure when either is full. Throws on a DB error. */
+async function consumeQuota(uid: string, isAdmin: boolean, req: ProxyRequest): Promise<Failure | null> {
+  const limit = callerMonthlyLimit(req.role, isAdmin, env);
+  const daily = dailyCap(req.role, env);
   const service = createClient(env('SUPABASE_URL'), env('SUPABASE_SERVICE_ROLE_KEY'));
-  const { data, error } = await service.rpc(QUOTA_FUNCTION, { p_leader: uid, p_role: req.role, p_limit: limit });
-  if (error) throw new Error(`${QUOTA_FUNCTION} failed: ${error.message}`);
-  return quotaFailure(Number(data), req.role, limit);
+  const { data, error } = await service.rpc(DAILY_QUOTA_FUNCTION, {
+    p_leader: uid, p_role: req.role, p_limit: limit, p_daily_limit: daily,
+  });
+  if (error) throw new Error(`${DAILY_QUOTA_FUNCTION} failed: ${error.message}`);
+  return quotaFailure(Number(data), req.role, limit, daily);
 }
 
 async function forward(origin: string | null, req: ProxyRequest): Promise<Response> {
@@ -89,12 +109,13 @@ async function handle(request: Request, origin: string | null): Promise<{ respon
   if (origin !== null && !isAllowedOrigin(origin)) return done(json(origin, 403, { error: 'origin' }));
   const gate = preAuthGate(env);
   if (gate) return done(json(origin, gate.status, gate.body));
-  const uid = await callerUid(request);
-  if (!uid) return done(json(origin, 401, { error: 'unauthorized' }));
+  const who = await caller(request);
+  if (!who) return done(json(origin, 401, { error: 'unauthorized' }));
+  const uid = who.uid;
   const validation = validateRequest(await request.json().catch(() => null));
   if (!validation.ok) return done(json(origin, 400, { error: validation.error, detail: validation.detail }), '-', uid);
   const req = validation.request;
-  const over = await consumeQuota(uid, req);
+  const over = await consumeQuota(uid, await callerIsAdmin(who.client), req);
   if (over) return done(json(origin, over.status, over.body), req.role, uid);
   return done(await forward(origin, req), req.role, uid);
 }
