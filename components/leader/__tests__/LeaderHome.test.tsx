@@ -21,6 +21,7 @@ import { newStudyHash, packHash, NEW_STUDY_HASH } from '../../landing/landingRou
 import { qrHash } from '../../signup/signupRoute';
 import { leaderHash } from '../leaderRoute';
 import { LH_SIGNIN, LH_ERR_COUNTS, packCountsLine } from '../leaderStrings';
+import { SI_EMAIL_TOGGLE } from '../../signin/signInStrings';
 import { SETUP_SIGN_OUT, SETUP_SIGN_OUT_FAILED } from '../../setup/setupStrings';
 import { SITE_STATS_FN } from '../../stats/statsRules';
 import { IS_SITE_ADMIN_FN } from '../../admin/adminRules';
@@ -92,10 +93,11 @@ beforeEach(async () => {
 });
 
 describe('LeaderHome', () => {
-  it('signed out: the sign-in line and the Google button (identity-only hook)', async () => {
+  it('signed out: the sign-in line, the Google button (identity-only hook) and the email choice beside it', async () => {
     uid = null;
     render(<LeaderHome />);
     expect(screen.getByTestId('lh-signin')).toHaveTextContent(LH_SIGNIN);
+    expect(screen.getByRole('button', { name: SI_EMAIL_TOGGLE })).toBeInTheDocument();
     fireEvent.click(screen.getByTestId('lh-signin-button'));
     await waitFor(() => expect(signInMock).toHaveBeenCalledTimes(1));
     expect(screen.queryByTestId('lh-packs')).toBeNull();

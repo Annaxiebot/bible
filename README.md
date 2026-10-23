@@ -62,7 +62,7 @@ End-to-end tests mock Supabase and the AI; they never call a live service.
 
 - **Front end:** Vite + React 19 + TypeScript, a static site on GitHub
   Pages. Deployed from `master` by `.github/workflows/deploy.yml`.
-- **Back end:** Supabase — Google sign-in, Postgres with row-level security
+- **Back end:** Supabase — sign-in with Google or an email link/code (ADR-0020), Postgres with row-level security
   (schemas and runbooks in `database/`), and three edge functions in
   `supabase/functions/`:
   - `ai-proxy` — relays AI requests to OpenRouter with the site's key; every

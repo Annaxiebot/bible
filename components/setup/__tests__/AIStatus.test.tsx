@@ -14,6 +14,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { OWN_OPENROUTER_KEY } from '../../../services/obsoleteStorageKeys';
 import { SU_SIGN_IN_GOOGLE } from '../../signup/signupStrings';
+import { SI_EMAIL_TOGGLE } from '../../signin/signInStrings';
 import { SETUP_HOSTED_READY, SETUP_SIGN_IN_TO_USE_AI, SETUP_USAGE_FAILED, usageLine } from '../setupStrings';
 
 let uid: string | null = null;
@@ -91,9 +92,10 @@ describe('signed in — hosted AI status', () => {
 });
 
 describe('signed out — the sign-in prompt', () => {
-  it('prompts sign-in with the Google button and nothing about keys', () => {
+  it('prompts sign-in with Google or email (ADR-0020) and nothing about keys', () => {
     render(<QuickAISetupForm />);
     expect(screen.getByText(SETUP_SIGN_IN_TO_USE_AI)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: SI_EMAIL_TOGGLE })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: SU_SIGN_IN_GOOGLE }));
     expect(signInMock).toHaveBeenCalledTimes(1);
     expect(document.body.textContent).not.toMatch(/OpenRouter|密钥|own key/);

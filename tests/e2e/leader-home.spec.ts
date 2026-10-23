@@ -2,8 +2,9 @@
  * leader-home.spec.ts — one leader sign-in, one home · 带领者主页端到端
  *
  * Signed out, the landing nav carries "带领者登录 Leader sign-in" as a
- * ≥48px button (this dev server has no Supabase, so pressing it shows the
- * auth error instead of leaving for Google). Signed in (the dev-only
+ * ≥48px link to #/leader, where the sign-in choices live (Google or email,
+ * ADR-0020; this dev server has no Supabase, so the page shows the
+ * not-configured line instead). Signed in (the dev-only
  * __LEADER_E2E__ seam), the nav shows the leader's first name linking to
  * #/leader, which lists the leader's pack with its sign-up / shared-answer
  * counts (PostgREST mocked); Edit opens the editor at #/new/<id> and
@@ -18,21 +19,22 @@ import { LH_TITLE, LH_QR, packCountsLine } from '../../components/leader/leaderS
 import { SETUP_MIN_TAP_PX } from '../../components/setup/setupStrings';
 import { E2E_LEADER_ID, seedLocalPack, fetchSamplePack, expectedSignupUrl } from './helpers/signup';
 import { qrHash } from '../../components/signup/signupRoute';
-import { SU_QR_PRINT } from '../../components/signup/signupStrings';
+import { SU_QR_PRINT, SU_ERR_NOT_CONFIGURED } from '../../components/signup/signupStrings';
 import { fakeLeaderSession, mockLeaderCounts } from './helpers/leader';
 
 const PACK_ID = 'local-2026-10-09-matt6';
 const PACK_TITLE = '不要忧虑（主页） Do Not Worry (home)';
 
 test.describe('Leader sign-in and home', () => {
-  test('signed out: the landing nav shows the leader sign-in button; pressing it surfaces the auth error', async ({ page }) => {
+  test('signed out: the landing nav links to the leader home, which holds the sign-in choices', async ({ page }) => {
     await page.goto('./');
-    const button = page.getByTestId('nav-leader-signin');
-    await expect(button).toHaveText(`${NAV_LEADER_SIGNIN.zh} ${NAV_LEADER_SIGNIN.en}`);
-    expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(SETUP_MIN_TAP_PX);
+    const link = page.getByTestId('nav-leader-signin');
+    await expect(link).toHaveText(`${NAV_LEADER_SIGNIN.zh} ${NAV_LEADER_SIGNIN.en}`);
+    expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(SETUP_MIN_TAP_PX);
     await expect(page.getByTestId('nav-leader')).toHaveCount(0);
-    await button.click();
-    await expect(page.getByTestId('nav-leader-error')).toBeVisible();
+    await link.click();
+    await expect(page).toHaveURL(new RegExp(`${LEADER_HOME_HASH}$`));
+    await expect(page.getByRole('alert')).toHaveText(SU_ERR_NOT_CONFIGURED);   // no Supabase on this dev server
   });
 
   test('signed in: nav name → #/leader lists the pack with counts; Edit and Present open it', async ({ page }) => {

@@ -54,13 +54,14 @@ describe('authManager.signInWithGoogle scopes', () => {
 type RedirectOptions = { options: { redirectTo: string } };
 
 describe('authManager.signInWithGoogle return page (the OAuth round trip)', () => {
-  // tests/utils/setup.ts stubs sessionStorage with no-op vi.fn()s; back it with a Map so the stored hash survives.
+  // tests/utils/setup.ts stubs localStorage (where the return hash lives, authReturnHash) with no-op vi.fn()s;
+  // back it with a Map so the stored hash survives.
   beforeEach(() => {
     signInWithOAuth.mockClear();
     const data = new Map<string, string>();
-    vi.mocked(window.sessionStorage.getItem).mockImplementation(k => data.get(k) ?? null);
-    vi.mocked(window.sessionStorage.setItem).mockImplementation((k, v) => { data.set(k, v); });
-    vi.mocked(window.sessionStorage.removeItem).mockImplementation(k => { data.delete(k); });
+    vi.mocked(window.localStorage.getItem).mockImplementation(k => data.get(k) ?? null);
+    vi.mocked(window.localStorage.setItem).mockImplementation((k, v) => { data.set(k, v); });
+    vi.mocked(window.localStorage.removeItem).mockImplementation(k => { data.delete(k); });
   });
 
   /** Start a sign-in on `startHash`, then simulate the redirect back: bare root, then the session arrives. */
