@@ -71,10 +71,10 @@ test.describe('TV Presentation Mode', () => {
   test('each discussion question is its own slide', async ({ page }) => {
     await openTV(page);
     await goToSlide(page, DEMO_SLIDE.discussion);
-    await expect(page.getByText(/讨论 Discussion · 1\/5/)).toBeVisible();
-    await expect(page.getByText(/Where does anxiety actually show up/)).toBeVisible();
+    await expect(page.getByText(/讨论 Discussion · 1\/7/)).toBeVisible();
+    await expect(page.getByText(/List them before interpreting/)).toBeVisible();
     await page.keyboard.press('ArrowRight');
-    await expect(page.getByText(/讨论 Discussion · 2\/5/)).toBeVisible();
+    await expect(page.getByText(/讨论 Discussion · 2\/7/)).toBeVisible();
   });
 
   test('clicking does NOT navigate — arrow keys only (clicks are for selection)', async ({ page }) => {
@@ -96,7 +96,7 @@ test.describe('TV Presentation Mode', () => {
   test('the QR slide of the demo sample pack shows the bilingual no-sign-up line, no QR', async ({ page }) => {
     await openTV(page);
     await goToSlide(page, DEMO_SLIDE.qr);
-    await expect(page.getByText('签到 Sign up')).toBeVisible();
+    await expect(page.getByText('报名 Sign up')).toBeVisible();
     await expect(page.getByTestId('qr-demo')).toHaveText(SU_DEMO_LINE);
     await expect(page.getByTestId('signup-qr')).toHaveCount(0);
   });
@@ -108,7 +108,7 @@ test.describe('TV Presentation Mode', () => {
     await expect(page.getByTestId('tv-presentation')).toBeVisible();
     await expect(page.getByText(`1/${TOTAL}`)).toBeVisible();
     await goToSlide(page, DEMO_SLIDE.qr);
-    await expect(page.getByText('签到 Sign up')).toBeVisible();
+    await expect(page.getByText('报名 Sign up')).toBeVisible();
     await expect(page.getByTestId('qr-unclaimed')).toContainText(SU_UNCLAIMED_LINE);
     await expect(page.getByTestId('qr-demo')).toHaveCount(0);
     await expect(page.getByTestId('signup-qr')).toHaveCount(0);
@@ -120,7 +120,7 @@ test.describe('TV Presentation Mode', () => {
     await routeOwnedSamplePack(page);
     await openTV(page);
     await goToSlide(page, DEMO_SLIDE.qr);
-    await expect(page.getByText('签到 Sign up')).toBeVisible();
+    await expect(page.getByText('报名 Sign up')).toBeVisible();
     const expectedUrl = expectedSignupUrl(page);
     const qr = page.getByTestId('signup-qr');
     await expect(qr).toHaveAttribute('data-signup-url', expectedUrl);
@@ -191,11 +191,11 @@ test.describe('Ask AI overlay', () => {
     await mockOpenRouterStream(page, ['Anxiety follows ', 'the treasure (v.25).'], wireModelId(DEFAULT_AI_SETUP.model));
     await openTV(page);
     await goToSlide(page, DEMO_SLIDE.discussion);
-    await expect(page.getByText(/讨论 Discussion · 1\/5/)).toBeVisible();
+    await expect(page.getByText(/讨论 Discussion · 1\/7/)).toBeVisible();
 
     await page.keyboard.press('a');
     // The slide's question appears as the already-submitted prompt…
-    await expect(page.getByTestId('ask-question')).toContainText(/这一周，忧虑实际出现在哪里/);
+    await expect(page.getByTestId('ask-question')).toContainText(/耶稣叫我们不要为哪些事忧虑/);
     // …and the (mocked) answer renders, with the input free for follow-ups.
     await expect(page.getByText('Anxiety follows the treasure (v.25).')).toBeVisible();
     await expect(page.getByLabel(/Ask AI question/)).toBeEnabled();

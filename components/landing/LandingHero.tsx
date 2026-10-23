@@ -3,17 +3,20 @@
  *
  * Paper hero, style "醒目 Bold": a mono eyebrow, the "Scripture to Life"
  * line, the 活出神的话 headline (霞鹜文楷, 神的话 in the deep-gold gradient),
- * the bilingual sub-line, two gold pills (the sample pack; 新建查经) and the
- * loop line. Behind it, static rings plus four gold waves that ripple out
+ * the bilingual sub-line (what the site does, concretely), the source note
+ * (published Scripture vs AI drafts the leader reviews), two gold pills —
+ * the complete sample (no sign-in) and 新建查经 (Google sign-in, disclosed
+ * before the click) — and the loop line. Behind it, static rings plus four gold waves that ripple out
  * (CSS only, landing.css); the waves are hidden under prefers-reduced-motion
  * and the page reads the same without them (ADR-0003 §16).
  */
 import React from 'react';
 import { SAMPLE_PACK_HASH, NEW_STUDY_HASH } from './landingRoute';
 import {
-  BRAND_EN, BRAND_ZH_LEAD, BRAND_ZH_HIGHLIGHT, HERO_EYEBROW, HERO_SUB_ZH, HERO_SUB_EN,
-  GROUP_CTA, NEW_STUDY_LINE, LOOP_LINE_ZH,
+  BRAND_EN, BRAND_ZH_LEAD, BRAND_ZH_HIGHLIGHT, HERO_EYEBROW, HERO_SUB_ZH, HERO_SUB_EN, HERO_SOURCE_NOTE,
+  GROUP_CTA, NEW_STUDY_LINE, LOOP_LINE_ZH, SAMPLE_NO_SIGNIN, NEW_STUDY_SIGNIN_NOTE,
 } from './landingStrings';
+import { splitBilingual } from './LandingSection';
 import Pill from '../shared/Pill';
 
 const CENTER = 750;
@@ -43,22 +46,41 @@ const SubZh: React.FC = () => {
   );
 };
 
+/** A pill with the access requirement right under it (read with the link: aria-describedby). */
+export const CtaWithNote: React.FC<{ id: string; note: string; children: React.ReactNode }> = ({ id, note, children }) => {
+  const { zh, en } = splitBilingual(note);
+  return (
+    <div className="ld-cta">
+      {children}
+      <p className="ld-cta-note" id={id}>{zh}{en && <> · <span lang="en">{en}</span></>}</p>
+    </div>
+  );
+};
+
 const LandingHero: React.FC = () => (
   <section className="ld-hero" aria-labelledby="hero-h" data-testid="landing-hero">
     <Rings />
     <div className="ld-wrap">
       <p className="ld-eyebrow">{HERO_EYEBROW}</p>
-      <p className="ld-brand-line">{BRAND_EN}</p>
+      <p className="ld-brand-line" lang="en">{BRAND_EN}</p>
       <h1 id="hero-h" className="ld-headline" data-testid="hero-headline">
         {BRAND_ZH_LEAD}<span className="ld-hl">{BRAND_ZH_HIGHLIGHT}</span>
       </h1>
-      <p className="ld-sub">
+      <p className="ld-sub" data-testid="hero-sub">
         <SubZh />
-        <span className="ld-en">{HERO_SUB_EN}</span>
+        <span className="ld-en" lang="en">{HERO_SUB_EN}</span>
+      </p>
+      <p className="ld-source-note" data-testid="hero-source-note">
+        <span>{HERO_SOURCE_NOTE.zh}</span>{' '}
+        <span lang="en">{HERO_SOURCE_NOTE.en}</span>
       </p>
       <div className="ld-ctas">
-        <Pill href={SAMPLE_PACK_HASH} label={GROUP_CTA} arrow testId="hero-sample" />
-        <Pill href={NEW_STUDY_HASH} label={NEW_STUDY_LINE} ghost testId="hero-new-study" />
+        <CtaWithNote id="hero-sample-note" note={SAMPLE_NO_SIGNIN}>
+          <Pill href={SAMPLE_PACK_HASH} label={GROUP_CTA} arrow testId="hero-sample" describedBy="hero-sample-note" />
+        </CtaWithNote>
+        <CtaWithNote id="hero-new-study-note" note={NEW_STUDY_SIGNIN_NOTE}>
+          <Pill href={NEW_STUDY_HASH} label={NEW_STUDY_LINE} ghost testId="hero-new-study" describedBy="hero-new-study-note" />
+        </CtaWithNote>
       </div>
       <p className="ld-loop-line">{LOOP_LINE_ZH}</p>
     </div>

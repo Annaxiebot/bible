@@ -46,7 +46,12 @@ function e2eSeam(): E2ESeam | null {
 }
 
 export function hasOwnKey(): boolean {
-  return !!getApiKey();
+  try {
+    return !!getApiKey();
+  } catch {
+    // Storage blocked (private mode): no key can be stored, so there is none.
+    return false;
+  }
 }
 
 /** The signed-in leader's uid for hosted AI (null when signed out). */

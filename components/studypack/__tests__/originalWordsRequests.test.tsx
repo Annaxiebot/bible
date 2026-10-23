@@ -21,7 +21,7 @@ import {
 } from '../../../supabase/functions/_shared/aiPrompts';
 import { validateRequest } from '../../../supabase/functions/ai-proxy/policy';
 import { STEP_BIBLE_NAME, STEP_BIBLE_URL } from '../tvHints';
-import { TEST_PACK_PATH } from './fixtures';
+import { REQUEST_HASH_PACK_PATH } from './fixtures';
 import { stubBundledFetch } from './bundledFetch';
 
 const origSwitch = vi.hoisted(() => ({ on: false }));
@@ -38,7 +38,7 @@ import { clearExternalVerseCache } from '../externalVerses';
 import { ORIGINAL_WORDS_ENABLED, clearOriginalWordsCache, lastOriginalWords } from '../originalWords';
 import AskAIOverlay from '../AskAIOverlay';
 
-const pack = parseStudyPack(JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8')));
+const pack = parseStudyPack(JSON.parse(readFileSync(REQUEST_HASH_PACK_PATH, 'utf-8')));
 const slide = buildSlides(pack)[0];
 const MODEL = 'google/gemini-2.5-flash';
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');

@@ -1,8 +1,11 @@
 import React from 'react';
-import { DEFAULT_ENGLISH_VERSION } from '../services/bibleStorage';
+import { DEFAULT_ENGLISH_VERSION, normalizeChineseVersion } from '../services/bibleStorage';
 import { Verse } from '../types';
-import { toSimplified } from '../services/chineseConverter';
 import { useSeasonTheme } from '../hooks/useSeasonTheme';
+import { englishEditionLabel } from '../services/readerPreferences';
+import type { ColumnStatus } from '../hooks/useBilingualChapter';
+import { useReaderStrings } from './reader/useReaderStrings';
+import { chineseLang } from './reader/readerStrings';
 import InlineBibleAnnotation, { InlineBibleAnnotationHandle, AnnotationToolState } from './InlineBibleAnnotation';
 import VerseIndicators from './VerseIndicators';
 
@@ -14,6 +17,7 @@ interface VerseDataEntry {
 }
 
 interface BibleVersePanelProps {
+  /** Already in the display script (BibleViewer converts the Chinese column — useChineseScript). */
   verses: Verse[];
   language: 'chinese' | 'english';
   selectedVerses: number[];
@@ -22,6 +26,13 @@ interface BibleVersePanelProps {
   fontSize: number;
   isSimplified: boolean;
   loading: boolean;
+  /** This column's own load result; 'error' shows an inline message + retry for this column only. */
+  status?: ColumnStatus;
+  /** Showing the cached copy because the source was unreachable. */
+  offline?: boolean;
+  /** Book name for the error line. */
+  bookName?: string;
+  onRetry?: () => void;
   scrollRef: React.RefObject<HTMLDivElement>;
   contentMeasureRef: React.RefObject<HTMLDivElement>;
   annotationRef: React.RefObject<InlineBibleAnnotationHandle>;
@@ -56,6 +67,10 @@ const BibleVersePanel: React.FC<BibleVersePanelProps> = ({
   fontSize,
   isSimplified,
   loading,
+  status = 'ready',
+  offline = false,
+  bookName = '',
+  onRetry,
   scrollRef,
   contentMeasureRef,
   annotationRef,
@@ -81,7 +96,9 @@ const BibleVersePanel: React.FC<BibleVersePanelProps> = ({
   onAlignmentMismatch,
 }) => {
   const { theme } = useSeasonTheme();
+  const strings = useReaderStrings();
   const isChinese = language === 'chinese';
+  const textLang = isChinese ? chineseLang(isSimplified ? 'simplified' : 'traditional') : 'en';
 
   const isIOS = /iPhone|iPad|iPod/i.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
@@ -143,10 +160,11 @@ const BibleVersePanel: React.FC<BibleVersePanelProps> = ({
       : {}),
   };
 
-  const chineseLabels: Record<string, string> = { cuv: '和合本 CUV', cunp: '新標點 CUNP' };
+  const chineseLabels: Record<string, string> = { cuv: '和合本 CUV' };
+  const zhVersion = normalizeChineseVersion(chineseVersion);
   const label = isChinese
-    ? (chineseLabels[chineseVersion || 'cuv'] || (chineseVersion || 'cuv').toUpperCase())
-    : `English (${(englishVersion || DEFAULT_ENGLISH_VERSION).toUpperCase()})`;
+    ? (chineseLabels[zhVersion] || zhVersion.toUpperCase())
+    : strings.englishColumn(englishEditionLabel(englishVersion || DEFAULT_ENGLISH_VERSION));
 
   const fontClass = isChinese ? 'overflow-y-auto p-4 md:p-6 space-y-0.5 font-serif-sc border-r border-slate-100' : 'overflow-y-auto p-4 md:p-6 space-y-0.5 font-sans';
 
@@ -158,6 +176,8 @@ const BibleVersePanel: React.FC<BibleVersePanelProps> = ({
       onContextMenu={onContextMenu}
       className={fontClass}
       style={panelStyle}
+      data-testid={`reader-column-${language}`}
+      aria-busy={loading || status === 'loading'}
     >
       {/* Annotation overlay */}
       <InlineBibleAnnotation
@@ -175,8 +195,23 @@ const BibleVersePanel: React.FC<BibleVersePanelProps> = ({
         onAlignmentMismatch={onAlignmentMismatch}
       />
       <div ref={contentMeasureRef}>
-        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">{label}</div>
-        {loading ? (
+        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4" lang={isChinese ? 'zh-Hans' : 'en'}>
+          {label}
+          {offline && <span className="ml-2 normal-case tracking-normal font-medium" lang={strings.lang}>· {strings.columnOfflineNote}</span>}
+        </div>
+        {status === 'error' && !loading ? (
+          // This column only: the other language keeps its text (2026-10 review).
+          <div role="alert" lang={strings.lang} data-testid={`reader-column-error-${language}`}
+            className="rounded-lg border border-red-200 bg-red-50 px-3 py-3 text-sm text-red-800 not-italic font-sans">
+            <p>{strings.columnLoadError(language, bookName, chapter)}</p>
+            {onRetry && (
+              <button type="button" onClick={(e) => { e.stopPropagation(); onRetry(); }}
+                className="mt-2 rounded-md border border-red-300 bg-white px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-100">
+                {strings.columnRetry}
+              </button>
+            )}
+          </div>
+        ) : loading || status === 'loading' ? (
           <div className="animate-pulse space-y-2">
             {[1, 2, 3, 4, 5].map(n => (
               <div key={n} className="h-4 bg-slate-100 rounded w-full"></div>
@@ -189,9 +224,7 @@ const BibleVersePanel: React.FC<BibleVersePanelProps> = ({
             const isSelected = selectedVerses.includes(v.verse);
             const vData = verseData[verseId];
 
-            const displayText = isChinese
-              ? (isSimplified ? toSimplified(v.text) : v.text)
-              : v.text;
+            const displayText = v.text;
 
             const verseNumColor = isChinese ? '#8B7355' : theme.accentMedium;
             const textColor = isChinese ? '#3A3028' : undefined;
@@ -220,6 +253,7 @@ const BibleVersePanel: React.FC<BibleVersePanelProps> = ({
               >
                 <span className="font-bold mr-3 text-xs" style={{ color: verseNumColor }}>{v.verse}</span>
                 <span
+                  lang={textLang}
                   className={`leading-relaxed ${isChinese ? '' : `text-slate-700 italic ${vibeVerseClassName || ''}`}`}
                   style={{ fontSize: `${fontSize}px`, color: textColor }}
                 >
@@ -236,7 +270,9 @@ const BibleVersePanel: React.FC<BibleVersePanelProps> = ({
                       ? 'opacity-100'
                       : 'text-slate-400 opacity-100 sm:opacity-0 sm:group-hover/verse:opacity-60 hover:!opacity-100'
                   }`}
-                  title={isBookmarked ? '取消收藏 Remove bookmark' : '收藏 Bookmark'}
+                  title={isBookmarked ? strings.bookmarkRemove : strings.bookmarkAdd}
+                  aria-label={isBookmarked ? strings.bookmarkRemove : strings.bookmarkAdd}
+                  aria-pressed={isBookmarked}
                   style={{
                     fontSize: '14px',
                     lineHeight: 1,

@@ -14,6 +14,7 @@ import { useDataStats } from './hooks/useDataStats';
 import './services/syncService'; // Initialize sync service
 import { backgroundBibleDownload, BgDownloadProgress } from './services/backgroundBibleDownload';
 import LayoutToolbar, { LayoutMode, getLayoutMode, layoutModeToSplits, getSavedLayout } from './components/LayoutToolbar';
+import SkipLink, { MAIN_CONTENT_ID } from './components/shared/SkipLink';
 
 // Lazy load heavy components for code splitting
 const BibleViewer = lazy(() => import('./components/BibleViewer'));
@@ -433,6 +434,7 @@ const App: React.FC = () => {
       </div>
     }>
     <div className={`flex flex-col h-screen w-screen overflow-hidden ${vibeStyles.background}`} style={{ backgroundColor: vibeStyles.background ? undefined : theme.background }}>
+      <SkipLink />
       <input type="file" ref={libraryInputRef} onChange={handleLibraryImport} accept=".json,.bible-library" className="hidden" />
       
       {showResumeNotification && initialBookId && (
@@ -485,7 +487,7 @@ const App: React.FC = () => {
         bgDownloadProgress={bgDownloadProgress}
       />
 
-      <main ref={split.containerRef} className="flex-1 flex flex-col relative overflow-hidden" style={{ paddingBottom: isIPhone ? '56px' : '44px' }}>
+      <main id={MAIN_CONTENT_ID} tabIndex={-1} ref={split.containerRef} className="flex-1 flex flex-col relative overflow-hidden focus:outline-none" style={{ paddingBottom: isIPhone ? '56px' : '44px' }}>
         <div className="overflow-hidden" style={{ flexBasis: split.vertical >= 100 ? 'calc(100% - 24px)' : split.vertical <= 0 ? '0%' : `${split.vertical}%`, flexGrow: 0, flexShrink: 0, minHeight: 0 }}>
           {historyLoaded && (
             <BibleViewer 

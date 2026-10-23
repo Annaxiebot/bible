@@ -21,11 +21,11 @@ import { openTV, goToSlide, DEMO_SLIDE, injectApiKey, mockOpenRouterSequence, mo
 
 const E2E_TIMEOUT_MS = 1500;
 
-/** Go to the first discussion slide and open Ask AI (auto-sends the slide's question). */
+/** Go to the "your week" discussion slide and open Ask AI (auto-sends the slide's question). */
 async function askOnDiscussionSlide(page: Page) {
   await openTV(page);
-  await goToSlide(page, DEMO_SLIDE.discussion);
-  await expect(page.getByText(/讨论 Discussion · 1\/5/)).toBeVisible();
+  await goToSlide(page, DEMO_SLIDE.weekQuestion);
+  await expect(page.getByText(/讨论 Discussion · 4\/7/)).toBeVisible();
   await page.keyboard.press('a');
   await expect(page.getByTestId('ask-question')).toContainText(/这一周，忧虑实际出现在哪里/);
 }

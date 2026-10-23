@@ -16,15 +16,23 @@ export const SITE_LINE = 'Scripture to Life · scripturetolife.org';
 /** Accessible name of the member pages' brand link home (shared/PaperHeader.tsx). */
 export const HOME_LINK_LABEL = '返回首页 · Home';
 
-export const HERO_SUB_ZH = 'AI 查经不止于明白——它陪你走进一周的生活。';
+/** Hero sub-line (2026-10 review: say concretely what the site does). */
+export const HERO_SUB_ZH = '把一段经文变成双语小组查经——起草讨论题，在电视上演示，再用周中提醒让小组彼此连结。';
 export const HERO_SUB_EN =
-  'AI-powered Bible study that doesn’t stop at understanding — it follows you into the week.';
+  'Turn a Bible passage into a bilingual group study. Draft discussion questions, present them on your TV, and keep your group connected with mid-week check-ins.';
+/** The line under the sub-line: what is published Scripture and what is an AI draft. */
+export const HERO_SOURCE_NOTE = {
+  zh: '经文直接取自已出版的圣经译本（和合本、BSB）；讨论题等查经内容由 AI 起草，组长审阅、修改后再用。',
+  en: 'Scripture comes straight from published Bible translations (CUV, BSB); discussion questions and other study material are AI drafts that the leader reviews and edits.',
+} as const;
 /** NEW COPY: hero eyebrow. */
-export const HERO_EYEBROW = 'AI 查经 · AI Bible study';
+export const HERO_EYEBROW = '双语小组查经 · Bilingual group Bible study';
 
 export const GROUP_TITLE_ZH = '小组查经';
 export const GROUP_TITLE_EN = 'Group Bible Study';
-export const GROUP_CTA = '看示范 See a sample pack';
+export const GROUP_CTA = '看完整示范 Explore a complete sample';
+/** Beside the sample CTA: it really needs no account. */
+export const SAMPLE_NO_SIGNIN = '无需登录 · No sign-in needed';
 export const GROUP_POINTS = {
   deck: { zh: '讲义变成大屏简报', en: 'Your study guide becomes a TV-ready deck' },
   question: { zh: '讨论题目，一题一页', en: 'Discussion questions, one per slide' },
@@ -33,7 +41,7 @@ export const GROUP_POINTS = {
 
 export const PERSONAL_TITLE_ZH = '个人研经';
 export const PERSONAL_TITLE_EN = 'Personal Study';
-export const PERSONAL_CTA = '进入应用 Open the app';
+export const PERSONAL_CTA = '阅读双语圣经 Read the bilingual Bible';
 export const PERSONAL_POINTS = [
   { zh: '和合本 | BSB 双语对照', en: 'Bilingual Bible, side by side' },
   { zh: '手写笔记，为 iPad 与 Pencil 而设', en: 'Handwriting notes, built for iPad and Pencil' },
@@ -62,6 +70,9 @@ export const WORSHIP_PAGE = 'worship.html';
 /** Third door: the leader generates a pack from a passage (#/new). */
 export const NEW_STUDY_LINE = '新建查经 New study';
 export const NEW_STUDY_SUB = '输入经文，AI 生成查经包，大屏演示 · Enter a passage; a study pack is drafted in your browser';
+/** Disclosed before the click (2026-10 review): creating a study and Ask AI need Google sign-in. */
+export const NEW_STUDY_SIGNIN_NOTE = '需用 Google 登录 · Requires Google sign-in';
+export const AI_SIGNIN_NOTE = '新建查经与「问一问」需用 Google 登录；示范与圣经阅读无需登录 · Creating a study and Ask AI require Google sign-in; the sample and the Bible reader do not';
 
 /** What a leader can do: a passage, or their own study-guide PDF (ADR-0019), becomes a study on the TV. */
 export const LEADER_ZH = '组长：选一段经文或上传查经讲义 PDF，AI 起草查经包，大屏演示。';
@@ -116,12 +127,12 @@ export const NAV_LABEL = '页内导航 Page sections';
 /** The nav's one context-aware leader control: signed out it starts Google sign-in; signed in it shows the leader's name → #/leader. */
 export const NAV_LEADER_SIGNIN = { zh: '带领者登录', en: 'Leader sign-in' } as const;
 
-/* ---- 下次查经 Next study ---- */
-export const NEXT_EYEBROW = '下次查经 · Next study';
-export const NEXT_HEADING_ZH = '这周我们读';
-export const NEXT_HEADING_EN = 'This week we read';
-export const NEXT_DESC = '当前查经包，随时打开 · The current study pack, ready to open';
-export const NEXT_OPEN_CTA = '打开查经包 Open the pack';
+/* ---- 完整示范 Complete sample (was "下次查经 Next study": it is a fixed sample, not a live schedule) ---- */
+export const NEXT_EYEBROW = '完整示范 · Complete sample';
+export const NEXT_HEADING_ZH = '看一份完整的查经包';
+export const NEXT_HEADING_EN = 'Explore a complete sample';
+export const NEXT_DESC = '一份公开的示范查经包——经文、讨论、生活应用与周中跟进，无需登录即可打开 · A public sample study pack — Scripture, discussion, life application and mid-week follow-up; opens without signing in';
+export const NEXT_OPEN_CTA = '打开示范 Open the sample';
 export const NEXT_SIGNUP_CTA = '扫码报名 Sign up';
 export const NEXT_SIGNUP_CLOSE = '收起 Close';
 export const NEXT_SIGNUP_LINK = '或点此打开报名页 · or open the sign-up page';

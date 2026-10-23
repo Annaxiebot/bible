@@ -27,7 +27,7 @@ export const SectionLink: React.FC<{ link: (typeof NAV_LINKS)[number]; className
   link, className, testId,
 }) => (
   <button type="button" onClick={() => scrollToSection(link.id)} data-testid={testId} className={className}>
-    <span>{link.zh}</span><span className="ld-nav-en">{link.en}</span>
+    <span>{link.zh}</span><span className="ld-nav-en" lang="en">{link.en}</span>
   </button>
 );
 
@@ -35,7 +35,7 @@ const LandingNav: React.FC = () => (
   <nav aria-label={NAV_LABEL} data-testid="landing-nav" className="ld-nav">
     <div className="ld-wrap">
       <div className="ld-brand" aria-hidden="true">
-        <span className="ld-brand-zh">{BRAND_ZH}</span><span className="ld-brand-en">{BRAND_EN}</span>
+        <span className="ld-brand-zh">{BRAND_ZH}</span><span className="ld-brand-en" lang="en">{BRAND_EN}</span>
       </div>
       {NAV_LINKS.map(link => (
         <SectionLink key={link.id} link={link} className="ld-nav-link" testId={`nav-${link.id}`} />

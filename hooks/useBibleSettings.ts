@@ -1,71 +1,54 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { STORAGE_KEYS } from '../constants/storageKeys';
 import { preloadConverter } from '../services/chineseConverter';
-import { DEFAULT_ENGLISH_VERSION } from '../services/bibleStorage';
+import { useReaderPreferences, setReaderPreference } from '../services/readerPreferences';
 
+/**
+ * The reader's settings. Editions, script and interface language live in the
+ * shared reader-preferences store (services/readerPreferences), so the header,
+ * Settings, settings sync and other tabs always agree; every value is normalized
+ * there (a stale saved 'cunp' — withdrawn edition — resolves to CUV and is never fetched).
+ */
 export function useBibleSettings() {
-  const [isSimplified, setIsSimplified] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEYS.CHINESE_MODE);
-    // Default to simplified if no preference saved
-    const simplified = saved ? saved === 'simplified' : true;
-    // Bundled CUV text is Simplified while API-cached text is Traditional,
-    // so both display modes convert — always preload the converter.
+  const prefs = useReaderPreferences();
+  const isSimplified = prefs.chineseScript === 'simplified';
+
+  // Bundled CUV text is Simplified while API-cached text is Traditional,
+  // so both display modes convert — always preload the converter.
+  useEffect(() => {
     const defer = window.requestIdleCallback || ((cb: () => void) => setTimeout(cb, 200));
-    defer(() => preloadConverter());
-    return simplified;
-  });
+    // An unavailable worker/dictionary is not fatal: conversions fall back per call.
+    defer(() => { preloadConverter().catch(() => {}); });
+  }, []);
 
-  const [chineseVersion, setChineseVersion] = useState(() => {
-    return localStorage.getItem(STORAGE_KEYS.CHINESE_VERSION) || 'cuv';
-  });
-
-  const [englishVersion, setEnglishVersion] = useState(() => {
-    return localStorage.getItem(STORAGE_KEYS.ENGLISH_VERSION) || DEFAULT_ENGLISH_VERSION;
-  });
+  const setIsSimplified = useCallback((simplified: boolean) => {
+    setReaderPreference('chineseScript', simplified ? 'simplified' : 'traditional');
+  }, []);
+  const setChineseVersion = useCallback((version: string) => {
+    setReaderPreference('chineseVersion', version);
+  }, []);
+  const setEnglishVersion = useCallback((version: string) => {
+    setReaderPreference('englishVersion', version);
+  }, []);
+  const setUiLanguage = useCallback((language: string) => {
+    setReaderPreference('uiLanguage', language);
+  }, []);
 
   const [fontSize, setFontSize] = useState(() => {
     const saved = localStorage.getItem(STORAGE_KEYS.FONT_SIZE);
-    return saved ? parseInt(saved) : 18;
+    const parsed = saved ? parseInt(saved) : NaN;
+    return Number.isFinite(parsed) ? parsed : 18;
   });
-
-  useEffect(() => {
-    const handleEnglishVersionChange = () => {
-      const version = localStorage.getItem(STORAGE_KEYS.ENGLISH_VERSION) || DEFAULT_ENGLISH_VERSION;
-      setEnglishVersion(version);
-    };
-
-    const handleChineseVersionChange = () => {
-      const version = localStorage.getItem(STORAGE_KEYS.CHINESE_VERSION) || 'cuv';
-      setChineseVersion(version);
-    };
-
-    const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === STORAGE_KEYS.ENGLISH_VERSION) {
-        setEnglishVersion(e.newValue || DEFAULT_ENGLISH_VERSION);
-      }
-      if (e.key === STORAGE_KEYS.CHINESE_VERSION) {
-        setChineseVersion(e.newValue || 'cuv');
-      }
-    };
-
-    window.addEventListener('bibleEnglishVersionChanged', handleEnglishVersionChange);
-    window.addEventListener('bibleChineseVersionChanged', handleChineseVersionChange);
-    window.addEventListener('storage', handleStorageChange);
-
-    return () => {
-      window.removeEventListener('bibleEnglishVersionChanged', handleEnglishVersionChange);
-      window.removeEventListener('bibleChineseVersionChanged', handleChineseVersionChange);
-      window.removeEventListener('storage', handleStorageChange);
-    };
-  }, []);
 
   return {
     isSimplified,
     setIsSimplified,
-    chineseVersion,
+    chineseVersion: prefs.chineseVersion as string,
     setChineseVersion,
-    englishVersion,
+    englishVersion: prefs.englishVersion as string,
     setEnglishVersion,
+    uiLanguage: prefs.uiLanguage,
+    setUiLanguage,
     fontSize,
     setFontSize,
   };

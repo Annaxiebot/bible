@@ -16,7 +16,7 @@ import { SU_QR_BODY, qrAltText } from '../../signup/signupStrings';
 import { PACK_SCHEMA_VERSION } from '../../studypack/packTypes';
 import {
   NEXT_EYEBROW, NEXT_HEADING_ZH, NEXT_HEADING_EN, NEXT_OPEN_CTA, NEXT_SIGNUP_CTA,
-  NEXT_SIGNUP_CLOSE, NEXT_NONE_YET, NEXT_LOADING,
+  NEXT_SIGNUP_CLOSE, NEXT_NONE_YET, NEXT_LOADING, SAMPLE_NO_SIGNIN,
 } from '../landingStrings';
 
 const PACK_ID = '2026-10-02-matt6';
@@ -41,7 +41,7 @@ describe('LandingNextStudy', () => {
     vi.unstubAllGlobals();
   });
 
-  it('fetches the pack through the schema-versioned pack URL and shows title, passage, date', async () => {
+  it('fetches the pack through the schema-versioned pack URL and shows title, passage — undated, no sign-in', async () => {
     const fetchMock = stubFetch(async () => ({ ok: true, json: async () => PACK }));
     render(<LandingNextStudy packId={PACK_ID} />);
     expect(screen.getByTestId('next-study-empty')).toHaveTextContent(NEXT_LOADING);
@@ -53,7 +53,9 @@ describe('LandingNextStudy', () => {
     );
     expect(block).toHaveTextContent(PACK.title);
     expect(block).toHaveTextContent(PACK.passageRef);
-    expect(block).toHaveTextContent(PACK.date);
+    // A fixed sample, not a maintained schedule (2026-10 review): no date, and it needs no account.
+    expect(block).not.toHaveTextContent(PACK.date);
+    expect(block).toHaveTextContent(SAMPLE_NO_SIGNIN);
     expect(screen.queryByTestId('next-study-empty')).toBeNull();
   });
 

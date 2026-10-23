@@ -12,7 +12,9 @@
  * A presentation open for 10 minutes of visible time is logged once as a
  * group meeting (useMeetingTracker, ADR-0012).
  */
-import { FIRST_SLIDE_HINT, FIRST_SLIDE_HINT_SHORT, ASK_AI_LABEL, TV_LOADING } from './tvHints';
+import { FIRST_SLIDE_HINT, FIRST_SLIDE_HINT_SHORT, ASK_AI_LABEL, ASK_AI_SIGNIN_NOTE, ASK_AI_SIGNIN_NOTE_SHORT, TV_LOADING } from './tvHints';
+import { useAIAccess } from '../setup/useAIAccess';
+import { BRAND_EN, BRAND_ZH } from '../landing/landingStrings';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { buildSlides, StudyPack, Slide } from './packTypes';
 import { loadPack } from './packSource';
@@ -106,6 +108,8 @@ const TVProgress: React.FC<{ slideCount: number; index: number }> = ({ slideCoun
 /** Counter, progress bar, first-slide hints, and Ask AI button (exit stays in the view so it also shows on load/error). */
 const TVChrome: React.FC<TVChromeProps> = ({ slideCount, index, onAskAI, notice }) => {
   const compact = useCompactViewport();
+  // Signed out (and no own key), Ask AI opens a sign-in prompt — say so on the pill's line first.
+  const needsSignIn = !useAIAccess().available;
   return (
   <>
     <TVProgress slideCount={slideCount} index={index} />
@@ -120,14 +124,22 @@ const TVChrome: React.FC<TVChromeProps> = ({ slideCount, index, onAskAI, notice 
         {index === 0 && <p>{compact ? FIRST_SLIDE_HINT_SHORT : FIRST_SLIDE_HINT}</p>}
       </div>
     )}
-    <button
-      onClick={(e) => { e.stopPropagation(); onAskAI(); }}
-      className="absolute bottom-[2.5vh] left-1/2 -translate-x-1/2 text-stl-text-3 hover:text-stl-gold-hover border border-stl-border rounded-full px-4 py-1"
-      style={{ fontSize: '2.2vh' }}
-      aria-label={ASK_AI_LABEL}
-    >
-      {ASK_AI_LABEL}
-    </button>
+    <div className="absolute bottom-[2.5vh] left-1/2 -translate-x-1/2 flex items-center gap-[1vw] whitespace-nowrap max-w-[70vw]">
+      <button
+        onClick={(e) => { e.stopPropagation(); onAskAI(); }}
+        className="text-stl-text-3 hover:text-stl-gold-hover border border-stl-border rounded-full px-4 py-1"
+        style={{ fontSize: '2.2vh' }}
+        aria-label={ASK_AI_LABEL}
+        aria-describedby={needsSignIn ? 'tv-ask-signin-note' : undefined}
+      >
+        {ASK_AI_LABEL}
+      </button>
+      {needsSignIn && (
+        <span id="tv-ask-signin-note" data-testid="tv-ask-signin-note" className="text-stl-text-3" style={{ fontSize: '1.8vh' }}>
+          {compact ? ASK_AI_SIGNIN_NOTE_SHORT : ASK_AI_SIGNIN_NOTE}
+        </span>
+      )}
+    </div>
   </>
   );
 };
@@ -167,11 +179,18 @@ const TVPresentationView: React.FC<TVPresentationViewProps> = ({ packId, onExit 
 
   // Re-read after a sign-in claims this local pack (claimLocalPacks): the QR appears without a reload.
   const claim = useLocalPackClaim(packId);
+  // Leaving TV mode restores the page title the pack replaced.
+  useEffect(() => {
+    const previous = document.title;
+    return () => { document.title = previous; };
+  }, []);
   useEffect(() => {
     let cancelled = false;
     loadPack(packId)
       .then(loaded => {
         if (cancelled) return;
+        // A unique tab / history title per pack (was the brand only).
+        document.title = `${loaded.title} · ${BRAND_ZH} · ${BRAND_EN}`;
         setPack(loaded);
         setSlides(buildSlides(loaded));
       })

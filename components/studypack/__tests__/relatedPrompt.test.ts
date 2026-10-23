@@ -21,7 +21,7 @@ import {
 } from '../../../supabase/functions/_shared/aiPrompts';
 import { STORAGE_KEYS } from '../../../constants/storageKeys';
 import { RelatedVerse } from '../relatedVerses';
-import { TEST_PACK_PATH } from './fixtures';
+import { REQUEST_HASH_PACK_PATH } from './fixtures';
 
 // Original-word retrieval is not under test here (originalWords tests cover it): with the
 // ADR-0018 switch on it finds nothing, so these requests stay exactly what this file pins.
@@ -36,7 +36,7 @@ vi.mock('../relatedVerses', async importOriginal => ({
   loadRelatedVerses: loadRelatedMock,
 }));
 
-const pack: StudyPack = parseStudyPack(JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8')));
+const pack: StudyPack = parseStudyPack(JSON.parse(readFileSync(REQUEST_HASH_PACK_PATH, 'utf-8')));
 const slides: Slide[] = buildSlides(pack);
 const HISTORY = [{ role: 'user' as const, content: 'q0' }, { role: 'assistant' as const, content: 'a0' }];
 const QUESTION = '第27节是什么意思？';

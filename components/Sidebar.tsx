@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { chosenEnglishVersion } from '../services/bibleStorage';
+import { useReaderPreferences, setReaderPreference, ENGLISH_EDITIONS } from '../services/readerPreferences';
+import { SELECTABLE_CHINESE_VERSIONS } from '../services/bibleStorage';
+import { UI_LANGUAGE_OPTIONS } from './reader/readerStrings';
 import { useDataStats } from '../hooks/useDataStats';
 import { useGeneralResearch } from '../hooks/useGeneralResearch';
 import { bookmarkStorage, Bookmark } from '../services/bookmarkStorage';
@@ -8,7 +10,6 @@ import { useSeasonTheme } from '../hooks/useSeasonTheme';
 import { ALL_SEASONS, getThemeForSeason, getSeason } from '../services/seasonTheme';
 import SyncStatusLine from './SyncStatusLine';
 import { autoSaveResearchService } from '../services/autoSaveResearchService';
-import { STORAGE_KEYS } from '../constants/storageKeys';
 import { PERSONAL_AI_FEATURE_PAUSED } from './setup/setupStrings';
 import { BRAND_EN, PERSONAL_TITLE_ZH } from './landing/landingStrings';
 
@@ -113,14 +114,9 @@ const Sidebar: React.FC<SidebarProps> = ({
 
   const [autoSaveNotes, setAutoSaveNotes] = useState(() => autoSaveResearchService.isAutoSaveEnabled());
 
-  // English version state
-  const [englishVersion, setEnglishVersionState] = useState<string>(chosenEnglishVersion);
-
-  const handleEnglishVersionChange = (version: string) => {
-    setEnglishVersionState(version);
-    localStorage.setItem(STORAGE_KEYS.ENGLISH_VERSION, version);
-    window.dispatchEvent(new CustomEvent('bibleEnglishVersionChanged'));
-  };
+  // Reader preferences: the same store the reader header uses, so the two never disagree
+  // (2026-10 review: reader KJV vs Settings BSB). Changes in other tabs arrive too.
+  const readerPrefs = useReaderPreferences();
 
   // Load bookmarks
   useEffect(() => {
@@ -883,20 +879,52 @@ const Sidebar: React.FC<SidebarProps> = ({
 
               <div className="h-px bg-slate-100"></div>
 
-              {/* English Bible Version Selector — TODO(R4): Sidebar.tsx is over the
-                  300-line budget; split the settings section into SidebarSettings.tsx */}
-              <div>
-                <div className="text-xs font-medium text-slate-600 mb-2">📖 英文译本 English Version</div>
-                <select
-                  value={englishVersion}
-                  onChange={(e) => handleEnglishVersionChange(e.target.value)}
-                  className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white text-slate-700 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
-                >
-                  <option value="bsb">BSB (Berean Standard Bible)</option>
-                  <option value="web">WEB (World English Bible)</option>
-                  <option value="kjv">KJV (King James Version)</option>
-                  <option value="asv">ASV (American Standard)</option>
-                </select>
+              {/* Reader preferences — four independent choices (services/readerPreferences).
+                  TODO(R4): Sidebar.tsx is over the 300-line budget; split into SidebarSettings.tsx */}
+              <div className="space-y-3" data-testid="reader-settings">
+                <label className="block">
+                  <span className="block text-xs font-medium text-slate-600 mb-1">🌐 界面语言 Interface language</span>
+                  <select
+                    value={readerPrefs.uiLanguage}
+                    onChange={(e) => setReaderPreference('uiLanguage', e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white text-slate-700 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
+                  >
+                    {UI_LANGUAGE_OPTIONS.map(o => <option key={o.id} value={o.id} lang={o.lang}>{o.label}</option>)}
+                  </select>
+                  <span className="block text-[10px] text-slate-400 mt-1">只改按钮与提示，不改经文 · Changes buttons and messages, not the Bible text</span>
+                </label>
+                <label className="block">
+                  <span className="block text-xs font-medium text-slate-600 mb-1">字 中文字体 Chinese script</span>
+                  <select
+                    value={readerPrefs.chineseScript}
+                    onChange={(e) => setReaderPreference('chineseScript', e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white text-slate-700 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
+                  >
+                    <option value="simplified" lang="zh-Hans">简体 Simplified</option>
+                    <option value="traditional" lang="zh-Hant">繁體 Traditional</option>
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="block text-xs font-medium text-slate-600 mb-1">📖 中文译本 Chinese edition</span>
+                  <select
+                    value={readerPrefs.chineseVersion}
+                    onChange={(e) => setReaderPreference('chineseVersion', e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white text-slate-700 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
+                  >
+                    {SELECTABLE_CHINESE_VERSIONS.map(v => <option key={v} value={v}>和合本 CUV</option>)}
+                  </select>
+                </label>
+                <label className="block">
+                  <span className="block text-xs font-medium text-slate-600 mb-1">📖 英文译本 English Version</span>
+                  <select
+                    value={readerPrefs.englishVersion}
+                    onChange={(e) => setReaderPreference('englishVersion', e.target.value)}
+                    className="w-full px-3 py-2 text-xs rounded-lg border border-slate-200 bg-white text-slate-700 focus:outline-none focus:border-indigo-400 focus:ring-1 focus:ring-indigo-400"
+                    lang="en"
+                  >
+                    {ENGLISH_EDITIONS.map(e => <option key={e.id} value={e.id}>{e.short} ({e.name})</option>)}
+                  </select>
+                </label>
               </div>
 
               <div className="h-px bg-slate-100"></div>
