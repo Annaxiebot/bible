@@ -11,6 +11,7 @@ import {
   GROUP_CTA, NEW_STUDY_SIGNIN_NOTE, PERSONAL_CTA,
 } from '../../components/landing/landingStrings';
 import { blockExternalApis, openMatthew7, zhColumn, enColumn } from './helpers/reader';
+import { MAIN_CONTENT_ID } from '../../components/shared/skipLinkStrings';
 
 test.beforeEach(async ({ context }) => { await blockExternalApis(context); });
 
@@ -105,7 +106,7 @@ test.describe('landing — copy, disclosure, keyboard', () => {
     await expect(skip).toBeFocused();
     await expect(skip).toBeVisible();
     await page.keyboard.press('Enter');
-    await expect(page.locator('main#main-content')).toBeFocused();
+    await expect(page.locator(`main#${MAIN_CONTENT_ID}`)).toBeFocused();
     expect(new URL(page.url()).hash).toBe('');
     // Exactly one app tree: the static fallback was replaced, not duplicated.
     await expect(page.locator('#stl-fallback')).toHaveCount(0);

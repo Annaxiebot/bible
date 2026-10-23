@@ -15,6 +15,7 @@ import {
 import { drawOgPixels, OG_IMAGE_TAGLINE, OG_IMAGE_ALT, OG_IMAGE_WIDTH, GOLD_PALE } from '../seo/ogImage';
 import { SAMPLE_PACK_ID } from '../../components/landing/landingRoute';
 import { HERO_SUB_EN, HERO_EYEBROW, GROUP_CTA, PERSONAL_CTA, NEW_STUDY_SIGNIN_NOTE } from '../../components/landing/landingStrings';
+import { MAIN_CONTENT_ID, SKIP_LINK_LABEL } from '../../components/shared/skipLinkStrings';
 
 const ROOT = path.resolve(__dirname, '../..');
 const PACKS_DIR = path.join(ROOT, 'public/packs');
@@ -111,8 +112,9 @@ describe.each(SITES)('study pages (base $base)', (site) => {
     const open = d.querySelector('[data-testid="open-presentation"]')!;
     expect(open.getAttribute('href')).toBe(`${site.base}#/pack/${pack.id}`);
     // Keyboard: skip link → focusable main.
-    expect(d.querySelector('a.stl-skip-link')!.getAttribute('href')).toBe('#main-content');
-    expect(d.getElementById('main-content')!.getAttribute('tabindex')).toBe('-1');
+    expect(d.querySelector('a.stl-skip-link')!.getAttribute('href')).toBe(`#${MAIN_CONTENT_ID}`);
+    expect(d.querySelector('a.stl-skip-link')!.textContent).toBe(SKIP_LINK_LABEL);
+    expect(d.getElementById(MAIN_CONTENT_ID)!.getAttribute('tabindex')).toBe('-1');
   });
 
   it('the primary CTA meets WCAG AA contrast, including its bilingual children', () => {
@@ -183,8 +185,8 @@ describe.each(SITES)('delivered index.html (base $base)', (site) => {
     expect(root.textContent).toContain(PERSONAL_CTA.split(' ').slice(1).join(' '));
     expect(root.textContent).toContain(NEW_STUDY_SIGNIN_NOTE.split(' · ')[1]);
     expect(root.textContent).not.toMatch(/无需登录|No sign-in needed|Google sign-in required|Requires Google sign-in/);   // owner 2026-10-23: Google or email, no "no sign-in" line
-    expect(root.querySelector('a.stl-skip-link')).not.toBeNull();
-    expect(root.querySelector('main#main-content[tabindex="-1"]')).not.toBeNull();
+    expect(root.querySelector('a.stl-skip-link')!.textContent).toBe(SKIP_LINK_LABEL);
+    expect(root.querySelector(`main#${MAIN_CONTENT_ID}[tabindex="-1"]`)).not.toBeNull();
   });
 
   it('a hash route hides the fallback until the app mounts; no-JS visitors can scroll', () => {
@@ -215,6 +217,12 @@ describe('helpers', () => {
 
   it('the fallback without packs still renders the hero', () => {
     expect(homeFallbackHtml(SITES[1], [], SAMPLE_PACK_ID)).toContain('/bible/#app');
+  });
+
+  it('R3: the prerendered pages take the skip-link label and target from skipLinkStrings, not copies', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'scripts/seo/prerender.ts'), 'utf8');
+    expect(src).not.toContain(MAIN_CONTENT_ID);
+    expect(src).not.toContain(SKIP_LINK_LABEL.split(' · ')[0]);
   });
 
   it('refuses an index.html without the empty root (would otherwise ship no fallback)', () => {

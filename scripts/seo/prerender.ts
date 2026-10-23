@@ -25,10 +25,10 @@ import {
   PERSONAL_CTA, NEW_STUDY_LINE, NEW_STUDY_SIGNIN_NOTE, AI_SIGNIN_NOTE, HERO_EYEBROW,
 } from '../../components/landing/landingStrings';
 import { OG_IMAGE_FILE, OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT, OG_IMAGE_ALT } from './ogImage';
+import { MAIN_CONTENT_ID, SKIP_LINK_LABEL } from '../../components/shared/skipLinkStrings';
 
 export const DEFAULT_SITE_ORIGIN = 'https://scripturetolife.org';
 export const STUDIES_DIR = 'studies';
-export const SKIP_LABEL = '跳到主要内容 · Skip to main content';
 
 export const HOME_TITLE = `${BRAND_ZH} · ${BRAND_EN} — ${HERO_EYEBROW}`;
 export const HOME_DESCRIPTION = `${HERO_SUB_EN} ${HERO_SUB_ZH}`;
@@ -221,8 +221,8 @@ export function homeFallbackHtml(site: SeoSite, packs: PublicPack[], featuredId:
           <li><a href="${escapeHtml(studyPath(site, p.id))}">${headingHtml(p.title)}</a>
             <span class="stl-fb-ref">${bilingualHtml(p.passageRef)}</span></li>`).join('');
   return `<div id="${FALLBACK_ID}" class="stl-fallback" lang="zh-Hans">
-      <a class="stl-skip-link" href="#main-content">${escapeHtml(SKIP_LABEL)}</a>
-      <main id="main-content" tabindex="-1">
+      <a class="stl-skip-link" href="#${MAIN_CONTENT_ID}">${escapeHtml(SKIP_LINK_LABEL)}</a>
+      <main id="${MAIN_CONTENT_ID}" tabindex="-1">
         <header>
           <p class="stl-fb-brand"><span lang="zh-Hans">${escapeHtml(BRAND_ZH)}</span> · <span lang="en">${escapeHtml(BRAND_EN)}</span></p>
           <h1><span lang="zh-Hans">${escapeHtml(eyebrow.zh)}</span> <span lang="en">${escapeHtml(eyebrow.en)}</span></h1>
@@ -354,11 +354,11 @@ export function studyPageHtml(site: SeoSite, pack: PublicPack): string {
     </style>
 </head>
 <body>
-  <a class="stl-skip-link" href="#main-content">${escapeHtml(SKIP_LABEL)}</a>
+  <a class="stl-skip-link" href="#${MAIN_CONTENT_ID}">${escapeHtml(SKIP_LINK_LABEL)}</a>
   <header class="top">
     <a href="${escapeHtml(homePath(site))}"><span lang="zh-Hans">${escapeHtml(BRAND_ZH)}</span> · <span lang="en">${escapeHtml(BRAND_EN)}</span></a>
   </header>
-  <main id="main-content" tabindex="-1">
+  <main id="${MAIN_CONTENT_ID}" tabindex="-1">
     <article>
     <h1>${headingHtml(pack.title)}</h1>
     <p class="ref">${bilingualHtml(pack.passageRef)}</p>
