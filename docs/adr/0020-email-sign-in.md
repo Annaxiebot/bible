@@ -146,6 +146,16 @@ in the site's style.
   `rate_limit_email_sent` reads 2). Until custom SMTP is set, email sign-in
   works for team members only; anyone else gets "邮箱登录暂时无法发到这个邮箱，
   请用 Google 登录" (`email_address_not_authorized`) and can use Google.
+- **The link + code template waits for custom SMTP too** (found applying
+  it, 2026-10-23). The Management API refuses any email-template or subject
+  change on the free plan while the default mailer is used ("Email template
+  modification is not available for free tier projects using the default
+  email provider"). Applied on live: code length 6 and expiry 900 s
+  (`mailer_otp_length`, `mailer_otp_exp`); not applied: the template and
+  subject. Until custom SMTP is set, a team member's email is Supabase's
+  link-only "Your sign-in link" template: the link signs in, but there is
+  no code to type, although the page offers the code box. After SMTP is
+  set, run `node scripts/supabase/email-signin-config.ts --apply` once.
 - **Later step — custom SMTP:** in Supabase Auth → SMTP settings, host
   `smtp.resend.com`, port 465, user `resend`, the Resend API key as
   password, sender e.g. `Scripture to Life <signin@scripturetolife.org>`;
