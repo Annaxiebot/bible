@@ -21,12 +21,11 @@ export const STORAGE_KEYS = {
   BIBLE_CACHE_PREFIX: 'bible_cache_',
   BIBLE_CACHE_INDEX: 'bible_cache_index',
 
-  // The user's own OpenRouter key — the hidden "Advanced" own-key path (services/openrouter getApiKey).
-  // Keys of the removed direct providers are cleared on start: services/obsoleteStorageKeys.ts.
-  OPENROUTER_API_KEY: 'openrouter_api_key',
+  // AI model choices (services/aiDefaults readers). The removed own OpenRouter key and the keys of
+  // the removed direct providers are cleared on start: services/obsoleteStorageKeys.ts.
   AI_PROVIDER: 'ai_provider',
   AI_MODEL: 'ai_model',
-  // #/setup "模型 Models" rows: pack-generation model id; Ask-AI fallback ids, comma-separated (services/aiDefaults readers)
+  // Pack-generation model id; Ask-AI fallback ids, comma-separated (services/aiDefaults readers)
   AI_PACK_MODEL: 'ai_pack_model',
   AI_FALLBACK_MODELS: 'ai_fallback_models',
 

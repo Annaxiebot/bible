@@ -65,13 +65,14 @@ End-to-end tests mock Supabase and the AI; they never call a live service.
 - **Back end:** Supabase — Google sign-in, Postgres with row-level security
   (schemas and runbooks in `database/`), and three edge functions in
   `supabase/functions/`:
-  - `ai-proxy` — relays AI requests to OpenRouter with the site's key, so
-    leaders need no key of their own.
+  - `ai-proxy` — relays AI requests to OpenRouter with the site's key; every
+    AI call needs sign-in (no key of one's own, ADR-0007).
   - `send-checkins` — the mid-week check-in emails (Resend), run by pg_cron.
   - `feedback` — stores messages from the `#/feedback` page and emails the
     owner.
 - **AI models:** OpenRouter, through the hosted proxy (a monthly quota per
-  leader). Model ids are single constants in `services/aiDefaults.ts`.
+  leader, a higher one for the owner, a site-wide daily cap on pack
+  generations). Model ids are single constants in `services/aiDefaults.ts`.
 
 Decisions are recorded as ADRs in [`docs/adr/`](docs/adr/):
 
@@ -96,13 +97,14 @@ Front end (`.env.local`, never committed):
 | --- | --- |
 | `VITE_SUPABASE_URL` | Supabase project URL |
 | `VITE_SUPABASE_ANON_KEY` | Supabase anon (public) key; row-level security protects the data |
-| `VITE_OPENROUTER_API_KEY` | Optional, local development only. It is compiled into the bundle, so never set it for a public build |
 | `VITE_BASE_PATH` | Build base path (default `/bible/`; the production build uses `/`) |
 
 Edge function secrets (set with `supabase secrets set`; names only — values
 are never committed):
 
-- `ai-proxy`: `OPENROUTER_API_KEY`, `AI_PROXY_ENABLED`
+- `ai-proxy`: `OPENROUTER_API_KEY`, `AI_PROXY_ENABLED`; optional limits
+  `AI_MONTHLY_<ROLE>` (leaders), `AI_MONTHLY_<ROLE>_OWNER` (owner/admins,
+  default 10× the leader default) and `AI_DAILY_PACK_CAP` (default 30)
 - `send-checkins`: `RESEND_API_KEY`, `CHECKIN_FROM`, `CHECKIN_REPLY_TO`,
   `CHECKIN_CRON_SECRET`, `CHECKIN_SMS_ENABLED`, `TWILIO_ACCOUNT_SID`,
   `TWILIO_AUTH_TOKEN`, `TWILIO_FROM`, `DRY_RUN`

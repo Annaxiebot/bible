@@ -9,12 +9,19 @@
  * per page load. Removing an absent key is a no-op, so running every start
  * is safe and needs no "already done" flag.
  *
- * Kept on purpose: openrouter_api_key (the hidden "Advanced" own-key path
- * reads it), ai_provider / ai_model (services/aiDefaults reads them).
+ * The own OpenRouter key joined them on 2026-10-23 (ADR-0007: sign in to use
+ * AI; the own-key path was removed): a secret nothing reads must not stay in
+ * the browser. Kept on purpose: ai_provider / ai_model (services/aiDefaults
+ * reads them).
  */
+
+/** The own OpenRouter key the removed "Advanced" path stored (one source, R3). */
+export const OWN_OPENROUTER_KEY = 'openrouter_api_key';
 
 /** localStorage keys written only by the removed AI code. This file is their one source (R3). */
 export const OBSOLETE_AI_STORAGE_KEYS: readonly string[] = [
+  // The removed own-key path (2026-10-23)
+  OWN_OPENROUTER_KEY,
   // API keys of the removed providers
   'gemini_api_key', 'claude_api_key', 'openai_api_key', 'kimi_api_key',
   'nvidia_api_key', 'deepseek_api_key', 'groq_api_key', 'dashscope_api_key',

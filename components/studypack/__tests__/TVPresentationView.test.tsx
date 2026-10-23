@@ -1,8 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { readFileSync } from 'fs';
 import React from 'react';
-import { STORAGE_KEYS } from '../../../constants/storageKeys';
+import { signInSeam, signOutSeam } from '../../../tests/utils/hostedSeam';
 import { SAMPLE_PACK_ID, TEST_PACK_PATH } from './fixtures';
 import TVPresentationView from '../TVPresentationView';
 import { preloadMarkdown } from '../../LazyMarkdown';
@@ -187,10 +187,11 @@ describe('TVPresentationView', () => {
     expect(screen.getByText(`1/${DEMO_SLIDES}`)).toBeInTheDocument();
   });
 
+  /** Signed in (the dev seam): AI needs sign-in (ADR-0007, 2026-10-23). */
   function configureKey() {
-    (window.localStorage.getItem as ReturnType<typeof vi.fn>)
-      .mockImplementation((key: string) => key === STORAGE_KEYS.OPENROUTER_API_KEY ? 'test-key' : null);
+    signInSeam();
   }
+  afterEach(signOutSeam);
 
   it('auto-sends the discussion question when Ask AI opens on a discussion slide', async () => {
     mockAnswer('It shows up at work (v.25).');
@@ -253,7 +254,9 @@ describe('TVPresentationView — 2026-10 review', () => {
     (window.localStorage.getItem as ReturnType<typeof vi.fn>).mockReset().mockReturnValue(null);
   });
 
-  it('signed out: the Ask AI pill discloses the Google sign-in requirement before the click', async () => {
+  afterEach(signOutSeam);
+
+  it('signed out: the Ask AI pill discloses the sign-in requirement before the click', async () => {
     mockFetchOk(packJson());
     await renderLoaded();
     const button = screen.getByRole('button', { name: ASK_AI_LABEL });
@@ -261,9 +264,8 @@ describe('TVPresentationView — 2026-10 review', () => {
     expect(button).toHaveAccessibleDescription(ASK_AI_SIGNIN_NOTE);
   });
 
-  it('with AI available, no sign-in note', async () => {
-    (window.localStorage.getItem as ReturnType<typeof vi.fn>)
-      .mockImplementation((key: string) => key === STORAGE_KEYS.OPENROUTER_API_KEY ? 'test-key' : null);
+  it('signed in, no sign-in note', async () => {
+    signInSeam();
     mockFetchOk(packJson());
     await renderLoaded();
     expect(screen.queryByTestId('tv-ask-signin-note')).toBeNull();

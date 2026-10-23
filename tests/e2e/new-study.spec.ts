@@ -1,8 +1,9 @@
 /**
  * new-study.spec.ts — "新建查经 New study" in a real browser · 新建查经端到端
  *
- * #/new renders the form Chinese-first (large type, ≥48px targets); with the
- * OpenRouter endpoint mocked to stream a valid pack JSON, generating
+ * #/new renders the form Chinese-first (large type, ≥48px targets) for a
+ * signed-in leader (AI needs sign-in); with the ai-proxy mocked to stream a
+ * valid pack JSON, generating
  * John 3:22–36 yields an editor holding the real bundled verses; the pack
  * is auto-saved the moment it appears (never lost), the URL becomes
  * #/new/<id>; Save then Preview opens TV mode from IndexedDB showing
@@ -25,12 +26,14 @@ import { ESCAPE_GRACE_MS } from '../../components/studypack/useTVFullscreen';
 import { PACK_CONTINUE_PROMPT } from '../../components/newstudy/packPrompt';
 import { JOHN3_REPLY_JSON } from '../../components/newstudy/__tests__/fixtures';
 import { LIFE_AREAS, DEFAULT_CONTENT_LANGUAGE } from '../../components/studypack/principles';
-import { injectApiKey, mockOpenRouterStream, mockOpenRouterSequence, sseBody, OPENROUTER_CHAT_URL } from './helpers/tv';
+import { sseBody } from './helpers/tv';
+import { AI_PROXY_FUNCTION } from '../../services/aiProxyRoute';
+import { signInAsLeader, mockAIStream, mockAISequence } from './helpers/hostedAI';
 import { PACK_ID, openNewStudy, fillJohn3, chunked, openMoreOptions } from './helpers/newStudy';
 
 test.describe('New study', () => {
   test('the landing has the New study line; #/new renders the Chinese-first form with senior-friendly type', async ({ page }) => {
-    await injectApiKey(page);
+    await signInAsLeader(page);
     await page.goto('./');
     const line = page.getByTestId('landing-new-study-line');
     await expect(line).toHaveText(NEW_STUDY_LINE);
@@ -73,7 +76,7 @@ test.describe('New study', () => {
     await expect(page.getByText(NS_MY_PACKS)).toBeVisible();
   });
 
-  test('without a key, signed out: the sign-in prompt renders inline instead of the form — no key hints', async ({ page }) => {
+  test('signed out: the sign-in prompt renders inline instead of the form — no key hints', async ({ page }) => {
     await openNewStudy(page);
     await expect(page.getByTestId('quick-ai-setup')).toBeVisible();
     await expect(page.getByText(SETUP_TITLE)).toBeVisible();
@@ -83,8 +86,8 @@ test.describe('New study', () => {
   });
 
   test('generate John 3:22–36 (mocked model) → editor with bundled verses → Save → Preview opens TV mode from IndexedDB → Export', async ({ page }) => {
-    await injectApiKey(page);
-    await mockOpenRouterStream(page, chunked(JOHN3_REPLY_JSON));
+    await signInAsLeader(page);
+    await mockAIStream(page, chunked(JOHN3_REPLY_JSON));
     await openNewStudy(page);
     await fillJohn3(page);
     await page.getByRole('button', { name: NS_GENERATE }).click();
@@ -155,10 +158,10 @@ test.describe('New study', () => {
   });
 
   test('editor: change the range to John 3:22–30 without regenerating, move a section, remove one with inline confirm → Preview order', async ({ page }) => {
-    await injectApiKey(page);
-    await mockOpenRouterStream(page, chunked(JOHN3_REPLY_JSON));
+    await signInAsLeader(page);
+    await mockAIStream(page, chunked(JOHN3_REPLY_JSON));
     let modelCalls = 0;
-    page.on('request', r => { if (r.url() === OPENROUTER_CHAT_URL) modelCalls++; });
+    page.on('request', r => { if (r.url().endsWith(`/functions/v1/${AI_PROXY_FUNCTION}`)) modelCalls++; });
     await openNewStudy(page);
     await fillJohn3(page);
     await page.getByRole('button', { name: NS_GENERATE }).click();
@@ -217,7 +220,7 @@ test.describe('New study', () => {
   });
 
   test('a reply cut by max_tokens (finish_reason "length") is continued once — the joined JSON opens the editor', async ({ page }) => {
-    await injectApiKey(page);
+    await signInAsLeader(page);
     const CUT = 900;
     const head = JOHN3_REPLY_JSON.slice(0, CUT);
     const tail = JOHN3_REPLY_JSON.slice(CUT);
@@ -226,7 +229,7 @@ test.describe('New study', () => {
       ...chunked(text).map(c => ({ model, choices: [{ delta: { content: c }, finish_reason: null }] })),
       { model, choices: [{ delta: {}, finish_reason: finish }] },
     ]);
-    const { bodies } = await mockOpenRouterSequence(page, [{ sse: reply(head, 'length') }, { sse: reply(tail, 'stop') }]);
+    const { bodies } = await mockAISequence(page, [{ sse: reply(head, 'length') }, { sse: reply(tail, 'stop') }]);
     await openNewStudy(page);
     await fillJohn3(page);
     await page.getByRole('button', { name: NS_GENERATE }).click();
@@ -242,8 +245,8 @@ test.describe('New study', () => {
   });
 
   test('generation never loses the pack: Preview straight after generating, close TV mode → the editor is back and the pack is listed', async ({ page }) => {
-    await injectApiKey(page);
-    await mockOpenRouterStream(page, chunked(JOHN3_REPLY_JSON));
+    await signInAsLeader(page);
+    await mockAIStream(page, chunked(JOHN3_REPLY_JSON));
     await openNewStudy(page);
     await fillJohn3(page);
     await page.getByRole('button', { name: NS_GENERATE }).click();
@@ -258,8 +261,8 @@ test.describe('New study', () => {
   });
 
   test('a truncated model reply shows the bilingual error with Retry — never a half-pack', async ({ page }) => {
-    await injectApiKey(page);
-    await mockOpenRouterStream(page, chunked(JOHN3_REPLY_JSON.slice(0, 400)));
+    await signInAsLeader(page);
+    await mockAIStream(page, chunked(JOHN3_REPLY_JSON.slice(0, 400)));
     await openNewStudy(page);
     await fillJohn3(page);
     await page.getByRole('button', { name: NS_GENERATE }).click();

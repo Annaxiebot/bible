@@ -102,12 +102,6 @@ export const AI_CREDIT_USED_UP = bilingualLine('AI 额度已用完，请联系�
 /** Proxy 503 (kill switch, key missing or rejected): the site's AI is off for now. */
 export const AI_SERVICE_PAUSED = bilingualLine('本站AI暂停服务，请稍后再试', "the site's AI is paused — try again later");
 
-/**
- * The ONLY own-key hint outside the AI service page (owner decision): added,
- * as a link to that page, after AI_CREDIT_USED_UP and AI_SERVICE_PAUSED.
- */
-export const AI_OWN_KEY_ON_STATUS_PAGE = bilingualLine('或在 AI 服务页使用自己的密钥', 'or use your own key on the AI service page');
-
 /** OpenRouter 402: the chosen model needs credits. Rendered with a Set up AI button. */
 export const AI_CREDITS_MESSAGE =
   '所选模型需要付费额度 — 请在“设置AI”改用免费模型，或为 OpenRouter 充值。 ' +

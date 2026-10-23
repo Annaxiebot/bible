@@ -39,7 +39,7 @@ export type ProgressReporter = (step: string, detail?: string) => void;
 /** OpenRouter finish_reason when the reply hit max_tokens. */
 export const FINISH_LENGTH = 'length';
 /** Quota role on the hosted proxy + X-Title header for an own key (ASCII only). */
-const PACK_REQUEST: AIRequestMeta = { role: 'pack', title: 'Scripture to Life - New study' };
+const PACK_REQUEST: AIRequestMeta = { role: 'pack' };
 
 /** The requested verses from the bundled chapter files, both translations required. */
 export async function loadPassage(req: VerseRange): Promise<PackVerse[]> {

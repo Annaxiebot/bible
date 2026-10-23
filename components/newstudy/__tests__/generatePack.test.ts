@@ -1,23 +1,24 @@
 /**
  * generatePack.test.ts — the full pipeline against the real bundled Bible
- * files (served from disk through a fetch stub) and a mocked OpenRouter SSE
- * stream: real John 3:22–36 verses end up in the pack, progress is reported,
+ * files (served from disk through a fetch stub) and a mocked ai-proxy SSE
+ * stream (signed in through the dev seam: AI needs sign-in): real John 3:22–36 verses end up in the pack, progress is reported,
  * truncation and cancel surface as errors, never as a half-pack; a reply cut
  * by max_tokens (finish_reason "length") gets exactly one continuation turn.
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { generateStudyPack, loadPassage } from '../generatePack';
 import { PACK_CONTINUE_PROMPT } from '../packPrompt';
 import { JOHN3_REQUEST, JOHN3_REPLY_JSON } from './fixtures';
 import { STORAGE_KEYS } from '../../../constants/storageKeys';
-import { OPENROUTER_API_URL } from '../../../services/openrouter';
+import { E2E_ACCESS_TOKEN } from '../../../services/aiProxyRoute';
+import { signInSeam, signOutSeam } from '../../../tests/utils/hostedSeam';
 import { PACK_GENERATION_MODEL } from '../../../services/aiDefaults';
 import { modelLine } from '../../studypack/tvHints';
 import {
   NS_STEP_VERSES, NS_STEP_AI, NS_STEP_VALIDATE, NS_ERR_NO_JSON, NS_ERR_VERSES_OUT_OF_RANGE,
   NS_ERR_VERSES_UNAVAILABLE, NS_ERR_OUTPUT_LIMIT, NS_VERSE_OMITTED_NOTE,
 } from '../newStudyStrings';
-import { stubFetch, chunked, HOSTED_PATH, SERVED_MODEL } from './packFetchStub';
+import { stubFetch, chunked, isAICall, SERVED_MODEL } from './packFetchStub';
 
 describe('loadPassage', () => {
   beforeEach(() => vi.unstubAllGlobals());
@@ -57,9 +58,10 @@ describe('loadPassage', () => {
 describe('generateStudyPack', () => {
   beforeEach(() => {
     vi.unstubAllGlobals();
-    (window.localStorage.getItem as ReturnType<typeof vi.fn>).mockReset()
-      .mockImplementation((k: string) => (k === STORAGE_KEYS.OPENROUTER_API_KEY ? 'unit-test-key' : null));
+    (window.localStorage.getItem as ReturnType<typeof vi.fn>).mockReset().mockReturnValue(null);
+    signInSeam();
   });
+  afterEach(signOutSeam);
 
   it('streams the model reply, reports progress, and returns a validated pack with the real verses', async () => {
     const fetchMock = stubFetch(chunked(`Sure:\n\`\`\`json\n${JOHN3_REPLY_JSON}\n\`\`\``));
@@ -74,19 +76,20 @@ describe('generateStudyPack', () => {
     expect(steps.some(s => s.startsWith(`${NS_STEP_AI}|`) && /\d+/.test(s))).toBe(true);
     expect(steps[steps.length - 1]).toBe(NS_STEP_VALIDATE);
 
-    const call = fetchMock.mock.calls.find(c => c[0] === OPENROUTER_API_URL)!;
+    const call = fetchMock.mock.calls.find(c => isAICall(c[0]))!;
     const init = call[1] as RequestInit;
-    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer unit-test-key');
+    expect((init.headers as Record<string, string>).Authorization).toBe(`Bearer ${E2E_ACCESS_TOKEN}`);
     expect(init.body as string).toContain('耶稣和门徒到了犹太地');
     expect(JSON.parse(init.body as string).model).toBe(PACK_GENERATION_MODEL); // not the Ask-AI model
+    expect(JSON.parse(init.body as string).role).toBe('pack');
   });
 
-  it('sends the pack model chosen on #/setup instead of the default when one is stored', async () => {
+  it('names a stored (synced) pack model instead of the default; the proxy\'s allowlist decides what runs', async () => {
     (window.localStorage.getItem as ReturnType<typeof vi.fn>).mockImplementation((k: string) =>
-      ({ [STORAGE_KEYS.OPENROUTER_API_KEY]: 'unit-test-key', [STORAGE_KEYS.AI_PACK_MODEL]: 'deepseek/deepseek-chat-v3-0324' })[k] ?? null);
+      ({ [STORAGE_KEYS.AI_PACK_MODEL]: 'deepseek/deepseek-chat-v3-0324' })[k] ?? null);
     const fetchMock = stubFetch(chunked(`\`\`\`json\n${JOHN3_REPLY_JSON}\n\`\`\``));
     await generateStudyPack(JOHN3_REQUEST, () => {}, new AbortController().signal);
-    const init = fetchMock.mock.calls.find(c => c[0] === OPENROUTER_API_URL)![1] as RequestInit;
+    const init = fetchMock.mock.calls.find(c => isAICall(c[0]))![1] as RequestInit;
     expect(JSON.parse(init.body as string).model).toBe('deepseek/deepseek-chat-v3-0324');
   });
 
@@ -100,14 +103,14 @@ describe('generateStudyPack', () => {
     const fetchMock = stubFetch([{ chunks: chunked(JOHN3_REPLY_JSON.slice(0, 500)), finish: 'stop', model: SERVED_MODEL }]);
     await expect(generateStudyPack(JOHN3_REQUEST, () => {}, new AbortController().signal))
       .rejects.toThrow(`${NS_ERR_NO_JSON} · ${modelLine(SERVED_MODEL)}`);
-    expect(fetchMock.mock.calls.filter(c => c[0] === OPENROUTER_API_URL)).toHaveLength(1);
+    expect(fetchMock.mock.calls.filter(c => isAICall(c[0]))).toHaveLength(1);
   });
 
   describe('finish_reason "length" (max_tokens hit)', () => {
     const CUT = 900;
     const head = JOHN3_REPLY_JSON.slice(0, CUT);
     const tail = JOHN3_REPLY_JSON.slice(CUT);
-    const modelCalls = (fetchMock: ReturnType<typeof stubFetch>) => fetchMock.mock.calls.filter(c => c[0] === OPENROUTER_API_URL);
+    const modelCalls = (fetchMock: ReturnType<typeof stubFetch>) => fetchMock.mock.calls.filter(c => isAICall(c[0]));
 
     it('sends ONE continuation carrying the partial text as the assistant turn; the concatenated reply parses into the pack', async () => {
       const fetchMock = stubFetch([
@@ -149,21 +152,12 @@ describe('generateStudyPack', () => {
     });
   });
 
-  it('no own key, signed in (dev seam): the request goes to the ai-proxy function with role "pack"', async () => {
-    (window.localStorage.getItem as ReturnType<typeof vi.fn>).mockReset().mockReturnValue(null);
-    const seams = window as Window & { __LEADER_E2E__?: unknown; __SUPABASE_E2E__?: unknown };
-    seams.__LEADER_E2E__ = { uid: 'e2e-uid' };
-    seams.__SUPABASE_E2E__ = { url: 'http://localhost:3000/e2e-supabase', anonKey: 'e2e-anon' };
-    try {
-      const fetchMock = stubFetch([{ chunks: chunked(JOHN3_REPLY_JSON), finish: 'stop', model: SERVED_MODEL }]);
-      await generateStudyPack(JOHN3_REQUEST, () => {}, new AbortController().signal);
-      const hosted = fetchMock.mock.calls.filter(c => c[0].endsWith(HOSTED_PATH));
-      expect(hosted).toHaveLength(1);
-      expect(JSON.parse(hosted[0][1]!.body as string).role).toBe('pack');
-    } finally {
-      delete seams.__LEADER_E2E__;
-      delete seams.__SUPABASE_E2E__;
-    }
+  it('signed out: no request at all — the sign-in line, not a half-pack (AI needs sign-in)', async () => {
+    signOutSeam();
+    const fetchMock = stubFetch(chunked(JOHN3_REPLY_JSON));
+    await expect(generateStudyPack(JOHN3_REQUEST, () => {}, new AbortController().signal))
+      .rejects.toMatchObject({ kind: 'sign-in-needed' });
+    expect(fetchMock.mock.calls.filter(c => isAICall(c[0]))).toHaveLength(0);
   });
 
   it('surfaces a cancel as an AbortError, not as a failure', async () => {

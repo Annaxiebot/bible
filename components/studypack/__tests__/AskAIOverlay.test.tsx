@@ -2,10 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
 import { readFileSync } from 'fs';
 import React from 'react';
-import { STORAGE_KEYS } from '../../../constants/storageKeys';
+import { signInSeam, signOutSeam } from '../../../tests/utils/hostedSeam';
 import { TEST_PACK_PATH } from './fixtures';
 import { parseStudyPack, buildSlides, StudyPack, Slide } from '../packTypes';
-import { SETUP_TITLE, SETUP_OPEN_BUTTON, SETUP_CANCEL, SETUP_SIGN_IN_TO_USE_AI, SETUP_OWN_KEY_TOGGLE } from '../../setup/setupStrings';
+import { SETUP_TITLE, SETUP_OPEN_BUTTON, SETUP_CANCEL, SETUP_SIGN_IN_TO_USE_AI } from '../../setup/setupStrings';
 import { ASK_AI_MODEL } from '../../../services/aiDefaults';
 import { AI_CREDITS_MESSAGE, AI_EMPTY, TV_RETRY, thinkingLine, modelLine, BACKUP_MODEL_NOTE } from '../tvHints';
 import { AskAIError, emptyError, timeoutError } from '../askAIErrors';
@@ -33,10 +33,9 @@ type OnText = (t: string) => void;
 const getItemMock = window.localStorage.getItem as ReturnType<typeof vi.fn>;
 const setItemMock = window.localStorage.setItem as ReturnType<typeof vi.fn>;
 
+/** Signed in (the dev seam): AI needs sign-in (ADR-0007, 2026-10-23). */
 function configureKey() {
-  getItemMock.mockImplementation((key: string) =>
-    key === STORAGE_KEYS.OPENROUTER_API_KEY ? 'test-key' : null
-  );
+  signInSeam();
 }
 
 function renderOverlay(onClose = vi.fn(), initialQuestion: string | null = null) {
@@ -59,6 +58,7 @@ beforeEach(() => {
     });
   getItemMock.mockReset().mockReturnValue(null);
   setItemMock.mockReset();
+  signOutSeam();
 });
 
 describe('AskAIOverlay (streaming)', () => {
@@ -78,12 +78,11 @@ describe('AskAIOverlay (streaming)', () => {
     expect(screen.getByTestId('ask-sources')).toHaveTextContent('OpenBible.info');
   });
 
-  it('no key, signed out: the inline sign-in prompt (no key hints) and the input disabled', () => {
+  it('signed out: the inline sign-in prompt (no key hints) and the input disabled', () => {
     renderOverlay();
     expect(screen.getByTestId('quick-ai-setup')).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: SETUP_TITLE })).toBeInTheDocument();
     expect(screen.getByText(SETUP_SIGN_IN_TO_USE_AI)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: SETUP_OWN_KEY_TOGGLE })).toBeNull();
     expect(screen.getByTestId('ask-ai-overlay').textContent).not.toMatch(/OpenRouter|密钥/);
     expect(screen.getByLabelText(/Ask AI question/)).toBeDisabled();
     expect(streamStudyAIMock).not.toHaveBeenCalled();

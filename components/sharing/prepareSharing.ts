@@ -25,7 +25,7 @@ import { sharingSection } from './sharingSection';
 import { SH_ERR_LOAD, SH_ERR_NOTHING, SH_ERR_INVALID } from './sharingStrings';
 
 /** Quota role on the hosted proxy + X-Title for an own key (ASCII only). */
-const SHARING_REQUEST: AIRequestMeta = { role: 'sharing', title: 'Scripture to Life - Last week sharing' };
+const SHARING_REQUEST: AIRequestMeta = { role: 'sharing' };
 /** Attempts at a valid reply: the first plus one retry. */
 export const SHARING_ATTEMPTS = 2;
 

@@ -2,17 +2,19 @@
  * studyAI.test.ts — the personal app's one AI path · 个人研经AI路由测试 (ADR-0007 "Personal app")
  *
  * Only fetch and the session are faked; services/studyAI, askAIStream and
- * aiTransport run for real, so these pin the whole route:
- *   own key → OpenRouter directly (no role, the key owner's Ask-AI model);
- *   signed in → the ai-proxy function with role 'study';
- *   neither → an AskAIError 'sign-in-needed' and no request at all.
+ * aiTransport run for real, so these pin the whole route (one rule since
+ * 2026-10-23: sign in to use AI):
+ *   signed in → the ai-proxy function with role 'study' (the server adds
+ *   the scope guard before the chat's own system prompt);
+ *   signed out → an AskAIError 'sign-in-needed' and no request at all, even
+ *   with an old own key still in the browser.
  * Plus every personal-app caller (journal stream + chat, vibe) reaching
  * the proxy with role 'study', the history fit to the proxy's limits, and
  * the typed failures the chat shows.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { STORAGE_KEYS } from '../../constants/storageKeys';
-import { OPENROUTER_API_URL } from '../openrouter';
+import { OWN_OPENROUTER_KEY } from '../obsoleteStorageKeys';
+import { finalOfSent } from '../../tests/utils/hostedSeam';
 import { ASK_AI_MODEL } from '../aiDefaults';
 import { ROLE_MAX_TOKENS, MAX_MESSAGES, MAX_TOTAL_CHARS } from '../../supabase/functions/ai-proxy/policy';
 import { SCOPE_GUARD } from '../../supabase/functions/_shared/aiPrompts';
@@ -28,7 +30,7 @@ vi.mock('../supabase', () => ({
   isSupabaseConfigured: () => true,
 }));
 
-import { streamStudyAI, chatStudyAI, fitHistory, buildStudyBody, STUDY_AI_TITLE } from '../studyAI';
+import { streamStudyAI, chatStudyAI, fitHistory, buildStudyBody } from '../studyAI';
 import { AskAIError } from '../../components/studypack/askAIErrors';
 import { generateVibeCSS } from '../vibe';
 import { streamAI, suggestTags } from '../journalAIService';
@@ -51,7 +53,7 @@ const call = (fetchMock: ReturnType<typeof stubFetch>, i = 0) => {
   const [url, init] = fetchMock.mock.calls[i] as unknown as [string, RequestInit];
   return { url, headers: init.headers as Record<string, string>, body: JSON.parse(init.body as string) };
 };
-const ownKey = () => getItemMock.mockImplementation((k: string) => (k === STORAGE_KEYS.OPENROUTER_API_KEY ? 'sk-or-own' : null));
+const oldOwnKey = () => getItemMock.mockImplementation((k: string) => (k === OWN_OPENROUTER_KEY ? 'sk-or-own' : null));
 
 beforeEach(() => {
   session = null;
@@ -62,25 +64,23 @@ beforeEach(() => {
 afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
 describe('streamStudyAI routing', () => {
-  it('own key → OpenRouter directly: no role, the Ask-AI model, the study cap, the scope guard then the user\'s system prompt', async () => {
-    ownKey();
+  it('signed in → the proxy: role study, the Ask-AI model, the study cap; the server puts the scope guard before the chat\'s system prompt', async () => {
+    session = { access_token: 'user-jwt' };
     const fetchMock = stubFetch(streamReply(['你好 ', 'world']));
     const chunks: string[] = [];
     const result = await streamStudyAI('q', [{ role: 'user', content: 'earlier' }], c => chunks.push(c), { system: 'SYS' });
     const { url, headers, body } = call(fetchMock);
-    expect(url).toBe(OPENROUTER_API_URL);
-    expect(headers.Authorization).toBe('Bearer sk-or-own');
-    expect(headers['X-Title']).toBe(STUDY_AI_TITLE);
-    expect(body).not.toHaveProperty('role');
-    expect(body).toMatchObject({ model: ASK_AI_MODEL, stream: true, max_tokens: ROLE_MAX_TOKENS.study });
-    expect(body.messages).toEqual([
+    expect(url).not.toContain('openrouter.ai');
+    expect(headers).not.toHaveProperty('X-Title');
+    expect(body).toMatchObject({ role: 'study', model: ASK_AI_MODEL, stream: true, max_tokens: ROLE_MAX_TOKENS.study });
+    expect(JSON.parse(finalOfSent(JSON.stringify(body))).messages).toEqual([
       { role: 'system', content: SCOPE_GUARD }, { role: 'system', content: 'SYS' }, { role: 'user', content: 'earlier' }, { role: 'user', content: 'q' },
     ]);
     expect(chunks).toEqual(['你好 ', 'world']);
     expect(result).toEqual({ text: '你好 world', model: SERVED });
   });
 
-  it('no key, signed in → the ai-proxy function with role "study" and the access token', async () => {
+  it('signed in → the ai-proxy function with role "study" and the access token', async () => {
     session = { access_token: 'user-jwt' };
     const fetchMock = stubFetch(streamReply(['answer']));
     const result = await chatStudyAI('q');
@@ -92,7 +92,8 @@ describe('streamStudyAI routing', () => {
     expect(result.text).toBe('answer');
   });
 
-  it('neither → AskAIError sign-in-needed (the TV overlay\'s line), no request sent', async () => {
+  it('signed out → AskAIError sign-in-needed (the TV overlay\'s line), no request sent — an old own key changes nothing', async () => {
+    oldOwnKey();
     const fetchMock = stubFetch(streamReply(['never']));
     const err = await chatStudyAI('q').catch(e => e);
     expect(err).toBeInstanceOf(AskAIError);

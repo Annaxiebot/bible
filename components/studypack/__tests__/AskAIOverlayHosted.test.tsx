@@ -1,11 +1,11 @@
 /**
  * AskAIOverlayHosted.test.tsx — the TV Ask-AI overlay under hosted AI · 本站AI问一问
  *
- * ADR-0007 gate with the session mocked (no key stored anywhere here):
- * signed in → no form, asking works; signing in while a question is pending
- * sends it; the hosted no-credit / paused lines are the only ones that link
- * to the AI service page's own-key option; the quota line offers neither
- * that link nor Retry. Split from AskAIOverlay.test.tsx (R4).
+ * ADR-0007 gate with the session mocked: signed in → no form, asking works;
+ * signing in while a question is pending sends it; the hosted no-credit /
+ * paused / quota / daily-cap lines carry no link (no own-key hint since
+ * 2026-10-23), no Set up AI button, and the limits no Retry. Split from
+ * AskAIOverlay.test.tsx (R4).
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
@@ -15,8 +15,7 @@ import { TEST_PACK_PATH } from './fixtures';
 import { parseStudyPack, buildSlides } from '../packTypes';
 import { ASK_AI_MODEL } from '../../../services/aiDefaults';
 import { SETUP_OPEN_BUTTON } from '../../setup/setupStrings';
-import { SETUP_HASH } from '../../landing/landingRoute';
-import { AI_CREDIT_USED_UP, AI_SERVICE_PAUSED, AI_OWN_KEY_ON_STATUS_PAGE, TV_RETRY, quotaLine } from '../tvHints';
+import { AI_CREDIT_USED_UP, AI_SERVICE_PAUSED, AI_DAILY_CAP_REACHED, TV_RETRY, quotaLine } from '../tvHints';
 import { AskAIError } from '../askAIErrors';
 
 const streamStudyAIMock = vi.fn();
@@ -73,7 +72,7 @@ beforeEach(() => {
   authListeners.clear();
 });
 
-describe('AskAIOverlay — hosted AI (no own key)', () => {
+describe('AskAIOverlay — hosted AI', () => {
   it('signed in: no form, the input is enabled', () => {
     signedInUid = 'uid-leader-1';
     renderOverlay();
@@ -95,21 +94,25 @@ describe('AskAIOverlay — hosted AI (no own key)', () => {
   it.each([
     ['credit-used-up', AI_CREDIT_USED_UP, 402],
     ['service-paused', AI_SERVICE_PAUSED, 503],
-  ] as const)('%s: the line links to the AI service page\'s own-key option, no Set up AI button', async (kind, line, status) => {
+  ] as const)('%s: the line alone — no own-key link, no Set up AI button', async (kind, line, status) => {
     signedInUid = 'uid-leader-1';
     streamStudyAIMock.mockRejectedValue(new AskAIError(kind, line, ASK_AI_MODEL, status));
     renderOverlay('auto question');
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(line));
-    expect(screen.getByRole('link', { name: AI_OWN_KEY_ON_STATUS_PAGE })).toHaveAttribute('href', SETUP_HASH);
+    expect(screen.getByRole('alert').querySelector('a')).toBeNull();
+    expect(screen.getByRole('alert').textContent).not.toMatch(/OpenRouter|密钥|own key/);
     expect(screen.queryByRole('button', { name: SETUP_OPEN_BUTTON })).toBeNull();
   });
 
-  it('quota: the bilingual limit line, no own-key hint, no retry', async () => {
+  it.each([
+    ['quota', quotaLine(300)],
+    ['daily-cap', AI_DAILY_CAP_REACHED],
+  ] as const)('%s: the bilingual limit line, no link, no retry', async (kind, line) => {
     signedInUid = 'uid-leader-1';
-    streamStudyAIMock.mockRejectedValue(new AskAIError('quota', quotaLine(300), ASK_AI_MODEL, 429));
+    streamStudyAIMock.mockRejectedValue(new AskAIError(kind, line, ASK_AI_MODEL, 429));
     renderOverlay('auto question');
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(quotaLine(300)));
-    expect(screen.queryByRole('link', { name: AI_OWN_KEY_ON_STATUS_PAGE })).toBeNull();
+    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent(line));
+    expect(screen.getByRole('alert').querySelector('a')).toBeNull();
     expect(screen.queryByRole('button', { name: TV_RETRY })).toBeNull();
   });
 });

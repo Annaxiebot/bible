@@ -60,7 +60,6 @@ const Conversation: React.FC<{ ai: AskAI; pack: StudyPack; history: AskHistory }
   const areaRef = useRef<HTMLDivElement>(null);
   const latestRef = useRef<HTMLDivElement>(null);
   const [setupOpen, setSetupOpen] = useState(false);
-  const onSaved = () => { ai.markConfigured(); setSetupOpen(false); };
   const { earlier, question, answer, turn } = splitTurns(ai);
   const streaming = ai.streamingText !== null;
   // The latest turn (its question + answer) in view — after each fit too, since the block also changes
@@ -79,10 +78,10 @@ const Conversation: React.FC<{ ai: AskAI; pack: StudyPack; history: AskHistory }
     <div ref={areaRef} className="flex-1 min-h-0 overflow-y-auto tv-thin-scroll space-y-[2vh]" data-testid="ask-conversation">
       {(!ai.configured || setupOpen) && (
         // No AI yet (or opened from an error line): the AI form inline — the
-        // sign-in prompt, no key hints (ADR-0007). Signing in or a stored key
-        // flips `configured`; a pending question then sends.
+        // sign-in choices (ADR-0007). Signing in flips `configured`; a
+        // pending question then sends.
         <div className="max-w-3xl">
-          <QuickAISetupForm onSaved={onSaved} ownKeyOption={false} onCancel={setupOpen ? () => setSetupOpen(false) : undefined} />
+          <QuickAISetupForm onCancel={setupOpen ? () => setSetupOpen(false) : undefined} />
         </div>
       )}
       {earlier.map((m, i) => <Message key={i} m={m} pack={pack} />)}
@@ -160,7 +159,7 @@ const AskAIOverlay: React.FC<AskAIOverlayProps> = ({ pack, slide, initialQuestio
 
   // One-click smart open: submit the initial question immediately, once.
   // While AI is unavailable the question stays pending; it is sent as soon
-  // as the leader signs in or a key is stored (ai.configured flips to true).
+  // as the leader signs in (ai.configured flips to true).
   // On an owned study it also waits until the saved exchanges are in the conversation, so they come first.
   const historyIn = history.ready && (history.restored === null || ai.restoredIn);
   useEffect(() => {

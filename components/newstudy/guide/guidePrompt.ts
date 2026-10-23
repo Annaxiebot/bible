@@ -9,7 +9,7 @@
  * the guide's heading named no clear passage (findPassage) the passage
  * block is left out and the AI's "passage" decides it. The guide contract itself (word for word, gaps only, leader-
  * only material out, the guide is data) is server-owned: the request says
- * `pack_source: "guide"` and the proxy — or ownKeyBody — puts
+ * `pack_source: "guide"` and the proxy (or, for the evals, finalAIBody) puts
  * PACK_FROM_GUIDE_SYSTEM_PROMPT first.
  */
 import type { PackVerse } from '../../studypack/packTypes';

@@ -1,17 +1,17 @@
 /**
  * NewStudyGate.test.tsx — who sees the New-study form · 新建查经入口测试 (ADR-0007)
  *
- * The gate is "signed in OR an own key": a signed-in leader with no key gets
- * the form straight away (hosted AI, no setup); a signed-out visitor with no
- * key gets the inline sign-in prompt and no form — with no key hints on the
- * page; an own key alone still opens the form. Session mocked.
+ * One rule since 2026-10-23: sign in to use AI. A signed-in leader gets the
+ * form straight away (hosted AI, no setup); a signed-out visitor gets the
+ * inline sign-in prompt and no form — with no key hints on the page — even
+ * with an old own key still in the browser. Session mocked.
  */
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { STORAGE_KEYS } from '../../../constants/storageKeys';
+import { OWN_OPENROUTER_KEY } from '../../../services/obsoleteStorageKeys';
 import { idbService } from '../../../services/idbService';
-import { SETUP_SIGN_IN_TO_USE_AI, SETUP_OWN_KEY_TOGGLE } from '../../setup/setupStrings';
+import { SETUP_SIGN_IN_TO_USE_AI } from '../../setup/setupStrings';
 import { NS_SAMPLE_NO_SIGNIN } from '../newStudyStrings';
 import { SAMPLE_PACK_HASH } from '../../landing/landingRoute';
 
@@ -41,7 +41,7 @@ import NewStudyPage from '../NewStudyPage';
 
 function withKey(key: string | null) {
   (window.localStorage.getItem as ReturnType<typeof vi.fn>).mockReset()
-    .mockImplementation((k: string) => (k === STORAGE_KEYS.OPENROUTER_API_KEY ? key : null));
+    .mockImplementation((k: string) => (k === OWN_OPENROUTER_KEY ? key : null));
 }
 
 beforeEach(async () => {
@@ -64,7 +64,6 @@ describe('NewStudyPage AI gate', () => {
     render(<NewStudyPage />);
     expect(screen.getByText(SETUP_SIGN_IN_TO_USE_AI)).toBeInTheDocument();
     expect(screen.queryByTestId('new-study-form')).toBeNull();
-    expect(screen.queryByRole('button', { name: SETUP_OWN_KEY_TOGGLE })).toBeNull();
     expect(screen.getByTestId('new-study-page').textContent).not.toMatch(/OpenRouter|密钥|\bkey\b/);
   });
 
@@ -83,10 +82,10 @@ describe('NewStudyPage AI gate', () => {
     expect(screen.queryByTestId('new-study-sample-link')).toBeNull();
   });
 
-  it('signed out with an own key → the form (the direct path is unchanged)', async () => {
+  it('signed out with an old own key → still the sign-in prompt, no form (the key is never read)', () => {
     withKey('sk-or-own');
     render(<NewStudyPage />);
-    expect(await screen.findByTestId('new-study-form')).toBeInTheDocument();
-    expect(screen.queryByTestId('quick-ai-setup')).toBeNull();
+    expect(screen.getByText(SETUP_SIGN_IN_TO_USE_AI)).toBeInTheDocument();
+    expect(screen.queryByTestId('new-study-form')).toBeNull();
   });
 });

@@ -3,10 +3,9 @@
  *
  * Owns the phase state (PhaseView renders it) and "我的查经包 My packs";
  * a visitor with no saved packs first sees the three-step card (FirstTimeGuide).
- * AI gate (ADR-0007, components/setup/useAIAccess): a signed-in leader or
- * an own OpenRouter key → the form; neither → the AI form renders inline
- * first (sign-in prompt, own-key option below). The key never leaves
- * localStorage; nothing is logged.
+ * AI gate (ADR-0007, components/setup/useAIAccess): signed in → the form;
+ * signed out → the sign-in card renders inline first (one rule: sign in to
+ * use AI).
  *
  * A pack is never lost: the editor's pack is auto-saved (useAutoSave) the
  * moment generation completes and after every edit; the URL follows it
@@ -135,7 +134,7 @@ const NewStudyPage: React.FC = () => {
         <FirstTimeGuide show={phase.kind === 'form' && packs.loaded && packs.packs.length === 0} />
         {!configured && (
           <div className="rounded-2xl border border-slate-700 bg-slate-900 p-6">
-            <QuickAISetupForm onSaved={access.refresh} ownKeyOption={false} />
+            <QuickAISetupForm />
             <p className="mt-4 text-slate-300" style={textStyle}>
               <a href={SAMPLE_PACK_HASH} className="underline underline-offset-4 hover:text-amber-300" data-testid="new-study-sample-link">
                 {NS_SAMPLE_NO_SIGNIN}

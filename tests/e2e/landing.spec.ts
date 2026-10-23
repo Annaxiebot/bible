@@ -10,8 +10,8 @@
  * the rings. The sticky nav scrolls to its sections; the next-study block
  * shows the real sample pack and opens it in TV mode; sign-up shows the
  * demo line for the sample pack and the per-pack QR + #/signup link for an
- * owned pack. The saved-key state of the setup dialog (model rows) lives in
- * quick-ai-setup.spec.ts.
+ * owned pack. #/setup is the AI service status page (sign in to use AI,
+ * ADR-0007); its signed-in state lives in hosted-ai.spec.ts.
  */
 import { test, expect, Page } from '@playwright/test';
 import {
@@ -21,9 +21,8 @@ import {
 import { SETUP_HASH, SAMPLE_PACK_ID } from '../../components/landing/landingRoute';
 import { signupHash } from '../../components/signup/signupRoute';
 import { routeOwnedSamplePack, expectedSignupUrl } from './helpers/signup';
-import { SETUP_TITLE, SETUP_KEY_LABEL, SETUP_SAVE, SETUP_GET_KEY, SETUP_OWN_KEY_TOGGLE } from '../../components/setup/setupStrings';
-import { OPENROUTER_KEYS_URL } from '../../services/aiDefaults';
-import { STORAGE_KEYS } from '../../constants/storageKeys';
+import { SETUP_TITLE, SETUP_SIGN_IN_TO_USE_AI } from '../../components/setup/setupStrings';
+import { OWN_OPENROUTER_KEY } from '../../services/obsoleteStorageKeys';
 
 const PHONE = { width: 390, height: 844 };
 const DESKTOP = { width: 1440, height: 900 };
@@ -86,27 +85,21 @@ test.describe('Landing page', () => {
     await expect(page.getByTestId('landing-page')).toHaveCount(0);
   });
 
-  test('the landing has no AI status line, even with an own key stored', async ({ page }) => {
-    await page.addInitScript(k => localStorage.setItem(k, 'sk-or-e2e-key'), STORAGE_KEYS.OPENROUTER_API_KEY);
+  test('the landing has no AI status line, even with an old own key in the browser — and the key is cleared', async ({ page }) => {
+    await page.addInitScript(k => localStorage.setItem(k, 'sk-or-e2e-key'), OWN_OPENROUTER_KEY);
     await openLanding(page);
     await expect(page.getByTestId('landing-setup-line')).toHaveCount(0);
     await expect(page.getByText('AI 已就绪 · AI ready')).toHaveCount(0);
+    expect(await page.evaluate(k => localStorage.getItem(k), OWN_OPENROUTER_KEY)).toBeNull();
   });
 
-  test('#/setup: Save stores the own key and closes the dialog', async ({ page }) => {
+  test('#/setup: the AI service dialog asks to sign in — no key field, no Save (sign in to use AI)', async ({ page }) => {
     await page.goto(`./${SETUP_HASH}`);
     const dialog = page.getByRole('dialog', { name: SETUP_TITLE });
     await expect(dialog).toBeVisible();
-    // Own key is the hidden, advanced path of the AI service page (ADR-0007): open its toggle first.
-    await dialog.getByRole('button', { name: SETUP_OWN_KEY_TOGGLE }).click();
-    expect(await fontSizePx(page, '[data-testid="quick-ai-setup"] input')).toBeGreaterThanOrEqual(18);
-    await expect(dialog.getByRole('link', { name: new RegExp(SETUP_GET_KEY) }))
-      .toHaveAttribute('href', OPENROUTER_KEYS_URL);
-    await dialog.getByLabel(SETUP_KEY_LABEL).fill('sk-or-e2e-key');
-    await dialog.getByRole('button', { name: SETUP_SAVE }).click();
-    await expect(dialog).toHaveCount(0);
-    expect(await page.evaluate(k => localStorage.getItem(k), STORAGE_KEYS.OPENROUTER_API_KEY)).toBe('sk-or-e2e-key');
-    expect(page.url()).not.toContain('sk-or-e2e-key');
+    await expect(dialog.getByText(SETUP_SIGN_IN_TO_USE_AI)).toBeVisible();
+    await expect(dialog.locator('input[type="password"]')).toHaveCount(0);
+    await expect(dialog).not.toContainText(/OpenRouter|密钥/);
   });
 
   test('#/setup opens the landing with the dialog; closing it returns to the bare landing', async ({ page }) => {

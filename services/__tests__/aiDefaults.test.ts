@@ -1,47 +1,37 @@
 /**
- * aiDefaults.test.ts — out-of-the-box AI setup · AI 默认设置测试
+ * aiDefaults.test.ts — the models the app names in its AI requests · AI 默认模型测试
  *
- * A brand-new visitor gets OpenRouter + the free-models router after the
- * one-field setup; a user who already chose a provider/model is never
- * overwritten. Uses a real in-memory storage stub (the global setup's
- * localStorage is a bare vi.fn mock).
+ * The default ids, the free-router alias, and the readers: the constant when
+ * nothing (or junk) is stored, a stored/synced choice otherwise. Nothing in
+ * the app writes a choice since the own-key path was removed (ADR-0007,
+ * 2026-10-23): no setter, no key saver is exported. Uses a real in-memory
+ * storage stub (the global setup's localStorage is a bare vi.fn mock).
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { STORAGE_KEYS } from '../../constants/storageKeys';
+import * as aiDefaults from '../aiDefaults';
 import {
-  DEFAULT_AI_SETUP, FREE_MODELS_ROUTER_ID, OPENROUTER_KEYS_URL, ASK_AI_MODEL, PACK_GENERATION_MODEL,
-  ASK_AI_FALLBACK_MODELS, wireModelId,
-  applyDefaultAISetup, hasChosenProvider, saveOpenRouterKey,
-  askAIModel, setAskAIModel, packGenerationModel, setPackGenerationModel,
-  askAIFallbackModels, setAskAIFallbackModels, parseModelList,
+  DEFAULT_AI_SETUP, FREE_MODELS_ROUTER_ID, ASK_AI_MODEL, PACK_GENERATION_MODEL, ASK_AI_FALLBACK_MODELS, wireModelId,
+  askAIModel, packGenerationModel, askAIFallbackModels, parseModelList,
 } from '../aiDefaults';
 import { FREE_ROUTER_MODEL } from '../openrouter';
-import { setLeaderSettingListener } from '../leaderSettingsKeys';
 
-function makeStorage(initial: Record<string, string> = {}) {
-  const store = { ...initial };
-  return {
+function useStorage(initial: Record<string, string> = {}) {
+  const store: Record<string, string> = { ...initial };
+  vi.stubGlobal('localStorage', {
     getItem: (k: string) => store[k] ?? null,
     setItem: (k: string, v: string) => { store[k] = v; },
     removeItem: (k: string) => { delete store[k]; },
-    dump: () => ({ ...store }),
-  };
+  });
 }
 
-let storage: ReturnType<typeof makeStorage>;
-const getCurrentProvider = () => storage.getItem(STORAGE_KEYS.AI_PROVIDER);
-const getCurrentModel = () => storage.getItem(STORAGE_KEYS.AI_MODEL);
+beforeEach(() => useStorage());
 
-beforeEach(() => {
-  storage = makeStorage();
-  vi.stubGlobal('localStorage', storage);
-});
-
-describe('DEFAULT_AI_SETUP', () => {
-  it('is OpenRouter with the low-cost reliable Ask-AI model (ADR-0003 → Models)', () => {
+describe('defaults', () => {
+  it('Ask AI: the low-cost reliable model (ADR-0003 → Models), a concrete id', () => {
     expect(DEFAULT_AI_SETUP).toEqual({ provider: 'openrouter', model: ASK_AI_MODEL });
     expect(ASK_AI_MODEL).toBe('google/gemini-2.5-flash');
-    expect(wireModelId(ASK_AI_MODEL)).toBe(ASK_AI_MODEL); // a concrete id, not an alias
+    expect(wireModelId(ASK_AI_MODEL)).toBe(ASK_AI_MODEL);
   });
 
   it('pack generation uses its own quality-first model, distinct from Ask AI', () => {
@@ -49,135 +39,49 @@ describe('DEFAULT_AI_SETUP', () => {
     expect(PACK_GENERATION_MODEL).not.toBe(ASK_AI_MODEL);
   });
 
-  it('keeps the free router selectable: the alias maps to the wire id and is the last fallback', () => {
+  it('the free-router alias maps to the wire id and is the last fallback', () => {
     expect(wireModelId(FREE_MODELS_ROUTER_ID)).toBe(FREE_ROUTER_MODEL);
     expect(ASK_AI_FALLBACK_MODELS[ASK_AI_FALLBACK_MODELS.length - 1]).toBe(FREE_ROUTER_MODEL);
     expect(ASK_AI_FALLBACK_MODELS).not.toContain(ASK_AI_MODEL);
     expect(new Set(ASK_AI_FALLBACK_MODELS).size).toBe(ASK_AI_FALLBACK_MODELS.length);
   });
 
-  it('points the "get a key" link at OpenRouter over https', () => {
-    expect(OPENROUTER_KEYS_URL).toMatch(/^https:\/\/openrouter\.ai\//);
+  it('no own-key or model-setting writer is left', () => {
+    for (const gone of ['saveOpenRouterKey', 'applyDefaultAISetup', 'hasChosenProvider', 'OPENROUTER_KEYS_URL',
+      'setAskAIModel', 'setPackGenerationModel', 'setAskAIFallbackModels']) {
+      expect(aiDefaults).not.toHaveProperty(gone);
+    }
   });
 });
 
-describe('applyDefaultAISetup', () => {
-  it('stores provider + model for a new user', () => {
-    expect(hasChosenProvider()).toBe(false);
-    applyDefaultAISetup();
-    expect(getCurrentProvider()).toBe(DEFAULT_AI_SETUP.provider);
-    expect(getCurrentModel()).toBe(DEFAULT_AI_SETUP.model);
-  });
-
-  it('never overwrites an existing provider/model choice', () => {
-    storage = makeStorage({ [STORAGE_KEYS.AI_PROVIDER]: 'claude', [STORAGE_KEYS.AI_MODEL]: 'claude-sonnet-4-5' });
-    vi.stubGlobal('localStorage', storage);
-    applyDefaultAISetup();
-    expect(getCurrentProvider()).toBe('claude');
-    expect(getCurrentModel()).toBe('claude-sonnet-4-5');
-  });
-
-  it('leaves a chosen provider with no model alone (provider default stays)', () => {
-    storage = makeStorage({ [STORAGE_KEYS.AI_PROVIDER]: 'gemini' });
-    vi.stubGlobal('localStorage', storage);
-    applyDefaultAISetup();
-    expect(storage.dump()).toEqual({ [STORAGE_KEYS.AI_PROVIDER]: 'gemini' });
-  });
-});
-
-describe('configurable model roles (#/setup rows): stored and valid wins, else the constant', () => {
-  it('askAIModel: constant when nothing is stored, when the provider is not OpenRouter, or the stored id is blank', () => {
+describe('readers', () => {
+  it('askAIModel: the constant when nothing is stored, the provider is not OpenRouter, or the id is blank', () => {
     expect(askAIModel()).toBe(ASK_AI_MODEL);
-    storage.setItem(STORAGE_KEYS.AI_PROVIDER, 'gemini');
-    storage.setItem(STORAGE_KEYS.AI_MODEL, 'gemini-3-pro-preview');
+    useStorage({ [STORAGE_KEYS.AI_PROVIDER]: 'claude', [STORAGE_KEYS.AI_MODEL]: 'x/y' });
     expect(askAIModel()).toBe(ASK_AI_MODEL);
-    storage.setItem(STORAGE_KEYS.AI_PROVIDER, 'openrouter');
-    storage.setItem(STORAGE_KEYS.AI_MODEL, '   ');
+    useStorage({ [STORAGE_KEYS.AI_PROVIDER]: 'openrouter', [STORAGE_KEYS.AI_MODEL]: '   ' });
     expect(askAIModel()).toBe(ASK_AI_MODEL);
   });
 
-  it('askAIModel: the stored OpenRouter choice (app-side alias kept; callers map it to the wire id)', () => {
-    storage.setItem(STORAGE_KEYS.AI_PROVIDER, 'openrouter');
-    storage.setItem(STORAGE_KEYS.AI_MODEL, FREE_MODELS_ROUTER_ID);
+  it('askAIModel: a stored OpenRouter choice (alias kept; callers map it to the wire id)', () => {
+    useStorage({ [STORAGE_KEYS.AI_PROVIDER]: 'openrouter', [STORAGE_KEYS.AI_MODEL]: FREE_MODELS_ROUTER_ID });
     expect(askAIModel()).toBe(FREE_MODELS_ROUTER_ID);
   });
 
-  it('setAskAIModel writes provider + trimmed model so the choice is effective; "" clears back to the default', () => {
-    setAskAIModel('  openai/gpt-4o-mini ');
-    expect(storage.dump()).toEqual({ [STORAGE_KEYS.AI_PROVIDER]: 'openrouter', [STORAGE_KEYS.AI_MODEL]: 'openai/gpt-4o-mini' });
-    expect(askAIModel()).toBe('openai/gpt-4o-mini');
-    setAskAIModel('');
-    expect(storage.dump()).toEqual({ [STORAGE_KEYS.AI_PROVIDER]: 'openrouter' });
-    expect(askAIModel()).toBe(ASK_AI_MODEL);
-  });
-
-  it('packGenerationModel: constant when absent or blank, the trimmed stored id otherwise', () => {
+  it('packGenerationModel: the constant when absent or blank, the trimmed stored id otherwise', () => {
     expect(packGenerationModel()).toBe(PACK_GENERATION_MODEL);
-    storage.setItem(STORAGE_KEYS.AI_PACK_MODEL, ' ');
+    useStorage({ [STORAGE_KEYS.AI_PACK_MODEL]: '  ' });
     expect(packGenerationModel()).toBe(PACK_GENERATION_MODEL);
-    setPackGenerationModel(' deepseek/deepseek-chat-v3-0324 ');
-    expect(storage.getItem(STORAGE_KEYS.AI_PACK_MODEL)).toBe('deepseek/deepseek-chat-v3-0324');
+    useStorage({ [STORAGE_KEYS.AI_PACK_MODEL]: ' deepseek/deepseek-chat-v3-0324 ' });
     expect(packGenerationModel()).toBe('deepseek/deepseek-chat-v3-0324');
-    setPackGenerationModel('');
-    expect(storage.getItem(STORAGE_KEYS.AI_PACK_MODEL)).toBeNull();
   });
 
-  it('parseModelList splits on commas, trims, and drops empties', () => {
-    expect(parseModelList(' a/b ,, c/d ,')).toEqual(['a/b', 'c/d']);
-    expect(parseModelList(' , ')).toEqual([]);
-  });
-
-  it('askAIFallbackModels: constant list when absent, blank, or commas only; parsed stored list otherwise', () => {
+  it('askAIFallbackModels: the constant list when absent, blank or commas only; the parsed list otherwise', () => {
     expect(askAIFallbackModels()).toBe(ASK_AI_FALLBACK_MODELS);
-    storage.setItem(STORAGE_KEYS.AI_FALLBACK_MODELS, ' , ,');
+    useStorage({ [STORAGE_KEYS.AI_FALLBACK_MODELS]: ' , ,' });
     expect(askAIFallbackModels()).toBe(ASK_AI_FALLBACK_MODELS);
-    setAskAIFallbackModels(' x/one ,y/two,, ');
-    expect(storage.getItem(STORAGE_KEYS.AI_FALLBACK_MODELS)).toBe('x/one, y/two');
+    useStorage({ [STORAGE_KEYS.AI_FALLBACK_MODELS]: ' x/one ,y/two,, ' });
     expect(askAIFallbackModels()).toEqual(['x/one', 'y/two']);
-    setAskAIFallbackModels(',');
-    expect(storage.getItem(STORAGE_KEYS.AI_FALLBACK_MODELS)).toBeNull();
-  });
-});
-
-describe('saveOpenRouterKey', () => {
-  it('stores the trimmed key under the existing storage key and applies the defaults', () => {
-    saveOpenRouterKey('  sk-or-abc  ');
-    expect(storage.getItem(STORAGE_KEYS.OPENROUTER_API_KEY)).toBe('sk-or-abc');
-    expect(getCurrentProvider()).toBe(DEFAULT_AI_SETUP.provider);
-    expect(getCurrentModel()).toBe(DEFAULT_AI_SETUP.model);
-  });
-
-  it('keeps an existing provider choice while still storing the key', () => {
-    storage.setItem(STORAGE_KEYS.AI_PROVIDER, 'gemini');
-    saveOpenRouterKey('sk-or-abc');
-    expect(storage.getItem(STORAGE_KEYS.OPENROUTER_API_KEY)).toBe('sk-or-abc');
-    expect(getCurrentProvider()).toBe('gemini');
-  });
-
-  it('rejects an empty key instead of storing it', () => {
-    expect(() => saveOpenRouterKey('   ')).toThrow(/empty/);
-    expect(storage.getItem(STORAGE_KEYS.OPENROUTER_API_KEY)).toBeNull();
-  });
-});
-
-describe('setters tell the leader-settings sync (ADR-0005)', () => {
-  const noted = vi.fn();
-  beforeEach(() => { noted.mockReset(); setLeaderSettingListener(noted); });
-  afterEach(() => setLeaderSettingListener(null));
-
-  it('each model-role setter notes its own key, on a write and on a clear', () => {
-    setAskAIModel('openai/gpt-4o');
-    setPackGenerationModel('x/y');
-    setAskAIFallbackModels('a, b');
-    setAskAIFallbackModels('');
-    expect(noted.mock.calls.map(c => c[0])).toEqual([
-      STORAGE_KEYS.AI_MODEL, STORAGE_KEYS.AI_PACK_MODEL, STORAGE_KEYS.AI_FALLBACK_MODELS, STORAGE_KEYS.AI_FALLBACK_MODELS,
-    ]);
-  });
-
-  it('the key save and the first-run defaults note nothing (the API key and provider never sync)', () => {
-    saveOpenRouterKey('sk-or-abc');
-    applyDefaultAISetup();
-    expect(noted).not.toHaveBeenCalled();
+    expect(parseModelList('a, b,,c ')).toEqual(['a', 'b', 'c']);
   });
 });

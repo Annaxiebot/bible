@@ -16,8 +16,8 @@ describe('vibe service', () => {
   let storage: ReturnType<typeof makeStorage>;
   beforeEach(() => { storage = makeStorage(); vi.stubGlobal('localStorage', storage); vi.clearAllMocks(); });
 
-  it('isVibeAvailable true with an own key or a signed-in user', () => { vi.mocked(isAIAvailable).mockReturnValue(true); expect(isVibeAvailable()).toBe(true); });
-  it('isVibeAvailable false when neither (sign-in needed)', () => { vi.mocked(isAIAvailable).mockReturnValue(false); expect(isVibeAvailable()).toBe(false); });
+  it('isVibeAvailable true for a signed-in user', () => { vi.mocked(isAIAvailable).mockReturnValue(true); expect(isVibeAvailable()).toBe(true); });
+  it('isVibeAvailable false when signed out (sign-in needed)', () => { vi.mocked(isAIAvailable).mockReturnValue(false); expect(isVibeAvailable()).toBe(false); });
   it('has presets', () => { expect(VIBE_PRESETS.length).toBeGreaterThan(0); });
   it('getEmptyStyles', () => { expect(getEmptyStyles()).toEqual({ bible_panel: '', chat_panel: '', header: '', verse_text: '', background: '' }); });
   it('getEmptyStyles returns new object', () => { expect(getEmptyStyles()).not.toBe(getEmptyStyles()); });

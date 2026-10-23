@@ -2,13 +2,13 @@
  * packFetchStub.ts — the fetch stub the pack-generation tests share · 生成测试的 fetch 替身
  *
  * Bundled chapter files are served from disk (public/bible-data); the
- * OpenRouter endpoint and the hosted ai-proxy answer with scripted SSE
- * replies, one per request (the last repeats). Pure test helper.
+ * hosted ai-proxy answers with scripted SSE replies, one per request (the
+ * last repeats). Sign the test in first (tests/utils/hostedSeam): AI needs
+ * sign-in (ADR-0007, 2026-10-23). Pure test helper.
  */
 import { vi } from 'vitest';
 import { readFileSync } from 'fs';
 import path from 'path';
-import { OPENROUTER_API_URL } from '../../../services/openrouter';
 
 const BIBLE_DATA = path.resolve(__dirname, '../../../public/bible-data');
 export const HOSTED_PATH = '/functions/v1/ai-proxy';
@@ -30,12 +30,15 @@ function sseBody({ chunks, finish, model }: Reply): ReadableStream<Uint8Array> {
   });
 }
 
-/** fetch stub: bundled chapter files from disk; OpenRouter → one scripted reply per request (the last repeats). */
+/** True for a request to the ai-proxy (the only AI endpoint the browser calls). */
+export const isAICall = (input: unknown): boolean => String(input).endsWith(HOSTED_PATH);
+
+/** fetch stub: bundled chapter files from disk; the ai-proxy → one scripted reply per request (the last repeats). */
 export function stubFetch(replies: string[] | Reply[], bundledOk = true) {
   const scripted: Reply[] = replies.length && typeof replies[0] === 'string' ? [{ chunks: replies as string[] }] : replies as Reply[];
   let call = 0;
   const fetchMock = vi.fn(async (input: string, _init?: RequestInit) => {
-    if (input === OPENROUTER_API_URL || input.endsWith(HOSTED_PATH)) {
+    if (isAICall(input)) {
       const reply = scripted[Math.min(call++, scripted.length - 1)] ?? { chunks: [] };
       return { ok: true, status: 200, body: sseBody(reply) } as unknown as Response;
     }

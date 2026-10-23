@@ -2,7 +2,9 @@
 
 Status: accepted. Owner decision (Chris): "leaders must not need their own
 OpenRouter key." Refined the same day: the AI page becomes a status page and
-the own-key path stays possible but hidden.
+the own-key path stays possible but hidden. Amended 2026-10-23: owner/admin
+limits and a daily pack cap ("Caps"), and the own-key path removed — sign in
+to use AI ("Sign in to use AI" at the end).
 
 ## Context
 
@@ -154,3 +156,52 @@ does not depend on the OpenRouter credit running out.
 - **Release order.** Apply `ai-daily-cap-schema.sql` first (additive: the
   live proxy keeps calling `consume_ai_quota`), then deploy `ai-proxy`.
   Secrets are optional (defaults apply when unset).
+
+## Sign in to use AI — the own-key path removed (2026-10-23)
+
+Owner decision ("go ahead with the follow-up release"): one rule — **sign
+in to use AI**. This supersedes the own-key parts of Decisions 2 and 6 and
+of "Personal app".
+
+### Why
+- **One rule, one path.** With a hidden own-key option the site had two AI
+  paths (browser → OpenRouter, and the proxy) with different models, error
+  lines, prompts built in two places and tests for both. Every leader can
+  now sign in with Google or with an email link/code (ADR-0020), so the key
+  is no longer the only way in for anyone.
+- **Every pack saved to the account.** AI output (packs, adjustments,
+  sharing slides) is created by a signed-in leader, so it is stamped with
+  their uid and synced to their account (ADR-0006) instead of living in one
+  browser only.
+- **The quota applies to all use.** Monthly limits, the owner's higher
+  limits and the site-wide daily cap ("Caps" above) bound every AI call;
+  nothing bypasses them with a pasted key.
+
+### What changed
+- `services/aiTransport.ts`: signed in → the proxy; signed out →
+  `sign-in-needed`. No request goes from the browser to openrouter.ai.
+  `isAIAvailable()` / `useAIAccess()` mean "signed in".
+- Removed: the "高级：使用自己的 OpenRouter 密钥 · Advanced" toggle and its
+  section (key field, Test, Save, "模型 Models" rows, the sync line), the
+  key reader/tester in `services/openrouter.ts`, the key saver and model
+  setters in `services/aiDefaults.ts`, the own-key hint on the no-credit /
+  paused error lines, and the X-Title the direct path sent.
+- The stored key (`openrouter_api_key`) joined
+  `services/obsoleteStorageKeys.ts`: it is removed from every browser on
+  start, because a secret nothing reads must not stay there.
+- The eval scripts (`scripts/eval-*.mjs`, a developer's own key, not the
+  site) build the proxy's final messages with `services/aiFinalBody.ts`
+  (`finalAIBody`, formerly `aiTransport.ownKeyBody`); a test pins it equal
+  to the proxy's `validateRequest` (R14: evaluations measure what leaders get).
+- The model-choice readers in `aiDefaults.ts` still honour a stored/synced
+  choice (the proxy's allowlist bounds it); removing them with their synced
+  keys is a TODO for its own session (R8).
+- Packs already in a browser stay viewable, editable and backed up as
+  before; signing in claims them (`claimLocalPacks`, unchanged).
+
+### Consequences
+- A leader who used only an own key must sign in once; their packs in that
+  browser are claimed at that sign-in.
+- The AI page (#/setup) is a status page only: signed in → ready + usage;
+  signed out → the sign-in choices.
+- Release: no server change is needed for this part; it ships with the site.

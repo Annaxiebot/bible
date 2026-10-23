@@ -3,19 +3,20 @@
  *
  * Off (the shipped default): every request is byte-identical to today's —
  * pinned by SHA-256 hashes captured from master 68fd93d0 with the real
- * committed xref + Bible files: the own-key POST body, and the proxy's final
+ * committed xref + Bible files: the forwarded final body (finalOfSent; once the
+ * own-key POST body), and the proxy's final
  * messages (validateRequest) for the same data body.
  * On (mocked): a word question carries the ORIGINAL WORDS block and the
  * server adds exactly one rule; a general question is still today's request;
- * the own-key and proxy paths build the same messages; the panel credits STEP Bible.
+ * finalAIBody and the proxy build the same messages; the panel credits STEP Bible.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { readFileSync } from 'fs';
 import { createHash } from 'crypto';
 import { parseStudyPack, buildSlides } from '../packTypes';
-import { STORAGE_KEYS } from '../../../constants/storageKeys';
+import { signInSeam, signOutSeam, finalOfSent } from '../../../tests/utils/hostedSeam';
 import {
   ASK_AI_ANSWER_CONTRACT, ASK_AI_ORIGINAL_WORDS_RULE, ASK_AI_RELATED_VERSES_RULE, ORIGINAL_WORDS_HEADING, PromptMessage, askSystemText,
 } from '../../../supabase/functions/_shared/aiPrompts';
@@ -45,7 +46,7 @@ const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 const getItemMock = window.localStorage.getItem as ReturnType<typeof vi.fn>;
 
 const WORD_QUESTION = questionForSelection('忧虑', 34);
-/** [question, own-key POST body hash, proxy final-messages hash] from master 68fd93d0 (slide 0, no history). */
+/** [question, final body hash (once the own-key POST body), proxy final-messages hash] from master 68fd93d0 (slide 0, no history). */
 const GOLDEN: Array<[string, string, string]> = [
   [WORD_QUESTION, '4082d9c11cadd5bb4ec4645bb7547cb6178c24e15ea656eb69aef826b8945df9', '64f9a5ab48d722fcfa2116c5057483cd4d369d39ac228d70fbb9c05590e2c0bb'],
   [questionForSelection('明天'), '1435f3801d85e2d3a05d9899fccf1554f23b3cc45a5d3ff9c7adc0200451081a', '032ddd7ee2bedd9872c1d5c3fa994c96ff438ea051b5d3fd4506310763642666'],
@@ -61,7 +62,7 @@ function sse(): Response {
 
 type Call = [string, RequestInit | undefined];
 
-/** Ask once with the real files (own key); returns every fetch call. */
+/** Ask once with the real files (signed in); returns every fetch call. */
 async function ask(question: string): Promise<Call[]> {
   const files = stubBundledFetch();
   const fetchMock = vi.fn(async (url: string, init?: RequestInit) => (init?.method === 'POST' ? sse() : files(url)));
@@ -69,7 +70,8 @@ async function ask(question: string): Promise<Call[]> {
   await streamStudyAI(pack, slide, [], question, () => undefined, new AbortController().signal);
   return fetchMock.mock.calls as unknown as Call[];
 }
-const posts = (calls: Call[]) => calls.filter(c => c[1]?.method === 'POST').map(c => c[1]!.body as string);
+/** Each POST as the proxy forwards it (final messages built; once the own-key body, so the master hashes hold). */
+const posts = (calls: Call[]) => calls.filter(c => c[1]?.method === 'POST').map(c => finalOfSent(c[1]!.body as string));
 
 /** The proxy's final messages for the data body the TV builds (real related verses). */
 async function proxyMessages(question: string, original: Parameters<typeof buildRequestBody>[4]['original'] = []): Promise<PromptMessage[]> {
@@ -85,11 +87,13 @@ beforeEach(() => {
   clearExternalVerseCache();
   clearOriginalWordsCache();
   origSwitch.on = false;
-  getItemMock.mockReset().mockImplementation((key: string) => (key === STORAGE_KEYS.OPENROUTER_API_KEY ? 'test-key' : null));
+  getItemMock.mockReset().mockReturnValue(null);
+  signInSeam();
 });
+afterEach(signOutSeam);
 
 describe('switch off (default): today\'s request, byte for byte', () => {
-  it.each(GOLDEN)('%s → own-key body and proxy messages match master; no word data fetched', async (question, bodyHash, proxyHash) => {
+  it.each(GOLDEN)('%s → final body and proxy messages match master; no word data fetched', async (question, bodyHash, proxyHash) => {
     expect(ORIGINAL_WORDS_ENABLED).toBe(false);
     const calls = await ask(question);
     expect(posts(calls).map(sha)).toEqual([bodyHash]);
@@ -103,7 +107,7 @@ describe('switch on (mocked)', () => {
   it('a word question: the block in the user message, the rule numbered 8 after rule 7, same on both paths', async () => {
     origSwitch.on = true;
     const [body] = posts(await ask(WORD_QUESTION));
-    const own = (JSON.parse(body) as { messages: PromptMessage[] }).messages; // the own-key POST: final messages already built
+    const own = (JSON.parse(body) as { messages: PromptMessage[] }).messages; // the forwarded body: final messages built
     const result = lastOriginalWords()!;
     expect(result.targets).toEqual([34]);
     expect(result.warnings).toEqual([]);

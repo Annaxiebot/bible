@@ -33,7 +33,6 @@ import {
 } from './landingStrings';
 import { FEEDBACK_LABEL, feedbackHash } from '../../supabase/functions/_shared/feedback';
 import { SOURCE_REPO_URL, CONTRIBUTE_LABEL, EXTERNAL_LINK_PROPS } from '../shared/sourceRepo';
-import { useAIAccess } from '../setup/useAIAccess';
 import QuickAISetupDialog from '../setup/QuickAISetup';
 import SkipLink, { MAIN_CONTENT_ID } from '../shared/SkipLink';
 import { CtaWithNote } from './LandingHero';
@@ -96,7 +95,6 @@ const Footer: React.FC = () => {
 
 const Landing: React.FC<{ setupOpen?: boolean }> = ({ setupOpen = false }) => {
   const [open, setOpen] = useState(setupOpen);
-  const ai = useAIAccess();
   useEffect(() => { setOpen(setupOpen); }, [setupOpen]);
 
   const close = useCallback(() => {
@@ -120,7 +118,7 @@ const Landing: React.FC<{ setupOpen?: boolean }> = ({ setupOpen = false }) => {
         <LandingNumbers />
       </main>
       <Footer />
-      <QuickAISetupDialog open={open} onClose={close} onSaved={ai.refresh} />
+      <QuickAISetupDialog open={open} onClose={close} />
     </div>
   );
 };

@@ -4,9 +4,10 @@
  * Every failure the overlay can show is an AskAIError with a `kind`; the
  * kind decides which buttons accompany the line (Set up AI / Retry) and
  * whether the transport may try a fallback model. Strings come from
- * tvHints.ts (R3); this module only assembles them. Own-key replies map by
- * OpenRouter status (errorFromStatus); hosted replies (services/aiTransport
- * → ai-proxy) by the proxy's typed body first (hostedErrorFromStatus).
+ * tvHints.ts (R3); this module only assembles them. Replies from the proxy
+ * (services/aiTransport → ai-proxy) map by its typed body first
+ * (hostedErrorFromStatus); OpenRouter's own errors passed through map by
+ * status (errorFromStatus).
  */
 import { classifyOpenRouterStatus } from '../../services/openrouterStatus';
 import {
@@ -52,11 +53,6 @@ export const SETUP_KINDS: ReadonlySet<AskAIErrorKind> = new Set<AskAIErrorKind>(
   'sign-in-needed', 'invalid-key', 'no-credits', 'model-unavailable', 'timeout', 'empty', 'budget',
 ]);
 
-/** Hosted kinds whose line links to the AI service page's own-key option (the only such hint, ADR-0007). */
-export const OWN_KEY_LINK_KINDS: ReadonlySet<AskAIErrorKind> = new Set<AskAIErrorKind>([
-  'credit-used-up', 'service-paused',
-]);
-
 /** Kinds whose line gets a "Retry" button (the same request may well succeed). */
 export const RETRY_KINDS: ReadonlySet<AskAIErrorKind> = new Set<AskAIErrorKind>([
   'timeout', 'http-error', 'stream-error', 'network', 'empty', 'budget',
@@ -95,7 +91,7 @@ export interface ErrorReply {
  * A non-OK reply from the hosted proxy. 401 (expired session) → sign in
  * again; the proxy's typed 429 quota / 402 no-credit / 503 → their own
  * lines (never a fallback attempt); anything else is OpenRouter's reply
- * passed through → the own-key mapping.
+ * passed through → the status mapping.
  */
 export function hostedErrorFromStatus(status: number, data: ErrorReply, model: string): AskAIError {
   if (status === 401) return new AskAIError('sign-in-needed', AI_SIGN_IN_NEEDED, model, status);
