@@ -5,7 +5,7 @@
  * line, the 活出神的话 headline (霞鹜文楷, 神的话 in the deep-gold gradient),
  * the bilingual sub-line (what the site does, concretely), the source note
  * (published Scripture vs AI drafts the leader reviews), two gold pills —
- * the complete sample (no sign-in) and 新建查经 (Google sign-in, disclosed
+ * the complete sample and 新建查经 (sign-in with Google or email, disclosed
  * before the click) — and the loop line. Behind it, static rings plus four gold waves that ripple out
  * (CSS only, landing.css); the waves are hidden under prefers-reduced-motion
  * and the page reads the same without them (ADR-0003 §16).
@@ -14,7 +14,7 @@ import React from 'react';
 import { SAMPLE_PACK_HASH, NEW_STUDY_HASH } from './landingRoute';
 import {
   BRAND_EN, BRAND_ZH_LEAD, BRAND_ZH_HIGHLIGHT, HERO_EYEBROW, HERO_SUB_ZH, HERO_SUB_EN, HERO_SOURCE_NOTE,
-  GROUP_CTA, NEW_STUDY_LINE, LOOP_LINE_ZH, SAMPLE_NO_SIGNIN, NEW_STUDY_SIGNIN_NOTE,
+  GROUP_CTA, NEW_STUDY_LINE, LOOP_LINE_ZH, NEW_STUDY_SIGNIN_NOTE,
 } from './landingStrings';
 import { splitBilingual } from './LandingSection';
 import Pill from '../shared/Pill';
@@ -75,9 +75,9 @@ const LandingHero: React.FC = () => (
         <span lang="en">{HERO_SOURCE_NOTE.en}</span>
       </p>
       <div className="ld-ctas">
-        <CtaWithNote id="hero-sample-note" note={SAMPLE_NO_SIGNIN}>
-          <Pill href={SAMPLE_PACK_HASH} label={GROUP_CTA} arrow testId="hero-sample" describedBy="hero-sample-note" />
-        </CtaWithNote>
+        <div className="ld-cta">
+          <Pill href={SAMPLE_PACK_HASH} label={GROUP_CTA} arrow testId="hero-sample" />
+        </div>
         <CtaWithNote id="hero-new-study-note" note={NEW_STUDY_SIGNIN_NOTE}>
           <Pill href={NEW_STUDY_HASH} label={NEW_STUDY_LINE} ghost testId="hero-new-study" describedBy="hero-new-study-note" />
         </CtaWithNote>

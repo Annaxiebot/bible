@@ -7,6 +7,7 @@
  * are Chinese-first (ADR-0003 §1).
  */
 import { bilingual, bilingualLine } from './principles';
+import { SIGN_IN_OPTIONS_NOTE } from '../signin/signInStrings';
 
 /** First-slide navigation hint: arrows / swipe, select-to-ask, A, Esc. */
 export const FIRST_SLIDE_HINT =
@@ -23,8 +24,8 @@ export const SIDEWAYS_HINT = bilingualLine('横屏观看更佳', 'Turn the phone
 
 /** The Ask-AI button / panel title. */
 export const ASK_AI_LABEL = bilingual('问一问', 'Ask AI');
-/** Next to the Ask AI pill when signed out: the requirement is disclosed before the click (2026-10 review). */
-export const ASK_AI_SIGNIN_NOTE = bilingual('需 Google 登录', 'Google sign-in required');
+/** Next to the Ask AI pill when signed out: the requirement — Google or email (ADR-0020) — is disclosed before the click (2026-10 review). */
+export const ASK_AI_SIGNIN_NOTE = SIGN_IN_OPTIONS_NOTE;
 /** The same note on phone-sized viewports (the full line would push the pill off a 390px screen). */
 export const ASK_AI_SIGNIN_NOTE_SHORT = bilingual('需登录', 'sign-in');
 /** Before each question in the Ask AI conversation (right above its answer). */

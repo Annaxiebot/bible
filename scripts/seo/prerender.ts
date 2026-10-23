@@ -21,7 +21,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  BRAND_EN, BRAND_ZH, HERO_SUB_ZH, HERO_SUB_EN, HERO_SOURCE_NOTE, GROUP_CTA, SAMPLE_NO_SIGNIN,
+  BRAND_EN, BRAND_ZH, HERO_SUB_ZH, HERO_SUB_EN, HERO_SOURCE_NOTE, GROUP_CTA,
   PERSONAL_CTA, NEW_STUDY_LINE, NEW_STUDY_SIGNIN_NOTE, AI_SIGNIN_NOTE, HERO_EYEBROW,
 } from '../../components/landing/landingStrings';
 import { OG_IMAGE_FILE, OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT, OG_IMAGE_ALT } from './ogImage';
@@ -212,7 +212,7 @@ const FALLBACK_ID = 'stl-fallback';
 /** Static homepage content inside #root. React replaces it on mount (index.tsx clears #root). */
 export function homeFallbackHtml(site: SeoSite, packs: PublicPack[], featuredId: string): string {
   const featured = packs.find(p => p.id === featuredId) ?? packs[0];
-  const [eyebrow, sample, signin] = [HERO_EYEBROW, SAMPLE_NO_SIGNIN, NEW_STUDY_SIGNIN_NOTE].map(splitLine);
+  const [eyebrow, signin] = [HERO_EYEBROW, NEW_STUDY_SIGNIN_NOTE].map(splitLine);
   const cta = (label: string) => {
     const at = label.indexOf(' ');
     return `<span lang="zh-Hans">${escapeHtml(label.slice(0, at))}</span> <span lang="en">${escapeHtml(label.slice(at + 1))}</span>`;
@@ -233,7 +233,6 @@ export function homeFallbackHtml(site: SeoSite, packs: PublicPack[], featuredId:
         <nav aria-label="开始 Get started">
           <ul>
             ${featured ? `<li><a href="${escapeHtml(packAppPath(site, featured.id))}">${cta(GROUP_CTA)}</a>
-              — ${escapeHtml(sample.zh)} · <span lang="en">${escapeHtml(sample.en)}</span>
               (<a href="${escapeHtml(studyPath(site, featured.id))}"><span lang="zh-Hans">阅读全文</span> <span lang="en">read it as a page</span></a>)</li>` : ''}
             <li><a href="${escapeHtml(`${site.base}#app`)}">${cta(PERSONAL_CTA)}</a></li>
             <li><a href="${escapeHtml(`${site.base}#/new`)}">${cta(NEW_STUDY_LINE)}</a>

@@ -22,7 +22,6 @@ import { packHash } from './landingRoute';
 import {
   NEXT_SECTION_ID, NEXT_EYEBROW, NEXT_HEADING_ZH, NEXT_HEADING_EN, NEXT_DESC, NEXT_OPEN_CTA,
   NEXT_SIGNUP_CTA, NEXT_SIGNUP_CLOSE, NEXT_SIGNUP_LINK, NEXT_NONE_YET, NEXT_LOADING, NEXT_VERSE_REF,
-  SAMPLE_NO_SIGNIN,
 } from './landingStrings';
 import { TRANSLATIONS } from '../studypack/principles';
 import LandingSection, { splitBilingual } from './LandingSection';
@@ -63,7 +62,6 @@ const PackSummary: React.FC<{ state: PackState }> = ({ state }) => {
           {at < 0 ? title : <>{title.slice(0, at)}{' '}<span className="ld-h2-en" lang="en">{title.slice(at + 1)}</span></>}
         </p>
         <p className="ld-next-ref"><b className="ld-hl">{ref.zh}</b>{ref.en && <> · <span lang="en">{ref.en}</span></>}</p>
-        <p className="ld-next-date">{SAMPLE_NO_SIGNIN}</p>
       </div>
     );
   }

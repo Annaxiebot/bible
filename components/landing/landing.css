@@ -131,7 +131,7 @@ section.ld-dark::before {
 .ld-sub { max-width: 34em; margin: 28px auto 0; font-size: 1.375rem; }
 .ld-sub-zh { display: block; font-size: 1.5rem; }
 .ld-ctas { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: 40px; }
-/* A CTA with its access line under it ("无需登录 · No sign-in needed" / "需用 Google 登录"). */
+/* A CTA, optionally with its access line under it ("需登录（Google 或邮箱） · Sign in with Google or email"). */
 .ld-cta { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .ld-cta-note { font-size: 0.95rem; color: var(--stl-ink-2); }
 .ld-dark .ld-cta-note { color: var(--stl-on-night-2); }

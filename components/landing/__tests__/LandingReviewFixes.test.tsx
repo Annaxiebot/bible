@@ -12,7 +12,7 @@ import LandingPersonal from '../LandingPersonal';
 import Landing from '../Landing';
 import { SAMPLE_PACK_HASH, NEW_STUDY_HASH, APP_HASH } from '../landingRoute';
 import {
-  HERO_SUB_ZH, HERO_SUB_EN, HERO_SOURCE_NOTE, GROUP_CTA, NEW_STUDY_LINE, SAMPLE_NO_SIGNIN,
+  HERO_SUB_ZH, HERO_SUB_EN, HERO_SOURCE_NOTE, GROUP_CTA, NEW_STUDY_LINE,
   NEW_STUDY_SIGNIN_NOTE, PERSONAL_CTA, NEXT_HEADING_EN, NEXT_EYEBROW, AI_SIGNIN_NOTE,
 } from '../landingStrings';
 import { MAIN_CONTENT_ID, SKIP_LINK_LABEL } from '../../shared/SkipLink';
@@ -37,15 +37,17 @@ describe('landing copy (2026-10 review)', () => {
     expect(HERO_SOURCE_NOTE.en).toMatch(/AI drafts that the leader reviews/);
   });
 
-  it('the sample CTA says no sign-in; New study discloses Google sign-in before the click', () => {
+  it('the sample CTA carries no note; New study discloses "Google or email" sign-in before the click, Chinese first', () => {
     render(<LandingHero />);
     const sample = screen.getByRole('link', { name: GROUP_CTA });
     expect(sample).toHaveAttribute('href', SAMPLE_PACK_HASH);
-    expect(sample).toHaveAccessibleDescription(SAMPLE_NO_SIGNIN);
+    expect(sample).not.toHaveAttribute('aria-describedby');
+    expect(screen.getByTestId('landing-hero').textContent).not.toMatch(/无需登录|No sign-in needed/);
     const create = screen.getByRole('link', { name: NEW_STUDY_LINE });
     expect(create).toHaveAttribute('href', NEW_STUDY_HASH);
     expect(create).toHaveAccessibleDescription(NEW_STUDY_SIGNIN_NOTE);
-    expect(NEW_STUDY_SIGNIN_NOTE).toMatch(/Google sign-in/);
+    expect(NEW_STUDY_SIGNIN_NOTE).toBe('需登录（Google 或邮箱） · Sign in with Google or email');
+    expect(NEW_STUDY_SIGNIN_NOTE).not.toMatch(/Requires Google sign-in/);
     expect(GROUP_CTA).toBe('看完整示范 Explore a complete sample');
   });
 
@@ -80,8 +82,10 @@ describe('Landing page — keyboard and language', () => {
     fireEvent.click(skip);
     expect(document.activeElement).toBe(main);
     expect(window.location.hash).toBe('');
-    // The AI sign-in requirement is stated on the page too.
+    // The AI sign-in requirement is stated on the page too — Google or email, and no "无需登录" line.
     expect(screen.getByTestId('landing-ai-signin-note')).toHaveTextContent(AI_SIGNIN_NOTE);
+    expect(AI_SIGNIN_NOTE).toMatch(/^新建查经与「问一问」需登录（Google 或邮箱）/);
+    expect(screen.getByTestId('landing-page').textContent).not.toMatch(/无需登录|No sign-in needed/);
     // English halves are tagged; the page itself is Chinese-first.
     expect(screen.getByTestId('landing-page')).toHaveAttribute('lang', 'zh-Hans');
     const english = Array.from(document.querySelectorAll('.ld-en, .stl-pill-en, .ld-h2-en, .ld-nav-en'));

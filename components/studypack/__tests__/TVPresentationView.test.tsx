@@ -262,6 +262,7 @@ describe('TVPresentationView — 2026-10 review', () => {
     const button = screen.getByRole('button', { name: ASK_AI_LABEL });
     expect(screen.getByTestId('tv-ask-signin-note')).toHaveTextContent(ASK_AI_SIGNIN_NOTE);
     expect(button).toHaveAccessibleDescription(ASK_AI_SIGNIN_NOTE);
+    expect(ASK_AI_SIGNIN_NOTE).toMatch(/^需登录（Google 或邮箱）/);   // both ways in (ADR-0020), Chinese first
   });
 
   it('signed in, no sign-in note', async () => {

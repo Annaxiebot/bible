@@ -8,7 +8,7 @@
 import { test, expect, Page, BrowserContext } from '@playwright/test';
 import { APP_HASH, SAMPLE_PACK_ID } from '../../components/landing/landingRoute';
 import {
-  GROUP_CTA, NEW_STUDY_SIGNIN_NOTE, SAMPLE_NO_SIGNIN, PERSONAL_CTA,
+  GROUP_CTA, NEW_STUDY_SIGNIN_NOTE, PERSONAL_CTA,
 } from '../../components/landing/landingStrings';
 
 const MATT7_LAST_READ = JSON.stringify({ bookId: 'MAT', bookName: '马太福音 Matthew', chapter: 7, timestamp: 1 });
@@ -108,11 +108,11 @@ test.describe('reader — editions, script, partial failures', () => {
 });
 
 test.describe('landing — copy, disclosure, keyboard', () => {
-  test('hero: sample needs no sign-in, New study discloses Google sign-in, skip link focuses main', async ({ page }) => {
+  test('hero: no "no sign-in" note, New study discloses Google-or-email sign-in, skip link focuses main', async ({ page }) => {
     await page.goto('./');
     const sample = page.getByTestId('hero-sample');
     await expect(sample).toHaveAccessibleName(GROUP_CTA);
-    await expect(sample).toHaveAccessibleDescription(SAMPLE_NO_SIGNIN);
+    await expect(page.getByTestId('landing-page')).not.toContainText(/无需登录|No sign-in needed/);
     await expect(page.getByTestId('hero-new-study')).toHaveAccessibleDescription(NEW_STUDY_SIGNIN_NOTE);
     await expect(page.getByTestId('personal-open')).toHaveAccessibleName(PERSONAL_CTA);
 

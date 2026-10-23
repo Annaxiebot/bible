@@ -182,6 +182,7 @@ describe.each(SITES)('delivered index.html (base $base)', (site) => {
     expect(root.textContent).toContain(GROUP_CTA.split(' ').slice(1).join(' '));
     expect(root.textContent).toContain(PERSONAL_CTA.split(' ').slice(1).join(' '));
     expect(root.textContent).toContain(NEW_STUDY_SIGNIN_NOTE.split(' · ')[1]);
+    expect(root.textContent).not.toMatch(/无需登录|No sign-in needed|Google sign-in required|Requires Google sign-in/);   // owner 2026-10-23: Google or email, no "no sign-in" line
     expect(root.querySelector('a.stl-skip-link')).not.toBeNull();
     expect(root.querySelector('main#main-content[tabindex="-1"]')).not.toBeNull();
   });
