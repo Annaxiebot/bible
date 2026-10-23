@@ -1,12 +1,15 @@
 /**
- * hostedAI.ts — e2e helpers for hosted AI (ADR-0007) · 本站AI测试辅助
+ * hostedAI.ts — e2e helpers for AI, which needs sign-in (ADR-0007) · 本站AI测试辅助
  *
- * `signInAsLeader`: the dev-only Google-session stand-in (window.__LEADER_E2E__,
+ * `signInAsLeader`: the dev-only session stand-in (window.__LEADER_E2E__,
  * the seam the leader pages and services/aiTransport read) + the fake
- * Supabase base of helpers/signup. `mockProxy` routes the ai-proxy function
- * under that base and records every call; `failOnOpenRouter` counts (and
- * aborts) any direct OpenRouter request, which a signed-in user without a
- * key must never make.
+ * Supabase base of helpers/signup. Every AI call goes to the ai-proxy
+ * function under that base, which passes OpenRouter's reply through
+ * unchanged — so the mocks here script OpenRouter-shaped replies on the
+ * proxy route: `mockProxy` (one reply, records calls), `mockAIStream`,
+ * `mockAISequence` (one reply per request, records bodies), `mockAIHang`.
+ * `failOnOpenRouter` counts (and aborts) any direct OpenRouter request,
+ * which no page may make any more.
  */
 import { Page, expect } from '@playwright/test';
 import { AI_PROXY_FUNCTION } from '../../../services/aiProxyRoute';
@@ -20,6 +23,9 @@ export async function signInAsLeader(page: Page) {
   }, E2E_LEADER_ID);
 }
 
+/** The ai-proxy route under the fake Supabase base. */
+export const AI_PROXY_ROUTE = `**${E2E_SUPABASE_PATH}/functions/v1/${AI_PROXY_FUNCTION}`;
+
 export interface ProxyCall {
   headers: Record<string, string>;
   body: { role: string; model: string; stream: boolean; content_language?: string; messages: Array<{ role: string; content: string }> };
@@ -27,12 +33,77 @@ export interface ProxyCall {
 
 export async function mockProxy(page: Page, reply: { sse: string } | { status: number; json: object }): Promise<() => ProxyCall[]> {
   const calls: ProxyCall[] = [];
-  await page.route(`**${E2E_SUPABASE_PATH}/functions/v1/${AI_PROXY_FUNCTION}`, route => {
+  await page.route(AI_PROXY_ROUTE, route => {
     calls.push({ headers: route.request().headers(), body: route.request().postDataJSON() });
     if ('sse' in reply) return route.fulfill({ status: 200, headers: { 'Content-Type': 'text/event-stream' }, body: reply.sse });
     return route.fulfill({ status: reply.status, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(reply.json) });
   });
   return () => calls;
+}
+
+/** What a spec can assert about a recorded request body (the data form the browser sends, ADR-0014). */
+export interface RecordedBody {
+  role: string;
+  model: string;
+  reasoning?: unknown;
+  max_tokens: number;
+  content_language?: string;
+  pack_source?: string;
+  messages?: Array<{ role: string; content: string }>;
+}
+
+/**
+ * Script the proxy with one reply per request, in order (the last one
+ * repeats). Each entry is an SSE body (status 200, streaming), a plain JSON
+ * completion (status 200) or a non-OK status with OpenRouter's error JSON
+ * (passed through by the proxy). Records every request body.
+ */
+export async function mockAISequence(
+  page: Page,
+  replies: Array<{ sse: string } | { json: object } | { status: number; message: string }>,
+): Promise<{ bodies: () => RecordedBody[] }> {
+  const bodies: RecordedBody[] = [];
+  let i = 0;
+  await page.route(AI_PROXY_ROUTE, route => {
+    bodies.push(route.request().postDataJSON());
+    const reply = replies[Math.min(i++, replies.length - 1)];
+    if ('sse' in reply) {
+      return route.fulfill({ status: 200, headers: { 'Content-Type': 'text/event-stream' }, body: reply.sse });
+    }
+    if ('json' in reply) {
+      return route.fulfill({ status: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(reply.json) });
+    }
+    return route.fulfill({
+      status: reply.status,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ error: { message: reply.message, code: reply.status } }),
+    });
+  });
+  return { bodies: () => bodies };
+}
+
+/** The proxy never answers (the request hangs until the page aborts it). */
+export async function mockAIHang(page: Page) {
+  await page.route(AI_PROXY_ROUTE, () => { /* intentionally never fulfilled */ });
+}
+
+/**
+ * Stream `chunks` from the proxy as OpenRouter SSE deltas + [DONE] — no
+ * live AI call. Honest limitation: route.fulfill delivers the whole body at
+ * once, so specs assert the final streamed render; token-by-token rendering
+ * is covered by unit tests.
+ */
+export async function mockAIStream(page: Page, chunks: string[], expectModel?: string) {
+  await page.route(AI_PROXY_ROUTE, route => {
+    if (expectModel !== undefined) {
+      expect((route.request().postDataJSON() as { model: string }).model).toBe(expectModel);
+    }
+    return route.fulfill({
+      status: 200,
+      headers: { 'Content-Type': 'text/event-stream' },
+      body: sseBody(chunks.map(c => ({ choices: [{ delta: { content: c } }] }))),
+    });
+  });
 }
 
 export async function failOnOpenRouter(page: Page): Promise<() => number> {

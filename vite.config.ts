@@ -69,7 +69,9 @@ export default defineConfig(() => {
         rollupOptions: {
           output: {
             manualChunks(id) {
-              if (id.includes('node_modules/opencc-js')) return 'vendor-opencc';
+              // One chunk per OpenCC direction (services/chineseDictionary): 简 never downloads the 简→繁 table.
+              const opencc = /node_modules\/opencc-js\/dist\/esm\/(t2cn|cn2t)\.js/.exec(id);
+              if (opencc) return `vendor-opencc-${opencc[1]}`;
               if (id.includes('node_modules/katex') || id.includes('node_modules/rehype-katex')) return 'vendor-katex';
               if (id.includes('node_modules/react') || id.includes('node_modules/react-dom') || id.includes('node_modules/scheduler')) {
                 return 'vendor-react';

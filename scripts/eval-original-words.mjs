@@ -7,7 +7,7 @@
  *               → no rule (pinned byte-identical to master by originalWordsRequests.test.tsx);
  *   TREATMENT = the same request + the ORIGINAL WORDS block originalWords.ts
  *               builds for the question (→ the server's one rule).
- * Both go through aiTransport.ownKeyBody — the final messages the proxy
+ * Both go through aiFinalBody.finalAIBody — the final messages the proxy
  * builds — to OpenRouter with the SAME model, sampling and stream settings
  * (lib/evalRun.mjs, shared with ADR-0015/0016). A failed or empty answer is a
  * FAILURE and loses its pair — never a pass (R14). Measures per arm:
@@ -128,7 +128,7 @@ async function dryRun(app, fixture, packs) {
   for (const q of fixture.questions) {
     const { pack, slide, question } = questionContext(app, packs, q);
     const req = await requests(app, fixture.model, pack, slide, question);
-    const size = body => app.aiTransport.ownKeyBody('ask', body).length;
+    const size = body => app.aiFinalBody.finalAIBody('ask', body).length;
     const warnings = [...req.original.warnings, ...req.relatedWarnings];
     process.stdout.write(`${q.id} ${pack.passageRef}: verses [${req.original.targets.join(', ')}] ${req.words.length} words, ` +
       `control ${size(req.control)} chars, treatment ${size(req.treatment)} chars` +

@@ -1,19 +1,23 @@
 /**
- * aiDefaults.ts — what a brand-new visitor gets without choosing anything · AI 默认设置
+ * aiDefaults.ts — the models the app names in its AI requests · AI 默认模型
  *
- * Single source (R3) for the out-of-the-box AI setup: provider OpenRouter,
- * model = a low-cost reliable model (ADR-0003 Consequences → Models).
- * Imported by services/studyAI, components/setup (the AI-service dialog and
- * its model rows), components/studypack (Ask AI) and components/newstudy
- * (pack generation), so they can never disagree. Pure module (no React) so
+ * Single source (R3) for the model ids the browser puts in a request body:
+ * Ask AI, pack generation and the Ask-AI fallback chain (ADR-0003
+ * Consequences → Models). Imported by services/studyAI, components/studypack
+ * (Ask AI) and components/newstudy (pack generation), so they can never
+ * disagree; the ai-proxy keeps pinned copies and decides the model that is
+ * actually used (per-role allowlist, ADR-0007). Pure module (no React) so
  * tests and Playwright specs can import it.
  *
- * Existing stored choices are never overwritten: applyDefaultAISetup() is a
- * no-op once a provider has been chosen.
+ * TODO(R8, own session): since the own-key path and its "模型 Models" rows
+ * were removed (ADR-0007, 2026-10-23) nothing in the app writes a model
+ * choice any more. The readers below still honour a stored or synced one
+ * (bounded by the proxy's allowlist); remove the readers' storage lookups,
+ * the model keys in leaderSettingsKeys and their leader_settings columns
+ * together, with no behaviour change for anyone on the defaults.
  */
 import { STORAGE_KEYS } from '../constants/storageKeys';
 import { FREE_ROUTER_MODEL } from './openrouter';
-import { noteLeaderSettingChanged } from './leaderSettingsKeys';
 
 /**
  * OpenRouter model id that routes to the best available free model — an
@@ -47,10 +51,7 @@ export const ASK_AI_FALLBACK_MODELS: readonly string[] = [
   FREE_ROUTER_MODEL,
 ];
 
-/** Where a visitor creates an OpenRouter key. Opened in a new tab; never carries the key. */
-export const OPENROUTER_KEYS_URL = 'https://openrouter.ai/keys';
-
-/** The id actually sent to OpenRouter for a stored model choice (the app-side router alias → wire id). */
+/** The id actually sent for a stored model choice (the app-side router alias → wire id). */
 export function wireModelId(modelId: string): string {
   return modelId === FREE_MODELS_ROUTER_ID ? FREE_ROUTER_MODEL : modelId;
 }
@@ -60,24 +61,9 @@ export const DEFAULT_AI_SETUP = {
   model: ASK_AI_MODEL,
 } as const;
 
-/** True once the user (or applyDefaultAISetup) has stored a provider choice. */
-export function hasChosenProvider(): boolean {
-  return localStorage.getItem(STORAGE_KEYS.AI_PROVIDER) !== null;
-}
-
-/**
- * Store the defaults — only when no provider has been chosen yet. Called
- * after the quick setup saves a key, so the key alone is enough to chat.
- */
-export function applyDefaultAISetup(): void {
-  if (hasChosenProvider()) return;
-  localStorage.setItem(STORAGE_KEYS.AI_PROVIDER, DEFAULT_AI_SETUP.provider);
-  localStorage.setItem(STORAGE_KEYS.AI_MODEL, DEFAULT_AI_SETUP.model);
-}
-
-// ---- Configurable model roles (#/setup "模型 Models" rows) · 可配置模型 ----------
-// The three constants above are DEFAULTS; the browser's stored choice wins
-// when present and valid. Every caller reads through these readers (R3).
+// ---- Model readers · 模型读取 -----------------------------------------------
+// The three constants above are DEFAULTS; a stored choice (see the TODO above)
+// wins when present and valid. Every caller reads through these readers (R3).
 
 /** Stored value when non-empty after trimming, else null. */
 function storedText(key: string): string | null {
@@ -86,22 +72,9 @@ function storedText(key: string): string | null {
 }
 
 /**
- * Store a trimmed choice; an empty value clears the key so the default
- * applies again. Either way the leader-settings sync is told (a signed-in
- * leader's change reaches their other devices; signed out it is a no-op).
- */
-function writeChoice(key: string, value: string): void {
-  const trimmed = value.trim();
-  if (trimmed) localStorage.setItem(key, trimmed);
-  else localStorage.removeItem(key);
-  noteLeaderSettingChanged(key);
-}
-
-/**
- * Ask AI model (app-side id; callers on the wire apply wireModelId): the
- * model chosen in AI settings when the stored provider is OpenRouter,
- * otherwise the constant. A visitor who only
- * pasted a key therefore gets the recommended model (one paste, it works).
+ * Ask AI model (app-side id; callers on the wire apply wireModelId): a
+ * stored choice when the stored provider is OpenRouter, otherwise the
+ * constant.
  */
 export function askAIModel(): string {
   const provider = localStorage.getItem(STORAGE_KEYS.AI_PROVIDER);
@@ -109,21 +82,11 @@ export function askAIModel(): string {
   return provider === DEFAULT_AI_SETUP.provider && stored ? stored : ASK_AI_MODEL;
 }
 
-/** Writes provider + model so the choice is effective for Ask AI; "" clears back to the default. */
-export function setAskAIModel(modelId: string): void {
-  localStorage.setItem(STORAGE_KEYS.AI_PROVIDER, DEFAULT_AI_SETUP.provider);
-  writeChoice(STORAGE_KEYS.AI_MODEL, modelId);
-}
-
 export function packGenerationModel(): string {
   return storedText(STORAGE_KEYS.AI_PACK_MODEL) ?? PACK_GENERATION_MODEL;
 }
 
-export function setPackGenerationModel(modelId: string): void {
-  writeChoice(STORAGE_KEYS.AI_PACK_MODEL, modelId);
-}
-
-/** "a, b,,c " → ["a", "b", "c"]: the fallback row's comma-separated text as ids. */
+/** "a, b,,c " → ["a", "b", "c"]: a stored comma-separated fallback list as ids. */
 export function parseModelList(raw: string): string[] {
   return raw.split(',').map(id => id.trim()).filter(Boolean);
 }
@@ -132,17 +95,4 @@ export function parseModelList(raw: string): string[] {
 export function askAIFallbackModels(): readonly string[] {
   const parsed = parseModelList(storedText(STORAGE_KEYS.AI_FALLBACK_MODELS) ?? '');
   return parsed.length ? parsed : ASK_AI_FALLBACK_MODELS;
-}
-
-/** Stores the ids normalised ("a, b"); a list with no ids clears back to the default. */
-export function setAskAIFallbackModels(raw: string): void {
-  writeChoice(STORAGE_KEYS.AI_FALLBACK_MODELS, parseModelList(raw).join(', '));
-}
-
-/** Save the user's own OpenRouter key (STORAGE_KEYS.OPENROUTER_API_KEY, read by getApiKey) and apply the defaults. */
-export function saveOpenRouterKey(key: string): void {
-  const trimmed = key.trim();
-  if (!trimmed) throw new Error('OpenRouter key is empty');
-  localStorage.setItem(STORAGE_KEYS.OPENROUTER_API_KEY, trimmed);
-  applyDefaultAISetup();
 }

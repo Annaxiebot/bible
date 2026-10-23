@@ -236,7 +236,7 @@ function roleSystemText(
  *   one related-verses rule sentence (ADR-0015 §4); one carrying an ORIGINAL
  *   WORDS block adds the original-words rule (ADR-0018);
  * - pack with source 'guide': the study-guide contract (ADR-0019). The
- *   caller (policy / ownKeyBody) has already refused a source on any other role.
+ *   caller (policy / finalAIBody) has already refused a source on any other role.
  */
 export function buildFinalMessages(
   role: AIRole, messages: readonly PromptMessage[], mode?: ContentLanguage, source?: PackSource,

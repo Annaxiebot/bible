@@ -6,6 +6,7 @@
  * the brand wordmark "Scripture to Life" stays first. Lines marked
  * NEW COPY arrived with the 2026-10 "醒目 Bold" redesign (approved mockup).
  */
+import { SIGN_IN_OPTIONS_NOTE } from '../signin/signInStrings';
 
 export const BRAND_EN = 'Scripture to Life';
 export const BRAND_ZH = '活出神的话';
@@ -31,8 +32,6 @@ export const HERO_EYEBROW = '小组查经 · Group Bible study';
 export const GROUP_TITLE_ZH = '小组查经';
 export const GROUP_TITLE_EN = 'Group Bible Study';
 export const GROUP_CTA = '看完整示范 Explore a complete sample';
-/** Beside the sample CTA: it really needs no account. */
-export const SAMPLE_NO_SIGNIN = '无需登录 · No sign-in needed';
 export const GROUP_POINTS = {
   deck: { zh: '讲义变成大屏简报', en: 'Your study guide becomes a TV-ready deck' },
   question: { zh: '讨论题目，一题一页', en: 'Discussion questions, one per slide' },
@@ -70,9 +69,9 @@ export const WORSHIP_PAGE = 'worship.html';
 /** Third door: the leader generates a pack from a passage (#/new). */
 export const NEW_STUDY_LINE = '新建查经 New study';
 export const NEW_STUDY_SUB = '输入经文，AI 生成查经包，大屏演示 · Enter a passage; a study pack is drafted in your browser';
-/** Disclosed before the click (2026-10 review): creating a study and Ask AI need Google sign-in. */
-export const NEW_STUDY_SIGNIN_NOTE = '需用 Google 登录 · Requires Google sign-in';
-export const AI_SIGNIN_NOTE = '新建查经与「问一问」需用 Google 登录；示范与圣经阅读无需登录 · Creating a study and Ask AI require Google sign-in; the sample and the Bible reader do not';
+/** Disclosed before the click (2026-10 review): creating a study and Ask AI need sign-in — Google or email (ADR-0020). */
+export const NEW_STUDY_SIGNIN_NOTE = SIGN_IN_OPTIONS_NOTE;
+export const AI_SIGNIN_NOTE = '新建查经与「问一问」需登录（Google 或邮箱） · Creating a study and Ask AI need sign-in (Google or email)';
 
 /** What a leader can do: a passage, or their own study-guide PDF (ADR-0019), becomes a study on the TV. */
 export const LEADER_ZH = '组长：选一段经文或上传查经讲义 PDF，AI 起草查经包，大屏演示。';
@@ -131,7 +130,7 @@ export const NAV_LEADER_SIGNIN = { zh: '带领者登录', en: 'Leader sign-in' }
 export const NEXT_EYEBROW = '完整示范 · Complete sample';
 export const NEXT_HEADING_ZH = '看一份完整的查经包';
 export const NEXT_HEADING_EN = 'Explore a complete sample';
-export const NEXT_DESC = '一份公开的示范查经包——经文、讨论、生活应用与周中跟进，无需登录即可打开 · A public sample study pack — Scripture, discussion, life application and mid-week follow-up; opens without signing in';
+export const NEXT_DESC = '一份公开的示范查经包——经文、讨论、生活应用与周中跟进 · A public sample study pack — Scripture, discussion, life application and mid-week follow-up';
 export const NEXT_OPEN_CTA = '打开示范 Open the sample';
 export const NEXT_SIGNUP_CTA = '扫码报名 Sign up';
 export const NEXT_SIGNUP_CLOSE = '收起 Close';

@@ -46,7 +46,7 @@ export async function streamAI(
 ): Promise<StreamResult> {
   const timestamp = new Date().toISOString();
   // services/systemPrompts JOURNAL_LANGUAGE_DIRECTIVE: a USER-prompt prefix (journal requests send no system message).
-  // The personal app's one AI path (services/studyAI): own key → OpenRouter, signed in → ai-proxy role 'study'.
+  // The personal app's one AI path (services/studyAI): signed in → ai-proxy role 'study'.
   const { model } = await streamStudyAI(JOURNAL_LANGUAGE_DIRECTIVE + prompt, [], onChunk);
   return { model, timestamp };
 }

@@ -5,28 +5,13 @@
  * OpenRouter) is blocked; chapter failures are injected with local routes.
  * No sign-in, no AI request, no sign-up is ever made.
  */
-import { test, expect, Page, BrowserContext } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import { APP_HASH, SAMPLE_PACK_ID } from '../../components/landing/landingRoute';
 import {
-  GROUP_CTA, NEW_STUDY_SIGNIN_NOTE, SAMPLE_NO_SIGNIN, PERSONAL_CTA,
+  GROUP_CTA, NEW_STUDY_SIGNIN_NOTE, PERSONAL_CTA,
 } from '../../components/landing/landingStrings';
-
-const MATT7_LAST_READ = JSON.stringify({ bookId: 'MAT', bookName: '马太福音 Matthew', chapter: 7, timestamp: 1 });
-
-async function blockExternalApis(context: BrowserContext) {
-  await context.route(/bible-api\.com|supabase\.co|openrouter\.ai|\/bible-api\//, route => route.abort());
-}
-
-async function openMatthew7(page: Page, prefs: Record<string, string> = {}) {
-  await page.addInitScript(([lastRead, extra]) => {
-    localStorage.setItem('bibleLastRead', lastRead as string);
-    for (const [k, v] of Object.entries(extra as Record<string, string>)) localStorage.setItem(k, v);
-  }, [MATT7_LAST_READ, prefs] as const);
-  await page.goto(`./${APP_HASH}`);
-}
-
-const zhColumn = (page: Page) => page.getByTestId('reader-column-chinese');
-const enColumn = (page: Page) => page.getByTestId('reader-column-english');
+import { blockExternalApis, openMatthew7, zhColumn, enColumn } from './helpers/reader';
+import { MAIN_CONTENT_ID } from '../../components/shared/skipLinkStrings';
 
 test.beforeEach(async ({ context }) => { await blockExternalApis(context); });
 
@@ -108,11 +93,11 @@ test.describe('reader — editions, script, partial failures', () => {
 });
 
 test.describe('landing — copy, disclosure, keyboard', () => {
-  test('hero: sample needs no sign-in, New study discloses Google sign-in, skip link focuses main', async ({ page }) => {
+  test('hero: no "no sign-in" note, New study discloses Google-or-email sign-in, skip link focuses main', async ({ page }) => {
     await page.goto('./');
     const sample = page.getByTestId('hero-sample');
     await expect(sample).toHaveAccessibleName(GROUP_CTA);
-    await expect(sample).toHaveAccessibleDescription(SAMPLE_NO_SIGNIN);
+    await expect(page.getByTestId('landing-page')).not.toContainText(/无需登录|No sign-in needed/);
     await expect(page.getByTestId('hero-new-study')).toHaveAccessibleDescription(NEW_STUDY_SIGNIN_NOTE);
     await expect(page.getByTestId('personal-open')).toHaveAccessibleName(PERSONAL_CTA);
 
@@ -121,17 +106,21 @@ test.describe('landing — copy, disclosure, keyboard', () => {
     await expect(skip).toBeFocused();
     await expect(skip).toBeVisible();
     await page.keyboard.press('Enter');
-    await expect(page.locator('main#main-content')).toBeFocused();
+    await expect(page.locator(`main#${MAIN_CONTENT_ID}`)).toBeFocused();
     expect(new URL(page.url()).hash).toBe('');
     // Exactly one app tree: the static fallback was replaced, not duplicated.
     await expect(page.locator('#stl-fallback')).toHaveCount(0);
     await expect(page.locator('main')).toHaveCount(1);
   });
 
-  test('delivered head carries description, canonical, Open Graph and Twitter tags', async ({ page }) => {
+  test('delivered head carries description, canonical, Open Graph and Twitter tags, Chinese first', async ({ page }) => {
     await page.goto('./');
     await expect(page.locator('meta[name="description"]')).toHaveAttribute('content', /into a group study/);
     await expect(page.locator('meta[name="description"]')).not.toHaveAttribute('content', /bilingual group study/);
+    // Chinese first in what a share preview shows (owner, 2026-10-23).
+    for (const sel of ['meta[name="description"]', 'meta[property="og:description"]', 'meta[name="twitter:description"]', 'meta[property="og:image:alt"]']) {
+      await expect(page.locator(sel)).toHaveAttribute('content', /^[\u3400-\u9fff]/);
+    }
     await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', /^https:\/\/scripturetolife\.org\//);
     await expect(page.locator('meta[property="og:image"]')).toHaveAttribute('content', /og-image\.png$/);
     await expect(page.locator('meta[name="twitter:card"]')).toHaveAttribute('content', 'summary_large_image');

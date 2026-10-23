@@ -108,7 +108,7 @@ const TVProgress: React.FC<{ slideCount: number; index: number }> = ({ slideCoun
 /** Counter, progress bar, first-slide hints, and Ask AI button (exit stays in the view so it also shows on load/error). */
 const TVChrome: React.FC<TVChromeProps> = ({ slideCount, index, onAskAI, notice }) => {
   const compact = useCompactViewport();
-  // Signed out (and no own key), Ask AI opens a sign-in prompt — say so on the pill's line first.
+  // Signed out, Ask AI opens a sign-in prompt — say so on the pill's line first.
   const needsSignIn = !useAIAccess().available;
   return (
   <>

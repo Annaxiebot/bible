@@ -10,7 +10,8 @@
  * OpenRouter is mocked at the network level (no live AI call).
  */
 import { test, expect, Page } from '@playwright/test';
-import { openTV, injectApiKey, mockOpenRouterStream, DEMO_SLIDE, goToSlide } from './helpers/tv';
+import { openTV, DEMO_SLIDE, goToSlide } from './helpers/tv';
+import { signInAsLeader, mockAIStream } from './helpers/hostedAI';
 import { REALISTIC_ANSWER, HUGE_ANSWER, streamChunks } from './helpers/askAnswers';
 import { MIN_ANSWER_SCALE } from '../../components/studypack/fitScale';
 
@@ -23,8 +24,8 @@ const SLACK_PX = 1;
 const VIEWPORTS = [{ width: 1280, height: 720 }, { width: 1920, height: 1080 }];
 
 async function askOnDiscussionSlide(page: Page, answer: string) {
-  await injectApiKey(page);
-  await mockOpenRouterStream(page, streamChunks(answer));
+  await signInAsLeader(page);
+  await mockAIStream(page, streamChunks(answer));
   await openTV(page);
   await goToSlide(page, DEMO_SLIDE.discussion);
   await page.keyboard.press('a');

@@ -1,9 +1,9 @@
 # ADR-0020: Leaders may sign in with an email link or code, not only Google (2026-10-07)
 
-Status: **proposed — deferred.** Owner decision: write it down now, build it
-when forgotten-Google-password sign-in problems actually show up in use.
-Trigger to build: more than an occasional leader who cannot get in with
-Google (owner's judgement; feedback emails and direct reports count).
+Status: **accepted — built 2026-10-23** (owner: "go ahead with the follow-up
+release": AI now needs sign-in, ADR-0007, so a second way in is needed for
+leaders without Google). First written 2026-10-07 as proposed/deferred. See
+"Built (2026-10-23)" at the end for what differs from the design below.
 
 ## Context
 
@@ -96,3 +96,86 @@ in the site's style.
 - Small build: a sign-in choice and code box, the Supabase email template
   and SMTP settings, the privacy text, tests (unit + e2e with a mocked auth
   endpoint; one live check on the real project before release).
+
+## Built (2026-10-23)
+
+### What shipped
+- **One shared block** `components/signin/SignInChoices.tsx`: "用 Google 登录"
+  and, beside it, the quieter "用邮箱登录 Sign in with email". Used by the AI
+  service form (New study, the TV Ask-AI overlay, #/setup) and the leader
+  home. The landing nav's "带领者登录 Leader sign-in" now links to #/leader
+  (both choices there) instead of starting Google directly. Strings in
+  `components/signin/signInStrings.ts` (Chinese first).
+- **Steps** (`useEmailSignIn`, `EmailSignIn`): address → "发送登录链接" →
+  "已发送，请查看邮箱" (said for every address: no enumeration) + a code box
+  (digits only, `autocomplete="one-time-code"`) → "已登录". A wrong or expired
+  code, a rate limit, and the default mailer's refusal each have their own
+  Chinese-first line; anything else shows the server message.
+- **Calls** (`components/signin/emailAuth.ts`): `signInWithOtp({ email,
+  options: { emailRedirectTo: origin + path, shouldCreateUser: true } })`
+  and `verifyOtp({ email, token, type: 'email' })` on the shared client
+  (`getSignupClient`). New addresses become accounts on first sign-in.
+- **Back to where they were**: the start page is remembered
+  (`services/authReturnHash`), now in localStorage with a one-hour expiry —
+  an emailed link opens a new tab of the same browser — and consumed on
+  read. Google uses the same record.
+- **The email** (`supabase/auth/emailSignIn.ts`): one Chinese-first body for
+  both Supabase templates (new address = "confirmation", known = "magic
+  link"), in the check-in emails' paper colours, with the link button and
+  the 6-digit code; subject "你的登录链接和登录码 · Your sign-in link and
+  code". Codes are 6 digits (`mailer_otp_length`, was 8 on the project) and
+  link + code expire after 15 minutes (`mailer_otp_exp` 900, was 3600);
+  both single use (Supabase).
+- **Project config** `scripts/supabase/email-signin-config.ts` (Node 24):
+  dry run by default (reads the live auth config, prints only non-secret
+  fields), `--apply` sends one PATCH. Read on 2026-10-23: the email provider
+  is already on, site_url is https://scripturetolife.org and the redirect
+  list already has `https://scripturetolife.org/**`, so the change is the
+  template, subject, code length and expiry only. Additive: the live site
+  has no email button, so applying it early changes nothing for it.
+- **Privacy page**: what email sign-in sends and keeps (a link and a code,
+  no passwords, one account per address).
+
+### Differs from the design above: the mailer
+- Owner decision: **keep Supabase's default mailer for now**; custom SMTP
+  (Resend, the scripturetolife.org sender the check-ins use) is a later
+  step. Supabase documents two limits of the default mailer: it sends
+  **only to addresses of the project's team** ("Supabase Auth will refuse to
+  deliver messages to addresses that are not part of the project's team"),
+  and about **2 emails per hour** for the whole project (the project's
+  `rate_limit_email_sent` reads 2). Until custom SMTP is set, email sign-in
+  works for team members only; anyone else gets "邮箱登录暂时无法发到这个邮箱，
+  请用 Google 登录" (`email_address_not_authorized`) and can use Google.
+- **The link + code template waits for custom SMTP too** (found applying
+  it, 2026-10-23). The Management API refuses any email-template or subject
+  change on the free plan while the default mailer is used ("Email template
+  modification is not available for free tier projects using the default
+  email provider"). Applied on live: code length 6 and expiry 900 s
+  (`mailer_otp_length`, `mailer_otp_exp`); not applied: the template and
+  subject. Until custom SMTP is set, a team member's email is Supabase's
+  link-only "Your sign-in link" template: the link signs in, but there is
+  no code to type, although the page offers the code box. After SMTP is
+  set, run `node scripts/supabase/email-signin-config.ts --apply` once.
+- **Later step — custom SMTP:** in Supabase Auth → SMTP settings, host
+  `smtp.resend.com`, port 465, user `resend`, the Resend API key as
+  password, sender e.g. `Scripture to Life <signin@scripturetolife.org>`;
+  then raise the email rate limit (Auth → Rate limits). No code change.
+
+### Decided by building it
+- **Who may be a leader:** (a) anyone with an email, the same rule as Google
+  today; cost is bounded by the monthly quotas and the site-wide daily pack
+  cap (ADR-0007 "Caps"). Approval (ADR-0024 `pending`) stays a later step.
+- **Same account via Google or email:** Supabase links identities with the
+  same verified email automatically; to be confirmed once on the live
+  project after release (sign in both ways with one address; one row in
+  Authentication → Users).
+- **Account deletion:** unchanged minimum — write to the address on the
+  privacy page.
+
+### Release
+1. `node scripts/supabase/email-signin-config.ts` (dry run), then `--apply`
+   (any time before the site deploys; additive).
+2. Deploy the site.
+3. Live check with a team member's address: link and code both sign in;
+   Google and email for one address are one user.
+4. Later: custom SMTP (above) to open email sign-in to every leader.

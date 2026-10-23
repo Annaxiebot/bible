@@ -80,7 +80,7 @@ export function mergePicks(picked: readonly RankedTarget[], pool: readonly Ranke
 /** Sends one pick body and resolves with the reply text; rejects on any failure. */
 export type PickSender = (body: string, signal: AbortSignal) => Promise<string>;
 
-/** The app's sender: the Ask-AI transport (own key → OpenRouter; signed in → ai-proxy), role 'pick'. */
+/** The app's sender: the Ask-AI transport (signed in → ai-proxy), role 'pick'. */
 export const sendPick: PickSender = async (body, signal) =>
   (await streamChatCompletionDetailed(body, () => undefined, signal, { role: 'pick' })).text;
 

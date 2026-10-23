@@ -7,12 +7,12 @@
  * panel shows the CC BY credit. With the switch off none of this happens
  * (relatedPrompt.test.ts).
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { readFileSync } from 'fs';
 import { parseStudyPack, buildSlides } from '../packTypes';
-import { STORAGE_KEYS } from '../../../constants/storageKeys';
+import { signInSeam, signOutSeam, finalOfSent } from '../../../tests/utils/hostedSeam';
 import { ASK_AI_RELATED_VERSES_RULE, RELATED_VERSES_HEADING, PromptMessage } from '../../../supabase/functions/_shared/aiPrompts';
 import { OPENBIBLE_NAME, OPENBIBLE_URL } from '../tvHints';
 import { TEST_PACK_PATH } from './fixtures';
@@ -42,8 +42,10 @@ beforeEach(() => {
   vi.unstubAllGlobals();
   clearRelatedVersesCache();
   clearExternalVerseCache();
-  getItemMock.mockReset().mockImplementation((key: string) => (key === STORAGE_KEYS.OPENROUTER_API_KEY ? 'test-key' : null));
+  getItemMock.mockReset().mockReturnValue(null);
+  signInSeam();
 });
+afterEach(signOutSeam);
 
 describe('switch on', () => {
   it('loads related verses once per question and sends the block + the rule', async () => {
@@ -55,7 +57,7 @@ describe('switch on', () => {
     expect(calls.filter(c => c[0].includes('/xref/MAT/6.json'))).toHaveLength(1);
     const post = calls.filter(c => c[1]?.method === 'POST');
     expect(post).toHaveLength(1);
-    const messages = (JSON.parse(post[0][1]!.body as string) as { messages: PromptMessage[] }).messages;
+    const messages = (JSON.parse(finalOfSent(post[0][1]!.body as string)) as { messages: PromptMessage[] }).messages;
     expect(messages[0].content).toContain(ASK_AI_RELATED_VERSES_RULE);
     expect(messages.at(-1)!.content).toContain(`${RELATED_VERSES_HEADING} (`);
     expect(lastRelatedVerses()?.warnings).toEqual([]);

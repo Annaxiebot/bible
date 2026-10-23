@@ -21,17 +21,18 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import {
-  BRAND_EN, BRAND_ZH, HERO_SUB_ZH, HERO_SUB_EN, HERO_SOURCE_NOTE, GROUP_CTA, SAMPLE_NO_SIGNIN,
+  BRAND_EN, BRAND_ZH, HERO_SUB_ZH, HERO_SUB_EN, HERO_SOURCE_NOTE, GROUP_CTA,
   PERSONAL_CTA, NEW_STUDY_LINE, NEW_STUDY_SIGNIN_NOTE, AI_SIGNIN_NOTE, HERO_EYEBROW,
 } from '../../components/landing/landingStrings';
 import { OG_IMAGE_FILE, OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT, OG_IMAGE_ALT } from './ogImage';
+import { MAIN_CONTENT_ID, SKIP_LINK_LABEL } from '../../components/shared/skipLinkStrings';
 
 export const DEFAULT_SITE_ORIGIN = 'https://scripturetolife.org';
 export const STUDIES_DIR = 'studies';
-export const SKIP_LABEL = '跳到主要内容 · Skip to main content';
 
 export const HOME_TITLE = `${BRAND_ZH} · ${BRAND_EN} — ${HERO_EYEBROW}`;
-export const HOME_DESCRIPTION = `${HERO_SUB_EN} ${HERO_SUB_ZH}`;
+/** Chinese first (ADR-0003 §1): the description, og:description and twitter:description share it. */
+export const HOME_DESCRIPTION = `${HERO_SUB_ZH} ${HERO_SUB_EN}`;
 
 export interface SeoSite {
   /** "https://scripturetolife.org" — no trailing slash. */
@@ -212,7 +213,7 @@ const FALLBACK_ID = 'stl-fallback';
 /** Static homepage content inside #root. React replaces it on mount (index.tsx clears #root). */
 export function homeFallbackHtml(site: SeoSite, packs: PublicPack[], featuredId: string): string {
   const featured = packs.find(p => p.id === featuredId) ?? packs[0];
-  const [eyebrow, sample, signin] = [HERO_EYEBROW, SAMPLE_NO_SIGNIN, NEW_STUDY_SIGNIN_NOTE].map(splitLine);
+  const [eyebrow, signin] = [HERO_EYEBROW, NEW_STUDY_SIGNIN_NOTE].map(splitLine);
   const cta = (label: string) => {
     const at = label.indexOf(' ');
     return `<span lang="zh-Hans">${escapeHtml(label.slice(0, at))}</span> <span lang="en">${escapeHtml(label.slice(at + 1))}</span>`;
@@ -221,8 +222,8 @@ export function homeFallbackHtml(site: SeoSite, packs: PublicPack[], featuredId:
           <li><a href="${escapeHtml(studyPath(site, p.id))}">${headingHtml(p.title)}</a>
             <span class="stl-fb-ref">${bilingualHtml(p.passageRef)}</span></li>`).join('');
   return `<div id="${FALLBACK_ID}" class="stl-fallback" lang="zh-Hans">
-      <a class="stl-skip-link" href="#main-content">${escapeHtml(SKIP_LABEL)}</a>
-      <main id="main-content" tabindex="-1">
+      <a class="stl-skip-link" href="#${MAIN_CONTENT_ID}">${escapeHtml(SKIP_LINK_LABEL)}</a>
+      <main id="${MAIN_CONTENT_ID}" tabindex="-1">
         <header>
           <p class="stl-fb-brand"><span lang="zh-Hans">${escapeHtml(BRAND_ZH)}</span> · <span lang="en">${escapeHtml(BRAND_EN)}</span></p>
           <h1><span lang="zh-Hans">${escapeHtml(eyebrow.zh)}</span> <span lang="en">${escapeHtml(eyebrow.en)}</span></h1>
@@ -233,7 +234,6 @@ export function homeFallbackHtml(site: SeoSite, packs: PublicPack[], featuredId:
         <nav aria-label="开始 Get started">
           <ul>
             ${featured ? `<li><a href="${escapeHtml(packAppPath(site, featured.id))}">${cta(GROUP_CTA)}</a>
-              — ${escapeHtml(sample.zh)} · <span lang="en">${escapeHtml(sample.en)}</span>
               (<a href="${escapeHtml(studyPath(site, featured.id))}"><span lang="zh-Hans">阅读全文</span> <span lang="en">read it as a page</span></a>)</li>` : ''}
             <li><a href="${escapeHtml(`${site.base}#app`)}">${cta(PERSONAL_CTA)}</a></li>
             <li><a href="${escapeHtml(`${site.base}#/new`)}">${cta(NEW_STUDY_LINE)}</a>
@@ -283,15 +283,16 @@ function bilingualKeyPhrase(phrase: string): string {
   return `<span lang="zh-Hans">${escapeHtml(phrase.slice(0, at).trim())}</span> <span lang="en">${escapeHtml(phrase.slice(at))}</span>`;
 }
 
-/** Unique per pack: title + passage + the pack's own first context line. */
+/** Unique per pack: title + passage + the pack's own first context line — Chinese first, then English. */
 export function studyDescription(pack: PublicPack): string {
   const ref = splitLine(pack.passageRef);
+  const title = splitHeading(pack.title);
   const context = pack.sections.find(s => s.kind === 'context')?.body ?? [];
-  const firstEn = context.map(l => splitLine(l).en).find(Boolean) ?? '';
+  const [firstZh, firstEn] = (['zh', 'en'] as const).map(lang => context.map(l => splitLine(l)[lang]).find(Boolean) ?? '');
   const questions = pack.sections.find(s => s.kind === 'discussion')?.questions?.length ?? 0;
-  const head = `${splitHeading(pack.title).en || pack.title} — a bilingual (Chinese/English) group Bible study on ${ref.en || ref.zh}`;
-  const tail = questions ? ` with ${questions} discussion questions.` : '.';
-  return truncate(`${head}${tail} ${firstEn} ${ref.zh}双语查经。`, 300);
+  const zh = `${title.zh}：${ref.zh}双语小组查经${questions ? `，${questions} 道讨论题` : ''}。${firstZh}`;
+  const en = `${title.en || pack.title} — a bilingual (Chinese/English) group Bible study on ${ref.en || ref.zh}${questions ? ` with ${questions} discussion questions` : ''}.`;
+  return truncate(`${zh} ${en} ${firstEn}`, 300);
 }
 
 export function studyTitle(pack: PublicPack): string {
@@ -355,11 +356,11 @@ export function studyPageHtml(site: SeoSite, pack: PublicPack): string {
     </style>
 </head>
 <body>
-  <a class="stl-skip-link" href="#main-content">${escapeHtml(SKIP_LABEL)}</a>
+  <a class="stl-skip-link" href="#${MAIN_CONTENT_ID}">${escapeHtml(SKIP_LINK_LABEL)}</a>
   <header class="top">
     <a href="${escapeHtml(homePath(site))}"><span lang="zh-Hans">${escapeHtml(BRAND_ZH)}</span> · <span lang="en">${escapeHtml(BRAND_EN)}</span></a>
   </header>
-  <main id="main-content" tabindex="-1">
+  <main id="${MAIN_CONTENT_ID}" tabindex="-1">
     <article>
     <h1>${headingHtml(pack.title)}</h1>
     <p class="ref">${bilingualHtml(pack.passageRef)}</p>

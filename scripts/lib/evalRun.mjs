@@ -17,12 +17,12 @@ export function openRouterHeaders(key, title) {
 }
 
 /**
- * POST a data-form body as the app's own-key path would (aiTransport.ownKeyBody
+ * POST a data-form body with a developer key, as the proxy would send it (aiFinalBody.finalAIBody
  * for `role`, stream: true) and read the SSE with the app's parser.
  * Never throws for an HTTP or stream error: it comes back in `error`.
  */
 export async function streamOwnKey(app, key, title, role, body, signal) {
-  const res = await fetch(OPENROUTER_URL, { method: 'POST', headers: openRouterHeaders(key, title), body: app.aiTransport.ownKeyBody(role, body), signal });
+  const res = await fetch(OPENROUTER_URL, { method: 'POST', headers: openRouterHeaders(key, title), body: app.aiFinalBody.finalAIBody(role, body), signal });
   if (!res.ok) return { text: '', error: `HTTP ${res.status}: ${(await res.text()).slice(0, 200)}` };
   let text = '';
   let error = null;

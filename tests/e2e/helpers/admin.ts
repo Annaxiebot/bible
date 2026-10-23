@@ -12,7 +12,8 @@ import { E2E_SUPABASE_PATH, injectSupabaseOverride } from './signup';
 import {
   IS_SITE_ADMIN_FN, ADMIN_LEADERS_FN, ADMIN_FEEDBACK_FN, ADMIN_STATS_FN, ADMIN_DENIED_CODE,
 } from '../../../components/admin/adminRules';
-import { ADMIN_LEADERS, ADMIN_FEEDBACK, ADMIN_STATS } from '../../../components/admin/__tests__/adminFixtures';
+import { ADMIN_LEADERS, ADMIN_FEEDBACK, ADMIN_STATS, ADMIN_FUNNEL } from '../../../components/admin/__tests__/adminFixtures';
+import { ADMIN_FUNNEL_FN } from '../../../components/stats/funnelRules';
 
 export interface FakeAdminServer {
   /** Every RPC name called, in order. */
@@ -24,6 +25,7 @@ export async function mockAdminRpcs(page: Page, admin: boolean): Promise<FakeAdm
   const server: FakeAdminServer = { calls: [] };
   const replies: Record<string, unknown> = {
     [ADMIN_LEADERS_FN]: ADMIN_LEADERS, [ADMIN_FEEDBACK_FN]: ADMIN_FEEDBACK, [ADMIN_STATS_FN]: ADMIN_STATS,
+    [ADMIN_FUNNEL_FN]: ADMIN_FUNNEL,   // read by the Stats tab (ADR-0025)
   };
   await page.route(`**${E2E_SUPABASE_PATH}/rest/v1/rpc/${IS_SITE_ADMIN_FN}**`, route => {
     server.calls.push(IS_SITE_ADMIN_FN);

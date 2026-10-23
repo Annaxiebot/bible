@@ -11,6 +11,7 @@ import { idbService } from '../../idbService';
 import type { JournalEntry, ChatHistoryRecord, SpiritualMemoryItem } from '../../idbService';
 import { verseDataStorage } from '../../verseDataStorage';
 import { STORAGE_KEYS } from '../../../constants/storageKeys';
+import { OWN_OPENROUTER_KEY } from '../../obsoleteStorageKeys';
 import {
   buildPersonalBackup, importPersonalBackup, isPersonalBackup, exportableSettingsKeys,
   PERSONAL_BACKUP_VERSION, PERSONAL_BACKUP_KIND,
@@ -49,7 +50,7 @@ async function seed() {
   await idbService.put('spiritualMemory', memory('mem_1', '2026-02-01T00:00:00Z', 'pray v1'));
   await idbService.put('readingPlans', { id: 'nt-90-days', planType: 'nt-90-days', startDate: '2026-01-01', completedDays: [], currentDay: 0, active: true });
   store.set(STORAGE_KEYS.FONT_SIZE, '18');
-  store.set(STORAGE_KEYS.OPENROUTER_API_KEY, 'sk-or-secret');
+  store.set(OWN_OPENROUTER_KEY, 'sk-or-secret');
   store.set(OLD_PROVIDER_KEY, 'gm-secret');
 }
 
@@ -100,7 +101,7 @@ describe('Import (merge, newer wins, never deletes)', () => {
     expect((await idbService.get('chatHistory', 'c1'))?.title).toBe('chat v1');
     expect((await idbService.get('spiritualMemory', 'mem_1'))?.content).toBe('pray v1');
     expect(store.get(STORAGE_KEYS.FONT_SIZE)).toBe('18');
-    expect(store.has(STORAGE_KEYS.OPENROUTER_API_KEY)).toBe(false);
+    expect(store.has(OWN_OPENROUTER_KEY)).toBe(false);
   });
 
   it('keeps the newer side per record and deletes nothing', async () => {

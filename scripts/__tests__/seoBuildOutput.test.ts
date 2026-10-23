@@ -3,7 +3,8 @@
  * VITE_BASE_PATH=/ and the default /bible/ base: delivered homepage metadata
  * and fallback, one prerendered page per public pack, sitemap, robots and the
  * social image. Runs vite in a child process (a clean Node, as `npm run build`
- * does) into a scratch directory under node_modules/.cache.
+ * does) into a scratch directory under node_modules/.cache. The same builds
+ * also pin the OpenCC split (one dictionary chunk per direction).
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
@@ -29,6 +30,12 @@ function build(name: string, env: Record<string, string | undefined>): string {
 }
 
 const read = (dir: string, file: string) => fs.readFileSync(path.join(dir, file), 'utf8');
+
+// One phrase from each OpenCC table, in that table's own order (traditional→simplified, simplified→traditional).
+const T2CN_MARKER = '藉此機會 借此机会';
+const CN2T_MARKER = '借此机会 藉此機會';
+/** The 繁→简 table is ~62 KB minified; the full bundle with both tables was 1.1 MB. */
+const T2CN_CHUNK_MAX_CHARS = 150_000;
 
 describe.each([
   { name: 'root', env: { VITE_BASE_PATH: '/' }, base: '/' },
@@ -75,6 +82,19 @@ describe.each([
     const png = fs.readFileSync(path.join(dist, 'og-image.png'));
     expect(png.toString('ascii', 1, 4)).toBe('PNG');
     expect(png.readUInt32BE(16)).toBe(1200);
+  });
+
+  it('OpenCC: the 繁→简 and 简→繁 tables ship in separate chunks (a 简 reader loads only the small one)', () => {
+    const assets = path.join(dist, 'assets');
+    const js = fs.readdirSync(assets).filter(f => f.endsWith('.js')).map(f => ({ f, text: read(assets, f) }));
+    const t2cn = js.filter(a => a.text.includes(T2CN_MARKER));
+    const cn2t = js.filter(a => a.text.includes(CN2T_MARKER));
+    expect(t2cn.length).toBeGreaterThan(0);
+    expect(cn2t.length).toBeGreaterThan(0);
+    for (const a of t2cn) {
+      expect(a.text.includes(CN2T_MARKER), a.f).toBe(false);
+      expect(a.text.length, a.f).toBeLessThan(T2CN_CHUNK_MAX_CHARS);
+    }
   });
 
   it('the pack JSON the presentation loads is still shipped', () => {

@@ -8,9 +8,9 @@
  * browser set "#main-content" would leave the page.
  */
 import React from 'react';
+import { MAIN_CONTENT_ID, SKIP_LINK_LABEL } from './skipLinkStrings';
 
-export const MAIN_CONTENT_ID = 'main-content';
-export const SKIP_LINK_LABEL = '跳到主要内容 · Skip to main content';
+export { MAIN_CONTENT_ID, SKIP_LINK_LABEL };
 
 export function focusMainContent(id: string = MAIN_CONTENT_ID): void {
   const target = document.getElementById(id);

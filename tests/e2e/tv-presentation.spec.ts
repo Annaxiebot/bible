@@ -10,8 +10,9 @@ import { test, expect } from '@playwright/test';
 import { FIRST_SLIDE_HINT, ASK_AI_LABEL } from '../../components/studypack/tvHints';
 import { LIFE_AREAS } from '../../components/studypack/principles';
 import { DEFAULT_AI_SETUP, wireModelId } from '../../services/aiDefaults';
-import { SETUP_TITLE, SETUP_SIGN_IN_TO_USE_AI, SETUP_OWN_KEY_TOGGLE } from '../../components/setup/setupStrings';
-import { openTV, injectApiKey, mockOpenRouterStream, DEMO_SLIDE, goToSlide } from './helpers/tv';
+import { SETUP_TITLE, SETUP_SIGN_IN_TO_USE_AI } from '../../components/setup/setupStrings';
+import { openTV, DEMO_SLIDE, goToSlide } from './helpers/tv';
+import { signInAsLeader, mockAIStream } from './helpers/hostedAI';
 import QRCode from 'qrcode';
 import { QR_SVG_OPTIONS, qrModulesPath } from '../../components/signup/signupRoute';
 import { SU_QR_BODY, SU_DEMO_LINE, SU_UNCLAIMED_LINE } from '../../components/signup/signupStrings';
@@ -185,10 +186,10 @@ test.describe('Ask AI overlay', () => {
   });
 
   test('discussion slide: Ask AI auto-sends the question, one click', async ({ page }) => {
-    // Key injected + OpenRouter mocked at the network level (helpers/tv.ts).
-    await injectApiKey(page);
-    // Only a key injected (no provider/model chosen): the request must carry the free router.
-    await mockOpenRouterStream(page, ['Anxiety follows ', 'the treasure (v.25).'], wireModelId(DEFAULT_AI_SETUP.model));
+    // Signed in (AI needs sign-in) + the ai-proxy mocked at the network level (helpers/hostedAI.ts).
+    await signInAsLeader(page);
+    // No model chosen: the request names the default Ask-AI model (the proxy decides, ADR-0007).
+    await mockAIStream(page, ['Anxiety follows ', 'the treasure (v.25).'], wireModelId(DEFAULT_AI_SETUP.model));
     await openTV(page);
     await goToSlide(page, DEMO_SLIDE.discussion);
     await expect(page.getByText(/讨论 Discussion · 1\/7/)).toBeVisible();
@@ -203,10 +204,10 @@ test.describe('Ask AI overlay', () => {
   });
 
   test('answers render markdown with verse-ref tooltips from the pack', async ({ page }) => {
-    await injectApiKey(page);
+    await signInAsLeader(page);
     // Mocked streamed answer: markdown bold + one in-pack ref (v.26)
     // and one out-of-pack ref (v.24 — resolved from the bundled data).
-    await mockOpenRouterStream(page, ['**Trust** the Father ', '(v.26), unlike v.24.']);
+    await mockAIStream(page, ['**Trust** the Father ', '(v.26), unlike v.24.']);
     await openTV(page);
     await goToSlide(page, DEMO_SLIDE.discussion);
     await page.keyboard.press('a');
@@ -227,9 +228,9 @@ test.describe('Ask AI overlay', () => {
     await expect(page.getByRole('tooltip')).toContainText('No one can serve two masters'); // then BSB
   });
 
-  test('without a key, signed out: the overlay shows the sign-in prompt — no key hints, nothing sent', async ({ page }) => {
-    // Fresh browser context: no OpenRouter key and no session (ADR-0007). The signed-in
-    // hosted path lives in hosted-ai.spec.ts; the own-key path is on the AI service page.
+  test('signed out: the overlay shows the sign-in prompt — no key hints, nothing sent', async ({ page }) => {
+    // Fresh browser context: no session (ADR-0007: sign in to use AI). The signed-in
+    // hosted path lives in hosted-ai.spec.ts.
     await openTV(page);
     await goToSlide(page, DEMO_SLIDE.discussion);
     await page.keyboard.press('a');
@@ -237,7 +238,6 @@ test.describe('Ask AI overlay', () => {
     await expect(setup).toBeVisible();
     await expect(setup.getByRole('heading', { name: SETUP_TITLE })).toBeVisible();
     await expect(setup.getByText(SETUP_SIGN_IN_TO_USE_AI)).toBeVisible();
-    await expect(setup.getByRole('button', { name: SETUP_OWN_KEY_TOGGLE })).toHaveCount(0);
     await expect(page.getByTestId('ask-ai-overlay')).not.toContainText(/OpenRouter|密钥/);
     await expect(page.getByLabel(/Ask AI question/)).toBeDisabled();
     await expect(page.getByTestId('ask-question')).toHaveCount(0); // nothing sent

@@ -4,9 +4,8 @@
  * Every AI call of #app (the chat, the journal's AI tools, vibe theming)
  * goes through here, and from here through the same transport as the study
  * pages (components/studypack/askAIStream → services/aiTransport):
- *   own OpenRouter key → OpenRouter directly (the key owner's Ask-AI model);
  *   signed in → the ai-proxy function, role 'study' (server-picked model,
- *   its own monthly quota); neither → AskAIError kind 'sign-in-needed'.
+ *   its own monthly quota); signed out → AskAIError kind 'sign-in-needed'.
  * Failures are AskAIErrors carrying the TV overlay's bilingual lines
  * (askAIErrors / tvHints), so the chat shows them the same way.
  * Requests always stream (the proxy passes OpenRouter's SSE through);
@@ -18,8 +17,6 @@ import { ROLE_MAX_TOKENS } from '../supabase/functions/ai-proxy/policy';
 import { fitHistory, HistoryMessage } from './aiHistoryFit';
 import { askAIModel } from './aiDefaults';
 
-/** OpenRouter X-Title for own-key requests (ASCII only). */
-export const STUDY_AI_TITLE = 'Scripture to Life';
 const STUDY_TEMPERATURE = 0.7;
 
 export type StudyAIMessage = HistoryMessage;
@@ -66,7 +63,7 @@ export async function streamStudyAI(
   const body = buildStudyBody(prompt, history, opts.system);
   const requested = (JSON.parse(body) as { model: string }).model;
   const signal = opts.signal ?? new AbortController().signal;
-  const outcome = await streamChatCompletionDetailed(body, onChunk, signal, { role: 'study', title: STUDY_AI_TITLE });
+  const outcome = await streamChatCompletionDetailed(body, onChunk, signal, { role: 'study' });
   const model = outcome.model ?? requested;
   if (!outcome.text && !signal.aborted) throw emptyError(model, outcome.finishReason);
   return { text: outcome.text, model };

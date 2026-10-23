@@ -57,6 +57,24 @@ describe('useBibleSettings — Chinese edition is CUV-only', () => {
 });
 
 describe('useBibleSettings — converter preload', () => {
+  // OpenCC split by direction (2026-10-23): a 简 reader must never pull the 1 MB 简→繁 table at start-up.
+  it.each([
+    ['simplified', true],
+    ['traditional', false],
+  ] as const)('a %s reader preloads only that script\'s dictionary', async (script, simplified) => {
+    localStorage.setItem(STORAGE_KEYS.CHINESE_MODE, script);
+    const { preloadConverter } = await import('../../services/chineseConverter');
+    vi.mocked(preloadConverter).mockClear();
+    vi.useFakeTimers();
+    try {
+      renderHook(() => useBibleSettings());
+      vi.advanceTimersByTime(300);
+      expect(vi.mocked(preloadConverter).mock.calls).toEqual([[simplified]]);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('an unavailable worker does not surface as an unhandled rejection', async () => {
     const { preloadConverter } = await import('../../services/chineseConverter');
     vi.mocked(preloadConverter).mockClear();

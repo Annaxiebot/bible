@@ -11,7 +11,8 @@
  * OpenRouter is mocked at the network level (no live AI call).
  */
 import { test, expect } from '@playwright/test';
-import { openTV, injectApiKey, mockOpenRouterStream, DEMO_SLIDE, goToSlide } from './helpers/tv';
+import { openTV, DEMO_SLIDE, goToSlide } from './helpers/tv';
+import { signInAsLeader, mockAIStream } from './helpers/hostedAI';
 import { streamChunks } from './helpers/askAnswers';
 import { NO_SUCH_VERSE_MARK, VERSES_CITED_HEADING } from '../../components/studypack/tvHints';
 
@@ -25,8 +26,8 @@ const SLACK_PX = 1;
 for (const vp of [{ width: 1280, height: 720 }, { width: 1920, height: 1080 }]) {
   test(`cited verses are checked and printed at ${vp.width}×${vp.height}`, async ({ page }) => {
     await page.setViewportSize(vp);
-    await injectApiKey(page);
-    await mockOpenRouterStream(page, streamChunks(ANSWER));
+    await signInAsLeader(page);
+    await mockAIStream(page, streamChunks(ANSWER));
     await openTV(page);
     await goToSlide(page, DEMO_SLIDE.discussion);
     await page.keyboard.press('a');

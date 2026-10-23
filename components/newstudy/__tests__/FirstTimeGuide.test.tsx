@@ -7,10 +7,11 @@
  * card and still dismisses it for the session.
  */
 import React from 'react';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { STORAGE_KEYS, NEW_STUDY_GUIDE_DISMISSED_VALUE } from '../../../constants/storageKeys';
 import { idbService } from '../../../services/idbService';
+import { signInSeam, signOutSeam } from '../../../tests/utils/hostedSeam';
 import { saveLocalPack } from '../../studypack/packSource';
 import { assemblePack } from '../packAssembly';
 import { validateGenerated } from '../generatedPack';
@@ -27,9 +28,10 @@ vi.mock('../../../services/bibleDataSource', () => ({
 const getItem = window.localStorage.getItem as ReturnType<typeof vi.fn>;
 const setItem = window.localStorage.setItem as ReturnType<typeof vi.fn>;
 
-/** A working localStorage (Map-backed) holding an AI key, so the form renders. */
+/** A working localStorage (Map-backed), signed in (the dev seam) so the form renders. */
 function workingStorage(): Map<string, string> {
-  const store = new Map<string, string>([[STORAGE_KEYS.OPENROUTER_API_KEY, 'k']]);
+  signInSeam();
+  const store = new Map<string, string>();
   getItem.mockReset().mockImplementation((k: string) => store.get(k) ?? null);
   setItem.mockReset().mockImplementation((k: string, v: string) => { store.set(k, v); });
   return store;
@@ -48,6 +50,7 @@ describe('FirstTimeGuide on #/new', () => {
     await idbService.clear('studypacks');
     window.location.hash = '';
   });
+  afterEach(signOutSeam);
 
   it('shows the three Chinese-first steps to a first-time visitor with no packs', async () => {
     workingStorage();
@@ -81,7 +84,7 @@ describe('FirstTimeGuide on #/new', () => {
   it('blocked storage: the card still renders, and Got it still hides it for the session', async () => {
     workingStorage();
     const blocked = () => { throw new Error('SecurityError: storage blocked'); };
-    getItem.mockImplementation((k: string) => (k === STORAGE_KEYS.NEW_STUDY_GUIDE_DISMISSED ? blocked() : k === STORAGE_KEYS.OPENROUTER_API_KEY ? 'k' : null));
+    getItem.mockImplementation((k: string) => (k === STORAGE_KEYS.NEW_STUDY_GUIDE_DISMISSED ? blocked() : null));
     setItem.mockImplementation((k: string) => { if (k === STORAGE_KEYS.NEW_STUDY_GUIDE_DISMISSED) blocked(); });
     await renderPage();
     fireEvent.click(await screen.findByRole('button', { name: NS_GUIDE_GOT_IT }));

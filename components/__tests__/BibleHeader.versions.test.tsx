@@ -95,6 +95,14 @@ describe('BibleHeader — interface language and script control', () => {
     expect(group).toHaveAttribute('title', '当前：简体 · 点击切换为繁體');
   });
 
+  it('an iPhone bar has the 简/繁 control too (it used to live only in a menu that ran off a 390px screen)', () => {
+    renderHeader(true);
+    expect(screen.getByRole('group', { name: '中文字体' })).toBeInTheDocument();
+    // Below 640px the bar's tools are hidden by CSS and the ⋯ button shows instead.
+    expect(screen.getByRole('group', { name: '中文字体' }).parentElement).toHaveClass('hidden', 'sm:flex');
+    expect(screen.getByRole('button', { name: '更多选项' }).parentElement).toHaveClass('sm:hidden');
+  });
+
   it('pressing the already-current script does nothing; the other one toggles', () => {
     const onToggle = vi.fn();
     renderHeaderWith({ onToggleChineseMode: onToggle });

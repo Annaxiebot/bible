@@ -19,6 +19,7 @@
  */
 import { createClient, FunctionsHttpError, SupabaseClient } from '@supabase/supabase-js';
 import { supabase } from '../../services/supabase';
+import { e2eSupabaseBase } from '../../services/e2eSupabase';
 import type { LifeMenuRow } from '../studypack/packTypes';
 import { SU_ERR_SUBMIT, SU_ERR_PRACTICE, SU_REPLACE_FAILED } from './signupStrings';
 import { CK_WELCOME_FAILED } from '../checkin/checkinStrings';
@@ -66,21 +67,12 @@ export function toSignupBody(packId: string, form: SignupForm): SignupBody {
   };
 }
 
-interface E2EOverride { url: string; anonKey: string }
-
-function e2eOverride(): E2EOverride | null {
-  const value = (window as Window & { __SUPABASE_E2E__?: unknown }).__SUPABASE_E2E__;
-  if (typeof value !== 'object' || value === null) return null;
-  const { url, anonKey } = value as Partial<E2EOverride>;
-  return typeof url === 'string' && typeof anonKey === 'string' ? { url, anonKey } : null;
-}
-
 let overrideClient: SupabaseClient | null = null;
 
 /** The app's shared client, or one built from the dev-only window override; null when unconfigured. */
 export function getSignupClient(): SupabaseClient | null {
   if (supabase) return supabase;
-  const override = e2eOverride();
+  const override = e2eSupabaseBase();
   if (!override) return null;
   overrideClient ??= createClient(override.url, override.anonKey, { auth: { persistSession: false } });
   return overrideClient;

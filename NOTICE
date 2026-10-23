@@ -58,6 +58,9 @@ terms:
      SIL Open Font License 1.1
    - Inter, Fraunces, Noto Serif SC, JetBrains Mono (via Google Fonts) -
      SIL Open Font License 1.1
+   The social-share image public/og-image.png shows text set in LXGW WenKai,
+   Fraunces and Inter (rendered by scripts/seo/render-og-image.mjs); it holds
+   a picture of the text, not the font files.
 
 6. Third-party packages (package.json, installed into node_modules/) and
    scripts loaded from CDNs (Tailwind CSS, KaTeX stylesheet) keep their own

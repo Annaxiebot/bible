@@ -115,9 +115,9 @@ describe('admin-portal-schema.sql', () => {
     expect(flat.split('INSERT INTO site_admins').length).toBe(2);   // the only insert
   });
 
-  it('the privacy page says the owner sees leaders\' names, emails and activity counts; dated today', () => {
+  it('the privacy page says the owner sees leaders\' names, emails and activity counts; dated', () => {
     const privacy = readFileSync(path.resolve(__dirname, '..', '..', 'public', 'privacy.html'), 'utf-8');
     expect(privacy).toContain("The site's owner can see leaders' names, emails and activity counts, to run the site.");
-    expect(privacy).toContain('更新 Updated 2026-10-11');
+    expect(privacy).toMatch(/更新 Updated \d{4}-\d{2}-\d{2}/);   // the exact date is pinned by the newest change's test
   });
 });

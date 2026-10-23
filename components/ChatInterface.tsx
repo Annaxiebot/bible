@@ -9,7 +9,7 @@ import { askAIModel } from '../services/aiDefaults';
 import { QuickAISetupDialog } from './setup/QuickAISetup';
 import { SETUP_TITLE, PERSONAL_AI_UNAVAILABLE_NOTE } from './setup/setupStrings';
 import AIErrorLine from './studypack/AIErrorLine';
-import { LIGHT_AI_ERROR_CLASS, LIGHT_AI_ERROR_BUTTON_CLASS, LIGHT_AI_ERROR_LINK_CLASS } from './studypack/InlineAIError';
+import { LIGHT_AI_ERROR_CLASS, LIGHT_AI_ERROR_BUTTON_CLASS } from './studypack/InlineAIError';
 import { asAskAIError, AskAIError } from './studypack/askAIErrors';
 import { modelLine } from './studypack/tvHints';
 import SaveResearchModal from './SaveResearchModal';
@@ -1113,7 +1113,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ incomingText, currentBook
             <AIErrorLine
               error={aiError}
               onSetup={() => setShowAISettings(true)}
-              className={LIGHT_AI_ERROR_CLASS} buttonClassName={LIGHT_AI_ERROR_BUTTON_CLASS} linkClassName={LIGHT_AI_ERROR_LINK_CLASS}
+              className={LIGHT_AI_ERROR_CLASS} buttonClassName={LIGHT_AI_ERROR_BUTTON_CLASS}
             />
           )}
           <p className="text-[10px] text-slate-400">{PERSONAL_AI_UNAVAILABLE_NOTE}</p>

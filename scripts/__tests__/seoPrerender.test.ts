@@ -12,9 +12,13 @@ import {
   loadPublicPacks, studyPageHtml, studyTitle, studyDescription, sitemapXml, robotsTxt, transformIndexHtml,
   homeFallbackHtml, normalizeBase, normalizeOrigin, validatePublicPack, escapeHtml, splitHeading, SeoSite, PublicPack,
 } from '../seo/prerender';
-import { drawOgPixels, OG_IMAGE_TAGLINE, OG_IMAGE_ALT, OG_IMAGE_WIDTH, GOLD_PALE } from '../seo/ogImage';
+import { OG_IMAGE_ALT } from '../seo/ogImage';
+import { ogCardHtml, OG_CARD_FONT_FAMILIES, OG_CARD_COLORS } from '../seo/ogCard';
 import { SAMPLE_PACK_ID } from '../../components/landing/landingRoute';
-import { HERO_SUB_EN, HERO_EYEBROW, GROUP_CTA, PERSONAL_CTA, NEW_STUDY_SIGNIN_NOTE } from '../../components/landing/landingStrings';
+import {
+  HERO_SUB_EN, HERO_SUB_ZH, HERO_EYEBROW, GROUP_CTA, PERSONAL_CTA, NEW_STUDY_SIGNIN_NOTE, BRAND_ZH, BRAND_EN,
+} from '../../components/landing/landingStrings';
+import { MAIN_CONTENT_ID, SKIP_LINK_LABEL } from '../../components/shared/skipLinkStrings';
 
 const ROOT = path.resolve(__dirname, '../..');
 const PACKS_DIR = path.join(ROOT, 'public/packs');
@@ -28,6 +32,8 @@ const SITES: SeoSite[] = [
 ];
 
 const doc = (html: string) => new JSDOM(html).window.document;
+/** Starts with a Chinese character (ADR-0003 §1: Chinese first, English second). */
+const CHINESE_FIRST = /^[\u3400-\u9fff]/;
 const meta = (d: Document, sel: string) => d.querySelector(sel)?.getAttribute('content') ?? d.querySelector(sel)?.getAttribute('href');
 
 /** WCAG 2.x contrast ratio between two computed `rgb(...)` / `#rrggbb` colors. */
@@ -84,6 +90,12 @@ describe.each(SITES)('study pages (base $base)', (site) => {
     expect(d.title).toBe(studyTitle(pack));
     expect(d.title).toContain(pack.title);
     expect(meta(d, 'meta[name="description"]')).toBe(studyDescription(pack));
+    // Chinese first in every description and alt text a share preview shows.
+    for (const sel of ['meta[name="description"]', 'meta[property="og:description"]', 'meta[name="twitter:description"]',
+      'meta[property="og:image:alt"]', 'meta[name="twitter:image:alt"]']) {
+      expect(meta(d, sel), sel).toMatch(CHINESE_FIRST);
+    }
+    expect(studyDescription(pack)).toContain(splitHeading(pack.title).en.split(' — ')[0]);
     expect(meta(d, 'link[rel="canonical"]')).toBe(canonical);
     expect(meta(d, 'meta[property="og:url"]')).toBe(canonical);
     expect(meta(d, 'meta[property="og:type"]')).toBe('article');
@@ -111,8 +123,9 @@ describe.each(SITES)('study pages (base $base)', (site) => {
     const open = d.querySelector('[data-testid="open-presentation"]')!;
     expect(open.getAttribute('href')).toBe(`${site.base}#/pack/${pack.id}`);
     // Keyboard: skip link → focusable main.
-    expect(d.querySelector('a.stl-skip-link')!.getAttribute('href')).toBe('#main-content');
-    expect(d.getElementById('main-content')!.getAttribute('tabindex')).toBe('-1');
+    expect(d.querySelector('a.stl-skip-link')!.getAttribute('href')).toBe(`#${MAIN_CONTENT_ID}`);
+    expect(d.querySelector('a.stl-skip-link')!.textContent).toBe(SKIP_LINK_LABEL);
+    expect(d.getElementById(MAIN_CONTENT_ID)!.getAttribute('tabindex')).toBe('-1');
   });
 
   it('the primary CTA meets WCAG AA contrast, including its bilingual children', () => {
@@ -153,6 +166,13 @@ describe.each(SITES)('delivered index.html (base $base)', (site) => {
     expect(d.title).toMatch(/Scripture to Life/);
     expect(d.title).not.toBe('活出神的话 · Scripture to Life');
     expect(meta(d, 'meta[name="description"]')).toContain(HERO_SUB_EN);
+    expect(meta(d, 'meta[name="description"]')!.startsWith(HERO_SUB_ZH)).toBe(true);
+    for (const sel of ['meta[property="og:description"]', 'meta[name="twitter:description"]']) {
+      expect(meta(d, sel), sel).toBe(meta(d, 'meta[name="description"]'));
+    }
+    for (const sel of ['meta[property="og:image:alt"]', 'meta[name="twitter:image:alt"]']) {
+      expect(meta(d, sel), sel).toMatch(CHINESE_FIRST);
+    }
     expect(meta(d, 'link[rel="canonical"]')).toBe(`${site.origin}${site.base}`);
     expect(meta(d, 'meta[property="og:title"]')).toBe(d.title);
     expect(meta(d, 'meta[property="og:image"]')).toBe(`${site.origin}${site.base}og-image.png`);
@@ -182,8 +202,9 @@ describe.each(SITES)('delivered index.html (base $base)', (site) => {
     expect(root.textContent).toContain(GROUP_CTA.split(' ').slice(1).join(' '));
     expect(root.textContent).toContain(PERSONAL_CTA.split(' ').slice(1).join(' '));
     expect(root.textContent).toContain(NEW_STUDY_SIGNIN_NOTE.split(' · ')[1]);
-    expect(root.querySelector('a.stl-skip-link')).not.toBeNull();
-    expect(root.querySelector('main#main-content[tabindex="-1"]')).not.toBeNull();
+    expect(root.textContent).not.toMatch(/无需登录|No sign-in needed|Google sign-in required|Requires Google sign-in/);   // owner 2026-10-23: Google or email, no "no sign-in" line
+    expect(root.querySelector('a.stl-skip-link')!.textContent).toBe(SKIP_LINK_LABEL);
+    expect(root.querySelector(`main#${MAIN_CONTENT_ID}[tabindex="-1"]`)).not.toBeNull();
   });
 
   it('a hash route hides the fallback until the app mounts; no-JS visitors can scroll', () => {
@@ -216,31 +237,48 @@ describe('helpers', () => {
     expect(homeFallbackHtml(SITES[1], [], SAMPLE_PACK_ID)).toContain('/bible/#app');
   });
 
+  it('R3: the prerendered pages take the skip-link label and target from skipLinkStrings, not copies', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'scripts/seo/prerender.ts'), 'utf8');
+    expect(src).not.toContain(MAIN_CONTENT_ID);
+    expect(src).not.toContain(SKIP_LINK_LABEL.split(' · ')[0]);
+  });
+
   it('refuses an index.html without the empty root (would otherwise ship no fallback)', () => {
     expect(() => transformIndexHtml('<title>x</title><div id="root">x</div>', SITES[0], packs, SAMPLE_PACK_ID)).toThrow(/root/);
   });
 });
 
-describe('social card tagline', () => {
-  // Tagline row: drawn at x=84, y=320, scale 5 (35px tall, 30px per glyph).
-  const paleXs = (px: Uint8Array) => {
-    const xs: number[] = [];
-    for (let y = 320; y < 355; y++) for (let x = 0; x < OG_IMAGE_WIDTH; x++) {
-      const o = (y * OG_IMAGE_WIDTH + x) * 3;
-      if (px[o] === GOLD_PALE[0] && px[o + 1] === GOLD_PALE[1] && px[o + 2] === GOLD_PALE[2]) xs.push(x);
-    }
-    return xs;
-  };
-
-  it('the renderer draws GROUP BIBLE STUDY, not the old bilingual tagline', () => {
-    expect(OG_IMAGE_TAGLINE).toBe('GROUP BIBLE STUDY');
+describe('social card (public/og-image.png is rendered from ogCardHtml)', () => {
+  it('the alt text is Chinese first and names what the card shows', () => {
+    expect(OG_IMAGE_ALT).toMatch(CHINESE_FIRST);
+    expect(OG_IMAGE_ALT.startsWith(BRAND_ZH)).toBe(true);
+    expect(OG_IMAGE_ALT.indexOf(BRAND_ZH)).toBeLessThan(OG_IMAGE_ALT.indexOf(BRAND_EN));
+    expect(OG_IMAGE_ALT).toContain(HERO_EYEBROW);
     expect(OG_IMAGE_ALT).not.toMatch(/bilingual/i);
-    const card = drawOgPixels();
-    expect(Buffer.from(card).equals(Buffer.from(drawOgPixels('GROUP BIBLE STUDY')))).toBe(true);
-    expect(Buffer.from(card).equals(Buffer.from(drawOgPixels('BILINGUAL GROUP BIBLE STUDY')))).toBe(false);
-    const xs = paleXs(card);
-    expect(xs.length).toBeGreaterThan(0);
-    expect(Math.min(...xs)).toBeGreaterThanOrEqual(84);
-    expect(Math.max(...xs)).toBeLessThan(84 + OG_IMAGE_TAGLINE.length * 30);
+  });
+
+  it('the card shows 活出神的话 first and largest, then Scripture to Life, then 小组查经 · Group Bible study', () => {
+    const card = doc(ogCardHtml());
+    expect(card.documentElement.lang).toBe('zh-Hans');
+    const part = (name: string) => card.querySelector(`[data-part="${name}"]`)!.textContent!.replace(/\s+/g, ' ').trim();
+    expect(part('brand-zh')).toBe(BRAND_ZH);
+    expect(part('brand-en')).toBe(BRAND_EN);
+    expect(part('eyebrow')).toBe(HERO_EYEBROW);
+    const order = ['brand-zh', 'brand-en', 'eyebrow'].map(n => card.body.innerHTML.indexOf(`data-part="${n}"`));
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    const html = ogCardHtml();
+    const px = (cls: string) => Number(new RegExp(`\\.${cls} \\{[^}]*font-size: (\\d+)px`).exec(html)![1]);
+    expect(px('zh')).toBeGreaterThan(px('en'));
+    expect(px('en')).toBeGreaterThan(px('eyebrow'));
+    // The site's own OFL heading fonts, all required by the renderer.
+    expect(OG_CARD_FONT_FAMILIES).toEqual(['LXGW WenKai', 'Fraunces', 'Inter']);
+    for (const family of OG_CARD_FONT_FAMILIES) expect(html).toContain(`'${family}'`);
+  });
+
+  it('every card colour equals its styles/stlTheme.css token (the landing night band)', () => {
+    const css = fs.readFileSync(path.join(ROOT, 'styles/stlTheme.css'), 'utf8');
+    const token = (name: string) => new RegExp(`--stl-${name}:\\s*([^;]+);`).exec(css)?.[1].trim();
+    for (const [name, value] of Object.entries(OG_CARD_COLORS)) expect(token(name), name).toBe(value);
+    for (const value of Object.values(OG_CARD_COLORS)) expect(ogCardHtml()).toContain(value);
   });
 });

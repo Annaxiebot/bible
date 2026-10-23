@@ -4,16 +4,17 @@
  * Every failure the overlay can show is an AskAIError with a `kind`; the
  * kind decides which buttons accompany the line (Set up AI / Retry) and
  * whether the transport may try a fallback model. Strings come from
- * tvHints.ts (R3); this module only assembles them. Own-key replies map by
- * OpenRouter status (errorFromStatus); hosted replies (services/aiTransport
- * → ai-proxy) by the proxy's typed body first (hostedErrorFromStatus).
+ * tvHints.ts (R3); this module only assembles them. Replies from the proxy
+ * (services/aiTransport → ai-proxy) map by its typed body first
+ * (hostedErrorFromStatus); OpenRouter's own errors passed through map by
+ * status (errorFromStatus).
  */
 import { classifyOpenRouterStatus } from '../../services/openrouterStatus';
 import {
   AI_SIGN_IN_NEEDED, AI_CREDITS_MESSAGE, AI_INVALID_KEY_MESSAGE, AI_REQUEST_FAILED,
   modelUnavailableLine, httpDetail, streamErrorLine, timeoutLine, withModel,
   AI_EMPTY, AI_BUDGET_SPENT, AI_FILTERED, AI_NETWORK_ERROR,
-  quotaLine, AI_CREDIT_USED_UP, AI_SERVICE_PAUSED,
+  quotaLine, AI_CREDIT_USED_UP, AI_SERVICE_PAUSED, AI_DAILY_CAP_REACHED,
 } from './tvHints';
 
 export type AskAIErrorKind =
@@ -21,6 +22,7 @@ export type AskAIErrorKind =
   | 'invalid-key'
   | 'no-credits'
   | 'quota'
+  | 'daily-cap'
   | 'credit-used-up'
   | 'service-paused'
   | 'model-unavailable'
@@ -49,11 +51,6 @@ export class AskAIError extends Error {
 /** Kinds whose line gets a "Set up AI" button (sign in, or a stored key/model, is the way out). */
 export const SETUP_KINDS: ReadonlySet<AskAIErrorKind> = new Set<AskAIErrorKind>([
   'sign-in-needed', 'invalid-key', 'no-credits', 'model-unavailable', 'timeout', 'empty', 'budget',
-]);
-
-/** Hosted kinds whose line links to the AI service page's own-key option (the only such hint, ADR-0007). */
-export const OWN_KEY_LINK_KINDS: ReadonlySet<AskAIErrorKind> = new Set<AskAIErrorKind>([
-  'credit-used-up', 'service-paused',
 ]);
 
 /** Kinds whose line gets a "Retry" button (the same request may well succeed). */
@@ -94,12 +91,13 @@ export interface ErrorReply {
  * A non-OK reply from the hosted proxy. 401 (expired session) → sign in
  * again; the proxy's typed 429 quota / 402 no-credit / 503 → their own
  * lines (never a fallback attempt); anything else is OpenRouter's reply
- * passed through → the own-key mapping.
+ * passed through → the status mapping.
  */
 export function hostedErrorFromStatus(status: number, data: ErrorReply, model: string): AskAIError {
   if (status === 401) return new AskAIError('sign-in-needed', AI_SIGN_IN_NEEDED, model, status);
   const code = typeof data.error === 'string' ? data.error : null;
   if (code === 'quota') return new AskAIError('quota', quotaLine(data.limit ?? 0), model, status);
+  if (code === 'daily-cap') return new AskAIError('daily-cap', AI_DAILY_CAP_REACHED, model, status);
   if (code === 'no-credit') return new AskAIError('credit-used-up', AI_CREDIT_USED_UP, model, status);
   if (status === 503) return new AskAIError('service-paused', `${AI_SERVICE_PAUSED} · ${httpDetail(status, code ?? '')}`, model, status);
   if (code) return new AskAIError('http-error', `${AI_REQUEST_FAILED} · ${httpDetail(status, data.detail ?? code)}`, model, status);

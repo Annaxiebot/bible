@@ -55,7 +55,7 @@ Every production build measures these; CI fails on regression.
 - Full vendor bundle sum: ≤ 1.5 MB gzipped
 - Hot-path frame budget: Apple Pencil drawing holds 60 fps minimum, 120 fps target
 
-Commits that touch dependencies, lazy-loading boundaries, or known hot paths (the canvas draw path, the sync path, any per-event handler) must cite before/after numbers in the commit message. Add a heavy dep silently and the R13 reviewer rejects. The `vendor-opencc` chunk is 1.1 MB on its own — most of that budget is already committed; be ruthless with anything new.
+Commits that touch dependencies, lazy-loading boundaries, or known hot paths (the canvas draw path, the sync path, any per-event handler) must cite before/after numbers in the commit message. Add a heavy dep silently and the R13 reviewer rejects. OpenCC is split by direction (2026-10-23): a 简 reader loads `vendor-opencc-t2cn` (62 KB, 38 KB gzip); the 1 MB `vendor-opencc-cn2t` (447 KB gzip) loads only on the first 繁 request — it is still most of the budget for anyone reading 繁; be ruthless with anything new.
 
 ### R15. Measure, then optimize — never the reverse
 No "this might be faster" / "this might be slower" refactors without a measurement. Sequence: (1) measure, (2) propose, (3) apply, (4) re-measure, (5) before/after in commit message. Half the Pencil-path "fixes" in git history were un-measured — some helped, some regressed. R15 forces the evidence. Well-known algorithmic wins (O(n²)→O(n), removing a re-render) are an exception, but the commit must name the class of fix.

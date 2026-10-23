@@ -7,7 +7,7 @@
  *               (pinned byte-identical to pre-ADR-0015 by relatedPrompt.test.ts);
  *   TREATMENT = the same request + the related verses relatedVerses.ts finds
  *               (block in the user message → the server rule sentence).
- * Both go through aiTransport.ownKeyBody — the final messages the proxy
+ * Both go through aiFinalBody.finalAIBody — the final messages the proxy
  * builds — to OpenRouter with the SAME model, sampling and stream settings.
  * Measuring and judging live in lib/evalRun.mjs (shared with
  * eval-question-aware.mjs, ADR-0016). A failed or empty answer is a FAILURE
@@ -78,7 +78,7 @@ async function dryRun(app, fixture, packs) {
   for (const q of fixture.questions) {
     const { pack, slide, question } = questionContext(app, packs, q);
     const req = await requests(app, fixture.model, pack, slide, question);
-    const size = body => app.aiTransport.ownKeyBody('ask', body).length;
+    const size = body => app.aiFinalBody.finalAIBody('ask', body).length;
     process.stdout.write(`${q.id} ${pack.passageRef}: related [${req.related.map(r => r.ref).join(', ')}] ` +
       `control ${size(req.control)} chars, treatment ${size(req.treatment)} chars` +
       `${req.warnings.length ? `, WARNINGS ${req.warnings.join('; ')}` : ''}\n`);

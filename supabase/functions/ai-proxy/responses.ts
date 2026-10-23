@@ -9,6 +9,7 @@
  * hostedErrorFromStatus relies on that difference.
  */
 import { AIRole } from './policy.ts';
+import { QUOTA_RESULT } from './caps.ts';
 
 export const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';
 /** CORS lives in ../_shared/cors.ts (one policy for every function); SITE_ORIGIN is also OpenRouter's HTTP-Referer. */
@@ -28,8 +29,13 @@ export function preAuthGate(env: (name: string) => string): Failure | null {
   return null;
 }
 
-/** consume_ai_quota returns the new count, or -1 when this month's limit is reached. */
-export function quotaFailure(result: number, role: AIRole, limit: number): Failure | null {
+/**
+ * consume_ai_quota_daily returns the new count; -1 when this leader's month
+ * is full → 429 quota; -2 when the site's day is full (caps.QUOTA_RESULT) →
+ * 429 daily-cap carrying the daily cap as `limit`.
+ */
+export function quotaFailure(result: number, role: AIRole, limit: number, dailyLimit: number | null = null): Failure | null {
+  if (result === QUOTA_RESULT.dailyFull) return { status: 429, body: { error: 'daily-cap', role, limit: dailyLimit } };
   return result < 0 ? { status: 429, body: { error: 'quota', role, limit } } : null;
 }
 

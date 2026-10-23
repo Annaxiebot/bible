@@ -1,14 +1,14 @@
 /**
  * LandingLeaderLink.test.tsx — the nav's leader control, both states · 带领者入口测试
  *
- * Signed out: "带领者登录 Leader sign-in" (Chinese first) is a button that
- * starts the identity-only Google sign-in; an auth error is shown. Signed
- * in: the leader's first name (else the email's local part) is a link to
- * #/leader. services/supabase is mocked.
+ * Signed out: "带领者登录 Leader sign-in" (Chinese first) is a link to the
+ * leader home, which offers Google or email (ADR-0020) — it no longer starts
+ * Google by itself. Signed in: the leader's first name (else the email's
+ * local part) is a link to #/leader. services/supabase is mocked.
  */
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { NAV_LEADER_SIGNIN } from '../landingStrings';
 import { LEADER_HOME_HASH } from '../../leader/leaderRoute';
 
@@ -36,22 +36,14 @@ beforeEach(() => {
 });
 
 describe('LandingLeaderLink', () => {
-  it('signed out: one button "带领者登录 Leader sign-in" that starts Google sign-in back to #/leader', async () => {
+  it('signed out: one link "带领者登录 Leader sign-in" to the leader home; no Google redirect from the nav', () => {
     render(<LandingLeaderLink />);
-    const button = screen.getByTestId('nav-leader-signin');
-    expect(button.tagName).toBe('BUTTON');
-    expect(button.textContent).toBe(`${NAV_LEADER_SIGNIN.zh} ${NAV_LEADER_SIGNIN.en}`);
-    fireEvent.click(button);
-    await waitFor(() => expect(signInMock).toHaveBeenCalledTimes(1));
-    expect(signInMock).toHaveBeenCalledWith(LEADER_HOME_HASH);   // not the landing it started on
-    expect(screen.queryByRole('link')).toBeNull();
-  });
-
-  it('signed out: a failed sign-in start is shown, not swallowed', async () => {
-    signInMock.mockResolvedValue({ error: { message: 'Supabase not configured' } });
-    render(<LandingLeaderLink />);
-    fireEvent.click(screen.getByTestId('nav-leader-signin'));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Supabase not configured');
+    const link = screen.getByTestId('nav-leader-signin');
+    expect(link.tagName).toBe('A');
+    expect(link).toHaveAttribute('href', LEADER_HOME_HASH);
+    expect(link.textContent).toBe(`${NAV_LEADER_SIGNIN.zh} ${NAV_LEADER_SIGNIN.en}`);
+    link.click();
+    expect(signInMock).not.toHaveBeenCalled();
   });
 
   it('signed in: the first name links to the leader home', () => {

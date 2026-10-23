@@ -16,7 +16,7 @@ import { SU_QR_BODY, qrAltText } from '../../signup/signupStrings';
 import { PACK_SCHEMA_VERSION } from '../../studypack/packTypes';
 import {
   NEXT_EYEBROW, NEXT_HEADING_ZH, NEXT_HEADING_EN, NEXT_OPEN_CTA, NEXT_SIGNUP_CTA,
-  NEXT_SIGNUP_CLOSE, NEXT_NONE_YET, NEXT_LOADING, SAMPLE_NO_SIGNIN,
+  NEXT_SIGNUP_CLOSE, NEXT_NONE_YET, NEXT_LOADING, NEXT_DESC,
 } from '../landingStrings';
 
 const PACK_ID = '2026-10-02-matt6';
@@ -41,7 +41,7 @@ describe('LandingNextStudy', () => {
     vi.unstubAllGlobals();
   });
 
-  it('fetches the pack through the schema-versioned pack URL and shows title, passage — undated, no sign-in', async () => {
+  it('fetches the pack through the schema-versioned pack URL and shows title, passage — undated, no "no sign-in" note', async () => {
     const fetchMock = stubFetch(async () => ({ ok: true, json: async () => PACK }));
     render(<LandingNextStudy packId={PACK_ID} />);
     expect(screen.getByTestId('next-study-empty')).toHaveTextContent(NEXT_LOADING);
@@ -53,9 +53,11 @@ describe('LandingNextStudy', () => {
     );
     expect(block).toHaveTextContent(PACK.title);
     expect(block).toHaveTextContent(PACK.passageRef);
-    // A fixed sample, not a maintained schedule (2026-10 review): no date, and it needs no account.
+    // A fixed sample, not a maintained schedule (2026-10 review): no date; the home page no longer
+    // says "无需登录 · No sign-in needed" anywhere (owner, 2026-10-23).
     expect(block).not.toHaveTextContent(PACK.date);
-    expect(block).toHaveTextContent(SAMPLE_NO_SIGNIN);
+    expect(block.textContent).not.toMatch(/无需登录|No sign-in needed|without signing in/);
+    expect(NEXT_DESC).not.toMatch(/无需登录|without signing in/);
     expect(screen.queryByTestId('next-study-empty')).toBeNull();
   });
 

@@ -10,6 +10,7 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { STORAGE_KEYS } from '../../constants/storageKeys';
+import { OWN_OPENROUTER_KEY } from '../obsoleteStorageKeys';
 
 let uid: string | null = null;
 let configured = true;
@@ -73,7 +74,7 @@ describe('synced keys', () => {
       STORAGE_KEYS.AI_MODEL, STORAGE_KEYS.AI_PACK_MODEL, STORAGE_KEYS.AI_FALLBACK_MODELS,
       STORAGE_KEYS.CONTENT_LANGUAGE_DEFAULT,
     ]);
-    expect(LEADER_SYNCED_KEYS).not.toContain(STORAGE_KEYS.OPENROUTER_API_KEY);
+    expect(LEADER_SYNCED_KEYS).not.toContain(OWN_OPENROUTER_KEY);
     expect(LEADER_SYNCED_KEYS).not.toContain(STORAGE_KEYS.AI_PROVIDER);
   });
 });
@@ -85,7 +86,7 @@ describe('pullLeaderSettings (server wins)', () => {
       [STORAGE_KEYS.AI_MODEL]: 'server/model',
       [STORAGE_KEYS.CONTENT_LANGUAGE_DEFAULT]: 'bilingual',
       [STORAGE_KEYS.AI_PACK_MODEL]: '   ',
-      [STORAGE_KEYS.OPENROUTER_API_KEY]: 'sk-or-leaked',
+      [OWN_OPENROUTER_KEY]: 'sk-or-leaked',
       [STORAGE_KEYS.AI_PROVIDER]: 'gemini',
       unrelated: 'x',
     }));
@@ -116,7 +117,7 @@ describe('pushLeaderSettings', () => {
     storage.setItem(STORAGE_KEYS.AI_MODEL, 'google/gemini-2.5-flash');
     storage.setItem(STORAGE_KEYS.CONTENT_LANGUAGE_DEFAULT, 'bilingual');
     storage.setItem(STORAGE_KEYS.AI_PACK_MODEL, '  ');
-    storage.setItem(STORAGE_KEYS.OPENROUTER_API_KEY, 'sk-or-secret');
+    storage.setItem(OWN_OPENROUTER_KEY, 'sk-or-secret');
     storage.setItem(STORAGE_KEYS.AI_PROVIDER, 'openrouter');
     expect(readLocalLeaderSettings()).toEqual({
       [STORAGE_KEYS.AI_MODEL]: 'google/gemini-2.5-flash',
@@ -180,7 +181,7 @@ describe('debounced push on change', () => {
     expect(upsertMock).toHaveBeenCalledTimes(1);
     expect(upsertMock.mock.calls[0][0].settings).toEqual({ [STORAGE_KEYS.AI_MODEL]: 'a/b' });
 
-    noteLeaderSettingChanged(STORAGE_KEYS.OPENROUTER_API_KEY);
+    noteLeaderSettingChanged(OWN_OPENROUTER_KEY);
     await vi.advanceTimersByTimeAsync(PUSH_DEBOUNCE_MS * 2);
     expect(upsertMock).toHaveBeenCalledTimes(1);
   });

@@ -5,8 +5,9 @@
  * requested before), reads the committed fixture PDF on the device (no
  * request ever carries the PDF bytes), finds Mark 1:1–15 in its heading and
  * generates at once — no form step (ADR-0019 amendment) — sending the extracted
- * text with the server's guide prompt (own key, OpenRouter mocked — no live
- * AI); the editor shows the guide's
+ * text as data with pack_source "guide" to the ai-proxy, which owns the guide
+ * prompt (signed in: AI needs sign-in; the proxy mocked — no live AI); the
+ * editor shows the guide's
  * questions word for word, the bundled 和合本 + BSB verses, the origin labels
  * and the one tidied question flagged; the leader-only note is nowhere; Save
  * works. A prep guide whose heading names no passage: the AI's "passage"
@@ -29,7 +30,8 @@ import {
 import { writePdf } from '../../components/newstudy/guide/__tests__/pdfWriter';
 import { PACK_FROM_GUIDE_SYSTEM_PROMPT } from '../../supabase/functions/_shared/aiPrompts';
 import { PDFJS_CMAPS_DIR } from '../../scripts/pdfjsCmapsDir';
-import { injectApiKey, mockOpenRouterSequence, sseBody } from './helpers/tv';
+import { sseBody } from './helpers/tv';
+import { signInAsLeader, mockAISequence } from './helpers/hostedAI';
 import { openNewStudy, chunked } from './helpers/newStudy';
 
 /** Every request's URL and body, to prove pdfjs loads lazily and the PDF never leaves the page. */
@@ -49,9 +51,9 @@ const npPdf = () => ({ name: NP_FILE, mimeType: 'application/pdf', buffer: Buffe
 
 test.describe('New study · from a study-guide PDF', () => {
   test('pick the PDF → generates at once on the heading\'s passage → editor keeps the guide\'s questions, flags the tidied one → Save', async ({ page }) => {
-    await injectApiKey(page);
+    await signInAsLeader(page);
     await rememberZhKeywords(page);
-    const { bodies } = await mockOpenRouterSequence(page, [{ sse: sseBody(chunked(GUIDE_REPLY_JSON).map(c => ({ choices: [{ delta: { content: c } }] }))) }]);
+    const { bodies } = await mockAISequence(page, [{ sse: sseBody(chunked(GUIDE_REPLY_JSON).map(c => ({ choices: [{ delta: { content: c } }] }))) }]);
     const requests = watchRequests(page);
     await openNewStudy(page);
     await expect(page.getByTestId('new-study-form')).toBeVisible();
@@ -68,10 +70,12 @@ test.describe('New study · from a study-guide PDF', () => {
     expect(requests.some(r => r.url().includes('pdfjs-dist'))).toBe(true);   // loaded on demand
     await expect(editor.getByTestId('ns-range-chapter')).toHaveValue('1');
     await expect(editor.getByTestId('ns-guide-mismatch')).toHaveCount(0);   // the AI read the same passage
-    // What was sent: the server's guide prompt first; the text pdfjs extracted in this browser as data.
+    // What was sent: the data form — pack_source "guide" (the proxy puts the guide prompt first) and the text pdfjs extracted in this browser.
+    expect(bodies()[0]).toMatchObject({ role: 'pack', pack_source: 'guide' });
     const sent = bodies()[0].messages!;
-    expect(sent[0].content).toContain(PACK_FROM_GUIDE_SYSTEM_PROMPT);
-    expect(sent[1].content).toContain(`1. ${GUIDE_QUESTIONS[0]}`);
+    expect(sent.filter(m => m.role === 'system')).toHaveLength(0);
+    expect(JSON.stringify(sent)).not.toContain(PACK_FROM_GUIDE_SYSTEM_PROMPT.slice(0, 60));
+    expect(sent[0].content).toContain(`1. ${GUIDE_QUESTIONS[0]}`);
     expect(requests.every(r => !(r.postData() ?? '').includes('%PDF'))).toBe(true);
 
     // Verses from the bundled 和合本 + BSB — not from the guide, not from the model.
@@ -97,16 +101,16 @@ test.describe('New study · from a study-guide PDF', () => {
   });
 
   test('a prep guide with no passage in its heading → the AI\'s passage, bundled verses; a leaked answer bullet is flagged', async ({ page }) => {
-    await injectApiKey(page);
+    await signInAsLeader(page);
     await rememberZhKeywords(page);
-    const { bodies } = await mockOpenRouterSequence(page, [sse(NP_REPLY_JSON)]);
+    const { bodies } = await mockAISequence(page, [sse(NP_REPLY_JSON)]);
     await openNewStudy(page);
     await page.getByTestId('ns-guide-file').setInputFiles(npPdf());
 
     const editor = page.getByTestId('new-study-editor');
     await expect(page.getByText(NS_EDIT_TITLE)).toBeVisible();
     await expect(page.getByTestId('new-study-form')).toHaveCount(0);
-    expect(bodies()[0].messages![1].content).not.toContain('FULL PASSAGE');   // the AI was asked to name it
+    expect(bodies()[0].messages![0].content).not.toContain('FULL PASSAGE');   // the AI was asked to name it
     // John 13:1–17 from the AI's reading; the verses are the bundled 和合本, not the reply.
     const scripture = editor.locator('[data-testid="ns-section"][data-kind="scripture"]');
     await expect(scripture.getByTestId('ns-range-chapter')).toHaveValue('13');
@@ -121,9 +125,9 @@ test.describe('New study · from a study-guide PDF', () => {
   });
 
   test('neither the heading nor the AI names a passage → the form asks the leader to pick, then generates with it', async ({ page }) => {
-    await injectApiKey(page);
+    await signInAsLeader(page);
     await rememberZhKeywords(page);
-    const { bodies } = await mockOpenRouterSequence(page, [sse(npReplyWith('主为门徒洗脚')), sse(NP_REPLY_JSON)]);
+    const { bodies } = await mockAISequence(page, [sse(npReplyWith('主为门徒洗脚')), sse(NP_REPLY_JSON)]);
     await openNewStudy(page);
     await page.getByTestId('ns-guide-file').setInputFiles(npPdf());
 
@@ -136,12 +140,12 @@ test.describe('New study · from a study-guide PDF', () => {
     await page.getByRole('button', { name: NS_GENERATE }).click();
 
     await expect(page.getByText(NS_EDIT_TITLE)).toBeVisible();
-    expect(bodies()[1].messages![1].content).toContain('FULL PASSAGE');   // the leader's pick is sent
+    expect(bodies()[1].messages![0].content).toContain('FULL PASSAGE');   // the leader's pick is sent
     await expect(page.getByTestId('new-study-editor').getByText(JOHN_13_1_CUV)).toBeVisible();
   });
 
   test('a scan (no text layer) → the bilingual message; the form stays', async ({ page }) => {
-    await injectApiKey(page);
+    await signInAsLeader(page);
     await openNewStudy(page);
     await page.getByTestId('ns-guide-file').setInputFiles({ name: 'scan.pdf', mimeType: 'application/pdf', buffer: Buffer.from(writePdf([[]])) });
     await expect(page.getByRole('alert')).toHaveText(GD_ERR_NO_TEXT);

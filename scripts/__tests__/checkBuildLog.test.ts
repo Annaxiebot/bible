@@ -4,13 +4,14 @@
 // so a clean build failed CI. The gate must still catch real errors and
 // duplicate/unused warnings, and the step must keep vite's own exit status.
 import { describe, it, expect } from 'vitest';
-import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { mkdtempSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { findBuildLogProblems } from '../check-build-log.mjs';
 
 const SCRIPT = resolve(__dirname, '../check-build-log.mjs');
+const VITE = resolve(__dirname, '../../node_modules/vite/bin/vite.js');
 
 // Lines as vite 6 prints them; under CI picocolors colours them.
 const CLEAN_LOG = [
@@ -63,6 +64,34 @@ describe('findBuildLogProblems', () => {
   ])('flags a duplicate/unused warning: %s', (line) => {
     expect(findBuildLogProblems(`${CLEAN_LOG}\n${line}`)).toHaveLength(1);
   });
+
+  // 2026-10-23 review: Rollup prefixes a plugin's warning with "[plugin <name>] <file>: " and vite
+  // prints it without the word "warning", so the duplicate key below used to pass the gate.
+  it.each([
+    '[plugin vite:esbuild] components/newstudy/Form.tsx: Duplicate key "title" in object literal',
+    '\x1b[33m[plugin vite:esbuild] /repo/components/x.tsx: Duplicate key "a" in object literal\x1b[39m',
+    '[plugin vite:css] styles/stlTheme.css: Unknown at rule @tailwind',
+  ])('flags a plugin warning: %s', (line) => {
+    expect(findBuildLogProblems(`${CLEAN_LOG}\n${line}`)).toHaveLength(1);
+  });
+
+  it('a bare "[plugin vite:reporter]" line and the known chunk-size note stay clean', () => {
+    expect(findBuildLogProblems('[plugin vite:reporter] \n\x1b[33m(!) Some chunks are larger than 1000 kB after minification. Consider:\x1b[39m')).toEqual([]);
+  });
+
+  it('flags the duplicate key a real vite build reports', () => {
+    // realpath: on macOS tmpdir() is a symlink (/var → /private/var), which vite's HTML plugin rejects.
+    const dir = realpathSync(mkdtempSync(join(tmpdir(), 'dup-key-build-')));
+    writeFileSync(join(dir, 'index.html'), '<!doctype html><script type="module" src="./main.ts"></script>');
+    writeFileSync(join(dir, 'main.ts'), 'export const labels = { title: "a", title: "b" };\ndocument.title = labels.title;\n');
+    const result = spawnSync(process.execPath, [VITE, 'build', dir, '--outDir', join(dir, 'dist')], {
+      cwd: dir, encoding: 'utf8', timeout: 60_000, env: { ...process.env, NODE_ENV: 'production' },
+    });
+    const log = `${result.stdout}\n${result.stderr}`;
+    expect(result.status, log).toBe(0);
+    expect(log).toContain('Duplicate key');
+    expect(findBuildLogProblems(log).some(line => /^\[plugin vite:esbuild\].*Duplicate key "title"/.test(line))).toBe(true);
+  }, 60_000);
 
   it('reports the original line, without colour codes', () => {
     expect(findBuildLogProblems('\x1b[31merror during build:\x1b[39m')).toEqual(['error during build:']);

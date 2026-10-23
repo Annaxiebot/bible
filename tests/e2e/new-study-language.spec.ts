@@ -1,7 +1,7 @@
 /**
  * new-study-language.spec.ts — 内容语言 Content language end to end · 内容语言端到端
  *
- * The form defaults to 中文为主 (zh-keywords); with the OpenRouter endpoint
+ * The form defaults to 中文为主 (zh-keywords); signed in, with the ai-proxy
  * mocked to stream a zh-keywords pack, the editor and the TV preview show
  * Chinese-only lines with the English keyword in parentheses (no " · "
  * half, no English sentence), and the choice is remembered on the next
@@ -11,13 +11,14 @@ import { test, expect } from '@playwright/test';
 import { NS_GENERATE, NS_EDIT_TITLE, NS_EDIT, NS_EDIT_HINTS } from '../../components/newstudy/newStudyStrings';
 import { JOHN3_REPLY_JSON_ZH, JOHN3_KEYWORD_ZH, JOHN3_KEYWORD_DECREASE_ZH } from '../../components/newstudy/__tests__/fixtures';
 import { LIFE_AREAS, BILINGUAL_SEPARATOR } from '../../components/studypack/principles';
-import { injectApiKey, mockOpenRouterSequence, sseBody } from './helpers/tv';
+import { sseBody } from './helpers/tv';
+import { signInAsLeader, mockAISequence } from './helpers/hostedAI';
 import { openNewStudy, fillJohn3, chunked, openMoreOptions } from './helpers/newStudy';
 
 test.describe('New study · content language', () => {
   test('default content language (中文为主) + a mocked zh-keywords reply → editor → Preview shows Chinese-only lines with the English keyword in parentheses', async ({ page }) => {
-    await injectApiKey(page);
-    const { bodies } = await mockOpenRouterSequence(page, [{ sse: sseBody(chunked(JOHN3_REPLY_JSON_ZH).map(c => ({ choices: [{ delta: { content: c } }] }))) }]);
+    await signInAsLeader(page);
+    const { bodies } = await mockAISequence(page, [{ sse: sseBody(chunked(JOHN3_REPLY_JSON_ZH).map(c => ({ choices: [{ delta: { content: c } }] }))) }]);
     await openNewStudy(page);
     await fillJohn3(page, null);   // leave the form's own default in place
     await openMoreOptions(page);
@@ -27,7 +28,7 @@ test.describe('New study · content language', () => {
     const editor = page.getByTestId('new-study-editor');
     await expect(page.getByText(NS_EDIT_TITLE)).toBeVisible();
     await expect(editor.getByText(NS_EDIT_HINTS['zh-keywords'])).toBeVisible();
-    expect(bodies()[0].messages![1].content).toContain('CONTENT LANGUAGE: Chinese with English keywords');
+    expect(bodies()[0].messages![0].content).toContain('CONTENT LANGUAGE: Chinese with English keywords');   // the data form: the user turn comes first
     const context = editor.locator('[data-testid="ns-section"][data-kind="context"] textarea');
     expect(await context.inputValue()).toContain(`约翰的门徒为${JOHN3_KEYWORD_ZH}的事起了争论`);
     expect(await context.inputValue()).not.toContain(BILINGUAL_SEPARATOR);

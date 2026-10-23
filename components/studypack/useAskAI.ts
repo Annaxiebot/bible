@@ -7,9 +7,8 @@
  * (requested, then the concrete id OpenRouter served). Failures land in
  * `error` with a kind the overlay maps to Retry / Set up AI buttons; `retry`
  * re-sends the last question against the same history. `configured` is
- * the shared AI gate (components/setup/useAIAccess: own key OR signed in,
- * live on auth changes); `markConfigured()` re-reads it after the inline
- * form stored a key.
+ * the shared AI gate (components/setup/useAIAccess: signed in, live on auth
+ * changes).
  * Saved history (ADR-0021, optional): `restored` turns are put before the
  * conversation once they arrive (so they are also the follow-up history);
  * `onAnswered` gets each completed, non-empty answer; `clear()` empties the
@@ -37,8 +36,6 @@ export interface AskAI {
   configured: boolean;
   /** Model in play: the resolved id while waiting, the served id once the stream names one. */
   model: string | null;
-  /** Call after the inline form stored a key so asking becomes possible. */
-  markConfigured: () => void;
   ask: (question: string) => Promise<void>;
   /** Re-send the last question (after a failure). */
   retry: () => Promise<void>;
@@ -87,7 +84,6 @@ export function useAskAI(pack: StudyPack, slide: Slide | undefined, options: Ask
   const abortRef = useRef<AbortController | null>(null);
   const lastAskRef = useRef<LastAsk | null>(null);
 
-  const markConfigured = access.refresh;
   const onAnsweredRef = useRef(options.onAnswered);
   onAnsweredRef.current = options.onAnswered;
 
@@ -153,5 +149,5 @@ export function useAskAI(pack: StudyPack, slide: Slide | undefined, options: Ask
     lastAskRef.current = null;
   }, [loading]);
 
-  return { messages, streamingText, loading, error, configured, model, markConfigured, ask, retry, cancel, clear, restoredIn };
+  return { messages, streamingText, loading, error, configured, model, ask, retry, cancel, clear, restoredIn };
 }

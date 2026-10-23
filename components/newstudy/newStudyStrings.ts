@@ -134,6 +134,8 @@ export const NS_SHOW_FEWER = bilingual('只显示最近的', 'Show the newest on
 /** The search over a long list of studies (title, passage, date). */
 export const NS_SEARCH_PACKS = bilingual('搜索查经包：标题、经文或日期', 'Search: title, passage or date');
 export const NS_SEARCH_NONE = bilingualLine('没有找到', 'No matching studies');
+/** Signed out with packs in this browser (owner decision D, 2026-10-23): the one line above the list. */
+export const NS_SIGN_IN_TO_KEEP = bilingualLine('这些查经包只在这个浏览器里；登录后保存到你的账号', 'These packs are only in this browser — sign in to keep them in your account');
 /** The one quiet link under My packs; most leaders never need it (signed-in studies save online). */
 export const NS_BACKUP_TOGGLE = bilingual('备份与恢复', 'Backup & restore');
 export const NS_BACKUP_NOTE = bilingualLine(

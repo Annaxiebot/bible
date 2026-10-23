@@ -14,15 +14,16 @@ import { NS_GENERATE, NS_EDIT_TITLE } from '../../components/newstudy/newStudySt
 import { FULLSCREEN_HINT } from '../../components/studypack/tvHints';
 import { ESCAPE_GRACE_MS } from '../../components/studypack/useTVFullscreen';
 import { JOHN3_REPLY_JSON } from '../../components/newstudy/__tests__/fixtures';
-import { injectApiKey, mockOpenRouterStream, openTV } from './helpers/tv';
+import { openTV } from './helpers/tv';
+import { signInAsLeader, mockAIStream } from './helpers/hostedAI';
 import { PACK_ID, openNewStudy, fillJohn3, chunked } from './helpers/newStudy';
 
 const SHOTS = process.env.ACTION_BAR_SHOTS_DIR;
 const isFullscreen = (page: Page) => page.evaluate(() => document.fullscreenElement !== null);
 
 async function generate(page: Page) {
-  await injectApiKey(page);
-  await mockOpenRouterStream(page, chunked(JOHN3_REPLY_JSON));
+  await signInAsLeader(page);
+  await mockAIStream(page, chunked(JOHN3_REPLY_JSON));
   await openNewStudy(page);
   await fillJohn3(page);
   await page.getByRole('button', { name: NS_GENERATE }).click();

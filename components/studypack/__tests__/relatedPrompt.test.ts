@@ -2,24 +2,25 @@
  * relatedPrompt.test.ts — the RELATED VERSES request vs today's request (ADR-0015 §4, §6; R14)
  *
  * Control: with the switch off (or no related verses) the body and the
- * final messages on BOTH paths (own key → ownKeyBody; signed in → the
- * proxy's validateRequest) are byte-identical to the request before
+ * final messages from BOTH builders (finalAIBody, the eval scripts' copy;
+ * the proxy's validateRequest) are byte-identical to the request before
  * ADR-0015 — pinned by SHA-256 hashes captured from master 6bf11399.
  * Treatment: the block sits in the user message and the system message
- * gains exactly one sentence, the same on both paths.
+ * gains exactly one sentence, the same from both builders. The TV sends to
+ * the proxy only (signed in: AI needs sign-in, ADR-0007 2026-10-23).
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'fs';
 import { createHash } from 'crypto';
 import { parseStudyPack, buildSlides, StudyPack, Slide } from '../packTypes';
 import { buildRequestBody } from '../askAIStream';
 import { streamStudyAI } from '../askAIFallback';
-import { ownKeyBody } from '../../../services/aiTransport';
+import { finalAIBody } from '../../../services/aiFinalBody';
 import { validateRequest } from '../../../supabase/functions/ai-proxy/policy';
 import {
   ASK_AI_ANSWER_CONTRACT, ASK_AI_RELATED_VERSES_RULE, RELATED_VERSES_HEADING, PromptMessage,
 } from '../../../supabase/functions/_shared/aiPrompts';
-import { STORAGE_KEYS } from '../../../constants/storageKeys';
+import { signInSeam, signOutSeam, finalOfSent } from '../../../tests/utils/hostedSeam';
 import { RelatedVerse } from '../relatedVerses';
 import { REQUEST_HASH_PACK_PATH } from './fixtures';
 
@@ -65,15 +66,15 @@ const RELATED: RelatedVerse[] = [
 function paths(body: string): { own: PromptMessage[]; hosted: PromptMessage[] } {
   const v = validateRequest({ ...JSON.parse(body), role: 'ask' });
   if (!('request' in v)) throw new Error(v.detail);
-  return { own: (JSON.parse(ownKeyBody('ask', body)) as { messages: PromptMessage[] }).messages, hosted: v.request.messages };
+  return { own: (JSON.parse(finalAIBody('ask', body)) as { messages: PromptMessage[] }).messages, hosted: v.request.messages };
 }
 
 describe('control: no related verses → today\'s request, byte for byte', () => {
-  it.each([0, 1])('slide %i: body, own-key body and proxy messages match the pre-ADR-0015 hashes', i => {
+  it.each([0, 1])('slide %i: body, final body and proxy messages match the pre-ADR-0015 hashes', i => {
     for (const related of [undefined, []]) {
       const body = buildRequestBody(pack, slides[i], HISTORY, QUESTION, { model: MODEL, related });
       const v = validateRequest({ ...JSON.parse(body), role: 'ask' });
-      expect([sha(body), sha(ownKeyBody('ask', body)), sha(JSON.stringify(v.ok ? v.request.messages : null))]).toEqual(GOLDEN[i]);
+      expect([sha(body), sha(finalAIBody('ask', body)), sha(JSON.stringify(v.ok ? v.request.messages : null))]).toEqual(GOLDEN[i]);
     }
   });
 });
@@ -82,7 +83,7 @@ describe('treatment: the block in the user message + one rule sentence', () => {
   const control = paths(buildRequestBody(pack, slides[0], HISTORY, QUESTION, { model: MODEL }));
   const treated = paths(buildRequestBody(pack, slides[0], HISTORY, QUESTION, { model: MODEL, related: RELATED }));
 
-  it('own-key and proxy paths build the same final messages', () => {
+  it('finalAIBody and the proxy build the same final messages', () => {
     expect(treated.own).toEqual(treated.hosted);
   });
 
@@ -105,8 +106,10 @@ describe('the TV with the switch on (ADR-0015 step 4)', () => {
   const okStream = () => new ReadableStream<Uint8Array>({ start(c) { c.enqueue(new TextEncoder().encode(`data: ${JSON.stringify({ choices: [{ delta: { content: 'ok' } }] })}\n`)); c.close(); } });
   beforeEach(() => {
     vi.unstubAllGlobals();
-    getItemMock.mockReset().mockImplementation((key: string) => (key === STORAGE_KEYS.OPENROUTER_API_KEY ? 'test-key' : null));
+    getItemMock.mockReset().mockReturnValue(null);
+    signInSeam();
   });
+  afterEach(signOutSeam);
 
   async function sentBody(related: RelatedVerse[]): Promise<string> {
     loadRelatedMock.mockResolvedValue({ related, warnings: [] });
@@ -117,15 +120,15 @@ describe('the TV with the switch on (ADR-0015 step 4)', () => {
     return (fetchMock.mock.calls as unknown as Array<[string, { body: string }]>)[0][1].body;
   }
 
-  it('sends the RELATED VERSES block and the rule sentence when verses were found', async () => {
+  it('sends the RELATED VERSES block; the final messages gain the rule sentence', async () => {
     const body = await sentBody(RELATED);
     expect(body).toContain(RELATED_VERSES_HEADING);
-    expect(body).toContain(JSON.stringify(ASK_AI_RELATED_VERSES_RULE).slice(1, 40));
+    expect(finalOfSent(body)).toContain(JSON.stringify(ASK_AI_RELATED_VERSES_RULE).slice(1, 40));
   });
 
   it('with none found, sends today\'s request: no block, no rule', async () => {
     const body = await sentBody([]);
     expect(body).not.toContain(RELATED_VERSES_HEADING);
-    expect(body).not.toContain(JSON.stringify(ASK_AI_RELATED_VERSES_RULE).slice(1, 40));
+    expect(finalOfSent(body)).not.toContain(JSON.stringify(ASK_AI_RELATED_VERSES_RULE).slice(1, 40));
   });
 });

@@ -38,8 +38,8 @@ export type ProgressReporter = (step: string, detail?: string) => void;
 
 /** OpenRouter finish_reason when the reply hit max_tokens. */
 export const FINISH_LENGTH = 'length';
-/** Quota role on the hosted proxy + X-Title header for an own key (ASCII only). */
-const PACK_REQUEST: AIRequestMeta = { role: 'pack', title: 'Scripture to Life - New study' };
+/** Quota role on the hosted proxy. */
+const PACK_REQUEST: AIRequestMeta = { role: 'pack' };
 
 /** The requested verses from the bundled chapter files, both translations required. */
 export async function loadPassage(req: VerseRange): Promise<PackVerse[]> {
@@ -62,7 +62,7 @@ export async function loadPassage(req: VerseRange): Promise<PackVerse[]> {
   return verses;
 }
 
-/** The data form (ADR-0014): the pack system message is server-owned (_shared/aiPrompts), added by the proxy or, own key, by aiTransport. */
+/** The data form (ADR-0014): the pack system message is server-owned (_shared/aiPrompts), added by the proxy. */
 export function buildPackRequestBody(req: StudyRequest, verses: PackVerse[]): string {
   return JSON.stringify({
     model: packGenerationModel(), // the #/setup choice, else the quality-first default (ADR-0003 → Models)

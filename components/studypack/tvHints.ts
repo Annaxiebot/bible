@@ -7,6 +7,7 @@
  * are Chinese-first (ADR-0003 §1).
  */
 import { bilingual, bilingualLine } from './principles';
+import { SIGN_IN_OPTIONS_NOTE } from '../signin/signInStrings';
 
 /** First-slide navigation hint: arrows / swipe, select-to-ask, A, Esc. */
 export const FIRST_SLIDE_HINT =
@@ -23,8 +24,8 @@ export const SIDEWAYS_HINT = bilingualLine('横屏观看更佳', 'Turn the phone
 
 /** The Ask-AI button / panel title. */
 export const ASK_AI_LABEL = bilingual('问一问', 'Ask AI');
-/** Next to the Ask AI pill when signed out: the requirement is disclosed before the click (2026-10 review). */
-export const ASK_AI_SIGNIN_NOTE = bilingual('需 Google 登录', 'Google sign-in required');
+/** Next to the Ask AI pill when signed out: the requirement — Google or email (ADR-0020) — is disclosed before the click (2026-10 review). */
+export const ASK_AI_SIGNIN_NOTE = SIGN_IN_OPTIONS_NOTE;
 /** The same note on phone-sized viewports (the full line would push the pill off a 390px screen). */
 export const ASK_AI_SIGNIN_NOTE_SHORT = bilingual('需登录', 'sign-in');
 /** Before each question in the Ask AI conversation (right above its answer). */
@@ -83,9 +84,9 @@ export function thinkingLine(modelId: string): string {
 /** Retry button after a recoverable failure. */
 export const TV_RETRY = bilingual('重试', 'Retry');
 
-// ---- Hosted AI (ADR-0007): no own key, the site's proxy answers · 本站AI ----
+// ---- Hosted AI (ADR-0007): sign in, the site's proxy answers · 本站AI ----
 
-/** No own key and not signed in: signing in is all it takes (never "or paste a key"). Rendered with the AI button. */
+/** Not signed in: signing in is all it takes. Rendered with the AI button. */
 export const AI_SIGN_IN_NEEDED = bilingualLine('登录即可使用AI', 'Sign in to use AI');
 
 /** Proxy 429 { error: 'quota' }: this leader's monthly allowance for the role is spent. */
@@ -93,17 +94,14 @@ export function quotaLine(limit: number): string {
   return bilingualLine(`本月AI次数已用完（${limit}次）`, `this month's AI limit is reached (${limit})`);
 }
 
+/** Proxy 429 { error: 'daily-cap' }: the site's pack generations for today are used up (ADR-0007 "Caps"). */
+export const AI_DAILY_CAP_REACHED = bilingualLine('今天的生成次数已满，请明天再试', "Today's generation limit is reached, try tomorrow");
+
 /** Proxy 402 { error: 'no-credit' }: the site's OpenRouter credit is spent (a hard cap). */
 export const AI_CREDIT_USED_UP = bilingualLine('AI 额度已用完，请联系管理员', 'AI credit used up, contact the admin');
 
 /** Proxy 503 (kill switch, key missing or rejected): the site's AI is off for now. */
 export const AI_SERVICE_PAUSED = bilingualLine('本站AI暂停服务，请稍后再试', "the site's AI is paused — try again later");
-
-/**
- * The ONLY own-key hint outside the AI service page (owner decision): added,
- * as a link to that page, after AI_CREDIT_USED_UP and AI_SERVICE_PAUSED.
- */
-export const AI_OWN_KEY_ON_STATUS_PAGE = bilingualLine('或在 AI 服务页使用自己的密钥', 'or use your own key on the AI service page');
 
 /** OpenRouter 402: the chosen model needs credits. Rendered with a Set up AI button. */
 export const AI_CREDITS_MESSAGE =

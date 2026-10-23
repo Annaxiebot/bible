@@ -536,8 +536,8 @@ async function syncReadingHistory(): Promise<void> {
 
 /**
  * localStorage keys mirrored to user_settings (also used by the personal-data
- * backup). NEVER API keys: hosted AI needs none, and an own key stays in this
- * browser only (ADR-0007, ADR-0010) — isSyncableSettingKey guards both ways.
+ * backup). NEVER API keys: hosted AI needs none (the removed own key never
+ * synced, ADR-0007, ADR-0010) — isSyncableSettingKey guards both ways.
  */
 /** True for a key that may cross to the server; API keys never do, even if an old row carries one. */
 export function isSyncableSettingKey(key: string): boolean {

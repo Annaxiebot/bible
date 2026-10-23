@@ -1,14 +1,16 @@
 /**
  * askAIFallback.test.ts — Ask-AI transport + orchestration · 问AI重试测试
  *
- * Real OpenRouter chunk shapes through a fetch stub: streamed text, HTTP
- * status → typed bilingual error, in-stream `error` events, reasoning-only
+ * Real OpenRouter chunk shapes through a fetch stub standing in for the
+ * ai-proxy (signed in through the dev seam: AI needs sign-in, ADR-0007
+ * 2026-10-23): streamed text, HTTP status → typed bilingual error, in-stream `error` events, reasoning-only
  * streams (→ one no-reasoning retry), fallback model, finish_reason
  * length / content_filter, served-model capture, first-token timeout.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'fs';
 import { STORAGE_KEYS } from '../../../constants/storageKeys';
+import { signInSeam, signOutSeam } from '../../../tests/utils/hostedSeam';
 import { parseStudyPack, buildSlides, StudyPack, Slide } from '../packTypes';
 import { ASK_AI_MAX_TOKENS } from '../askAI';
 import { ASK_AI_MODEL, ASK_AI_FALLBACK_MODELS } from '../../../services/aiDefaults';
@@ -16,7 +18,7 @@ import { HTTP_PAYMENT_REQUIRED, HTTP_UNAUTHORIZED, HTTP_NOT_FOUND } from '../../
 import { ASK_AI_RETRY_MAX_TOKENS } from '../askAIStream';
 import { streamStudyAI, ASK_AI_FIRST_TOKEN_TIMEOUT_MS } from '../askAIFallback';
 import {
-  AI_SIGN_IN_NEEDED, AI_CREDITS_MESSAGE, AI_INVALID_KEY_MESSAGE, AI_REQUEST_FAILED,
+  AI_SIGN_IN_NEEDED, AI_CREDITS_MESSAGE, AI_REQUEST_FAILED,
   AI_STREAM_ERROR, AI_BUDGET_SPENT, AI_FILTERED, AI_EMPTY, AI_TIMEOUT, modelUnavailableLine, modelLine,
 } from '../tvHints';
 import { TEST_PACK_PATH } from './fixtures';
@@ -35,9 +37,10 @@ function loadPack(): { pack: StudyPack; slide: Slide } {
 }
 
 const getItemMock = window.localStorage.getItem as ReturnType<typeof vi.fn>;
+/** Signed in, plus any stored (synced) model choices. */
 function configureKey(extra: Record<string, string> = {}) {
-  getItemMock.mockImplementation((key: string) =>
-    ({ [STORAGE_KEYS.OPENROUTER_API_KEY]: 'test-key', ...extra })[key] ?? null);
+  signInSeam();
+  getItemMock.mockImplementation((key: string) => extra[key] ?? null);
 }
 
 const SERVED = 'google/gemini-2.5-flash';
@@ -86,7 +89,7 @@ beforeEach(() => {
   getItemMock.mockReset().mockReturnValue(null);
   configureKey();
 });
-afterEach(() => { vi.useRealTimers(); });
+afterEach(() => { vi.useRealTimers(); signOutSeam(); });
 
 describe('streamStudyAI — happy path', () => {
   it('streams accumulated trimmed text, sends the pinned model/cap/history, reports the served model', async () => {
@@ -104,13 +107,14 @@ describe('streamStudyAI — happy path', () => {
     const body = JSON.parse(fetchMock.mock.calls[0][1].body as string);
     expect(body).toMatchObject({ model: ASK_AI_MODEL, stream: true, max_tokens: ASK_AI_MAX_TOKENS });
     expect(body.reasoning).toBeUndefined();
-    expect(body.messages[0].role).toBe('system');
-    expect(body.messages.slice(1, 3)).toEqual(history);
-    expect(body.messages[3].content).toContain('QUESTION: follow-up');
+    expect(body.role).toBe('ask');
+    expect(body.messages.some((m: { role: string }) => m.role === 'system')).toBe(false); // the proxy adds it (ADR-0014)
+    expect(body.messages.slice(0, 2)).toEqual(history);
+    expect(body.messages[2].content).toContain('QUESTION: follow-up');
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('sends the model chosen in AI settings when the stored provider is OpenRouter', async () => {
+  it('names a stored (synced) OpenRouter model choice; the proxy\'s allowlist decides what runs', async () => {
     configureKey({ [STORAGE_KEYS.AI_PROVIDER]: 'openrouter', [STORAGE_KEYS.AI_MODEL]: 'openai/gpt-4o-mini' });
     const { body } = stubFetch(sseResponse([content('ok'), DONE]));
     await ask();
@@ -124,7 +128,8 @@ describe('streamStudyAI — happy path', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it('throws sign-in-needed when no API key is stored and nobody is signed in, without fetching', async () => {
+  it('throws sign-in-needed when nobody is signed in, without fetching', async () => {
+    signOutSeam();
     getItemMock.mockReturnValue(null);
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
@@ -134,11 +139,9 @@ describe('streamStudyAI — happy path', () => {
 });
 
 describe('streamStudyAI — HTTP status mapping', () => {
-  it('401 → invalid key with the status and OpenRouter message; no fallback', async () => {
-    const { fetchMock } = stubFetch(httpError(HTTP_UNAUTHORIZED, 'User not found.'));
-    await expect(ask()).rejects.toMatchObject({
-      kind: 'invalid-key', status: 401, message: `${AI_INVALID_KEY_MESSAGE} · HTTP 401: User not found.`,
-    });
+  it('401 (the session expired) → sign in again, with the status; no fallback', async () => {
+    const { fetchMock } = stubFetch(httpError(HTTP_UNAUTHORIZED, 'unauthorized'));
+    await expect(ask()).rejects.toMatchObject({ kind: 'sign-in-needed', status: 401, message: AI_SIGN_IN_NEEDED });
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
@@ -172,9 +175,10 @@ describe('streamStudyAI — HTTP status mapping', () => {
   });
 
   it('500 → request failed with the status; fallback once, then surfaces the last status', async () => {
-    const { fetchMock } = stubFetch(httpError(500, 'Internal'), httpError(503, 'Overloaded'));
+    // 502, not 503: through the proxy a 503 means the site's AI is paused (askAIHosted.test).
+    const { fetchMock } = stubFetch(httpError(500, 'Internal'), httpError(502, 'Bad gateway'));
     await expect(ask()).rejects.toMatchObject({
-      kind: 'http-error', status: 503, message: `${AI_REQUEST_FAILED} · HTTP 503: Overloaded`,
+      kind: 'http-error', status: 502, message: `${AI_REQUEST_FAILED} · HTTP 502: Bad gateway`,
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });

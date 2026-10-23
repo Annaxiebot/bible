@@ -8,14 +8,14 @@
  * VERSES follow the pick; a failed pick still answers with the vote top 6.
  * Parity: the pick's final messages are the same on the own-key and proxy paths.
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'fs';
 import { createHash } from 'crypto';
 import { parseStudyPack, buildSlides } from '../packTypes';
-import { STORAGE_KEYS } from '../../../constants/storageKeys';
+import { signInSeam, signOutSeam, finalOfSent } from '../../../tests/utils/hostedSeam';
 import { PICK_SYSTEM_PROMPT, SCOPE_GUARD, PromptMessage, RELATED_VERSES_HEADING } from '../../../supabase/functions/_shared/aiPrompts';
 import { validateRequest, ASK_AI_MODEL } from '../../../supabase/functions/ai-proxy/policy';
-import { ownKeyBody } from '../../../services/aiTransport';
+import { finalAIBody } from '../../../services/aiFinalBody';
 import { REQUEST_HASH_PACK_PATH } from './fixtures';
 
 // Original-word retrieval is not under test here (originalWords tests cover it): with the
@@ -42,7 +42,7 @@ const slide = buildSlides(pack)[0];
 const sha = (s: string) => createHash('sha256').update(s).digest('hex');
 const getItemMock = window.localStorage.getItem as ReturnType<typeof vi.fn>;
 
-/** Own-key POST body hashes from master 118d5ad0 (ADR-0015 on), slide 0, no history. */
+/** Final-body hashes (what the proxy forwards; once the own-key POST body) from master 118d5ad0 (ADR-0015 on), slide 0, no history. */
 const GOLDEN: Array<[string, string]> = [
   ['第27节是什么意思？', 'f4a5e2d6dfee6846efa3c08f459500ab445edcaeb0e7ce4d4292311615c22c2e'],
   ['What does the whole Bible say about worry?', '2890cc16fa5fc26bdfb29c24dd43f0c04352704659704c3038f74cb83e887ed4'],
@@ -55,7 +55,8 @@ function sse(text: string): Response {
 }
 
 type Call = [string, RequestInit | undefined];
-const messagesOf = (call: Call) => (JSON.parse(call[1]!.body as string) as { messages: PromptMessage[] }).messages;
+/** The final messages the proxy builds for one POST (signed in: the browser sends the data form). */
+const messagesOf = (call: Call) => (JSON.parse(finalOfSent(call[1]!.body as string)) as { messages: PromptMessage[] }).messages;
 
 /** Ask once with the real files; `pickReply` answers a pick call (a function may throw). */
 async function ask(question: string, pickReply: () => Response = () => sse('')): Promise<Call[]> {
@@ -74,15 +75,17 @@ beforeEach(() => {
   clearRelatedVersesCache();
   clearExternalVerseCache();
   pickSwitch.on = false;
-  getItemMock.mockReset().mockImplementation((key: string) => (key === STORAGE_KEYS.OPENROUTER_API_KEY ? 'test-key' : null));
+  getItemMock.mockReset().mockReturnValue(null);
+  signInSeam();
 });
+afterEach(signOutSeam);
 
 describe('switch off (default): today\'s request, byte for byte', () => {
   it.each(GOLDEN)('%s → one POST matching the master hash', async (question, hash) => {
     expect(QUESTION_AWARE_ENABLED).toBe(false);
     const posts = await ask(question);
     expect(posts).toHaveLength(1);
-    expect(sha(posts[0][1]!.body as string)).toBe(hash);
+    expect(sha(finalOfSent(posts[0][1]!.body as string))).toBe(hash);
     expect(lastRelatedVerses()?.source).toBe('votes');
   });
 });
@@ -125,13 +128,13 @@ describe('switch on (mocked)', () => {
   });
 });
 
-describe('own-key vs proxy parity for the pick call (ADR-0014)', () => {
+describe('finalAIBody vs proxy parity for the pick call (ADR-0014)', () => {
   it('same final messages; the proxy keeps the Ask-AI model and caps the tokens at the pick limit', async () => {
     stubBundledFetch();
     let pool: Parameters<typeof pickCandidates>[0] = [];
     await loadRelatedVerses(pack, 'q', async (p, byVotes) => { pool = p; return { targets: byVotes, source: 'votes', warnings: [] }; });
     const body = buildPickBody(pack.passageRef, 'q', pickCandidates(pool), ASK_AI_MODEL);
-    const own = JSON.parse(ownKeyBody('pick', body)) as { messages: PromptMessage[]; max_tokens: number };
+    const own = JSON.parse(finalAIBody('pick', body)) as { messages: PromptMessage[]; max_tokens: number };
     const v = validateRequest({ ...JSON.parse(body), role: 'pick', max_tokens: 9999, model: 'evil/model' });
     if (!('request' in v)) throw new Error(v.detail);
     expect(own.messages).toEqual(v.request.messages);

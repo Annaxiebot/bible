@@ -5,7 +5,7 @@
  *
  * The evaluation must send exactly what the TV sends (R14), so it never
  * re-implements a prompt: Vite's SSR loader imports the TypeScript modules
- * themselves (askAIStream.buildRequestBody, aiTransport.ownKeyBody,
+ * themselves (askAIStream.buildRequestBody, aiFinalBody.finalAIBody,
  * relatedVerses, relatedPick, relatedSecondHop, citations, originalWords, lexicalAccuracy). `envPrefix` exposes no VITE_* variable, so no
  * Supabase client is created. fetch() of a relative bible-data/ URL is
  * served from public/ (the static files the site serves); every other URL
@@ -45,11 +45,11 @@ export async function loadAppModules() {
     optimizeDeps: { noDiscovery: true, entries: [] }, // SSR loads node_modules directly; no browser pre-bundling scan
   });
   const load = p => server.ssrLoadModule(p);
-  const [packTypes, askAI, askAIStream, aiTransport, relatedVerses, citations, relatedPick, originalWords, lexicalAccuracy, relatedSecondHop] = await Promise.all([
+  const [packTypes, askAI, askAIStream, aiFinalBody, relatedVerses, citations, relatedPick, originalWords, lexicalAccuracy, relatedSecondHop] = await Promise.all([
     load('/components/studypack/packTypes.ts'),
     load('/components/studypack/askAI.ts'),
     load('/components/studypack/askAIStream.ts'),
-    load('/services/aiTransport.ts'),
+    load('/services/aiFinalBody.ts'),
     load('/components/studypack/relatedVerses.ts'),
     load('/components/studypack/citations.ts'),
     load('/components/studypack/relatedPick.ts'),
@@ -58,7 +58,7 @@ export async function loadAppModules() {
     load('/components/studypack/relatedSecondHop.ts'),
   ]);
   return {
-    packTypes, askAI, askAIStream, aiTransport, relatedVerses, citations, relatedPick, originalWords, lexicalAccuracy, relatedSecondHop,
+    packTypes, askAI, askAIStream, aiFinalBody, relatedVerses, citations, relatedPick, originalWords, lexicalAccuracy, relatedSecondHop,
     close: () => server.close(),
   };
 }
