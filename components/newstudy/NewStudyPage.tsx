@@ -4,8 +4,12 @@
  * Owns the phase state (PhaseView renders it) and "我的查经包 My packs";
  * a visitor with no saved packs first sees the three-step card (FirstTimeGuide).
  * AI gate (ADR-0007, components/setup/useAIAccess): signed in → the form;
- * signed out → the sign-in card renders inline first (one rule: sign in to
- * use AI).
+ * signed out → the sign-in card (Google or email) renders inline first (one
+ * rule: sign in to use AI). Signed out with no packs in this browser, the
+ * page is only the three-step card and the sign-in card; signed out WITH
+ * local packs, My packs and Backup & restore stay (this browser holds the
+ * only copy) with one line asking to sign in to keep them in the account
+ * (owner decision D, 2026-10-23). Signed in: unchanged.
  *
  * A pack is never lost: the editor's pack is auto-saved (useAutoSave) the
  * moment generation completes and after every edit; the URL follows it
@@ -23,7 +27,7 @@ import { NEW_STUDY_HASH, newStudyHash, getNewStudyPackIdFromHash, packHash, SAMP
 import PhaseView, { Phase } from './PhaseView';
 import PackList from './PackList';
 import FirstTimeGuide from './FirstTimeGuide';
-import { useLocalPacks } from './useLocalPacks';
+import { useLocalPacks, type LocalPacks } from './useLocalPacks';
 import { useNextStudy } from './useNextStudy';
 import { useGeneration } from './useGeneration';
 import { useAutoSave } from './useAutoSave';
@@ -69,6 +73,17 @@ function useEditorRoute(
  */
 interface RouteError { id: string; message: string }
 
+/**
+ * My packs (and Backup & restore) show when signed in, or signed out with
+ * anything in this browser — packs, unreadable records, or a storage error
+ * (the list renders the error: never hidden, R5). Signed out with nothing:
+ * just the guide and the sign-in card (owner decision D).
+ */
+export function showPackList(signedIn: boolean, packs: Pick<LocalPacks, 'packs' | 'invalid' | 'error' | 'loaded'>): boolean {
+  return signedIn || (packs.loaded && (packs.packs.length > 0 || packs.invalid.length > 0 || packs.error !== null));
+}
+
+// TODO(R4): NewStudyPage is over the 50-line function budget — split the editor route + back/preview handlers into a hook.
 const NewStudyPage: React.FC = () => {
   const access = useAIAccess();
   const configured = access.available;
@@ -85,6 +100,7 @@ const NewStudyPage: React.FC = () => {
     if (next.kind === 'editor') window.location.hash = newStudyHash(next.pack.id);
   }, []);
   const { generate, cancel } = useGeneration(setPhase);
+  const showPacks = showPackList(configured, packs);
 
   const { markClean, flush } = autosave;
   const openSaved = useCallback((pack: StudyPack) => {
@@ -157,8 +173,8 @@ const NewStudyPage: React.FC = () => {
             ? void generate(guideStudyRequest(guide, todayIso(), readDefaultContentLanguage()))
             : setPhase({ kind: 'form' }))}
         />
-        {phase.kind === 'form' && <PackList packs={packs} onOpen={openSaved} />}
-        <p className="text-slate-500" style={textStyle}>{NS_PRIVACY}</p>
+        {phase.kind === 'form' && showPacks && <PackList packs={packs} onOpen={openSaved} signedOut={!configured} />}
+        {showPacks && <p className="text-slate-500" style={textStyle}>{NS_PRIVACY}</p>}
       </div>
     </div>
   );
