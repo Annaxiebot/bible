@@ -24,7 +24,7 @@ import { validateSharingReply, SharingDraft, SharingError } from './sharingReply
 import { sharingSection } from './sharingSection';
 import { SH_ERR_LOAD, SH_ERR_NOTHING, SH_ERR_INVALID } from './sharingStrings';
 
-/** Quota role on the hosted proxy + X-Title for an own key (ASCII only). */
+/** Quota role on the hosted proxy. */
 const SHARING_REQUEST: AIRequestMeta = { role: 'sharing' };
 /** Attempts at a valid reply: the first plus one retry. */
 export const SHARING_ATTEMPTS = 2;

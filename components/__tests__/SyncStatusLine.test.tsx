@@ -3,7 +3,7 @@
  *
  * services/supabase is replaced by an auth hub with authManager's contract
  * (subscribe calls back at once; every session event notifies). A Google
- * sign-in started from the landing nav, the leader AuthPanel or this line
+ * sign-in started from the leader AuthPanel or this line
  * reaches the same session, so the personal sync starts and the line flips
  * to "已登录 · 已同步" whichever button was used.
  */
@@ -55,7 +55,6 @@ vi.mock('../../services/export/fullBackupExporter', () => ({ exportAndDownloadAl
 import SyncStatusLine from '../SyncStatusLine';
 import { SYNC_LINE_LOCAL, SYNC_LINE_SYNCED } from '../syncLineStrings';
 import { SETUP_SIGN_OUT } from '../setup/setupStrings';
-import LandingLeaderLink from '../landing/LandingLeaderLink';
 import { AuthPanel } from '../AuthPanel';
 import { authManager } from '../../services/supabase';
 import { startSyncLifecycle, type SyncLifecycleDeps } from '../../services/syncLifecycle';
@@ -111,8 +110,8 @@ describe('SyncStatusLine', () => {
 });
 
 describe('one Google login for every page', () => {
+  // The landing nav's "带领者登录" is a link to #/leader since 2026-10-23 (the sign-in choices live there, ADR-0020).
   it.each([
-    ['the landing nav (LandingLeaderLink)', () => render(<LandingLeaderLink />), 'nav-leader-signin'],
     ['the leader page AuthPanel', () => render(<AuthPanel />), null],
     ['the #app sync line', () => render(<SyncStatusLine />), 'sync-line-signin'],
   ])('sign-in from %s starts the personal sync and the #app line shows synced', async (_name, mount, testId) => {

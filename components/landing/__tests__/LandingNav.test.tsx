@@ -12,6 +12,7 @@ import { render, screen, within, fireEvent, cleanup } from '@testing-library/rea
 import LandingNav from '../LandingNav';
 import Landing from '../Landing';
 import { NAV_LINKS, NAV_LABEL, NEXT_NONE_YET, NAV_LEADER_SIGNIN, GROUP_QR_CTA, NEXT_SECTION_ID } from '../landingStrings';
+import { LEADER_HOME_HASH } from '../../leader/leaderRoute';
 
 describe('LandingNav', () => {
   beforeEach(() => {
@@ -23,17 +24,19 @@ describe('LandingNav', () => {
     vi.unstubAllGlobals();
   });
 
-  it('renders one button per NAV_LINKS entry, Chinese first, plus the leader sign-in button; no anchors signed out', () => {
+  it('renders one button per NAV_LINKS entry, Chinese first, plus the leader sign-in link to #/leader (signed out)', () => {
     render(<LandingNav />);
     const nav = screen.getByRole('navigation', { name: NAV_LABEL });
     const buttons = within(nav).getAllByRole('button');
-    expect(buttons).toHaveLength(NAV_LINKS.length + 1);
+    expect(buttons).toHaveLength(NAV_LINKS.length);
     expect(NAV_LINKS).toHaveLength(2);
-    expect(nav.querySelectorAll('a')).toHaveLength(0);
     NAV_LINKS.forEach((link, i) => {
       expect(buttons[i].textContent).toBe(`${link.zh}${link.en}`);
     });
-    expect(buttons[NAV_LINKS.length].textContent).toBe(`${NAV_LEADER_SIGNIN.zh} ${NAV_LEADER_SIGNIN.en}`);
+    const anchors = nav.querySelectorAll('a');
+    expect(anchors).toHaveLength(1);
+    expect(anchors[0].textContent).toBe(`${NAV_LEADER_SIGNIN.zh} ${NAV_LEADER_SIGNIN.en}`);
+    expect(anchors[0].getAttribute('href')).toBe(LEADER_HOME_HASH);
   });
 
   it('each link scrolls its section into view on the full landing', async () => {

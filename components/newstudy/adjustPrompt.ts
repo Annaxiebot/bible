@@ -93,7 +93,7 @@ export function buildAdjustPrompt(input: AdjustInput): string {
 /** The chat/completions body in the data form (streamed through the shared transport, role 'adjust'; no system message, ADR-0014). */
 export function buildAdjustRequestBody(input: AdjustInput): string {
   return JSON.stringify({
-    model: packGenerationModel(), // own key: the leader's pack model; hosted: the server picks per role (ADR-0007)
+    model: packGenerationModel(), // a hint: the server picks the model per role (ADR-0007)
     stream: true,
     max_tokens: ADJUST_MAX_TOKENS,
     temperature: PACK_TEMPERATURE,

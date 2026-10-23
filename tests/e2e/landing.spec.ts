@@ -202,7 +202,8 @@ test.describe('Landing page', () => {
     await page.setViewportSize(PHONE);
     await openLanding(page);
     const nav = page.getByTestId('landing-nav');
-    await expect(nav.getByRole('button')).toHaveCount(NAV_LINKS.length + 1);  // + the leader sign-in (leader-home.spec)
+    await expect(nav.getByRole('button')).toHaveCount(NAV_LINKS.length);   // the leader sign-in is a link to #/leader (leader-home.spec)
+    await expect(nav.getByTestId('nav-leader-signin')).toHaveAttribute('href', /#\/leader$/);
     for (const link of NAV_LINKS) {
       const button = page.getByTestId(`nav-${link.id}`);
       expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(48);

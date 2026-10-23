@@ -84,9 +84,9 @@ export function thinkingLine(modelId: string): string {
 /** Retry button after a recoverable failure. */
 export const TV_RETRY = bilingual('重试', 'Retry');
 
-// ---- Hosted AI (ADR-0007): no own key, the site's proxy answers · 本站AI ----
+// ---- Hosted AI (ADR-0007): sign in, the site's proxy answers · 本站AI ----
 
-/** No own key and not signed in: signing in is all it takes (never "or paste a key"). Rendered with the AI button. */
+/** Not signed in: signing in is all it takes. Rendered with the AI button. */
 export const AI_SIGN_IN_NEEDED = bilingualLine('登录即可使用AI', 'Sign in to use AI');
 
 /** Proxy 429 { error: 'quota' }: this leader's monthly allowance for the role is spent. */

@@ -175,9 +175,10 @@ describe('streamStudyAI — HTTP status mapping', () => {
   });
 
   it('500 → request failed with the status; fallback once, then surfaces the last status', async () => {
-    const { fetchMock } = stubFetch(httpError(500, 'Internal'), httpError(503, 'Overloaded'));
+    // 502, not 503: through the proxy a 503 means the site's AI is paused (askAIHosted.test).
+    const { fetchMock } = stubFetch(httpError(500, 'Internal'), httpError(502, 'Bad gateway'));
     await expect(ask()).rejects.toMatchObject({
-      kind: 'http-error', status: 503, message: `${AI_REQUEST_FAILED} · HTTP 503: Overloaded`,
+      kind: 'http-error', status: 502, message: `${AI_REQUEST_FAILED} · HTTP 502: Bad gateway`,
     });
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
