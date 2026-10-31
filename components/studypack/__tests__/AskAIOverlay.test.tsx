@@ -118,7 +118,15 @@ describe('AskAIOverlay (streaming)', () => {
     await waitFor(() =>
       expect(screen.getByTestId('streaming-answer')).toHaveTextContent('Anxiety follows (v.25).'));
 
+    // When the answer finishes, the view returns to the TOP of the latest turn
+    // (block 'start'), not the streamed tail (owner asked 2026-10-31). Spy on
+    // scrollIntoView, which jsdom does not implement (the component guards).
+    const scrollSpy = vi.fn();
+    Element.prototype.scrollIntoView = scrollSpy;
     await act(async () => { finish('Anxiety follows (v.25).'); });
+    await waitFor(() => expect(scrollSpy).toHaveBeenCalled());
+    expect(scrollSpy.mock.calls.at(-1)?.[0]).toEqual({ block: 'start' });
+    delete (Element.prototype as { scrollIntoView?: unknown }).scrollIntoView;
     expect(screen.queryByTestId('streaming-answer')).not.toBeInTheDocument();
     await waitFor(() => // now a finished message (markdown + verse-ref tooltip)
       expect(screen.getByTestId('ask-answer')).toHaveTextContent('Anxiety follows (v.25).'));
