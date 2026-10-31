@@ -45,10 +45,10 @@ function splitTurns(ai: AskAI) {
   };
 }
 
-/** A question in the conversation, right above its answer: a gold "问 Q" label, then the question. */
+/** A question in the conversation, right above its answer: all gold ("问 Q" label + the question), so questions stand apart from the white answers at a glance. */
 const QuestionLine: React.FC<{ text: string; latest?: boolean }> = ({ text, latest = false }) => (
-  <p className="flex gap-[0.8vw] text-stl-text" style={questionStyle} data-testid={latest ? 'ask-question' : 'ask-earlier-question'}>
-    <span className="shrink-0 font-semibold text-stl-gold">{ASK_QUESTION_LABEL}</span>
+  <p className="flex gap-[0.8vw] text-stl-gold" style={questionStyle} data-testid={latest ? 'ask-question' : 'ask-earlier-question'}>
+    <span className="shrink-0 font-semibold">{ASK_QUESTION_LABEL}</span>
     <span>{text}</span>
   </p>
 );
