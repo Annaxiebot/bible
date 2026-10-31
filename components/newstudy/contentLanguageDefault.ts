@@ -22,3 +22,13 @@ export function rememberContentLanguage(mode: ContentLanguage, store: KeyStore =
   store.setItem(STORAGE_KEYS.CONTENT_LANGUAGE_DEFAULT, mode);
   noteLeaderSettingChanged(STORAGE_KEYS.CONTENT_LANGUAGE_DEFAULT);
 }
+
+/** The worship-songs toggle (ADR-0022 step 2): off on a first visit, remembered like the content language. */
+export function readDefaultWorship(store: KeyStore = window.localStorage): boolean {
+  return store.getItem(STORAGE_KEYS.WORSHIP_SONGS_DEFAULT) === '1';
+}
+
+export function rememberWorship(on: boolean, store: KeyStore = window.localStorage): void {
+  store.setItem(STORAGE_KEYS.WORSHIP_SONGS_DEFAULT, on ? '1' : '0');
+  noteLeaderSettingChanged(STORAGE_KEYS.WORSHIP_SONGS_DEFAULT);
+}

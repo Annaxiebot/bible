@@ -146,7 +146,8 @@ describe('validateRequest', () => {
     await versesReady();
     expect(screen.queryByTestId('ns-feedback-link')).toBeNull();
     expect(screen.queryByTestId('ns-feedback-default')).toBeNull();
-    expect(screen.queryByRole('checkbox')).toBeNull();
+    // The only checkbox is the worship-songs toggle (ADR-0022), never the removed "use for all my studies" box.
+    expect(screen.getAllByRole('checkbox')).toEqual([screen.getByTestId('ns-worship-toggle')]);
     expect(document.body.innerHTML).not.toMatch(/Google|docs\.google\.com/);
     fireEvent.click(screen.getByTestId('ns-generate'));
     expect(Object.keys(onGenerate.mock.calls[0][0])).not.toContain('feedbackFormUrl');

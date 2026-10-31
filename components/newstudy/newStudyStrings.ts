@@ -97,6 +97,13 @@ export const NS_EDIT_HINTS: Record<ContentLanguage, string> = {
 export const NS_PACK_TITLE = bilingual('标题', 'Title');
 export const NS_SCRIPTURE_NOTE = bilingualLine('经文来自内置圣经，不可编辑', 'Scripture comes from the bundled Bible and is not editable');
 export const NS_QUESTION_ADD = bilingual('加一题', 'Add a question');
+// ---- worship songs (ADR-0022 step 2) ----
+export const NS_WORSHIP_OPTION = bilingualLine('查经前敬拜诗歌（AI 从诗歌目录推荐，可修改）', 'Worship songs before the study (AI suggests from the catalog; editable)');
+export const NS_WORSHIP_SHORT = bilingual('敬拜诗歌', 'Worship');
+export const NS_SONG_TITLE = bilingual('歌名', 'Song');
+export const NS_SONG_URL = bilingual('链接', 'Link');
+export const NS_SONG_ADD = bilingual('加一首', 'Add a song');
+export const NS_SONG_REMOVE = bilingual('删除', 'Remove');
 export const NS_QUESTION_REMOVE = bilingual('删除', 'Remove');
 export const NS_SAVE = bilingual('保存', 'Save');
 export const NS_SAVED = bilingual('已保存', 'Saved');
@@ -122,6 +129,7 @@ export const NS_ERR_TITLE_FIRST = bilingualLine('标题必须在最前', 'The ti
 export const NS_ERR_SCRIPTURE_PLACE = bilingualLine('经文必须紧跟标题', 'Scripture must directly follow the title');
 export const NS_ERR_TAIL = bilingualLine('报名和闭环必须在最后', 'Sign up and Closing must be the last sections');
 export const NS_ERR_SHARING_PLACE = bilingualLine('上周操练分享只能紧跟在标题之后', "Last week's sharing must come right after the title");
+export const NS_ERR_WORSHIP_PLACE = bilingualLine('敬拜诗歌只能紧跟在标题之后', 'Worship songs must come right after the title');
 export const NS_ERR_DUPLICATE_SECTION = bilingualLine('这种段落只能有一个', 'Only one section of this kind is allowed');
 
 // ---- my packs ----

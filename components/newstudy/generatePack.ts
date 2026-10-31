@@ -27,6 +27,7 @@ import {
   buildPackPrompt, PACK_MAX_TOKENS, PACK_TEMPERATURE, PACK_CONTINUE_PROMPT,
 } from './packPrompt';
 import { extractJsonObject, validateGenerated, GeneratedContent } from './generatedPack';
+import { CatalogSong, loadWorshipCatalog } from './worshipCatalog';
 import { assemblePack, passageLabel, StudyRequest, VerseRange } from './packAssembly';
 import {
   NS_STEP_VERSES, NS_STEP_AI, NS_STEP_VALIDATE, NS_PROGRESS_CHARS,
@@ -63,7 +64,7 @@ export async function loadPassage(req: VerseRange): Promise<PackVerse[]> {
 }
 
 /** The data form (ADR-0014): the pack system message is server-owned (_shared/aiPrompts), added by the proxy. */
-export function buildPackRequestBody(req: StudyRequest, verses: PackVerse[]): string {
+export function buildPackRequestBody(req: StudyRequest, verses: PackVerse[], worshipCatalog?: CatalogSong[]): string {
   return JSON.stringify({
     model: packGenerationModel(), // the #/setup choice, else the quality-first default (ADR-0003 → Models)
     stream: true,
@@ -77,6 +78,7 @@ export function buildPackRequestBody(req: StudyRequest, verses: PackVerse[]): st
           verses,
           lessonTitle: req.lessonTitle,
           contentLanguage: req.contentLanguage,
+          worshipCatalog,
         }),
       },
     ],
@@ -101,10 +103,12 @@ export function cancelled(): Error {
 }
 
 /** Both replies' text → the parsed object and its validated content. NS_ERR_NO_JSON names the served model when known. */
-export function parseGenerated(text: string, model: string | null, req: StudyRequest): { raw: Record<string, unknown>; content: GeneratedContent } {
+export function parseGenerated(
+  text: string, model: string | null, req: StudyRequest, worshipCatalog?: CatalogSong[],
+): { raw: Record<string, unknown>; content: GeneratedContent } {
   try {
     const raw = extractJsonObject(text);
-    return { raw, content: validateGenerated(raw, req.contentLanguage) };
+    return { raw, content: validateGenerated(raw, req.contentLanguage, worshipCatalog) };
   } catch (err) {
     // Rethrown with context: the model id tells the owner which model produced the broken JSON.
     if ((err as Error).message === NS_ERR_NO_JSON && model) throw new Error(withModel(NS_ERR_NO_JSON, model));
@@ -142,15 +146,17 @@ export async function generateStudyPack(
 ): Promise<StudyPack> {
   onProgress(NS_STEP_VERSES);
   const verses = await loadPassage(req);
+  // Fail-soft: an unavailable catalog means no song suggestions, never a failed pack.
+  const catalog = req.worship ? await loadWorshipCatalog().catch(() => undefined) : undefined;
   if (signal.aborted) throw cancelled();
 
   onProgress(NS_STEP_AI);
-  const { text, outcome, received } = await streamPackReply(buildPackRequestBody(req, verses), onProgress, signal);
+  const { text, outcome, received } = await streamPackReply(buildPackRequestBody(req, verses, catalog), onProgress, signal);
   if (outcome.finishReason === FINISH_LENGTH) {
     throw new Error(NS_ERR_OUTPUT_LIMIT.replace(/\{n\}/g, String(received)));
   }
 
   onProgress(NS_STEP_VALIDATE);
-  const { content } = parseGenerated(text, outcome.model, req);
+  const { content } = parseGenerated(text, outcome.model, req, catalog);
   return assemblePack(req, verses, content);
 }

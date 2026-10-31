@@ -7,17 +7,15 @@
  * one screen (continuation slides, see buildSlides).
  */
 
-import { currentSignupUrl } from '../signup/signupRoute';
 import { ContentLanguage, CONTENT_LANGUAGES, isContentLanguage, LEGACY_CONTENT_LANGUAGE } from './principles';
-import {
-  chunkBalanced, chunkBody, estimateLines, KEY_PHRASE_RESERVE_ROWS,
-  MAX_LIFE_MENU_ROWS_PER_SLIDE, MAX_VERSE_ROWS_PER_SLIDE, VERSE_LINE_EMS,
-} from './slideFit';
-import { collapseRepeatedKindLabel } from '../../supabase/functions/send-checkins/promptText';
+
+// Slide building lives in packSlides.ts (R4 split); re-exported so imports stay stable.
+export { buildSlides, chunkVerses, MAX_VERSES_PER_SLIDE } from './packSlides';
 
 export type SectionKind =
   | 'title'
-  | 'sharing'     // optional, right after the title: last week's practices + shared answers (ADR-0008)
+  | 'worship'     // optional, right after the title: songs to sing before the study (ADR-0022 step 2)
+  | 'sharing'     // optional, after title/worship: last week's practices + shared answers (ADR-0008)
   | 'scripture'
   | 'context'
   | 'originalLanguage'
@@ -29,9 +27,16 @@ export type SectionKind =
   | 'closing';
 
 const SECTION_KINDS: readonly SectionKind[] = [
-  'title', 'sharing', 'scripture', 'context', 'originalLanguage', 'crossRefs',
+  'title', 'worship', 'sharing', 'scripture', 'context', 'originalLanguage', 'crossRefs',
   'discussion', 'lifeMenu', 'reflection', 'qr', 'closing',
 ];
+
+/** One worship song: display title (Chinese first when it has one) + the YouTube link to open. */
+export interface WorshipSong {
+  title: string;     // e.g. "宝贵十架 Precious Cross"
+  url: string;       // YouTube watch/search URL — linked, never re-hosted (ADR-0022)
+  channel?: string;  // e.g. "赞美之泉 Stream of Praise"
+}
 
 export interface LifeMenuRow {
   area: string;      // e.g. "Health 健康"
@@ -57,6 +62,7 @@ export interface PackSection {
   rows?: LifeMenuRow[];   // lifeMenu only
   keyPhrase?: string;     // scripture only — shown in large type
   verses?: PackVerse[];   // scripture only — the full embedded passage text
+  songs?: WorshipSong[];  // worship only — songs to sing before the study
   headingZh?: string;     // qr only — optional Chinese heading line
   image?: string;         // qr only — legacy static image path; ignored, the QR is drawn per pack
   url?: string;           // qr only — legacy static form URL; ignored, see Slide.signupUrl
@@ -79,7 +85,7 @@ export type SectionOrigin = 'guide' | 'ai';
 const SECTION_ORIGINS: readonly SectionOrigin[] = ['guide', 'ai'];
 
 // Bump on pack-shape changes; appended to the pack URL so a 10-min CDN-cached pack never meets newer code.
-export const PACK_SCHEMA_VERSION = 2;
+export const PACK_SCHEMA_VERSION = 3; // 3: worship sections (songs[])
 
 /**
  * Keys an older pack may still carry from the removed Google Forms feature
@@ -126,6 +132,7 @@ export interface Slide {
   emphasis?: string;   // scripture only — the section's keyPhrase, highlighted where it occurs in the verses
   headingZh?: string;
   signupUrl?: string;  // qr only — this deployment's sign-up URL (what the QR encodes); absent on demo packs
+  songs?: WorshipSong[]; // worship only
 }
 
 function isStringArray(value: unknown): value is string[] {
@@ -138,6 +145,16 @@ function isPackVerses(value: unknown): value is PackVerse[] {
     typeof (v as PackVerse).num === 'number' &&
     typeof (v as PackVerse).cuv === 'string' && (v as PackVerse).cuv.length > 0 &&
     typeof (v as PackVerse).en === 'string' && (v as PackVerse).en.length > 0
+  );
+}
+
+// A row's title/url may be '' mid-edit (the editor adds blank rows, like discussion's '' question); display skips them.
+export function isWorshipSongs(value: unknown): value is WorshipSong[] {
+  return Array.isArray(value) && value.every(v =>
+    typeof v === 'object' && v !== null &&
+    typeof (v as WorshipSong).title === 'string' &&
+    typeof (v as WorshipSong).url === 'string' &&
+    ((v as WorshipSong).channel === undefined || typeof (v as WorshipSong).channel === 'string')
   );
 }
 
@@ -171,6 +188,9 @@ function parseSection(raw: unknown, index: number): PackSection {
   }
   if (s.kind === 'sharing' && (!isStringArray(s.body) || s.body.length === 0)) {
     throw new Error(`StudyPack sharing section ${index} needs a non-empty body[]`);
+  }
+  if (s.kind === 'worship' && (!isWorshipSongs(s.songs) || s.songs.length === 0)) {
+    throw new Error(`StudyPack worship section ${index} needs non-empty songs[] ({title, url})`);
   }
   if (s.kind === 'qr' && s.image !== undefined && typeof s.image !== 'string') {
     throw new Error(`StudyPack qr section ${index} legacy image must be a string when present`);
@@ -215,82 +235,6 @@ export function parseStudyPack(raw: unknown): StudyPack {
   const kept: Record<string, unknown> = { ...p };
   for (const key of LEGACY_PACK_KEYS) delete kept[key];
   return { ...(kept as unknown as StudyPack), sections };
-}
-
-/**
- * Most verses shown on one scripture slide, however short: three bilingual
- * rows is as much as a group reads together from one screen. Long verses
- * split sooner, by estimated rows (MAX_VERSE_ROWS_PER_SLIDE, slideFit.ts).
- */
-export const MAX_VERSES_PER_SLIDE = 3;
-
-/** A verse's height in rows: the taller of its 和合本 and English columns. */
-function verseRows(verse: PackVerse): number {
-  return Math.max(estimateLines(verse.cuv, VERSE_LINE_EMS), estimateLines(verse.en, VERSE_LINE_EMS));
-}
-
-/**
- * Split a passage into balanced parts that fit one slide each (10 short
- * verses → [2, 2, 3, 3]). The key phrase, shown above part 1, takes room
- * from that part.
- */
-export function chunkVerses(verses: PackVerse[], keyPhrase?: string): PackVerse[][] {
-  return chunkBalanced(verses, verseRows, {
-    maxCost: MAX_VERSE_ROWS_PER_SLIDE,
-    maxItems: MAX_VERSES_PER_SLIDE,
-    firstReserve: keyPhrase ? KEY_PHRASE_RESERVE_ROWS : 0,
-  });
-}
-
-/** One slide per chunk; a split section shows "· 2/3" after its heading (partIndex/partTotal). */
-function partSlides<T>(chunks: T[][], make: (chunk: T[]) => Slide): Slide[] {
-  return chunks.map((chunk, i) => ({
-    ...make(chunk),
-    ...(chunks.length > 1 ? { partIndex: i + 1, partTotal: chunks.length } : {}),
-  }));
-}
-
-function sectionSlides(pack: StudyPack, section: PackSection): Slide[] {
-  const { kind, heading, body, rows, headingZh } = section;
-  if (kind === 'discussion' && section.questions) {
-    const questions = section.questions;
-    return questions.map((question, i) => ({
-      kind, heading, question, questionNumber: i + 1, questionTotal: questions.length,
-    }));
-  }
-  if (kind === 'scripture' && section.verses) {
-    const chunks = chunkVerses(section.verses, section.keyPhrase);
-    return chunks.map((verses, i) => ({
-      kind, heading, verses, emphasis: section.keyPhrase,
-      keyPhrase: i === 0 ? section.keyPhrase : undefined,
-      partIndex: i + 1, partTotal: chunks.length,
-    }));
-  }
-  if (kind === 'qr') {
-    const signupUrl = pack.leaderId ? currentSignupUrl(pack.id) : undefined;
-    return [{ kind, heading, body, headingZh, signupUrl }];
-  }
-  if (kind === 'lifeMenu' && rows) {
-    const menuChunks = chunkBalanced(rows, () => 1, { maxCost: MAX_LIFE_MENU_ROWS_PER_SLIDE });
-    return partSlides(menuChunks, chunk => ({ kind, heading, rows: chunk }));
-  }
-  if (body && kind !== 'title') {
-    // Packs built before the assembler stripped the model's own label read "周末回顾：周末:…" — show one label.
-    const lines = kind === 'reflection' ? body.map(collapseRepeatedKindLabel) : body;
-    return partSlides(chunkBody(lines), chunk => ({ kind, heading, body: chunk, headingZh }));
-  }
-  return [{ kind, heading, body, rows, keyPhrase: section.keyPhrase, headingZh }];
-}
-
-/**
- * Flatten sections into slides: one per discussion question, one per
- * scripture verse chunk, and body / life-menu sections split into
- * continuation slides that fit the screen (slideFit.ts). The qr slide
- * carries the pack's sign-up URL (derived from its id, never stored in the
- * JSON) only when the pack has an owning leader; a demo pack gets no sign-up.
- */
-export function buildSlides(pack: StudyPack): Slide[] {
-  return pack.sections.flatMap(section => sectionSlides(pack, section));
 }
 
 /** TV mode route: "#/pack/<id>" (optionally "?<query>" after it, which is ignored) → pack id, anything else → null. */

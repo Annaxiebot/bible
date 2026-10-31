@@ -212,8 +212,35 @@ const QrSlide: React.FC<SlideProps> = ({ slide, pack }) => {
   );
 };
 
+/**
+ * Worship slide (ADR-0022 step 2): the songs to sing before the study, each
+ * a tappable YouTube link (linked, never re-hosted). Rows a leader left
+ * blank in the editor are skipped.
+ */
+const WorshipSlide: React.FC<SlideProps> = ({ slide }) => {
+  const t = useSlideTypography();
+  const songs = (slide.songs ?? []).filter(s => s.title.trim() && s.url.trim());
+  return (
+    <div className="h-full flex flex-col">
+      <Heading text={slide.heading} />
+      <FitArea fitKey={slide}>
+        {songs.map((song, i) => (
+          <p key={i} className="mb-[2vh]" style={fitted(t.body)}>
+            <a href={song.url} target="_blank" rel="noopener noreferrer"
+              className="text-stl-gold underline underline-offset-4" data-testid="tv-worship-song">
+              {song.title}
+            </a>
+            {song.channel && <span className="text-stl-text-3"> — {song.channel}</span>}
+          </p>
+        ))}
+      </FitArea>
+    </div>
+  );
+};
+
 const TVSlide: React.FC<SlideProps> = ({ slide, pack }) => {
   if (slide.kind === 'title') return <TitleSlide slide={slide} />;
+  if (slide.kind === 'worship') return <WorshipSlide slide={slide} />;
   if (slide.kind === 'scripture') return <ScriptureSlide slide={slide} pack={pack} />;
   if (slide.kind === 'discussion') return <DiscussionSlide slide={slide} pack={pack} />;
   if (slide.kind === 'lifeMenu') return <LifeMenuSlide slide={slide} pack={pack} />;

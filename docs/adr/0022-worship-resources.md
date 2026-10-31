@@ -1,6 +1,6 @@
 # ADR-0022: Worship resources — a footer page first, a worship step in studies later (2026-10-11)
 
-Status: step 1 built 2026-10-11 (Family Music Ministry · Original Christian Songs playlist); step 2 proposed — deferred until step 1 shows interest.
+Status: step 1 built 2026-10-11 (Family Music Ministry · Original Christian Songs playlist); step 2 built 2026-10-30 (owner asked for it after user suggestions — see "Step 2 as built" below).
 
 ## Context
 
@@ -41,6 +41,22 @@ Status: step 1 built 2026-10-11 (Family Music Ministry · Original Christian Son
   (YouTube embed, fullscreen, network failure), and the privacy notice
   (an embedded YouTube player sets YouTube's own cookies — use the
   privacy-enhanced `youtube-nocookie.com` embed).
+
+### Step 2 as built (2026-10-30)
+- A machine-readable catalog, `public/worship-songs.json` (~34 songs from
+  the step-1 channels, with bilingual titles and theme tags), feeds an
+  opt-in "敬拜诗歌 Worship songs" toggle in New study → 更多选项. The AI picks
+  2–3 passage-related songs FROM THE CATALOG ONLY; invented titles are
+  dropped (the crossRefs pattern) and an empty pick never fails the pack.
+- The pack gains an optional `worship` section (songs[{title,url,channel}]),
+  pinned right after the title; the editor lets the leader add/remove songs
+  or paste their own YouTube link; schema version 2 → 3.
+- Links, not embeds, in this first cut: each catalog song links to a YouTube
+  SEARCH for "title channel", which cannot rot and sets no cookies on our
+  page. The nocookie EMBED (full-screen play on the TV) stays future work —
+  it needs verified per-video ids and the privacy-notice update above.
+- The family channel stays on the step-1 page but is not in the catalog
+  until the owner names the songs to include (neutrality + accuracy).
 
 ## Consequences
 
