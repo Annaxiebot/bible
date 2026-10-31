@@ -58,3 +58,41 @@ export const AD_ACTIVE_NOTE = bilingualLine(
   '本月（洛杉矶时间）登录过、保存过查经或用过本站 AI 的账号',
   'Accounts that signed in, saved a study or used the site\'s AI this month (Los Angeles time)',
 );
+
+// ---- stats: the New-study funnel (ADR-0025) ----
+export const AD_FUNNEL_TITLE = bilingualLine('新建查经漏斗', 'New study funnel');
+export function funnelNote(days: number, repeatMinutes: number): string {
+  return bilingualLine(
+    `最近 ${days} 天（洛杉矶时间）的匿名总数，不知道是谁；同一浏览器 ${repeatMinutes} 分钟内重复打开或登录只计一次`,
+    `Anonymous totals for the last ${days} days (Los Angeles time), never who; repeat opens or sign-ins from one browser within ${repeatMinutes} minutes count once`,
+  );
+}
+export const AD_FUNNEL_NONE = bilingualLine('还没有数据', 'No counts yet');
+export const AD_FUNNEL_ERR = bilingualLine('读取漏斗失败', 'Could not load the funnel');
+/** The window's steps, top to bottom. */
+export const AD_FUNNEL_STEPS = {
+  opened: bilingualLine('打开新建查经', 'New study opened'),
+  signinStarted: bilingualLine('开始登录', 'Sign-in started'),
+  signinDone: bilingualLine('完成登录', 'Sign-in finished'),
+  generate: bilingualLine('按下生成', 'Generate pressed'),
+  ok: bilingualLine('生成成功', 'Pack generated'),
+  failed: bilingualLine('生成失败', 'Generation failed'),
+  abandoned: bilingualLine('中途放弃', 'Abandoned while generating'),
+} as const;
+export const AD_FUNNEL_EMAIL = bilingual('邮箱', 'Email');
+export function funnelMethods(google: number, email: number): string {
+  return `Google ${google} · ${AD_FUNNEL_EMAIL} ${email}`;
+}
+export function funnelMedianWait(seconds: number): string {
+  return bilingualLine(`中位等待 ${seconds} 秒`, `median wait ${seconds} s`);
+}
+/** Daily table headers ("中文 English": the Chinese half has no space). */
+export const AD_FUNNEL_COL_DAY = bilingual('日期', 'Day');
+export const AD_FUNNEL_COL_OPENED = bilingual('打开', 'Opened');
+export const AD_FUNNEL_COL_SIGNIN_STARTED = bilingual('开始登录', 'Sign-in started (Google / email)');
+export const AD_FUNNEL_COL_SIGNIN_DONE = bilingual('完成登录', 'Sign-in finished (Google / email)');
+export const AD_FUNNEL_COL_GENERATE = bilingual('生成', 'Generate');
+export const AD_FUNNEL_COL_OK = bilingual('成功', 'OK');
+export const AD_FUNNEL_COL_FAILED = bilingual('失败', 'Failed');
+export const AD_FUNNEL_COL_ABANDONED = bilingual('放弃', 'Abandoned');
+export const AD_FUNNEL_COL_WAIT = bilingual('成功中位等待（秒）', 'Median wait to a pack (s)');

@@ -10,14 +10,13 @@
  *    never used as verses); a leaked answer bullet is flagged;
  * 3. neither → GuidePassageNotFound (the form then asks the leader to pick).
  */
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { generateGuidePack, guideStudyRequest, GuidePassageNotFound } from '../generateGuidePack';
 import { detectGuidePassage } from '../guidePassage';
 import type { LoadedGuide } from '../loadGuide';
 import type { StudyPack } from '../../../studypack/packTypes';
-import { STORAGE_KEYS } from '../../../../constants/storageKeys';
-import { OPENROUTER_API_URL } from '../../../../services/openrouter';
-import { stubFetch, chunked } from '../../__tests__/packFetchStub';
+import { signInSeam, signOutSeam } from '../../../../tests/utils/hostedSeam';
+import { stubFetch, chunked, isAICall } from '../../__tests__/packFetchStub';
 import { GD_ERR_NO_PASSAGE } from '../guideStrings';
 import { NO_PASSAGE_LINE } from '../guidePrompt';
 import { GUIDE_GENERATED, GUIDE_REPLY_JSON } from './guideFixture';
@@ -35,14 +34,18 @@ const run = (req = GUIDE_REQUEST) => generateGuidePack(req, () => {}, new AbortC
 
 /** The URLs fetched, in order: bundled chapters and the AI call. */
 const order = (fetchMock: ReturnType<typeof stubFetch>) =>
-  fetchMock.mock.calls.map(c => (c[0] === OPENROUTER_API_URL ? 'ai' : c[0].includes('/JHN/') ? 'JHN' : c[0].includes('/MRK/') ? 'MRK' : c[0]));
+  fetchMock.mock.calls.map(c => (isAICall(c[0]) ? 'ai' : c[0].includes('/JHN/') ? 'JHN' : c[0].includes('/MRK/') ? 'MRK' : c[0]));
+/** The user turn sent to the proxy (the data form: no system message, ADR-0014). */
 const sentPrompt = (fetchMock: ReturnType<typeof stubFetch>) =>
-  JSON.parse(fetchMock.mock.calls.find(c => c[0] === OPENROUTER_API_URL)![1]!.body as string).messages[1].content as string;
+  (JSON.parse(fetchMock.mock.calls.find(c => isAICall(c[0]))![1]!.body as string).messages as Array<{ role: string; content: string }>)
+    .find(m => m.role === 'user')!.content;
 
 beforeEach(() => {
   vi.unstubAllGlobals();
-  getItem.mockReset().mockImplementation((k: string) => (k === STORAGE_KEYS.OPENROUTER_API_KEY ? 'unit-test-key' : null));
+  getItem.mockReset().mockReturnValue(null);
+  signInSeam();
 });
+afterEach(signOutSeam);
 
 describe('guideStudyRequest (picking the PDF starts generation)', () => {
   it('a clear heading passage: that range, no findPassage; the date and content language as given', () => {

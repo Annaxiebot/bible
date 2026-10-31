@@ -25,6 +25,25 @@ export interface PdfPageLike { getTextContent(): Promise<{ items: readonly unkno
 export interface PdfDocLike { numPages: number; getPage(n: number): Promise<PdfPageLike>; destroy(): Promise<void> }
 export type PdfOpener = (data: Uint8Array) => Promise<PdfDocLike>;
 
+/** What pdfjs's getDocument() returns. Since pdfjs 6 only the loading task has destroy(). */
+export interface PdfLoadingTaskLike {
+  promise: Promise<{ numPages: number; getPage(n: number): Promise<PdfPageLike> }>;
+  destroy(): Promise<void>;
+}
+
+/** The opened document; destroy() releases it through its loading task (and so does a failed open). */
+export async function openLoadingTask(task: PdfLoadingTaskLike): Promise<PdfDocLike> {
+  let doc: Awaited<PdfLoadingTaskLike['promise']>;
+  try {
+    doc = await task.promise;
+  } catch (err) {
+    // Cleanup failing must not hide why the open failed.
+    try { await task.destroy(); } catch { /* keep the open error */ }
+    throw err;
+  }
+  return { numPages: doc.numPages, getPage: n => doc.getPage(n), destroy: () => task.destroy() };
+}
+
 /** The guide as the rest of the path uses it. */
 export interface GuideText { name: string; pages: number; text: string }
 

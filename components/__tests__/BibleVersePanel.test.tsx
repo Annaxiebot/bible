@@ -2,6 +2,8 @@ import React, { createRef } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import BibleVersePanel from '../BibleVersePanel';
+import { setReaderPreference } from '../../services/readerPreferences';
+import { installMemoryStorage } from '../../tests/utils/memoryStorage';
 import type { InlineBibleAnnotationHandle, AnnotationToolState } from '../InlineBibleAnnotation';
 
 vi.mock('../../hooks/useSeasonTheme', () => ({
@@ -174,5 +176,58 @@ describe('BibleVersePanel', () => {
     const bookmarkButtons = screen.getAllByTitle('收藏 Bookmark');
     fireEvent.click(bookmarkButtons[0]);
     expect(onToggleBookmark).toHaveBeenCalledWith(1, '起初神创造天地。');
+  });
+
+  it('marks verse text with the language of its column (zh-Hans / zh-Hant / en)', () => {
+    const { unmount } = render(<BibleVersePanel {...makeProps({ isSimplified: true })} />);
+    expect(screen.getByText('起初神创造天地。')).toHaveAttribute('lang', 'zh-Hans');
+    unmount();
+    render(<BibleVersePanel {...makeProps({ isSimplified: false })} />);
+    expect(screen.getByText('起初神创造天地。')).toHaveAttribute('lang', 'zh-Hant');
+    render(<BibleVersePanel {...makeProps({ language: 'english', verses: englishVerses })} />);
+    expect(screen.getByText(englishVerses[0].text)).toHaveAttribute('lang', 'en');
+  });
+
+  it('renders verses as given — script conversion is the parent\'s job (useChineseScript)', () => {
+    render(<BibleVersePanel {...makeProps({ isSimplified: false, verses: [{ ...baseVerses[0], text: '起初神創造天地。' }] })} />);
+    expect(screen.getByText('起初神創造天地。')).not.toBeNull();
+  });
+
+  it('a failed column shows its own localized error with a retry, not verses or a skeleton', () => {
+    const onRetry = vi.fn();
+    render(<BibleVersePanel {...makeProps({ verses: [], status: 'error', bookName: '马太福音', chapter: 7, onRetry })} />);
+    const alert = screen.getByRole('alert');
+    expect(alert).toHaveTextContent('无法加载中文经文：马太福音 第 7 章');
+    fireEvent.click(screen.getByRole('button', { name: '重试' }));
+    expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it('a loading column shows the skeleton and is aria-busy', () => {
+    const { container } = render(<BibleVersePanel {...makeProps({ verses: [], status: 'loading' })} />);
+    expect(container.querySelector('.animate-pulse')).not.toBeNull();
+    expect(container.firstChild).toHaveAttribute('aria-busy', 'true');
+  });
+
+  it('marks a column served from the offline copy', () => {
+    render(<BibleVersePanel {...makeProps({ offline: true })} />);
+    expect(screen.getByText(/离线副本/)).not.toBeNull();
+  });
+});
+
+describe('BibleVersePanel — English interface', () => {
+  beforeEach(() => {
+    installMemoryStorage();
+    setReaderPreference('uiLanguage', 'en');
+  });
+
+  it('error and retry are in English for the English column', () => {
+    render(<BibleVersePanel {...makeProps({ language: 'english', verses: [], status: 'error', bookName: 'Matthew', chapter: 7, onRetry: vi.fn() })} />);
+    expect(screen.getByRole('alert')).toHaveTextContent("Couldn't load the English text of Matthew 7. Check your connection.");
+    expect(screen.getByRole('button', { name: 'Retry' })).not.toBeNull();
+  });
+
+  it('bookmark controls are in English', () => {
+    render(<BibleVersePanel {...makeProps()} />);
+    expect(screen.getAllByRole('button', { name: 'Bookmark' }).length).toBe(2);
   });
 });

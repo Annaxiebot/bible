@@ -13,14 +13,14 @@ import { JOHN3_REPLY_JSON } from '../../components/newstudy/__tests__/fixtures';
 import { signupHash } from '../../components/signup/signupRoute';
 import { checkinHash } from '../../components/checkin/checkinRoute';
 import { SU_SUBMIT, SU_THANKS } from '../../components/signup/signupStrings';
-import { injectApiKey, mockOpenRouterStream } from './helpers/tv';
+import { signInAsLeader, mockAIStream } from './helpers/hostedAI';
 import { E2E_LEADER_ID, mockBackend } from './helpers/signup';
 import { PACK_ID, openNewStudy, fillJohn3, chunked } from './helpers/newStudy';
 
 test.describe('New study: feedback vehicle', () => {
   test('no Google Form anywhere: the form and editor offer none; once owned, a member\'s thank-you link is the built-in check-in page', async ({ page }) => {
-    await injectApiKey(page);
-    await mockOpenRouterStream(page, chunked(JOHN3_REPLY_JSON));
+    await signInAsLeader(page);
+    await mockAIStream(page, chunked(JOHN3_REPLY_JSON));
     const mocks = await mockBackend(page);
     await openNewStudy(page);
     await fillJohn3(page);

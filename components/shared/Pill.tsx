@@ -22,6 +22,8 @@ interface PillProps {
   expanded?: boolean;
   disabled?: boolean;
   className?: string;
+  /** Id of a note read with the pill (e.g. "requires Google sign-in"). */
+  describedBy?: string;
 }
 
 const PillLabel: React.FC<{ label: string; arrow?: boolean }> = ({ label, arrow }) => {
@@ -29,21 +31,21 @@ const PillLabel: React.FC<{ label: string; arrow?: boolean }> = ({ label, arrow 
   return (
     <>
       <span>{zh}</span>
-      {en && <>{' '}<span className="stl-pill-en">{en}</span></>}
+      {en && <>{' '}<span className="stl-pill-en" lang="en">{en}</span></>}
       {arrow && <span className="stl-arrow" aria-hidden="true">→</span>}
     </>
   );
 };
 
 const Pill: React.FC<PillProps> = ({
-  label, href, onClick, type = 'button', ghost, small, arrow, testId, expanded, disabled, className = '',
+  label, href, onClick, type = 'button', ghost, small, arrow, testId, expanded, disabled, className = '', describedBy,
 }) => {
   const cls = ['stl-pill', ghost && 'stl-pill-ghost', small && 'stl-pill-sm', className].filter(Boolean).join(' ');
   if (href) {
-    return <a href={href} className={cls} data-testid={testId}><PillLabel label={label} arrow={arrow} /></a>;
+    return <a href={href} className={cls} data-testid={testId} aria-describedby={describedBy}><PillLabel label={label} arrow={arrow} /></a>;
   }
   return (
-    <button type={type} onClick={onClick} className={cls} data-testid={testId} aria-expanded={expanded} disabled={disabled}>
+    <button type={type} onClick={onClick} className={cls} data-testid={testId} aria-expanded={expanded} disabled={disabled} aria-describedby={describedBy}>
       <PillLabel label={label} arrow={arrow} />
     </button>
   );

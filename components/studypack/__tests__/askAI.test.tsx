@@ -12,7 +12,7 @@ import { FREE_ROUTER_MODEL } from '../../../services/openrouter';
 import { createSSEParser, SSEEvent, buildRequestBody } from '../askAIStream';
 import { TEST_PACK_PATH } from './fixtures';
 import { CONTENT_LANGUAGES, ASK_AI_SYSTEM_PROMPT, ASK_AI_ANSWER_CONTRACT, ASK_AI_LANGUAGE_RULES } from '../principles';
-import { ownKeyBody } from '../../../services/aiTransport';
+import { finalAIBody } from '../../../services/aiFinalBody';
 import { BIBLE_SCHOLAR_SYSTEM_PROMPT } from '../../../services/systemPrompts';
 import { MAX_MESSAGES, messagesProblem } from '../../../supabase/functions/ai-proxy/policy';
 
@@ -135,7 +135,7 @@ describe('Ask AI request', () => {
     const { pack, slide } = loadPack();
     for (const mode of CONTENT_LANGUAGES) {
       const body = buildRequestBody({ ...pack, contentLanguage: mode }, slide, [], 'q', { model: 'm' });
-      const final = JSON.parse(ownKeyBody('ask', body));
+      const final = JSON.parse(finalAIBody('ask', body));
       const system = final.messages[0];
       expect(system.role).toBe('system');
       expect(system.content).toContain(ASK_AI_SYSTEM_PROMPT);

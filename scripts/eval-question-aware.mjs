@@ -13,7 +13,7 @@
  * Both answer requests come from the app's buildRequestBody with the SAME
  * model, sampling and stream settings (checked: the bodies differ only in
  * `messages`, and only in the list). The pick call goes direct to OpenRouter
- * through aiTransport.ownKeyBody('pick', …) — the final messages the proxy
+ * through aiFinalBody.finalAIBody('pick', …) — the final messages the proxy
  * builds. Measuring and judging: lib/evalRun.mjs, the same code as ADR-0015's
  * evaluation (order-proof judge; a failed or empty answer loses — R14).
  * "Cited from memory" counts against each arm's OWN related list. The
@@ -142,7 +142,7 @@ async function dryRun(app, fixture, packs) {
     const votes = await app.relatedVerses.loadRelatedVerses(pack, question, recording(app, chooser, log));
     const warnings = votes.warnings.filter(w => !w.endsWith(DRY_RUN));
     process.stdout.write(`${q.id} ${pack.passageRef}: pool hop 1 ${log.hop1Pool} → pick sees ${log.poolSize} (${log.hop2InPool} from hop 2), ` +
-      `request ${body ? app.aiTransport.ownKeyBody('pick', body).length : 0} chars; vote top 6 [${votes.related.map(r => r.ref).join(', ')}]` +
+      `request ${body ? app.aiFinalBody.finalAIBody('pick', body).length : 0} chars; vote top 6 [${votes.related.map(r => r.ref).join(', ')}]` +
       `${warnings.length ? `, WARNINGS ${warnings.join('; ')}` : ''}\n`);
   }
 }

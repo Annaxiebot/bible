@@ -3,7 +3,8 @@ import { toSimplified, toTraditional, preloadConverter } from '../chineseConvert
 
 describe('chineseConverter', () => {
   beforeAll(async () => {
-    await preloadConverter();
+    // Both directions (each loads its own dictionary).
+    await Promise.all([preloadConverter(true), preloadConverter(false)]);
   });
   describe('toSimplified', () => {
     it('should convert traditional Chinese to simplified', () => {

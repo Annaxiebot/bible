@@ -19,7 +19,6 @@ import { askAIModel } from '../../services/aiDefaults';
 /** Light-UI styling (the personal app); the TV keeps AIErrorLine's own defaults. */
 export const LIGHT_AI_ERROR_CLASS = 'text-sm text-red-600';
 export const LIGHT_AI_ERROR_BUTTON_CLASS = 'ml-2 rounded-lg border border-indigo-300 px-3 py-0.5 text-indigo-600 hover:bg-indigo-50';
-export const LIGHT_AI_ERROR_LINK_CLASS = 'ml-2 text-indigo-600 underline underline-offset-4';
 
 /** Above every full-screen host the line can sit in (the Notability overlay is 9998, its popovers 10000). */
 const SETUP_DIALOG_Z_INDEX = 10001;
@@ -43,7 +42,6 @@ export const InlineAIError: React.FC<InlineAIErrorProps> = ({ error, onRetry, te
         onRetry={onRetry}
         className={LIGHT_AI_ERROR_CLASS}
         buttonClassName={LIGHT_AI_ERROR_BUTTON_CLASS}
-        linkClassName={LIGHT_AI_ERROR_LINK_CLASS}
       />
       {/* Portalled: a host toolbar (Notability) is a containing block that would clip a fixed modal. */}
       {setupOpen && createPortal(

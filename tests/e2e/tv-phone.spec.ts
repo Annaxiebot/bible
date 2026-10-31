@@ -7,7 +7,7 @@
  * horizontal swipe still flips while vertical gestures scroll.
  */
 import { test, expect } from '@playwright/test';
-import { openTV, swipe, goToSlide, DEMO_SLIDE } from './helpers/tv';
+import { openTV, swipe, goToSlide, DEMO_SLIDE, waitForWenKai } from './helpers/tv';
 
 test.describe('TV fit at 1080p', () => {
   test.use({ viewport: { width: 1920, height: 1080 } });
@@ -16,13 +16,14 @@ test.describe('TV fit at 1080p', () => {
     await openTV(page);
     await goToSlide(page, DEMO_SLIDE.scripture + 4);
     await expect(page.getByText(/经文 Scripture.*· 5\/5/)).toBeVisible(); // vv.32–34
-    const fits = await page
+    // Measure the real face once it and this slide's glyph slices load; the fit re-runs on font load.
+    await waitForWenKai(page, 700, '不要忧虑经文');
+    await expect.poll(() => page
       .getByTestId('tv-presentation')
       .evaluate(root => {
         const area = root.querySelector('.overflow-y-auto.flex-1') as HTMLElement;
         return area !== null && area.scrollHeight <= area.clientHeight + 1;
-      });
-    expect(fits).toBe(true);
+      })).toBe(true);
   });
 });
 

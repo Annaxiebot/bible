@@ -1,6 +1,6 @@
 /**
- * NewStudyPage.test.tsx — the leader's flow in jsdom: no key → inline setup;
- * key → form (Chinese-first, validated) → generation (mocked pipeline) →
+ * NewStudyPage.test.tsx — the leader's flow in jsdom: signed out → inline
+ * sign-in; signed in (the dev seam) → form (Chinese-first, validated) → generation (mocked pipeline) →
  * editor (editable questions, scripture read-only) → the pack is auto-saved
  * the moment generation completes and after edits (real fake-indexeddb),
  * the URL becomes #/new/<id> and reopening that hash restores the editor
@@ -9,9 +9,9 @@
  * each pack with Edit.
  */
 import React from 'react';
-import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
-import { STORAGE_KEYS } from '../../../constants/storageKeys';
+import { signInSeam, signOutSeam } from '../../../tests/utils/hostedSeam';
 import { idbService } from '../../../services/idbService';
 import { assemblePack } from '../packAssembly';
 import { validateGenerated } from '../generatedPack';
@@ -43,9 +43,10 @@ vi.mock('../../../services/bibleDataSource', () => ({
 const verses = Array.from({ length: 15 }, (_, i) => ({ num: 22 + i, cuv: `第${22 + i}节`, en: `verse ${22 + i}` }));
 const generatedPack = () => assemblePack(JOHN3_REQUEST, verses, validateGenerated(JOHN3_GENERATED, JOHN3_REQUEST.contentLanguage));
 
-function withKey(key: string | null) {
-  (window.localStorage.getItem as ReturnType<typeof vi.fn>).mockReset()
-    .mockImplementation((k: string) => (k === STORAGE_KEYS.OPENROUTER_API_KEY ? key : null));
+/** Signed in (the dev seam) or out: AI — and so the form — needs sign-in (ADR-0007, 2026-10-23). */
+function signedIn(on: boolean) {
+  (window.localStorage.getItem as ReturnType<typeof vi.fn>).mockReset().mockReturnValue(null);
+  if (on) signInSeam(); else signOutSeam();
 }
 
 describe('NewStudyPage', () => {
@@ -56,9 +57,10 @@ describe('NewStudyPage', () => {
     (window.sessionStorage.getItem as ReturnType<typeof vi.fn>).mockReset();
     (window.sessionStorage.setItem as ReturnType<typeof vi.fn>).mockReset();
   });
+  afterEach(signOutSeam);
 
-  it('shows the quick AI setup inline (and no form) when no key is configured', () => {
-    withKey(null);
+  it('signed out: shows the AI sign-in inline (and no form)', () => {
+    signedIn(false);
     render(<NewStudyPage />);
     expect(screen.getByText(NS_TITLE)).toBeInTheDocument();
     expect(screen.getByTestId('quick-ai-setup')).toBeInTheDocument();
@@ -67,7 +69,7 @@ describe('NewStudyPage', () => {
   });
 
   it('renders the Chinese-first form with dropdowns and never lets a bad range reach generation', async () => {
-    withKey('k');
+    signedIn(true);
     render(<NewStudyPage />);
     await screen.findByTestId('new-study-form'); // opens once the next-study suggestion is ready
     expect(screen.getByLabelText(NS_BOOK)).toBeInTheDocument();
@@ -83,7 +85,7 @@ describe('NewStudyPage', () => {
   });
 
   it('with a saved study, the form opens on the passage after it (John 3:22–36 → John 4:1–15)', async () => {
-    withKey('k');
+    signedIn(true);
     await saveLocalPack({ ...generatedPack(), title: '第3课 ' + generatedPack().title });
     render(<NewStudyPage />);
     await screen.findByTestId('new-study-form');
@@ -112,7 +114,7 @@ describe('NewStudyPage', () => {
   }
 
   it('generates, edits, saves (listed in My packs) and previews on TV', async () => {
-    withKey('k');
+    signedIn(true);
     generateMock.mockImplementation(async (_req: unknown, onProgress: (s: string, d?: string) => void) => {
       onProgress(NS_STEP_AI, '12');
       return generatedPack();
@@ -160,7 +162,7 @@ describe('NewStudyPage', () => {
   });
 
   it('auto-saves: the generated pack is stored without pressing anything, the URL becomes #/new/<id>, and edits save after the quiet period', async () => {
-    withKey('k');
+    signedIn(true);
     generateMock.mockResolvedValue(generatedPack());
     render(<NewStudyPage />);
     await fillAndGenerate();
@@ -186,7 +188,7 @@ describe('NewStudyPage', () => {
   });
 
   it('#/new/<id> on load restores the saved pack in the editor (reload keeps the editor open); an unknown id is a visible error', async () => {
-    withKey('k');
+    signedIn(true);
     await idbService.put('studypacks', { id: 'local-2026-10-02-jhn3', pack: generatedPack(), savedAt: 1 });
     window.location.hash = newStudyHash('local-2026-10-02-jhn3');
     render(<NewStudyPage />);
@@ -207,7 +209,7 @@ describe('NewStudyPage', () => {
   // Regression (CI, 2026-10-04): a freshly generated pack sets #/new/<id> before auto-save stores it, so the
   // route lookup could answer "not found" and that alert stayed above the editor showing the very same pack.
   it('never shows "pack not found" next to an editor that shows that pack', async () => {
-    withKey('k');
+    signedIn(true);
     generateMock.mockResolvedValue(generatedPack());
     window.location.hash = newStudyHash('local-2026-10-02-jhn3');
     render(<NewStudyPage />);
@@ -219,7 +221,7 @@ describe('NewStudyPage', () => {
   });
 
   it('shows the bilingual error with Retry when generation fails, and retries the same request', async () => {
-    withKey('k');
+    signedIn(true);
     generateMock.mockRejectedValueOnce(new Error(NS_ERR_NO_JSON)).mockResolvedValueOnce(generatedPack());
     render(<NewStudyPage />);
     await fillAndGenerate();
@@ -232,7 +234,7 @@ describe('NewStudyPage', () => {
   });
 
   it('Back on the "generation failed" screen returns to the form (regression: it did nothing)', async () => {
-    withKey('k');
+    signedIn(true);
     generateMock.mockRejectedValueOnce(new Error(NS_ERR_NO_JSON));
     render(<NewStudyPage />);
     await fillAndGenerate();
@@ -243,7 +245,7 @@ describe('NewStudyPage', () => {
   });
 
   it('lists saved packs on load and opens one into the editor', async () => {
-    withKey('k');
+    signedIn(true);
     await idbService.put('studypacks', { id: 'local-2026-10-02-jhn3', pack: generatedPack(), savedAt: 1 });
     render(<NewStudyPage />);
     const row = await screen.findByTestId('pack-row');

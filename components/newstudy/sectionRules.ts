@@ -15,20 +15,24 @@ import { LIFE_AREAS } from '../studypack/principles';
 import { SECTION_HEADINGS, PRIVACY_LINE, CLOSING_LEAD } from './packAssembly';
 import {
   NS_ERR_TITLE_FIRST, NS_ERR_SCRIPTURE_PLACE, NS_ERR_TAIL, NS_ERR_DUPLICATE_SECTION, NS_ERR_SHARING_PLACE,
+  NS_ERR_WORSHIP_PLACE,
 } from './newStudyStrings';
 
 /** Kinds the leader may add or remove, in menu order. */
 export const ADDABLE_KINDS: readonly SectionKind[] = [
-  'context', 'originalLanguage', 'crossRefs', 'discussion', 'lifeMenu', 'reflection', 'closing',
+  'worship', 'context', 'originalLanguage', 'crossRefs', 'discussion', 'lifeMenu', 'reflection', 'closing',
 ];
 
 /** Kinds that appear at most once in a pack. */
-export const SINGLETON_KINDS: readonly SectionKind[] = ['lifeMenu', 'reflection', 'qr', 'closing'];
+export const SINGLETON_KINDS: readonly SectionKind[] = ['worship', 'lifeMenu', 'reflection', 'qr', 'closing'];
 
 /** Kinds the leader may remove but not add from the menu (they are inserted by their own control). */
 const REMOVE_ONLY_KINDS: readonly SectionKind[] = ['sharing'];
 
-/** The sharing section's only allowed place: right after the title (so a second one is a place error too). */
+/** Kinds pinned to the pack's head, in order after the title (each optional): songs open the meeting, then last week. */
+const HEAD_KINDS: readonly SectionKind[] = ['worship', 'sharing'];
+
+/** The sharing section's place with no worship section: right after the title (kept for callers; the real rule is HEAD_KINDS order). */
 export const SHARING_INDEX = 1;
 
 /** Kinds that close the pack, in order: qr second-to-last, closing last (each optional). */
@@ -36,7 +40,7 @@ const TAIL_KINDS: readonly SectionKind[] = ['qr', 'closing'];
 
 const isTail = (s: PackSection): boolean => TAIL_KINDS.includes(s.kind);
 const isMovable = (s: PackSection): boolean =>
-  s.kind !== 'title' && s.kind !== 'sharing' && s.kind !== 'scripture' && !isTail(s);
+  s.kind !== 'title' && !HEAD_KINDS.includes(s.kind) && s.kind !== 'scripture' && !isTail(s);
 
 /** Index of the first tail section (qr/closing), or sections.length when there is none. */
 function tailStart(sections: readonly PackSection[]): number {
@@ -49,8 +53,15 @@ export function validateSectionOrder(sections: readonly PackSection[]): string |
   if (sections[0]?.kind !== 'title' || sections.some((s, i) => i > 0 && s.kind === 'title')) {
     return NS_ERR_TITLE_FIRST;
   }
-  if (sections.some((s, i) => s.kind === 'sharing' && i !== SHARING_INDEX)) return NS_ERR_SHARING_PLACE;
-  const scriptureStart = sections[SHARING_INDEX]?.kind === 'sharing' ? SHARING_INDEX + 1 : 1;
+  // The head after the title: worship then sharing, each optional, nowhere else.
+  const head: SectionKind[] = ['title', ...HEAD_KINDS.filter(k => sections.some(s => s.kind === k))];
+  for (const kind of HEAD_KINDS) {
+    const expected = head.indexOf(kind);
+    if (sections.some((s, i) => s.kind === kind && i !== expected)) {
+      return kind === 'worship' ? NS_ERR_WORSHIP_PLACE : NS_ERR_SHARING_PLACE;
+    }
+  }
+  const scriptureStart = head.length;
   const lastScripture = sections.map(s => s.kind).lastIndexOf('scripture');
   if (lastScripture !== -1 && sections.slice(scriptureStart, lastScripture + 1).some(s => s.kind !== 'scripture')) {
     return NS_ERR_SCRIPTURE_PLACE;
@@ -101,10 +112,12 @@ export function insertItem<T>(items: readonly T[], at: number, item: T): T[] {
 }
 
 /**
- * Where a new section of `kind` goes: closing at the very end; everything
- * else just before the tail (qr/closing), i.e. after the last editable one.
+ * Where a new section of `kind` goes: worship right after the title (songs
+ * open the meeting); closing at the very end; everything else just before
+ * the tail (qr/closing), i.e. after the last editable one.
  */
 export function insertPosition(sections: readonly PackSection[], kind: SectionKind): number {
+  if (kind === 'worship') return 1;
   return kind === 'closing' ? sections.length : tailStart(sections);
 }
 
@@ -117,6 +130,7 @@ export function insertPosition(sections: readonly PackSection[], kind: SectionKi
 export function defaultSection(kind: SectionKind): PackSection {
   const heading = SECTION_HEADINGS[kind as keyof typeof SECTION_HEADINGS];
   switch (kind) {
+    case 'worship': return { kind, heading, songs: [{ title: '', url: '' }] };
     case 'discussion': return { kind, heading, questions: [''] };
     case 'lifeMenu': return { kind, heading, rows: LIFE_AREAS.map(area => ({ area, practice: '' })) };
     case 'reflection': return { kind, heading, body: [PRIVACY_LINE] };

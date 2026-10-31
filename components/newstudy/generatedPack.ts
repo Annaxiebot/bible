@@ -13,6 +13,8 @@
 import { LIFE_AREAS, ContentLanguage } from '../studypack/principles';
 import { findVerseRefs, VerseRef } from '../studypack/verseRefs';
 import { getBookById } from '../../services/bibleBookData';
+import type { WorshipSong } from '../studypack/packTypes';
+import { CatalogSong, matchCatalogSong, toWorshipSongs } from './worshipCatalog';
 import {
   NS_ERR_NO_JSON, NS_ERR_INVALID, NS_ERR_NO_CROSS_REFS, NS_ERR_LIFE_AREAS,
 } from './newStudyStrings';
@@ -31,6 +33,20 @@ export interface GeneratedContent {
   lifeMenu: LifeItem[];
   reflection: { tue: Bilingual; thu: Bilingual; weekend: Bilingual };
   closing: Bilingual;
+  /** Catalog songs the model suggested (only when the request asked for worship); may be empty. */
+  worship?: WorshipSong[];
+}
+
+/**
+ * The model's worship picks, each matched to the catalog; anything it made
+ * up is dropped (the crossRefs pattern) and an empty/missing list is fine —
+ * worship suggestions never fail a pack.
+ */
+export function worshipPicks(v: unknown, catalog: CatalogSong[]): WorshipSong[] {
+  if (!Array.isArray(v)) return [];
+  const picks = v.map(title => matchCatalogSong(title, catalog))
+    .filter((s): s is CatalogSong => s !== null);
+  return toWorshipSongs(picks);
 }
 
 /**
@@ -178,11 +194,14 @@ function keyPhrase(v: unknown): GeneratedContent['keyPhrase'] {
  * bilingual error on the first problem; the structural checks (counts,
  * seven areas, valid references) are the same in every mode.
  */
-export function validateGenerated(raw: Record<string, unknown>, mode: ContentLanguage): GeneratedContent {
+export function validateGenerated(
+  raw: Record<string, unknown>, mode: ContentLanguage, worshipCatalog?: CatalogSong[],
+): GeneratedContent {
   const halves = requiredHalves(mode);
   const reflection = raw.reflection as Record<string, unknown> | undefined;
   if (typeof reflection !== 'object' || reflection === null) throw new Error(`${NS_ERR_INVALID} (reflection)`);
   return {
+    ...(worshipCatalog ? { worship: worshipPicks(raw.worship, worshipCatalog) } : {}),
     title: one(raw.title, BOTH_HALVES, 'title'),
     keyPhrase: keyPhrase(raw.keyPhrase),
     context: itemList(raw.context, halves, 1, 'context'),

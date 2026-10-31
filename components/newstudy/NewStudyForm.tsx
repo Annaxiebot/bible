@@ -13,11 +13,11 @@ import { BIBLE_BOOKS, getBookById } from '../../services/bibleBookData';
 import { StudyRequest } from './packAssembly';
 import {
   NS_BOOK, NS_LESSON_TITLE, NS_LESSON_NUMBER, NS_DATE, NS_GENERATE, NS_GENERATING, NS_ERR_RANGE, NS_ERR_CHAPTER,
-  NS_CONTENT_LANGUAGE, NS_CONTENT_LANGUAGE_OPTIONS,
+  NS_CONTENT_LANGUAGE, NS_CONTENT_LANGUAGE_OPTIONS, NS_WORSHIP_OPTION,
 } from './newStudyStrings';
 import { textStyle, controlStyle, inputClass, primaryButtonClass, labelClass } from './newStudyStyles';
 import { useVerseRange, RangeSelects } from './verseRangeFields';
-import { readDefaultContentLanguage, rememberContentLanguage } from './contentLanguageDefault';
+import { readDefaultContentLanguage, rememberContentLanguage, readDefaultWorship, rememberWorship } from './contentLanguageDefault';
 import { CONTENT_LANGUAGES, DEFAULT_CONTENT_LANGUAGE, isContentLanguage } from '../studypack/principles';
 import { FIRST_STUDY, NextStudy } from './nextStudy';
 import type { LoadedGuide } from './guide/loadGuide';
@@ -51,6 +51,15 @@ const ContentLanguageField: React.FC<{ req: StudyRequest; update: (patch: Partia
       className={inputClass} style={controlStyle}>
       {CONTENT_LANGUAGES.map(mode => <option key={mode} value={mode}>{NS_CONTENT_LANGUAGE_OPTIONS[mode]}</option>)}
     </select>
+  </label>
+);
+
+/** "敬拜诗歌 Worship songs": AI suggestions from the catalog, off by default, remembered (ADR-0022 step 2). */
+const WorshipField: React.FC<{ req: StudyRequest; update: (patch: Partial<StudyRequest>) => void }> = ({ req, update }) => (
+  <label className="flex items-center gap-3 cursor-pointer" style={textStyle}>
+    <input type="checkbox" checked={!!req.worship} data-testid="ns-worship-toggle"
+      onChange={e => update({ worship: e.target.checked })} className="h-6 w-6 accent-amber-400" />
+    <span>{NS_WORSHIP_OPTION}</span>
   </label>
 );
 
@@ -94,6 +103,7 @@ const LessonFields: React.FC<{ req: StudyRequest; update: (patch: Partial<StudyR
 const NewStudyForm: React.FC<Props> = ({ busy, onGenerate, suggestion = null, guide = null, onDropGuide, message }) => {
   const [req, setReq] = useState<StudyRequest>(() => ({
     ...DEFAULT_REQUEST, ...suggestion, ...guide?.passage.range, date: todayIso(), contentLanguage: readDefaultContentLanguage(),
+    worship: readDefaultWorship(),
   }));
   const [error, setError] = useState<string | null>(message ?? null);
   const update = (patch: Partial<StudyRequest>) => { setReq(r => ({ ...r, ...patch })); setError(null); };
@@ -104,6 +114,7 @@ const NewStudyForm: React.FC<Props> = ({ busy, onGenerate, suggestion = null, gu
     const problem = validateRequest(req);
     if (problem) { setError(problem); return; }
     rememberContentLanguage(req.contentLanguage);
+    rememberWorship(!!req.worship);
     onGenerate({ ...req, lessonTitle: req.lessonTitle?.trim() || undefined, ...(guide ? { guide } : {}) });
   };
 
@@ -123,6 +134,7 @@ const NewStudyForm: React.FC<Props> = ({ busy, onGenerate, suggestion = null, gu
       <RangeSelects value={req} control={range} prefix="ns" />
       <MoreOptions summary={optionsSummary(req)}>
         <ContentLanguageField req={req} update={update} />
+        <WorshipField req={req} update={update} />
         <LessonFields req={req} update={update} />
       </MoreOptions>
       {error && <p role="alert" className="text-red-300" style={textStyle}>{error}</p>}

@@ -2,8 +2,8 @@
  * askAIStream.ts — SSE streaming transport for OpenRouter · 流式回答
  *
  * Sends { stream: true } chat/completions bodies through services/aiTransport
- * (own key → OpenRouter directly; signed in → the ai-proxy function, which
- * passes OpenRouter's SSE through unchanged; neither → sign-in-needed). Chunks arrive as
+ * (signed in → the ai-proxy function, which passes OpenRouter's SSE through
+ * unchanged; signed out → sign-in-needed). Chunks arrive as
  * "data: {json}" lines carrying choices[0].delta.content (and, for reasoning
  * models, delta.reasoning), the model that answered, finish_reason, and —
  * even on a 200 — an `error` object. Nothing is skipped silently: errors
@@ -13,7 +13,7 @@
 import { sendAIRequest, AIRole } from '../../services/aiTransport';
 import { StudyPack, Slide, packContentLanguage } from './packTypes';
 import { AskAIMessage, ASK_AI_MAX_TOKENS, buildAskAIPrompt } from './askAI';
-import { signInNeededError, errorFromStatus, hostedErrorFromStatus, streamError, ErrorReply } from './askAIErrors';
+import { signInNeededError, hostedErrorFromStatus, streamError, ErrorReply } from './askAIErrors';
 import type { OriginalWordsVerse, RelatedVerseText } from '../../supabase/functions/_shared/aiPrompts';
 import { fitHistory } from '../../services/aiHistoryFit';
 
@@ -95,8 +95,7 @@ export const ASK_AI_RETRY_MAX_TOKENS = 1000;
 
 /**
  * The Ask-AI body in the data form (ADR-0014): no system message — the
- * server (or, with an own key, services/aiTransport via the same builder)
- * puts the scope guard, Ask AI's prompt, the answer contract and the
+ * server puts the scope guard, Ask AI's prompt, the answer contract and the
  * `content_language` rule first.
  */
 export function buildRequestBody(
@@ -132,24 +131,19 @@ function modelOf(body: string): string {
   return (JSON.parse(body) as { model?: string }).model ?? '';
 }
 
-/** Who is asking (the proxy's quota role) and the X-Title an own-key request carries (ASCII only). */
+/** Who is asking: the proxy's quota role. */
 export interface AIRequestMeta {
   role: AIRole;
-  title?: string;
 }
 
-/** OpenRouter X-Title (ASCII only): which part of the site sent the request. */
-const DEFAULT_TITLE = 'Scripture to Life TV';
-
-/** Send the body by the transport's route; a non-OK reply throws the mapped AskAIError. */
+/** Send the body to the proxy; signed out → sign-in-needed; a non-OK reply throws the mapped AskAIError. */
 async function openStream(body: string, signal: AbortSignal, meta: AIRequestMeta, requested: string): Promise<Response> {
-  const sent = await sendAIRequest(meta.role, body, signal, meta.title ?? DEFAULT_TITLE);
+  const sent = await sendAIRequest(meta.role, body, signal);
   if (sent.kind === 'sign-in-needed') throw signInNeededError(requested);
   const { response } = sent;
   if (response.ok) return response;
   const data: ErrorReply = await response.json().catch(() => ({}));
-  if (sent.kind === 'hosted') throw hostedErrorFromStatus(response.status, data, requested);
-  throw errorFromStatus(response.status, typeof data.error === 'object' ? data.error?.message ?? '' : '', requested);
+  throw hostedErrorFromStatus(response.status, data, requested);
 }
 
 /**

@@ -1,52 +1,45 @@
 /**
  * Chinese Character Converter — Web Worker
  *
- * Hosts the opencc-js dictionary (~1MB) off the main thread so that loading
- * and conversion never block UI work.
+ * Hosts the opencc-js dictionaries off the main thread so that loading and
+ * conversion never block UI work. Each direction loads on its first request
+ * (services/chineseDictionary): a 简 reader never downloads the 简→繁 table.
  *
  * Message protocol:
- *   incoming: { id: number, type: 'toSimp' | 'toTrad' | 'preload', text?: string }
- *   outgoing: { id: number, result?: string, ready?: true }
+ *   incoming: { id, type: 'toSimp' | 'toTrad', text } | { id, type: 'preload', direction: 'toSimp' | 'toTrad' }
+ *   outgoing: { id, result } | { id, ready: true } | { id, error } (the dictionary could not load)
  */
 
 /// <reference lib="webworker" />
 
+import { createDictionaryLoader, type ConvertDirection } from './chineseDictionary';
+
 type InMessage =
-  | { id: number; type: 'toSimp'; text: string }
-  | { id: number; type: 'toTrad'; text: string }
-  | { id: number; type: 'preload' };
+  | { id: number; type: ConvertDirection; text: string }
+  | { id: number; type: 'preload'; direction: ConvertDirection };
 
 type OutMessage =
   | { id: number; result: string }
-  | { id: number; ready: true };
+  | { id: number; ready: true }
+  | { id: number; error: string };
 
-let toSimp: ((text: string) => string) | null = null;
-let toTrad: ((text: string) => string) | null = null;
-let loadPromise: Promise<void> | null = null;
-
-function ensureLoaded(): Promise<void> {
-  if (toSimp && toTrad) return Promise.resolve();
-  if (!loadPromise) {
-    loadPromise = import('opencc-js').then((opencc) => {
-      toSimp = opencc.Converter({ from: 'tw', to: 'cn' });
-      toTrad = opencc.Converter({ from: 'cn', to: 'tw' });
-    });
-  }
-  return loadPromise;
-}
-
+const load = createDictionaryLoader();
 const ctx = self as unknown as DedicatedWorkerGlobalScope;
 
 ctx.addEventListener('message', async (event: MessageEvent<InMessage>) => {
   const msg = event.data;
-  await ensureLoaded();
-  if (msg.type === 'preload') {
-    const out: OutMessage = { id: msg.id, ready: true };
-    ctx.postMessage(out);
-    return;
+  let out: OutMessage;
+  try {
+    if (msg.type === 'preload') {
+      await load(msg.direction);
+      out = { id: msg.id, ready: true };
+    } else {
+      out = { id: msg.id, result: (await load(msg.type))(msg.text) };
+    }
+  } catch (err) {
+    // Reported, not thrown: an unhandled rejection here would leave the caller waiting forever.
+    out = { id: msg.id, error: err instanceof Error ? err.message : String(err) };
   }
-  const fn = msg.type === 'toSimp' ? toSimp! : toTrad!;
-  const out: OutMessage = { id: msg.id, result: fn(msg.text) };
   ctx.postMessage(out);
 });
 

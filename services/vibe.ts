@@ -3,7 +3,7 @@
  *
  * Generates Tailwind classes / scoped CSS for app theming from natural
  * language, through the personal app's one AI path (services/studyAI:
- * own key → OpenRouter, signed in → ai-proxy role 'study').
+ * signed in → ai-proxy role 'study'; signed out → sign-in needed).
  */
 
 import { chatStudyAI } from './studyAI';
@@ -35,7 +35,7 @@ export const VIBE_PRESETS = [
   'Cozy coffee shop warmth',
 ];
 
-/** An own key or a signed-in user (the same gate as the study pages). */
+/** A signed-in user (the same gate as the study pages). */
 export function isVibeAvailable(): boolean {
   return isAIAvailable();
 }

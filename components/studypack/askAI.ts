@@ -1,7 +1,7 @@
 /**
  * askAI.ts — Ask-AI prompt building + config for TV presentation mode · 问AI适配层
  *
- * The provider is OpenRouter (own key, or the site's ai-proxy — services/
+ * The provider is OpenRouter through the site's ai-proxy (services/
  * aiTransport); the streaming transport lives in askAIStream.ts. Swapping providers later
  * means changing only these two files.
  */

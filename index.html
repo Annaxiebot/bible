@@ -1,6 +1,6 @@
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-Hans">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -119,6 +119,24 @@
         }
         canvas {
           touch-action: none;
+        }
+        /* Keyboard skip link (components/shared/SkipLink.tsx + the static fallback): hidden until focused. */
+        .stl-skip-link {
+          position: absolute;
+          left: 8px;
+          top: -100px;
+          z-index: 10000;
+          padding: 12px 18px;
+          border-radius: 8px;
+          background: #1f2937;
+          color: #fff;
+          font: 600 16px/1.2 'Inter', system-ui, sans-serif;
+          text-decoration: none;
+        }
+        .stl-skip-link:focus {
+          top: 8px;
+          outline: 3px solid #f5c76b;
+          outline-offset: 2px;
         }
         
         /* Annotation mode: completely disable all text selection and iOS callouts */

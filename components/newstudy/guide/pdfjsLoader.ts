@@ -6,7 +6,7 @@
  * (Chinese PDFs with predefined CJK encodings) are served under
  * PDFJS_CMAPS_DIR by scripts/vitePdfjsCmaps.ts, in dev and in the build.
  */
-import type { PdfDocLike } from './guidePdf';
+import { openLoadingTask, type PdfDocLike } from './guidePdf';
 import { PDFJS_CMAPS_DIR } from '../../../scripts/pdfjsCmapsDir';
 
 export async function openWithPdfjs(data: Uint8Array): Promise<PdfDocLike> {
@@ -15,9 +15,9 @@ export async function openWithPdfjs(data: Uint8Array): Promise<PdfDocLike> {
     import('pdfjs-dist/build/pdf.worker.min.mjs?url'),
   ]);
   pdfjs.GlobalWorkerOptions.workerSrc = worker.default;
-  return pdfjs.getDocument({
+  return openLoadingTask(pdfjs.getDocument({
     data,
     cMapUrl: `${import.meta.env.BASE_URL}${PDFJS_CMAPS_DIR}/`,
     cMapPacked: true,
-  }).promise;
+  }));
 }

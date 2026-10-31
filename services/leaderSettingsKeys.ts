@@ -8,7 +8,7 @@
  * specs that import them stay free of services/supabase. The actual sync
  * (services/leaderSettings) registers itself as the one listener at start.
  *
- * NOT synced, on purpose: the OpenRouter API key (stays in the browser,
+ * NOT synced, on purpose: any API key (the removed own OpenRouter key was
  * never written to the row) and the provider (always OpenRouter for Ask AI).
  */
 import { STORAGE_KEYS } from '../constants/storageKeys';

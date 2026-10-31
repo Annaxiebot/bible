@@ -19,7 +19,7 @@ import {
   GUIDE_TEXT_HEADING, PACK_FROM_GUIDE_RULES, PACK_FROM_GUIDE_SYSTEM_PROMPT, SCOPE_GUARD,
 } from '../../../../supabase/functions/_shared/aiPrompts';
 import { validateRequest } from '../../../../supabase/functions/ai-proxy/policy';
-import { ownKeyBody } from '../../../../services/aiTransport';
+import { finalAIBody } from '../../../../services/aiFinalBody';
 import { GUIDE_TEXT } from './guideFixtureRequest';
 
 const VERSES = [{ num: 1, cuv: '神的儿子，耶稣基督福音的起头。', en: 'This is the beginning of the gospel of Jesus Christ, the Son of God.' }];
@@ -78,8 +78,8 @@ describe('the request body', () => {
     expect(body.stream).toBe(true);
   });
 
-  it('parity: own key and hosted send the same final messages — guard + the guide prompt, then the data', () => {
-    const own = JSON.parse(ownKeyBody('pack', JSON.stringify(body))).messages;
+  it('parity: finalAIBody (the evals) and the proxy build the same final messages — guard + the guide prompt, then the data', () => {
+    const own = JSON.parse(finalAIBody('pack', JSON.stringify(body))).messages;
     const hosted = validateRequest({ ...body, role: 'pack' });
     if (!hosted.ok) throw new Error(JSON.stringify(hosted));
     expect(own).toEqual(hosted.request.messages);

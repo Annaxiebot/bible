@@ -33,11 +33,8 @@ export const E2E_SIGNUP_ID = '7d4e8b2a-1c3f-4a5b-9e6d-0f1a2b3c4d5e';
 
 /** Serve the sample pack as if a leader owned it (leaderId injected into the real JSON). */
 export async function routeOwnedSamplePack(page: Page) {
-  await page.route(`**/packs/${SAMPLE_PACK_ID}.json**`, async route => {
-    const response = await route.fetch();
-    const pack = await response.json();
-    return route.fulfill({ response, json: { ...pack, leaderId: E2E_LEADER_ID } });
-  });
+  const owned = { ...samplePackJson(), leaderId: E2E_LEADER_ID };
+  await page.route(`**/packs/${SAMPLE_PACK_ID}.json**`, route => route.fulfill({ json: owned }));
 }
 
 /** Same-origin fake Supabase base so PostgREST / functions calls need no CORS preflight. */

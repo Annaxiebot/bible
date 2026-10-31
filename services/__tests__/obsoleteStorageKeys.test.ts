@@ -4,7 +4,7 @@
  * Uses a real in-memory storage (the global setup's localStorage is a bare vi.fn mock).
  */
 import { describe, it, expect } from 'vitest';
-import { OBSOLETE_AI_STORAGE_KEYS, removeObsoleteAIStorageKeys } from '../obsoleteStorageKeys';
+import { OBSOLETE_AI_STORAGE_KEYS, OWN_OPENROUTER_KEY, removeObsoleteAIStorageKeys } from '../obsoleteStorageKeys';
 import { STORAGE_KEYS } from '../../constants/storageKeys';
 import { SYNCED_SETTINGS_KEYS } from '../syncService';
 
@@ -17,19 +17,23 @@ function makeStorage(initial: Record<string, string>) {
 }
 
 describe('removeObsoleteAIStorageKeys', () => {
-  it('removes every obsolete key and keeps the own OpenRouter key, the model choice and unrelated data', () => {
+  it('removes every obsolete key — the own OpenRouter key too — and keeps the model choice and unrelated data', () => {
     const kept = {
-      [STORAGE_KEYS.OPENROUTER_API_KEY]: 'sk-or-own',
       [STORAGE_KEYS.AI_PROVIDER]: 'openrouter',
       [STORAGE_KEYS.AI_MODEL]: 'google/gemini-2.5-flash',
       [STORAGE_KEYS.FONT_SIZE]: '18',
     };
     const obsolete = Object.fromEntries(OBSOLETE_AI_STORAGE_KEYS.map(k => [k, 'old']));
-    const storage = makeStorage({ ...kept, ...obsolete });
+    const storage = makeStorage({ ...kept, ...obsolete, [OWN_OPENROUTER_KEY]: 'sk-or-own' });
 
     removeObsoleteAIStorageKeys(storage);
 
     expect(storage.dump()).toEqual(kept);
+  });
+
+  it('the own key is obsolete since sign-in became the one way to use AI (ADR-0007, 2026-10-23)', () => {
+    expect(OWN_OPENROUTER_KEY).toBe('openrouter_api_key');
+    expect(OBSOLETE_AI_STORAGE_KEYS).toContain(OWN_OPENROUTER_KEY);
   });
 
   it('is a no-op on a browser that never had them, and safe to run again', () => {

@@ -31,9 +31,9 @@ test.describe('Interactive cross-references (bundled Bible data)', () => {
     expect(text.indexOf('应当一无挂虑')).toBeLessThan(text.indexOf('Be anxious for nothing'));
   });
 
-  test('the Chinese form 路加福音 12:22–31 opens a long-range popup that stays in the viewport and scrolls', async ({ page }) => {
+  test('the Chinese form 路加福音 12:22–32 opens a long-range popup that stays in the viewport and scrolls', async ({ page }) => {
     await openCrossRefsSlide(page);
-    const ref = page.getByTestId('verse-ref').filter({ hasText: '路加福音 12:22–31' });
+    const ref = page.getByTestId('verse-ref').filter({ hasText: '路加福音 12:22–32' });
     await ref.hover();
     const tooltip = page.getByRole('tooltip');
     await expect(tooltip).toContainText('不要为生命忧虑');  // Luke 12:22 和合本
@@ -43,7 +43,7 @@ test.describe('Interactive cross-references (bundled Bible data)', () => {
     expect(box.y).toBeGreaterThanOrEqual(0);
     expect(box.x + box.width).toBeLessThanOrEqual(viewport.width + 1);
     expect(box.y + box.height).toBeLessThanOrEqual(viewport.height + 1);
-    // 10 bilingual verses cannot fit in half the viewport: content must scroll
+    // 11 bilingual verses cannot fit in half the viewport: content must scroll
     const scrollable = await tooltip.evaluate(el => el.scrollHeight > el.clientHeight);
     expect(scrollable).toBe(true);
   });

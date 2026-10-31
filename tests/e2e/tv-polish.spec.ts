@@ -95,7 +95,7 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 1920, height: 108
         expect(fill!.fit, `slide ${n} never shrinks below its base size`).toBeGreaterThanOrEqual(1);
         const capped = fill!.fit >= MAX_SCALE - 0.01;
         expect(fill!.fill >= MIN_FILL || capped, `slide ${n} fills ${fill!.fill.toFixed(2)} at fit ${fill!.fit.toFixed(2)}`).toBe(true);
-        if (n === DEMO_SLIDE.discussion) {
+        if (n === DEMO_SLIDE.weekQuestion) {
           expect(fill!.font / fill!.baseFont, 'the one-question slide grows').toBeGreaterThanOrEqual(MIN_SPARSE_GROWTH);
         }
       }

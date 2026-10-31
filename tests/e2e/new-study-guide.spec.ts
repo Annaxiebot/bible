@@ -8,11 +8,11 @@
 import { test, expect } from '@playwright/test';
 import { NS_GUIDE_TITLE, NS_GUIDE_STEPS, NS_GUIDE_GOT_IT } from '../../components/newstudy/newStudyStrings';
 import { STORAGE_KEYS, NEW_STUDY_GUIDE_DISMISSED_VALUE } from '../../constants/storageKeys';
-import { injectApiKey } from './helpers/tv';
+import { signInAsLeader } from './helpers/hostedAI';
 import { openNewStudy } from './helpers/newStudy';
 
 test('fresh browser: #/new shows the three-step card; Got it hides it for good', async ({ page }) => {
-  await injectApiKey(page);
+  await signInAsLeader(page);
   await openNewStudy(page);
   const card = page.getByTestId('ns-guide');
   await expect(card).toBeVisible();

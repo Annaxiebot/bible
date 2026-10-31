@@ -43,7 +43,7 @@ const LandingPersonal: React.FC = () => (
           {PERSONAL_POINTS.map((point, i) => (
             <li key={point.en}>
               <span className="ld-idx" aria-hidden="true">/{String(i + 1).padStart(2, '0')}</span>
-              <span><span className="ld-point-zh">{point.zh}</span><span className="ld-en">{point.en}</span></span>
+              <span><span className="ld-point-zh">{point.zh}</span><span className="ld-en" lang="en">{point.en}</span></span>
             </li>
           ))}
         </ul>

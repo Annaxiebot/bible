@@ -10,13 +10,13 @@
  * the writer's output (UPDATE_GUIDE_FIXTURE=1 rewrites it).
  */
 import { describe, it, expect } from 'vitest';
-import { readFileSync, writeFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
 import { pathToFileURL } from 'url';
 import * as pdfjs from 'pdfjs-dist/legacy/build/pdf.mjs';
 import {
-  readGuidePdf, pageText, cleanGuideText, GuideFile, PdfDocLike, GUIDE_MAX_BYTES, GUIDE_MAX_PAGES, GUIDE_MAX_CHARS,
+  readGuidePdf, openLoadingTask, pageText, cleanGuideText, GuideFile, PdfLoadingTaskLike, GUIDE_MAX_BYTES, GUIDE_MAX_PAGES, GUIDE_MAX_CHARS,
   GUIDE_MAX_MB,
 } from '../guidePdf';
 import {
@@ -30,8 +30,10 @@ pdfjs.GlobalWorkerOptions.workerSrc = pathToFileURL(
 ).href;
 const CMAPS = `${path.dirname(createRequire(import.meta.url).resolve('pdfjs-dist/package.json'))}/cmaps/`;
 
-const openNode = async (data: Uint8Array) =>
-  (await pdfjs.getDocument({ data, cMapUrl: CMAPS, cMapPacked: true, verbosity: 0 }).promise) as unknown as PdfDocLike;
+// Through openLoadingTask, as pdfjsLoader.ts opens it (pdfjs 6: destroy() lives on the loading task).
+const openNode = (data: Uint8Array) =>
+  openLoadingTask(pdfjs.getDocument({ data, cMapUrl: CMAPS, cMapPacked: true, verbosity: 0 }));
+const openNodeWithoutCMaps = (data: Uint8Array) => openLoadingTask(pdfjs.getDocument({ data, verbosity: 0 }));
 
 const FIXTURE = path.join(__dirname, 'fixtures', GUIDE_FIXTURE_FILE);
 
@@ -56,6 +58,35 @@ describe('the committed fixture', () => {
     for (const line of [GUIDE_TITLE, GUIDE_INTRO, ...GUIDE_OUTLINE]) expect(lines).toContain(line);
     GUIDE_QUESTIONS.forEach((q, i) => expect(lines).toContain(`${i + 1}. ${q}`));
     expect(guide.text.indexOf(GUIDE_OUTLINE[2])).toBeLessThan(guide.text.indexOf(GUIDE_QUESTIONS[0]));
+  });
+});
+
+describe('Chinese PDFs with a predefined CJK CMap (UniGB-UCS2-H, no ToUnicode)', () => {
+  const bytes = () => writePdf(GUIDE_PAGES, { encoding: 'UniGB-UCS2-H' });
+
+  it('pdfjs reads them through the packed CMap files the app ships', async () => {
+    const guide = await readGuidePdf(fileOf(bytes()), openNode);
+    const lines = guide.text.split('\n');
+    for (const line of [GUIDE_TITLE, GUIDE_INTRO, ...GUIDE_OUTLINE]) expect(lines).toContain(line);
+    GUIDE_QUESTIONS.forEach((q, i) => expect(lines).toContain(`${i + 1}. ${q}`));
+  });
+
+  it('without the CMap files the same bytes do not read (so the test above exercises them)', async () => {
+    const read = readGuidePdf(fileOf(bytes()), openNodeWithoutCMaps).then(g => g.text, (e: Error) => e.message);
+    expect(await read).not.toContain(GUIDE_TITLE);
+  });
+
+  it('the CMap files vitePdfjsCmaps.ts serves are in the installed pdfjs', () => {
+    for (const name of ['UniGB-UCS2-H.bcmap', 'Adobe-GB1-UCS2.bcmap']) expect(existsSync(`${CMAPS}${name}`)).toBe(true);
+  });
+});
+
+describe('the installed pdfjs-dist', () => {
+  // GHSA-hq66-cqwq-w95j: arbitrary JavaScript on opening a malicious PDF, >=5.6.83 <6.2.108.
+  it('is at or above 6.2.108', () => {
+    const { version } = JSON.parse(readFileSync(`${CMAPS}../package.json`, 'utf8')) as { version: string };
+    const [major, minor, patch] = version.split('.').map(Number);
+    expect(major * 1e6 + minor * 1e3 + patch).toBeGreaterThanOrEqual(6 * 1e6 + 2 * 1e3 + 108);
   });
 });
 
@@ -93,6 +124,39 @@ describe('refusals', () => {
   it('broken bytes → unreadable, with pdfjs\'s reason attached', async () => {
     await expect(readGuidePdf(fileOf(new TextEncoder().encode('%PDF-1.7 not really')), openNode))
       .rejects.toThrow(new RegExp(`^${GD_ERR_UNREADABLE.replace(/[()]/g, '\\$&')}: .+`));
+  });
+});
+
+describe('openLoadingTask', () => {
+  const page = { getTextContent: async () => ({ items: [] }) };
+
+  it('destroy() releases the document through its loading task', async () => {
+    const destroyed: string[] = [];
+    const task: PdfLoadingTaskLike = { promise: Promise.resolve({ numPages: 3, getPage: async () => page }), destroy: async () => { destroyed.push('task'); } };
+    const doc = await openLoadingTask(task);
+    expect(doc.numPages).toBe(3);
+    expect(await doc.getPage(1)).toBe(page);
+    await doc.destroy();
+    expect(destroyed).toEqual(['task']);
+  });
+
+  it('a failed open is destroyed too, and the error is kept', async () => {
+    const destroyed: string[] = [];
+    const failure = Object.assign(new Error('No password given'), { name: 'PasswordException' });
+    const task: PdfLoadingTaskLike = { promise: Promise.reject(failure), destroy: async () => { destroyed.push('task'); } };
+    await expect(openLoadingTask(task)).rejects.toBe(failure);
+    expect(destroyed).toEqual(['task']);
+  });
+
+  it('a cleanup that rejects does not mask the open error', async () => {
+    const failure = Object.assign(new Error('Invalid PDF structure'), { name: 'InvalidPDFException' });
+    let destroyCalls = 0;
+    const task: PdfLoadingTaskLike = {
+      promise: Promise.reject(failure),
+      destroy: async () => { destroyCalls++; throw new Error('worker already terminated'); },
+    };
+    await expect(openLoadingTask(task)).rejects.toBe(failure);
+    expect(destroyCalls).toBe(1);
   });
 });
 

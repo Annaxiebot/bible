@@ -19,8 +19,8 @@ import {
   AdjustInput, buildAdjustRequestBody, ADJUST_MIN_QUESTIONS, ADJUST_MAX_QUESTIONS, ADJUST_MAX_BODY_LINES,
 } from './adjustPrompt';
 
-/** Quota role on the hosted proxy + X-Title header for an own key (ASCII only). */
-const ADJUST_REQUEST: AIRequestMeta = { role: 'adjust', title: 'Scripture to Life - Adjust section' };
+/** Quota role on the hosted proxy. */
+const ADJUST_REQUEST: AIRequestMeta = { role: 'adjust' };
 
 /** The model's reply could not be used (bad JSON, wrong shape, life areas changed). `message` is bilingual. */
 export class AdjustError extends Error {

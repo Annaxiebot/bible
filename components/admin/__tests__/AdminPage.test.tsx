@@ -19,7 +19,8 @@ import {
 import { localDateTime } from '../../leader/leaderTime';
 import { LD_EMPTY_CELL } from '../../leader/leaderStrings';
 import { FEEDBACK_SOURCE_LABELS, FEEDBACK_SOURCE_UNKNOWN } from '../../../supabase/functions/_shared/feedback';
-import { ADMIN_LEADERS, ADMIN_FEEDBACK, ADMIN_STATS, OWNER_EMAIL } from './adminFixtures';
+import { ADMIN_LEADERS, ADMIN_FEEDBACK, ADMIN_STATS, ADMIN_FUNNEL, OWNER_EMAIL } from './adminFixtures';
+import { ADMIN_FUNNEL_FN } from '../../stats/funnelRules';
 
 const ADMIN_UID = 'uid-admin';
 let uid: string | null = ADMIN_UID;
@@ -48,7 +49,9 @@ beforeEach(() => {
   uid = ADMIN_UID;
   failCheck = null;
   databaseRefuses = false;
-  replies = { [ADMIN_LEADERS_FN]: ADMIN_LEADERS, [ADMIN_FEEDBACK_FN]: ADMIN_FEEDBACK, [ADMIN_STATS_FN]: ADMIN_STATS };
+  replies = {
+    [ADMIN_LEADERS_FN]: ADMIN_LEADERS, [ADMIN_FEEDBACK_FN]: ADMIN_FEEDBACK, [ADMIN_STATS_FN]: ADMIN_STATS, [ADMIN_FUNNEL_FN]: ADMIN_FUNNEL,
+  };
   rpcMock.mockClear();
 });
 
@@ -159,12 +162,14 @@ describe('AdminPage — the tabs', () => {
     expect(within(cards[1]).queryByTestId('admin-feedback-reply')).toBeNull();
   });
 
-  it('Stats: the site totals plus accounts and active leaders this month', async () => {
+  it('Stats: the site totals plus accounts and active leaders this month, then the funnel (read only once the tab opens)', async () => {
     render(<AdminPage />);
     fireEvent.click(await screen.findByTestId('admin-tab-stats'));
     expect(screen.getByTestId('admin-stat-packs')).toHaveTextContent('12');
     expect(screen.getByTestId('admin-stat-checkins_shared')).toHaveTextContent('9');
     expect(screen.getByTestId('admin-stat-accounts')).toHaveTextContent('9');
     expect(screen.getByTestId('admin-stat-active_leaders')).toHaveTextContent('3');
+    expect(await screen.findAllByTestId('admin-funnel-day')).toHaveLength(2);
+    expect(calledFns().filter(fn => fn === ADMIN_FUNNEL_FN)).toHaveLength(1);
   });
 });

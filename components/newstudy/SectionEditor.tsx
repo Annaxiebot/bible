@@ -11,8 +11,10 @@
  * non-verbatim lines (guide/GuideMarks, ADR-0019).
  */
 import React from 'react';
-import { PackSection } from '../studypack/packTypes';
-import { NS_SCRIPTURE_NOTE, NS_QUESTION_ADD, NS_QUESTION_REMOVE } from './newStudyStrings';
+import { PackSection, WorshipSong } from '../studypack/packTypes';
+import {
+  NS_SCRIPTURE_NOTE, NS_QUESTION_ADD, NS_QUESTION_REMOVE, NS_SONG_TITLE, NS_SONG_URL, NS_SONG_ADD, NS_SONG_REMOVE,
+} from './newStudyStrings';
 import { textStyle, controlStyle, inputClass, secondaryButtonClass, quietButtonClass, labelClass } from './newStudyStyles';
 import SectionAdjust from './SectionAdjust';
 import { isAdjustable, AdjustPack } from './adjustPrompt';
@@ -83,6 +85,36 @@ const QuestionsSection: React.FC<{ section: PackSection; onQuestions: (q: string
   );
 };
 
+/** Editable song rows (title + YouTube link); the leader can add their own or remove suggestions (ADR-0022 step 2). */
+const WorshipSection: React.FC<{ section: PackSection; onSongs: (songs: WorshipSong[]) => void }> = ({ section, onSongs }) => {
+  const songs = section.songs ?? [];
+  const { keys, drop } = useRowKeys(songs.length);
+  const set = (i: number, patch: Partial<WorshipSong>) => onSongs(songs.map((s, j) => (j === i ? { ...s, ...patch } : s)));
+  const remove = (i: number) => { drop(i); onSongs(songs.filter((_, j) => j !== i)); };
+  return (
+    <div className="flex flex-col gap-3" data-testid="ns-worship">
+      <SectionHeading text={section.heading} />
+      {songs.map((song, i) => (
+        <div key={keys.at(i)} className="flex gap-2">
+          <input type="text" value={song.title} placeholder={NS_SONG_TITLE} aria-label={`${NS_SONG_TITLE} ${i + 1}`}
+            onChange={e => set(i, { title: e.target.value })} className={inputClass} style={textStyle} />
+          <input type="url" value={song.url} placeholder={NS_SONG_URL} aria-label={`${NS_SONG_URL} ${i + 1}`}
+            onChange={e => set(i, { url: e.target.value, ...(song.channel ? { channel: undefined } : {}) })}
+            className={inputClass} style={textStyle} />
+          <button type="button" onClick={() => remove(i)}
+            className={quietButtonClass} style={controlStyle} aria-label={`${NS_SONG_REMOVE} ${i + 1}`}>
+            {NS_SONG_REMOVE}
+          </button>
+        </div>
+      ))}
+      <button type="button" onClick={() => onSongs([...songs, { title: '', url: '' }])}
+        className={`${secondaryButtonClass} self-start`} style={controlStyle}>
+        {NS_SONG_ADD}
+      </button>
+    </div>
+  );
+};
+
 const LifeMenuSection: React.FC<{ section: PackSection; onRows: (rows: PackSection['rows']) => void }> = ({ section, onRows }) => {
   const rows = section.rows ?? [];
   return (
@@ -114,6 +146,8 @@ const SectionControl: React.FC<SectionEditorProps> = ({ section, onPatch }) => {
       return null;
     case 'scripture':
       return <ScriptureSection section={section} />;
+    case 'worship':
+      return <WorshipSection section={section} onSongs={songs => onPatch({ songs })} />;
     case 'discussion':
       return <QuestionsSection section={section} onQuestions={questions => onPatch({ questions })} />;
     case 'lifeMenu':

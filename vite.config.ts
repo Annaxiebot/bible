@@ -2,6 +2,11 @@ import path from "path";
 import { defineConfig, Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { pdfjsCmaps } from "./scripts/vitePdfjsCmaps";
+import { seoPrerender } from "./scripts/seo/viteSeo";
+
+// The pack the homepage fallback features; pinned equal to SAMPLE_PACK_ID (components/landing/landingRoute.ts)
+// by scripts/__tests__/seoPrerender.test.ts — landingRoute itself pulls app modules the config should not bundle.
+const FEATURED_PACK_ID = "2026-10-02-matt6";
 
 // Custom plugin to redirect HTTP to HTTPS
 const httpsRedirect = (): Plugin => ({
@@ -51,7 +56,7 @@ export default defineConfig(() => {
           }
         }
       },
-      plugins: [react(), pdfjsCmaps()],
+      plugins: [react(), pdfjsCmaps(), seoPrerender({ featuredPackId: FEATURED_PACK_ID })],
       resolve: {
         alias: {
           "@": path.resolve(__dirname, "."),
@@ -64,7 +69,9 @@ export default defineConfig(() => {
         rollupOptions: {
           output: {
             manualChunks(id) {
-              if (id.includes('node_modules/opencc-js')) return 'vendor-opencc';
+              // One chunk per OpenCC direction (services/chineseDictionary): 简 never downloads the 简→繁 table.
+              const opencc = /node_modules\/opencc-js\/dist\/esm\/(t2cn|cn2t)\.js/.exec(id);
+              if (opencc) return `vendor-opencc-${opencc[1]}`;
               if (id.includes('node_modules/katex') || id.includes('node_modules/rehype-katex')) return 'vendor-katex';
               if (id.includes('node_modules/react') || id.includes('node_modules/react-dom') || id.includes('node_modules/scheduler')) {
                 return 'vendor-react';

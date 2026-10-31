@@ -3,9 +3,11 @@
  *
  * Shared by the unit tests (and the e2e helper) so a reply shape lives once.
  * Nine leaders (≥ LIST_SEARCH_FROM, so the search box shows), joined on
- * successive days; two feedback rows (one with a reply-to email and a pack).
+ * successive days; two feedback rows (one with a reply-to email and a pack);
+ * the funnel's window rows plus two days (ADR-0025).
  */
 import type { AdminLeader, AdminFeedback, AdminStats } from '../adminRules';
+import type { FunnelRow } from '../adminFunnelData';
 
 export const OWNER_EMAIL = 'owner@example.com';
 
@@ -23,6 +25,21 @@ export const ADMIN_LEADERS: AdminLeader[] = NAMES.map((name, i) => ({
 export const ADMIN_FEEDBACK: AdminFeedback[] = [
   { id: 'f-old', message: 'Older note', email: null, context: {}, created_at: '2026-10-05T10:00:00.000Z' },
   { id: 'f-new', message: '字太小了\nFont too small', email: 'member@example.org', context: { from: 'tv', pack: 'local-2026-10-09-jhn3' }, created_at: '2026-10-10T10:00:00.000Z' },
+];
+
+/** admin_funnel(14) as the SQL answers: the window rows (day NULL) first, then day rows, newest first. */
+const day = (d: string | null, rows: Array<[FunnelRow['event'], number, number?]>): FunnelRow[] =>
+  rows.map(([event, count, median]) => ({ day: d, event, count, median_wait_seconds: median ?? null }));
+export const ADMIN_FUNNEL: FunnelRow[] = [
+  ...day(null, [
+    ['generate_pressed', 3], ['new_study_opened', 8], ['pack_abandoned', 1, 40], ['pack_failed', 1, 15], ['pack_ok', 1, 80],
+    ['signin_done_email', 1], ['signin_done_google', 2], ['signin_started_email', 3], ['signin_started_google', 2],
+  ]),
+  ...day('2026-10-23', [['generate_pressed', 1], ['new_study_opened', 3], ['pack_failed', 1, 15], ['signin_done_email', 1], ['signin_started_email', 2]]),
+  ...day('2026-10-22', [
+    ['generate_pressed', 2], ['new_study_opened', 5], ['pack_abandoned', 1, 40], ['pack_ok', 1, 80],
+    ['signin_done_google', 2], ['signin_started_email', 1], ['signin_started_google', 2],
+  ]),
 ];
 
 export const ADMIN_STATS: AdminStats = {

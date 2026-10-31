@@ -20,7 +20,7 @@ export function splitBilingual(line: string): { zh: string; en: string } {
 export const Bilingual: React.FC<{ zh: string; en: string; zhClass?: string }> = ({ zh, en, zhClass }) => (
   <>
     <span className={zhClass ?? 'block'}>{zh}</span>
-    {en && <span className="ld-en">{en}</span>}
+    {en && <span className="ld-en" lang="en">{en}</span>}
   </>
 );
 
@@ -56,7 +56,7 @@ const LandingSection: React.FC<LandingSectionProps> = ({
     <div className="ld-wrap">
       <p className="ld-eyebrow">{eyebrow}</p>
       <h2 className="ld-h2" id={`${id}-h`}>
-        {headingZh}<span className="ld-h2-en">{headingEn}</span>
+        {headingZh}<span className="ld-h2-en" lang="en">{headingEn}</span>
       </h2>
       {description && <Lede description={description} />}
       {children}

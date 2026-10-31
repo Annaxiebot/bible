@@ -13,7 +13,7 @@ import {
   type AdminLeader, type AdminFeedback, type AdminStats,
 } from './adminRules';
 
-const isCount = (n: unknown): n is number => typeof n === 'number' && Number.isInteger(n) && n >= 0;
+export const isCount = (n: unknown): n is number => typeof n === 'number' && Number.isInteger(n) && n >= 0;
 const textOrNull = (v: unknown): v is string | null => v === null || typeof v === 'string';
 
 function parseLeader(value: unknown): AdminLeader | null {
@@ -36,7 +36,8 @@ function parseFeedbackRow(value: unknown): AdminFeedback | null {
   return { id: r.id, message: r.message, email: r.email, context: cleanContext(r.context), created_at: r.created_at };
 }
 
-function parseList<T>(value: unknown, one: (v: unknown) => T | null, what: string): T[] {
+/** A list reply, every row parsed by `one`; throws on a non-array or any malformed row (also used by adminFunnelData). */
+export function parseList<T>(value: unknown, one: (v: unknown) => T | null, what: string): T[] {
   if (!Array.isArray(value)) throw new Error(`${what}: unexpected reply ${JSON.stringify(value)}`);
   return value.map(v => {
     const row = one(v);

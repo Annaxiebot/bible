@@ -11,6 +11,7 @@ import { PackVerse } from '../studypack/packTypes';
 import {
   PACK_CONTENT_CONTRACT, CONTENT_LANGUAGE_CONTRACTS, ContentLanguage, LIFE_AREAS, TRANSLATIONS,
 } from '../studypack/principles';
+import { CatalogSong, worshipPromptBlock } from './worshipCatalog';
 
 /**
  * Output budget for one pack. CJK tokenizes at ~1+ token per character, so a
@@ -68,7 +69,14 @@ export interface PromptInput {
   lessonTitle?: string;
   /** Which halves each model-drafted line carries (CONTENT_LANGUAGE_CONTRACTS). */
   contentLanguage: ContentLanguage;
+  /** Present = also suggest worship songs from this catalog (ADR-0022 step 2). */
+  worshipCatalog?: CatalogSong[];
 }
+
+/** The shape's worship key (an array of exact catalog titles) and its count rule. */
+export const WORSHIP_SHAPE_KEY = '"worship": ["歌名 exact song title from the list", "…"]';
+export const WORSHIP_COUNT_RULE =
+  'worship = 2–3 songs from the WORSHIP SONG LIST whose theme fits this passage, each as its EXACT title from the list.';
 
 /**
  * The JSON shape the model must return for a mode: a bilingual item has both
@@ -123,15 +131,17 @@ export function buildPackPrompt(input: PromptInput): string {
   const contract = CONTENT_LANGUAGE_CONTRACTS[input.contentLanguage];
   const titleLine = input.lessonTitle ? lessonTitleLine(input.lessonTitle)
     : 'Give the pack a short bilingual title taken from the passage\'s main theme.';
+  const worship = input.worshipCatalog;
   return [
     `Draft a Friday small-group study pack for ${input.passageRef}.`,
     `FULL PASSAGE (${TRANSLATIONS.zh.label} / ${TRANSLATIONS.en.label}):\n${formatPassage(input.verses)}`,
     PACK_CONTENT_CONTRACT,
     contract.lineRule,
     titleLine,
-    PACK_COUNTS,
+    worship ? `${PACK_COUNTS}\n${WORSHIP_COUNT_RULE}` : PACK_COUNTS,
+    ...(worship ? [worshipPromptBlock(worship)] : []),
     `${PACK_LENGTH_LIMITS}\n${contract.totalTarget}`,
     PACK_COMPACT_JSON_RULE,
-    strictShapeLine(generatedShape(input.contentLanguage)),
+    strictShapeLine(generatedShape(input.contentLanguage, worship ? [WORSHIP_SHAPE_KEY] : [])),
   ].join('\n\n');
 }

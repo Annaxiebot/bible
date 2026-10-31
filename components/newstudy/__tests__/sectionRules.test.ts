@@ -44,7 +44,8 @@ describe('validateSectionOrder', () => {
     expect(validateSectionOrder(removeItem(sections, at('qr')))).toBeNull();
   });
   it('allows only one lifeMenu / reflection / qr / closing, several discussions', () => {
-    for (const kind of SINGLETON_KINDS) {
+    // worship is a singleton too but absent from the assembled fixture; its rules live in worship.test.ts.
+    for (const kind of SINGLETON_KINDS.filter(k => at(k) !== -1)) {
       expect(validateSectionOrder(insertItem(sections, at(kind), sections[at(kind)]))).toBe(NS_ERR_DUPLICATE_SECTION);
     }
     expect(validateSectionOrder(insertItem(sections, at('discussion'), sections[at('discussion')]))).toBeNull();
@@ -65,7 +66,8 @@ describe('canMoveUp / canMoveDown / canRemove / canAdd', () => {
     expect(canMoveDown(sections, sections.length - 1)).toBe(false);
   });
   it('removes only addable kinds', () => {
-    for (const kind of ADDABLE_KINDS) expect(canRemove(sections, at(kind))).toBe(true);
+    for (const kind of ADDABLE_KINDS.filter(k => at(k) !== -1)) expect(canRemove(sections, at(kind))).toBe(true);
+    expect(canRemove(insertItem(sections, 1, defaultSection('worship')), 1)).toBe(true);
     for (const kind of ['title', 'scripture', 'qr'] as const) expect(canRemove(sections, at(kind))).toBe(false);
     expect(canRemove(sections, 99)).toBe(false);
   });

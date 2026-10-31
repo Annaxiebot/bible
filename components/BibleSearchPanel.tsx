@@ -6,6 +6,8 @@ import {
   unifiedSearch,
   highlightMatches,
 } from '../services/unifiedSearchService';
+import { useReaderStrings } from './reader/useReaderStrings';
+import type { ReaderStrings } from './reader/readerStrings';
 
 interface SearchResult {
   bookId: string;
@@ -27,11 +29,11 @@ interface BibleSearchPanelProps {
   inputRef: React.RefObject<HTMLInputElement>;
 }
 
-const SCOPE_LABELS: { id: SearchScope; label: string; labelEn: string }[] = [
-  { id: 'all', label: '全部', labelEn: 'All' },
-  { id: 'bible', label: '经文', labelEn: 'Bible' },
-  { id: 'research', label: 'AI研究', labelEn: 'Research' },
-  { id: 'notes', label: '笔记', labelEn: 'Notes' },
+const SCOPES: { id: SearchScope; label: (s: ReaderStrings) => string }[] = [
+  { id: 'all', label: s => s.scopeAll },
+  { id: 'bible', label: s => s.scopeBible },
+  { id: 'research', label: s => s.scopeResearch },
+  { id: 'notes', label: s => s.scopeNotes },
 ];
 
 const SOURCE_COLORS: Record<string, string> = {
@@ -57,6 +59,7 @@ const BibleSearchPanel: React.FC<BibleSearchPanelProps> = ({
   inputRef,
 }) => {
   const { theme } = useSeasonTheme();
+  const strings = useReaderStrings();
   const [scope, setScope] = useState<SearchScope>('all');
   const [unifiedResults, setUnifiedResults] = useState<UnifiedSearchResult[]>([]);
   const [isUnifiedSearching, setIsUnifiedSearching] = useState(false);
@@ -122,6 +125,8 @@ const BibleSearchPanel: React.FC<BibleSearchPanelProps> = ({
     <div
       className="border-b border-slate-200 bg-slate-50 px-4 py-2 shrink-0 z-10"
       onClick={(e) => e.stopPropagation()}
+      lang={strings.lang}
+      role="search"
     >
       <div className="flex items-center gap-2 mb-2">
         <div className="flex-1 relative">
@@ -129,7 +134,8 @@ const BibleSearchPanel: React.FC<BibleSearchPanelProps> = ({
             ref={inputRef}
             type="text"
             className="w-full px-3 py-1.5 pl-8 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white"
-            placeholder={scope === 'bible' ? '搜索经文... Search verses...' : '搜索全部内容... Search all content...'}
+            placeholder={scope === 'bible' ? strings.searchVersesPlaceholder : strings.searchAllPlaceholder}
+            aria-label={scope === 'bible' ? strings.searchVersesPlaceholder : strings.searchAllPlaceholder}
             value={searchQuery}
             onChange={(e) => onSearchChange(e.target.value)}
             onKeyDown={(e) => {
@@ -152,11 +158,13 @@ const BibleSearchPanel: React.FC<BibleSearchPanelProps> = ({
           className="px-3 py-1.5 text-xs text-white rounded-lg disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           style={{ backgroundColor: theme.accent }}
         >
-          {searching ? '搜索中...' : '搜索 Search'}
+          {searching ? strings.searching : strings.searchButton}
         </button>
         <button
           onClick={onClose}
           className="p-1.5 text-slate-400 hover:text-slate-600 transition-colors"
+          aria-label={strings.closeSearch}
+          title={strings.closeSearch}
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -166,9 +174,10 @@ const BibleSearchPanel: React.FC<BibleSearchPanelProps> = ({
 
       {/* Scope tabs */}
       <div className="flex gap-1 mb-2">
-        {SCOPE_LABELS.map(({ id, label, labelEn }) => (
+        {SCOPES.map(({ id, label }) => (
           <button
             key={id}
+            aria-pressed={scope === id}
             onClick={() => handleScopeChange(id)}
             className={`px-2.5 py-1 text-[11px] rounded-md font-medium transition-all ${
               scope === id
@@ -176,7 +185,7 @@ const BibleSearchPanel: React.FC<BibleSearchPanelProps> = ({
                 : 'bg-slate-100 text-slate-500 border border-transparent hover:bg-slate-200'
             }`}
           >
-            {label} {labelEn}
+            {label(strings)}
           </button>
         ))}
       </div>
@@ -185,8 +194,8 @@ const BibleSearchPanel: React.FC<BibleSearchPanelProps> = ({
       {showBibleResults && (
         <div className="max-h-48 overflow-y-auto space-y-1 mb-1">
           <div className="text-[10px] text-slate-400 mb-1">
-            找到 {searchResults.length} 条结果{searchResults.length >= 50 ? ' (显示前50条)' : ''}
-            {' · '}在已缓存的章节中搜索
+            {strings.resultsFound(searchResults.length)}{searchResults.length >= 50 ? strings.firstFifty : ''}
+            {' · '}{strings.cachedOnly}
           </div>
           {searchResults.map((result, idx) => (
             <button
@@ -208,7 +217,7 @@ const BibleSearchPanel: React.FC<BibleSearchPanelProps> = ({
       {showUnifiedResults && (
         <div className="max-h-48 overflow-y-auto space-y-1 mb-1">
           <div className="text-[10px] text-slate-400 mb-1">
-            找到 {unifiedResults.length} 条结果{unifiedResults.length >= 50 ? ' (显示前50条)' : ''}
+            {strings.resultsFound(unifiedResults.length)}{unifiedResults.length >= 50 ? strings.firstFifty : ''}
           </div>
           {unifiedResults.map((result) => (
             <button
@@ -235,7 +244,7 @@ const BibleSearchPanel: React.FC<BibleSearchPanelProps> = ({
 
       {noResults && (
         <div className="text-xs text-slate-400 py-1">
-          未找到结果 No results found. 尝试搜索已下载的书卷。
+          {strings.noResults}
         </div>
       )}
     </div>

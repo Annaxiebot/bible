@@ -2,8 +2,8 @@
  * PhaseView.tsx — what the New-study page shows for its current phase · 阶段视图
  *
  * form → generating (streamed progress + Cancel) → failed (bilingual error +
- * Retry) → editor. The form is hidden until AI is available — signed in or
- * an own key (NewStudyPage renders the AI form above). State lives in NewStudyPage.
+ * Retry) → editor. The form is hidden until AI is available — signed in
+ * (NewStudyPage renders the sign-in card above). State lives in NewStudyPage.
  * Under the form, "从讲义 PDF 生成" (guide/GuideEntry, ADR-0019) reads a guide and
  * generation starts at once. The form phase carries a guide only when the
  * leader must pick its passage (none found — with the message) or cancelled.

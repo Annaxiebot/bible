@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { readingHistory } from '../services/readingHistory';
 import { BIBLE_BOOKS } from '../constants';
+import { useReaderStrings } from './reader/useReaderStrings';
+import { useReaderPreferences } from '../services/readerPreferences';
+import { bookLabel } from './reader/readerStrings';
 
 interface ReadingHistoryProps {
   onSelectChapter: (bookId: string, chapter: number) => void;
@@ -10,6 +13,8 @@ interface ReadingHistoryProps {
 export const ReadingHistory: React.FC<ReadingHistoryProps> = ({ onSelectChapter, onClose }) => {
   const [history, setHistory] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const strings = useReaderStrings();
+  const { uiLanguage } = useReaderPreferences();
 
   useEffect(() => {
     loadHistory();
@@ -27,7 +32,7 @@ export const ReadingHistory: React.FC<ReadingHistoryProps> = ({ onSelectChapter,
   };
 
   const clearHistory = async () => {
-    if (confirm('Are you sure you want to clear your reading history?')) {
+    if (confirm(strings.historyClearConfirm)) {
       await readingHistory.clearHistory();
       setHistory([]);
     }
@@ -39,31 +44,32 @@ export const ReadingHistory: React.FC<ReadingHistoryProps> = ({ onSelectChapter,
     const diff = now.getTime() - date.getTime();
     const minutes = Math.floor(diff / (1000 * 60));
 
-    const weekday = date.toLocaleDateString('en-US', { weekday: 'long' });
-    const dateStr = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    const timeStr = date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    const locale = strings.dateLocale;
+    const weekday = date.toLocaleDateString(locale, { weekday: 'long' });
+    const dateStr = date.toLocaleDateString(locale, { month: 'short', day: 'numeric', year: 'numeric' });
+    const timeStr = date.toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit', hour12: locale === 'en-US' });
     const full = `${weekday}, ${dateStr} · ${timeStr}`;
 
-    if (minutes < 1) return `Just now · ${full}`;
-    if (minutes < 60) return `${minutes}m ago · ${full}`;
+    if (minutes < 1) return `${strings.justNow} · ${full}`;
+    if (minutes < 60) return `${strings.minutesAgo(minutes)} · ${full}`;
     return full;
   };
 
   return (
-    <div className="reading-history-modal">
+    <div className="reading-history-modal" lang={strings.lang} role="dialog" aria-modal="true" aria-labelledby="reading-history-title">
       <div className="reading-history-overlay" onClick={onClose} />
       <div className="reading-history-content">
         <div className="reading-history-header">
-          <h2>📚 Reading History</h2>
-          <button className="close-btn" onClick={onClose}>✕</button>
+          <h2 id="reading-history-title">{strings.historyHeading}</h2>
+          <button className="close-btn" onClick={onClose} aria-label={strings.historyClose} title={strings.historyClose}>✕</button>
         </div>
 
         {loading ? (
-          <div className="loading">Loading history...</div>
+          <div className="loading">{strings.historyLoading}</div>
         ) : history.length === 0 ? (
           <div className="empty-state">
-            <p>No reading history yet</p>
-            <p className="empty-subtitle">Your recently read chapters will appear here</p>
+            <p>{strings.historyEmpty}</p>
+            <p className="empty-subtitle">{strings.historyEmptySub}</p>
           </div>
         ) : (
           <>
@@ -78,11 +84,11 @@ export const ReadingHistory: React.FC<ReadingHistoryProps> = ({ onSelectChapter,
                   }}
                 >
                   <div className="history-item-main">
-                    <span className="book-name">{entry.bookName}</span>
-                    <span className="chapter">Chapter {entry.chapter}</span>
+                    <span className="book-name">{uiLanguage === 'en' ? bookLabel(entry.bookName, 'en') : entry.bookName}</span>
+                    <span className="chapter">{strings.historyChapter(entry.chapter)}</span>
                     <div className="indicators">
-                      {entry.hasNotes && <span className="indicator notes" title="Has notes">📝</span>}
-                      {entry.hasAIResearch && <span className="indicator research" title="Has AI research">🤖</span>}
+                      {entry.hasNotes && <span className="indicator notes" title={strings.historyHasNotes} aria-label={strings.historyHasNotes}>📝</span>}
+                      {entry.hasAIResearch && <span className="indicator research" title={strings.historyHasResearch} aria-label={strings.historyHasResearch}>🤖</span>}
                     </div>
                   </div>
                   <span className="timestamp">{formatTimestamp(entry.lastRead)}</span>
@@ -92,7 +98,7 @@ export const ReadingHistory: React.FC<ReadingHistoryProps> = ({ onSelectChapter,
             
             <div className="history-footer">
               <button className="clear-history-btn" onClick={clearHistory}>
-                Clear History
+                {strings.historyClear}
               </button>
             </div>
           </>

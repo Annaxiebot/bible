@@ -6,6 +6,9 @@
  * way it does from a Word/WPS export. The font is not embedded (only text
  * extraction is tested, never rendering), which keeps a fixture a few KB.
  * A page with no lines draws one rectangle: a "scan" with no text layer.
+ * `{ encoding: 'UniGB-UCS2-H' }` writes the other common Chinese shape
+ * instead: a predefined CJK CMap and no ToUnicode, so pdfjs can only read the
+ * text with its packed CMap files (cMapUrl, ADR-0019 §1).
  * Deterministic: the same pages give the same bytes.
  */
 
@@ -43,6 +46,16 @@ function toUnicodeCMap(table: Map<string, number>): string {
   ].join('\n');
 }
 
+/** Writer options; the default is Identity-H with a ToUnicode map. */
+export interface PdfWriterOptions { encoding?: 'Identity-H' | 'UniGB-UCS2-H' }
+
+/** UniGB-UCS2-H codes are the UCS-2 values themselves (BMP only). */
+function ucs2Table(pages: PdfPages): Map<string, number> {
+  const table = new Map<string, number>();
+  for (const line of pages.flat()) for (const ch of Array.from(line)) table.set(ch, ch.codePointAt(0)!);
+  return table;
+}
+
 function pageContent(lines: ReadonlyArray<string>, table: Map<string, number>): string {
   if (lines.length === 0) return `0.5 g ${MARGIN} ${MARGIN} 300 400 re f`;
   const shown = lines.map((line, i) => {
@@ -53,21 +66,23 @@ function pageContent(lines: ReadonlyArray<string>, table: Map<string, number>): 
 }
 
 /** The PDF bytes for `pages`. */
-export function writePdf(pages: PdfPages): Uint8Array {
-  const table = cidTable(pages);
+export function writePdf(pages: PdfPages, { encoding = 'Identity-H' }: PdfWriterOptions = {}): Uint8Array {
+  const predefined = encoding === 'UniGB-UCS2-H';
+  const table = predefined ? ucs2Table(pages) : cidTable(pages);
   const objects: string[] = [];
   const add = (body: string) => { objects.push(body); return objects.length; };
   const stream = (data: string) => `<< /Length ${new TextEncoder().encode(data).length} >>\nstream\n${data}\nendstream`;
 
   const catalog = add('');
   const pagesObj = add('');
-  const toUnicode = add(stream(toUnicodeCMap(table)));
+  const toUnicode = predefined ? 0 : add(stream(toUnicodeCMap(table)));
   const descriptor = add('<< /Type /FontDescriptor /FontName /GuideSans /Flags 4 /FontBBox [0 -200 1000 900] ' +
     '/ItalicAngle 0 /Ascent 880 /Descent -120 /CapHeight 700 /StemV 80 >>');
   const cidFont = add('<< /Type /Font /Subtype /CIDFontType2 /BaseFont /GuideSans ' +
-    `/CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /FontDescriptor ${descriptor} 0 R /DW 1000 >>`);
-  const font = add(`<< /Type /Font /Subtype /Type0 /BaseFont /GuideSans /Encoding /Identity-H ` +
-    `/DescendantFonts [${cidFont} 0 R] /ToUnicode ${toUnicode} 0 R >>`);
+    `/CIDSystemInfo << /Registry (Adobe) /Ordering (${predefined ? 'GB1' : 'Identity'}) /Supplement ${predefined ? 5 : 0} >> ` +
+    `/FontDescriptor ${descriptor} 0 R /DW 1000 >>`);
+  const font = add(`<< /Type /Font /Subtype /Type0 /BaseFont /GuideSans /Encoding /${encoding} ` +
+    `/DescendantFonts [${cidFont} 0 R]${predefined ? '' : ` /ToUnicode ${toUnicode} 0 R`} >>`);
   const pageIds = pages.map(lines => {
     const content = add(stream(pageContent(lines, table)));
     return add(`<< /Type /Page /Parent ${pagesObj} 0 R /MediaBox [0 0 ${PAGE_W} ${PAGE_H}] ` +

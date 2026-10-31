@@ -32,10 +32,13 @@ export interface StudyRequest extends VerseRange {
   guide?: LoadedGuide;
   /** Guide only: the range above is a placeholder — the passage is the one the AI reads in the guide. */
   findPassage?: boolean;
+  /** Suggest worship songs from the catalog, as an opening section (ADR-0022 step 2). */
+  worship?: boolean;
 }
 
 /** Section headings, as the sample pack writes them (Chinese first). */
 export const SECTION_HEADINGS = {
+  worship: bilingual('敬拜诗歌', 'Worship'),
   scripture: bilingual('经文', 'Scripture'),
   context: bilingual('背景', 'Context'),
   originalLanguage: bilingual('原文', 'Original Language'),
@@ -43,7 +46,7 @@ export const SECTION_HEADINGS = {
   discussion: bilingual('讨论', 'Discussion'),
   lifeMenu: bilingual('生活应用', 'Life Menu'),
   reflection: bilingual('反思', 'Reflection'),
-  qr: bilingual('签到', 'Sign up'),
+  qr: bilingual('报名', 'Sign up'),
   closing: bilingual('闭环', 'Closing'),
 } as const;
 
@@ -132,6 +135,8 @@ export function assemblePack(req: StudyRequest, verses: PackVerse[], gen: Genera
   const lines = (items: { zh: string; en: string }[]) => items.map(i => contentLine(mode, i.zh, i.en));
   const sections: PackSection[] = [
     { kind: 'title', heading, body: [label.ref, `${GROUP_LINE} · ${req.date}`] },
+    // Suggested songs open the meeting; none matched = no section (the editor can add one).
+    ...(gen.worship?.length ? [{ kind: 'worship', heading: SECTION_HEADINGS.worship, songs: gen.worship } as PackSection] : []),
     scriptureSection(req, verses, keyPhraseLine(gen)),
     { kind: 'context', heading: SECTION_HEADINGS.context, body: lines(gen.context) },
     { kind: 'originalLanguage', heading: SECTION_HEADINGS.originalLanguage, body: lines(gen.originalLanguage) },

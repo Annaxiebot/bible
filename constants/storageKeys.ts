@@ -8,6 +8,8 @@ export const STORAGE_KEYS = {
   ENGLISH_VERSION: 'bibleEnglishVersion',
   CHINESE_VERSION: 'bibleChineseVersion',
   CHINESE_MODE: 'bibleChineseMode',
+  // Reader interface language ('zh' | 'en') — independent of script and editions (services/readerPreferences)
+  UI_LANGUAGE: 'bibleUiLanguage',
   FONT_SIZE: 'bibleFontSize',
   VIEW_LAYOUT: 'bibleViewLayout',
   PREFERRED_LAYOUT: 'biblePreferredLayout',
@@ -19,17 +21,17 @@ export const STORAGE_KEYS = {
   BIBLE_CACHE_PREFIX: 'bible_cache_',
   BIBLE_CACHE_INDEX: 'bible_cache_index',
 
-  // The user's own OpenRouter key — the hidden "Advanced" own-key path (services/openrouter getApiKey).
-  // Keys of the removed direct providers are cleared on start: services/obsoleteStorageKeys.ts.
-  OPENROUTER_API_KEY: 'openrouter_api_key',
+  // AI model choices (services/aiDefaults readers). The removed own OpenRouter key and the keys of
+  // the removed direct providers are cleared on start: services/obsoleteStorageKeys.ts.
   AI_PROVIDER: 'ai_provider',
   AI_MODEL: 'ai_model',
-  // #/setup "模型 Models" rows: pack-generation model id; Ask-AI fallback ids, comma-separated (services/aiDefaults readers)
+  // Pack-generation model id; Ask-AI fallback ids, comma-separated (services/aiDefaults readers)
   AI_PACK_MODEL: 'ai_pack_model',
   AI_FALLBACK_MODELS: 'ai_fallback_models',
 
   // New study: the leader's last "内容语言 Content language" choice (the form's default next time)
   CONTENT_LANGUAGE_DEFAULT: 'content_language_default',
+  WORSHIP_SONGS_DEFAULT: 'worship_songs_default',
 
   // TV mode: the one-time "按 F 全屏 Press F for full screen" / "横屏 sideways" hint was shown on this device
   TV_FULLSCREEN_HINT_SEEN: 'tv_fullscreen_hint_seen',
@@ -55,6 +57,11 @@ export const STORAGE_KEYS = {
 
   // Sign-up: the member's own contact details, kept on their phone only (never synced)
   SIGNUP_MEMBER: 'stl_signup_member',
+
+  // Anonymous funnel (ADR-0025), this browser only, never synced or sent: when each repeatable
+  // count was last sent ({ event: ms }), and the sign-in in progress ({ method, until })
+  FUNNEL_LAST_SENT: 'stl_funnel_last_sent',
+  FUNNEL_SIGN_IN: 'stl_funnel_sign_in',
 } as const;
 
 /** The value NEW_STUDY_GUIDE_DISMISSED holds once the first-visit card was dismissed (one place, R3). */

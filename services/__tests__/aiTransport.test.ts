@@ -1,15 +1,17 @@
 /**
  * aiTransport.test.ts — the one branch point for AI requests · AI请求路由测试 (ADR-0007)
  *
- * Own key → OpenRouter directly, exactly as before (key bearer, no role);
- * no key + signed in → the ai-proxy function with the user's access token,
- * the anon apikey header and `role` added to the body; neither →
- * sign-in-needed without any fetch. Also the dev-only e2e seam and the
- * availability gate.
+ * One rule since 2026-10-23: sign in to use AI. Signed in → the ai-proxy
+ * function with the user's access token, the anon apikey header and `role`
+ * added to the body; signed out → sign-in-needed without any fetch — even
+ * with an old own OpenRouter key still in the browser (it is never read and
+ * nothing goes to openrouter.ai). Also the dev-only e2e seam, the
+ * availability gate and finalAIBody (the eval scripts' local copy of the
+ * proxy's final messages).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { STORAGE_KEYS } from '../../constants/storageKeys';
-import { OPENROUTER_API_URL } from '../openrouter';
+import { OWN_OPENROUTER_KEY } from '../obsoleteStorageKeys';
+import { signInSeam, signOutSeam, SEAM_BASE, SEAM_UID } from '../../tests/utils/hostedSeam';
 
 let session: { access_token: string } | null = null;
 let signedInUid: string | null = null;
@@ -21,11 +23,12 @@ vi.mock('../supabase', () => ({
 }));
 
 import { SCOPE_GUARD, PACK_FROM_GUIDE_SYSTEM_PROMPT } from '../../supabase/functions/_shared/aiPrompts';
-import { sendAIRequest, ownKeyBody, isAIAvailable, hostedUid, aiProxyUrl, AI_PROXY_FUNCTION, E2E_ACCESS_TOKEN } from '../aiTransport';
+import * as transport from '../aiTransport';
+import { sendAIRequest, isAIAvailable, hostedUid, aiProxyUrl, AI_PROXY_FUNCTION, E2E_ACCESS_TOKEN } from '../aiTransport';
+import { finalAIBody } from '../aiFinalBody';
 
 const BODY = JSON.stringify({ model: 'google/gemini-2.5-flash', stream: true, max_tokens: 300, messages: [{ role: 'user', content: 'q' }] });
 const getItemMock = window.localStorage.getItem as ReturnType<typeof vi.fn>;
-type Seams = Window & { __LEADER_E2E__?: unknown; __SUPABASE_E2E__?: unknown };
 
 function stubFetch() {
   const fetchMock = vi.fn(async () => ({ ok: true, status: 200 }) as Response);
@@ -36,6 +39,7 @@ const call = (fetchMock: ReturnType<typeof stubFetch>) => {
   const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
   return { url, headers: init.headers as Record<string, string>, body: JSON.parse(init.body as string) };
 };
+const oldOwnKey = () => getItemMock.mockImplementation((k: string) => (k === OWN_OPENROUTER_KEY ? 'sk-or-own' : null));
 
 beforeEach(() => {
   session = null;
@@ -43,32 +47,15 @@ beforeEach(() => {
   getItemMock.mockReset().mockReturnValue(null);
   vi.stubEnv('VITE_SUPABASE_URL', 'https://proj.supabase.co');
   vi.stubEnv('VITE_SUPABASE_ANON_KEY', 'anon-key');
-  delete (window as Seams).__LEADER_E2E__;
-  delete (window as Seams).__SUPABASE_E2E__;
+  signOutSeam();
 });
-afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); signOutSeam(); });
 
 describe('sendAIRequest', () => {
-  it('own key stored → OpenRouter directly with that key; no role, the server\'s final messages (ADR-0014), even when signed in', async () => {
-    getItemMock.mockImplementation((k: string) => (k === STORAGE_KEYS.OPENROUTER_API_KEY ? 'sk-or-own' : null));
-    session = { access_token: 'user-jwt' };
-    signedInUid = 'uid-1';
-    const fetchMock = stubFetch();
-    const result = await sendAIRequest('ask', BODY, new AbortController().signal, 'Title');
-    expect(result.kind).toBe('own-key');
-    const { url, headers, body } = call(fetchMock);
-    expect(url).toBe(OPENROUTER_API_URL);
-    expect(headers.Authorization).toBe('Bearer sk-or-own');
-    expect(headers['X-Title']).toBe('Title');
-    expect(body).toEqual(JSON.parse(ownKeyBody('ask', BODY)));
-    expect(body.messages[0].content).toContain(SCOPE_GUARD);
-    expect(body).not.toHaveProperty('role');
-  });
-
-  it('no key, signed in → the ai-proxy function with the access token, anon apikey and the role', async () => {
+  it('signed in → the ai-proxy function with the access token, anon apikey and the role', async () => {
     session = { access_token: 'user-jwt' };
     const fetchMock = stubFetch();
-    const result = await sendAIRequest('pack', BODY, new AbortController().signal, 'Title');
+    const result = await sendAIRequest('pack', BODY, new AbortController().signal);
     expect(result.kind).toBe('hosted');
     const { url, headers, body } = call(fetchMock);
     expect(url).toBe(`https://proj.supabase.co/functions/v1/${AI_PROXY_FUNCTION}`);
@@ -79,38 +66,51 @@ describe('sendAIRequest', () => {
     expect(body).toEqual({ ...JSON.parse(BODY), role: 'pack' });
   });
 
+  it('an old own key in the browser changes nothing: signed in still goes to the proxy', async () => {
+    oldOwnKey();
+    session = { access_token: 'user-jwt' };
+    const fetchMock = stubFetch();
+    expect((await sendAIRequest('ask', BODY, new AbortController().signal)).kind).toBe('hosted');
+    expect(call(fetchMock).url).not.toContain('openrouter.ai');
+  });
+
   it('a body can never override the role', async () => {
     session = { access_token: 'user-jwt' };
     const fetchMock = stubFetch();
-    await sendAIRequest('ask', JSON.stringify({ role: 'pack', messages: [] }), new AbortController().signal, 'T');
+    await sendAIRequest('ask', JSON.stringify({ role: 'pack', messages: [] }), new AbortController().signal);
     expect(call(fetchMock).body.role).toBe('ask');
   });
 
-  it('no key, signed out → sign-in-needed, nothing fetched', async () => {
+  it('signed out → sign-in-needed, nothing fetched — with or without an old own key', async () => {
     const fetchMock = stubFetch();
-    expect(await sendAIRequest('ask', BODY, new AbortController().signal, 'T')).toEqual({ kind: 'sign-in-needed' });
+    expect(await sendAIRequest('ask', BODY, new AbortController().signal)).toEqual({ kind: 'sign-in-needed' });
+    oldOwnKey();
+    expect(await sendAIRequest('ask', BODY, new AbortController().signal)).toEqual({ kind: 'sign-in-needed' });
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it('dev e2e seam: __LEADER_E2E__ + __SUPABASE_E2E__ → the fake base with the e2e token', async () => {
-    (window as Seams).__LEADER_E2E__ = { uid: 'e2e-uid', email: null, name: null };
-    (window as Seams).__SUPABASE_E2E__ = { url: 'http://localhost:3000/e2e-supabase', anonKey: 'e2e-anon' };
+    signInSeam();
     const fetchMock = stubFetch();
-    await sendAIRequest('ask', BODY, new AbortController().signal, 'T');
+    await sendAIRequest('ask', BODY, new AbortController().signal);
     const { url, headers } = call(fetchMock);
-    expect(url).toBe(aiProxyUrl('http://localhost:3000/e2e-supabase'));
+    expect(url).toBe(aiProxyUrl(SEAM_BASE));
     expect(headers.Authorization).toBe(`Bearer ${E2E_ACCESS_TOKEN}`);
-    expect(hostedUid()).toBe('e2e-uid');
+    expect(hostedUid()).toBe(SEAM_UID);
+  });
+
+  it('no direct path is exported any more', () => {
+    expect(transport).not.toHaveProperty('ownKeyBody');
+    expect(transport).not.toHaveProperty('hasOwnKey');
   });
 });
 
 describe('isAIAvailable', () => {
-  it('own key OR signed in; neither → false', () => {
+  it('signed in only; an old own key is not enough', () => {
+    expect(isAIAvailable()).toBe(false);
+    oldOwnKey();
     expect(isAIAvailable()).toBe(false);
     signedInUid = 'uid-1';
-    expect(isAIAvailable()).toBe(true);
-    signedInUid = null;
-    getItemMock.mockImplementation((k: string) => (k === STORAGE_KEYS.OPENROUTER_API_KEY ? 'k' : null));
     expect(isAIAvailable()).toBe(true);
   });
 
@@ -119,17 +119,24 @@ describe('isAIAvailable', () => {
   });
 });
 
-describe('ownKeyBody: pack_source (ADR-0019)', () => {
-  const guideBody = (extra: Record<string, unknown>) => JSON.stringify({ ...JSON.parse(BODY), ...extra });
+describe('finalAIBody (the eval scripts\' copy of the proxy\'s final messages)', () => {
+  const withExtra = (extra: Record<string, unknown>) => JSON.stringify({ ...JSON.parse(BODY), ...extra });
+
+  it('the server system message goes first; the caller\'s model and cap are kept', () => {
+    const body = JSON.parse(finalAIBody('ask', BODY));
+    expect(body.messages[0].content).toContain(SCOPE_GUARD);
+    expect(body.model).toBe('google/gemini-2.5-flash');
+    expect(body.max_tokens).toBe(300);
+  });
 
   it('"guide" on pack is consumed: the guide system text goes first, the field is not forwarded', () => {
-    const body = JSON.parse(ownKeyBody('pack', guideBody({ pack_source: 'guide' })));
+    const body = JSON.parse(finalAIBody('pack', withExtra({ pack_source: 'guide' })));
     expect(body).not.toHaveProperty('pack_source');
     expect(body.messages[0].content).toBe(`${SCOPE_GUARD}\n\n${PACK_FROM_GUIDE_SYSTEM_PROMPT}`);
   });
 
-  it('refused like the proxy refuses it: another role, or another value, throws before anything is sent', () => {
-    expect(() => ownKeyBody('ask', guideBody({ pack_source: 'guide' }))).toThrow('pack_source is only for role pack');
-    expect(() => ownKeyBody('pack', guideBody({ pack_source: 'pdf' }))).toThrow('pack_source must be guide');
+  it('refused like the proxy refuses it: another role, or another value, throws', () => {
+    expect(() => finalAIBody('ask', withExtra({ pack_source: 'guide' }))).toThrow('pack_source is only for role pack');
+    expect(() => finalAIBody('pack', withExtra({ pack_source: 'pdf' }))).toThrow('pack_source must be guide');
   });
 });
