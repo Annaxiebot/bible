@@ -87,7 +87,7 @@ export function commitmentLine(practice: string): string {
 }
 
 // ---- QR panel (TV slide + landing), shared by every pack ----
-export const SU_QR_BODY = bilingualLine('扫码报名，周二周四收到提醒', 'Scan to sign up for the Tue/Thu check-ins');
+export const SU_QR_BODY = bilingualLine('扫码报名，周二周四收到行道提醒', 'Scan to sign up for Tue/Thu reminders to live out the Word');
 /** The leader's #/qr page: print the code, and go back to the leader home. */
 export const SU_QR_PRINT = bilingualLine('打印', 'Print');
 export const SU_QR_BACK = bilingualLine('返回我的查经包', 'Back to my study packs');

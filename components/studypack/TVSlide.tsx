@@ -202,7 +202,10 @@ const QrSlide: React.FC<SlideProps> = ({ slide, pack }) => {
     {slide.signupUrl ? (
       <>
         <SignupQr url={slide.signupUrl} size="46vh" className="mb-[3vh]" pack={pack} />
-        <p className="text-stl-gold font-semibold mb-[2vh] break-all" style={t.body}>{slide.signupUrl}</p>
+        <a href={slide.signupUrl} target="_blank" rel="noopener noreferrer"
+          className="text-stl-gold font-semibold mb-[2vh] break-all underline underline-offset-4" style={t.body}>
+          {slide.signupUrl}
+        </a>
         <BodyLines lines={slide.body} centered />
       </>
     ) : (

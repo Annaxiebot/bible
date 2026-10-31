@@ -105,11 +105,11 @@ describe('Matthew 6 sample — teaching precision', () => {
     }
   });
 
-  it('the sample is undated on its slides and uses 报名 for sign-up', () => {
+  it('the sample is undated on its slides and heads the sign-up slide 行道提醒', () => {
     const title = section('title').body!.join(' ');
     expect(title).not.toMatch(/\d{4}-\d{2}-\d{2}/);
     expect(title).toMatch(/Sample study pack/);
-    expect(section('qr').heading).toBe('报名 Sign up');
+    expect(section('qr').heading).toBe('行道提醒 Live Out the Word');
     expect(all).not.toContain('签到');
     expect(buildSlides(pack).length).toBe(26);
   });
