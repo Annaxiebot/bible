@@ -17,7 +17,7 @@ import { test, expect } from '@playwright/test';
 import { NEW_STUDY_LINE } from '../../components/landing/landingStrings';
 import { SETUP_TITLE, SETUP_SIGN_IN_TO_USE_AI } from '../../components/setup/setupStrings';
 import {
-  NS_TITLE, NS_BOOK, NS_GENERATE, NS_EDIT_TITLE, NS_SAVE, NS_SAVED, NS_AUTOSAVED, NS_PREVIEW, NS_BACKUP_TOGGLE, NS_BACKUP_DOWNLOAD, NS_MY_PACKS, NS_EDIT,
+  NS_TITLE, NS_BOOK, NS_GENERATE, NS_EDIT_TITLE, NS_AUTOSAVED, NS_PREVIEW, NS_BACKUP_TOGGLE, NS_BACKUP_DOWNLOAD, NS_MY_PACKS, NS_EDIT,
   NS_SCRIPTURE_NOTE, NS_RETRY, NS_ERR_NO_JSON, NS_RANGE_UPDATED, NS_SECTION_REMOVE_CONFIRM,
   NS_CONTENT_LANGUAGE, NS_CONTENT_LANGUAGE_OPTIONS,
 } from '../../components/newstudy/newStudyStrings';
@@ -104,8 +104,8 @@ test.describe('New study', () => {
     // Auto-saved before the leader presses anything: the URL already carries the pack id.
     await expect(page).toHaveURL(new RegExp(`${newStudyHash(PACK_ID)}$`));
     await expect(page.getByTestId('ns-status')).toHaveText(NS_AUTOSAVED);
-    await page.getByTestId('ns-save').click();
-    await expect(page.getByRole('status')).toHaveText(NS_SAVED);
+    // No Save button: auto-save stores the pack and reports 已自动保存.
+    await expect(page.getByRole('status')).toHaveText(NS_AUTOSAVED);
 
     await page.getByTestId('ns-preview').click();
     await expect(page).toHaveURL(new RegExp(`#/pack/${PACK_ID}$`));

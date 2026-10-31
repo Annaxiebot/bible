@@ -53,7 +53,6 @@ export interface PhaseViewProps {
   onCancel: () => void;
   onBack: () => void;
   onChange: (pack: StudyPack) => void;
-  onSave: (pack: StudyPack) => Promise<void>;
   onPreview: (pack: StudyPack) => Promise<void>;
   autosave: { status: AutoSaveStatus; error: string | null };
   /** Where the next study starts (useNextStudy); null while it is worked out (a split second after the packs load). */
@@ -75,7 +74,7 @@ const FormPhase: React.FC<{
 );
 
 const PhaseView: React.FC<PhaseViewProps> = ({
-  phase, configured, onGenerate, onCancel, onBack, onChange, onSave, onPreview, autosave, suggestion = null, onGuide = () => {},
+  phase, configured, onGenerate, onCancel, onBack, onChange, onPreview, autosave, suggestion = null, onGuide = () => {},
 }) => {
   // The last committed kind: the editor scrolls up only when it replaces the progress line.
   const previous = useRef(phase.kind);
@@ -94,7 +93,7 @@ const PhaseView: React.FC<PhaseViewProps> = ({
       return <Failed message={phase.message} onRetry={() => onGenerate(phase.req)} onBack={onBack} />;
     case 'editor':
       return (
-        <NewStudyEditor pack={phase.pack} onChange={onChange} onSave={onSave} onPreview={onPreview} onBack={onBack}
+        <NewStudyEditor pack={phase.pack} onChange={onChange} onPreview={onPreview} onBack={onBack}
           autosave={autosave} scrollToTop={justGenerated} />
       );
   }

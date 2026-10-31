@@ -24,11 +24,11 @@ vi.mock('../../../services/bibleDataSource', () => ({
 const verses = Array.from({ length: 15 }, (_, i) => ({ num: 22 + i, cuv: `第${22 + i}节`, en: `verse ${22 + i}` }));
 const original = assemblePack(JOHN3_REQUEST, verses, validateGenerated(JOHN3_GENERATED, JOHN3_REQUEST.contentLanguage));
 
-const Host: React.FC<{ onChange?: (p: StudyPack) => void; onSave?: (p: StudyPack) => Promise<void> }> = ({ onChange, onSave }) => {
+const Host: React.FC<{ onChange?: (p: StudyPack) => void }> = ({ onChange }) => {
   const [pack, setPack] = useState(original);
   return (
     <NewStudyEditor pack={pack} onChange={next => { setPack(next); onChange?.(next); }}
-      onSave={onSave ?? (async () => {})} onPreview={async () => {}} onBack={() => {}} />
+      onPreview={async () => {}} onBack={() => {}} />
   );
 };
 
@@ -53,7 +53,7 @@ describe('NewStudyEditor section toolbar', () => {
     expect((onChange.mock.calls[0][0] as StudyPack).sections.map(s => s.kind).slice(5, 7)).toEqual(['lifeMenu', 'discussion']);
     fireEvent.click(button('discussion', NS_SECTION_UP));
     expect(kindsOnScreen()).toEqual(original.sections.map(s => s.kind));
-    expect(screen.getByTestId('ns-save')).toBeEnabled();
+    expect(screen.getByTestId('ns-preview')).toBeEnabled();
   });
 
   it('offers no toolbar on title/scripture/qr and disables moves across fixed neighbours', async () => {
@@ -82,7 +82,7 @@ describe('NewStudyEditor section toolbar', () => {
     fireEvent.click(within(sectionOf('originalLanguage')).getByTestId('ns-section-remove-yes'));
     expect(kindsOnScreen()).not.toContain('originalLanguage');
     expect(kindsOnScreen()).toHaveLength(9);
-    expect(screen.getByTestId('ns-save')).toBeEnabled();
+    expect(screen.getByTestId('ns-preview')).toBeEnabled();
   });
 
   it('adds a section at its allowed position; a new discussion blocks Save until its question is written', async () => {
@@ -93,7 +93,7 @@ describe('NewStudyEditor section toolbar', () => {
     fireEvent.click(screen.getByTestId('ns-add-discussion'));
     expect(kindsOnScreen().slice(7)).toEqual(['reflection', 'discussion', 'qr', 'closing']);
     expect(screen.queryByTestId('ns-add-section-menu')).toBeNull();
-    expect(screen.getByTestId('ns-save')).toBeDisabled();
+    expect(screen.getByTestId('ns-preview')).toBeDisabled();
     expect(screen.getByTestId('ns-preview')).toBeDisabled();
     expect(screen.getByRole('alert')).toHaveTextContent(NS_ERR_EMPTY_QUESTION);
 
@@ -101,7 +101,7 @@ describe('NewStudyEditor section toolbar', () => {
     expect(within(added).getByText(SECTION_HEADINGS.discussion)).toBeInTheDocument();
     fireEvent.change(within(added).getByRole('textbox'), { target: { value: '新题 · New question' } });
     expect(screen.queryByRole('alert')).toBeNull();
-    expect(screen.getByTestId('ns-save')).toBeEnabled();
+    expect(screen.getByTestId('ns-preview')).toBeEnabled();
   });
 
   it('re-adds a removed closing at the very end', async () => {
@@ -112,26 +112,27 @@ describe('NewStudyEditor section toolbar', () => {
     fireEvent.click(screen.getByTestId('ns-add-section'));
     fireEvent.click(screen.getByTestId('ns-add-closing'));
     expect(kindsOnScreen().slice(-2)).toEqual(['qr', 'closing']);
-    expect(screen.getByTestId('ns-save')).toBeEnabled();
+    expect(screen.getByTestId('ns-preview')).toBeEnabled();
   });
 });
 
 describe('NewStudyEditor without Google Forms (removed 2026-10-05, ADR-0004 §9)', () => {
-  it('an old pack that still carries a form URL opens, saves, and shows no form field, Connect button or form link', async () => {
+  it('an old pack that still carries a form URL opens, previews, and shows no form field, Connect button or form link', async () => {
     const legacy = parseStudyPack({
       ...original,
       feedbackFormUrl: 'https://docs.google.com/forms/d/e/old/viewform',
       feedbackFormEntries: { name: 'entry.1', practice: 'entry.2' },
     });
-    const onSave = vi.fn(async () => {});
-    render(<NewStudyEditor pack={legacy} onChange={() => {}} onSave={onSave} onPreview={async () => {}} onBack={() => {}} />);
+    // The explicit Save button is gone; Preview runs the same validated path with the current pack.
+    const onPreview = vi.fn(async () => {});
+    render(<NewStudyEditor pack={legacy} onChange={() => {}} onPreview={onPreview} onBack={() => {}} />);
     await waitFor(() => expect(screen.getByTestId('ns-range-verse-to')).toBeEnabled());
     for (const id of ['ns-feedback-form', 'ns-feedback-url', 'ns-form-connect', 'ns-form-notice']) {
       expect(screen.queryByTestId(id), id).toBeNull();
     }
     expect(document.body.innerHTML).not.toContain('docs.google.com');
-    fireEvent.click(screen.getByTestId('ns-save'));
-    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
-    expect(JSON.stringify(onSave.mock.calls[0])).not.toMatch(/feedbackForm|docs\.google\.com/);
+    fireEvent.click(screen.getByTestId('ns-preview'));
+    await waitFor(() => expect(onPreview).toHaveBeenCalledTimes(1));
+    expect(JSON.stringify(onPreview.mock.calls[0])).not.toMatch(/feedbackForm|docs\.google\.com/);
   });
 });

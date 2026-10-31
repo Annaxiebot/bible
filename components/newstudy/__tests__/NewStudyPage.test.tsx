@@ -18,7 +18,7 @@ import { validateGenerated } from '../generatedPack';
 import { JOHN3_GENERATED, JOHN3_REQUEST } from './fixtures';
 import { SETUP_TITLE } from '../../setup/setupStrings';
 import {
-  NS_TITLE, NS_GENERATE, NS_BOOK, NS_EDIT_TITLE, NS_SAVE, NS_SAVED, NS_AUTOSAVED, NS_PREVIEW, NS_MY_PACKS, NS_NO_PACKS,
+  NS_TITLE, NS_GENERATE, NS_BOOK, NS_EDIT_TITLE, NS_AUTOSAVED, NS_PREVIEW, NS_MY_PACKS, NS_NO_PACKS,
   NS_RETRY, NS_ERR_NO_JSON, NS_ERR_RANGE, NS_SCRIPTURE_NOTE, NS_QUESTION_ADD, NS_STEP_AI, NS_EDIT, NS_BACK,
 } from '../newStudyStrings';
 import { newStudyHash, NEW_STUDY_HASH } from '../../landing/landingRoute';
@@ -134,14 +134,14 @@ describe('NewStudyPage', () => {
     fireEvent.change(questions[0], { target: { value: '改过的题 · Edited question' } });
     fireEvent.click(screen.getByRole('button', { name: NS_QUESTION_ADD }));
     expect(within(screen.getByTestId('ns-questions')).getAllByRole('textbox')).toHaveLength(6);
-    // An empty new question blocks Save with a bilingual error.
-    fireEvent.click(screen.getByTestId('ns-save'));
+    // An empty new question shows the bilingual error and disables Preview (no Save button: auto-save).
     expect(await screen.findByRole('alert')).toHaveTextContent('讨论题不能为空');
+    expect(screen.getByTestId('ns-preview')).toBeDisabled();
     const added = within(screen.getByTestId('ns-questions')).getAllByRole('textbox')[5];
     fireEvent.change(added, { target: { value: '第六题 · Question six' } });
 
-    fireEvent.click(screen.getByTestId('ns-save'));
-    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(NS_SAVED));
+    // Auto-save picks the edit up on its own (no button press).
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent(NS_AUTOSAVED), { timeout: 3000 });
     const stored = await idbService.get('studypacks', 'local-2026-10-02-jhn3');
     expect(stored).toBeDefined();
     expect((stored!.pack as { sections: Array<{ kind: string; questions?: string[] }> })
@@ -255,6 +255,7 @@ describe('NewStudyPage', () => {
     expect(screen.getByText(NS_EDIT_TITLE)).toBeInTheDocument();
     await rangeReady();
     expect(screen.getByRole('button', { name: NS_PREVIEW })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: NS_SAVE })).toBeInTheDocument();
+    // No Save button any more — auto-save is the save path.
+    expect(screen.queryByTestId('ns-save')).toBeNull();
   });
 });

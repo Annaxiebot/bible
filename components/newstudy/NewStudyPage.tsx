@@ -168,7 +168,7 @@ const NewStudyPage: React.FC = () => {
           onGenerate={req => void generate(req)} onCancel={cancel}
           onBack={() => void back().catch(() => undefined /* shown by the editor via autosave.error */)}
           onChange={pack => setPhase({ kind: 'editor', pack })}
-          onSave={flush} onPreview={preview}
+          onPreview={preview}
           autosave={{ status: autosave.status, error: autosave.error }}
           suggestion={suggestion}
           onGuide={guide => (guide

@@ -16,7 +16,7 @@
  * A scan (no text layer) gets the bilingual message.
  */
 import { test, expect, Request } from '@playwright/test';
-import { NS_GENERATE, NS_EDIT_TITLE, NS_SAVED } from '../../components/newstudy/newStudyStrings';
+import { NS_GENERATE, NS_EDIT_TITLE, NS_AUTOSAVED } from '../../components/newstudy/newStudyStrings';
 import {
   GD_PICK, GD_ERR_NO_TEXT, GD_FROM_GUIDE, GD_AI_DRAFTED, GD_ERR_NO_PASSAGE, notVerbatimLine, leaderAnswerLine,
 } from '../../components/newstudy/guide/guideStrings';
@@ -96,8 +96,8 @@ test.describe('New study · from a study-guide PDF', () => {
     // The leader takes the line over: the flag goes; Save.
     await discussion.locator('textarea').nth(2).fill(GUIDE_QUESTIONS[2]);
     await expect(discussion.getByTestId('ns-not-verbatim')).toHaveCount(0);
-    await page.getByTestId('ns-save').click();
-    await expect(page.getByRole('status')).toHaveText(NS_SAVED);
+    // No Save button: auto-save stores the pack and reports 已自动保存.
+    await expect(page.getByRole('status')).toHaveText(NS_AUTOSAVED);
   });
 
   test('a prep guide with no passage in its heading → the AI\'s passage, bundled verses; a leaked answer bullet is flagged', async ({ page }) => {

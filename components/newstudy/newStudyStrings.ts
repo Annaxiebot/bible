@@ -111,8 +111,6 @@ export const NS_IMG_URL = bilingual('或粘贴图片链接', 'or paste an image 
 export const NS_IMG_CAPTION = bilingual('说明（可选）', 'Caption (optional)');
 export const NS_IMG_TOO_BIG = bilingualLine('图片太大，请换一张小一点的', 'The picture is too large — please pick a smaller one');
 export const NS_IMG_READ_ERR = bilingualLine('无法读取图片', 'The picture could not be read');
-export const NS_SAVE = bilingual('保存', 'Save');
-export const NS_SAVED = bilingual('已保存', 'Saved');
 /** Quiet auto-save indicator: the pack is stored without the leader pressing anything. */
 export const NS_AUTOSAVED = bilingual('已自动保存', 'Saved');
 export const NS_SAVING = bilingual('保存中…', 'Saving…');
