@@ -45,9 +45,17 @@ function splitTurns(ai: AskAI) {
   };
 }
 
-/** A question in the conversation, right above its answer: all gold ("问 Q" label + the question), so questions stand apart from the white answers at a glance. */
+/**
+ * A question in the conversation, right above its answer: all gold ("问 Q"
+ * label + the question), so questions stand apart from the white answers at
+ * a glance — and STICKY at the top of the scroll area, so while a long
+ * answer scrolls (or streams) its own question stays in view instead of the
+ * reader scrolling back up a chain of follow-ups to find it. The panel's
+ * surface background keeps the scrolled answer from showing through.
+ */
 const QuestionLine: React.FC<{ text: string; latest?: boolean }> = ({ text, latest = false }) => (
-  <p className="flex gap-[0.8vw] text-stl-gold" style={questionStyle} data-testid={latest ? 'ask-question' : 'ask-earlier-question'}>
+  <p className="sticky top-0 z-10 bg-stl-surface py-[0.5vh] flex gap-[0.8vw] text-stl-gold" style={questionStyle}
+    data-testid={latest ? 'ask-question' : 'ask-earlier-question'}>
     <span className="shrink-0 font-semibold">{ASK_QUESTION_LABEL}</span>
     <span>{text}</span>
   </p>
