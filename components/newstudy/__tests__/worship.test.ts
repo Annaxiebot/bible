@@ -40,6 +40,21 @@ describe('worship catalog', () => {
     }
   });
 
+  it('ships the 10 Family Music Ministry songs, each with its direct video url', () => {
+    const file = path.resolve(__dirname, '../../../public/worship-songs.json');
+    const data = JSON.parse(readFileSync(file, 'utf-8')) as { songs: CatalogSong[] };
+    const fmm = data.songs.filter(s => s.channel === 'Family Music Ministry');
+    expect(fmm).toHaveLength(10);
+    for (const s of fmm) expect(s.url).toMatch(/^https:\/\/www\.youtube\.com\/watch\?v=/);
+  });
+
+  it('a catalog url wins over the search link; without one the search link stands', () => {
+    const direct: CatalogSong = { ...CATALOG[0], url: 'https://www.youtube.com/watch?v=abc123def45' };
+    expect(songSearchUrl(direct)).toBe('https://www.youtube.com/watch?v=abc123def45');
+    expect(toWorshipSongs([direct])[0].url).toBe('https://www.youtube.com/watch?v=abc123def45');
+    expect(songSearchUrl(CATALOG[0])).toContain('youtube.com/results?search_query=');
+  });
+
   it('builds a YouTube SEARCH link (no guessed video ids that can rot)', () => {
     const url = songSearchUrl(CATALOG[0]);
     expect(url).toContain('youtube.com/results?search_query=');
@@ -62,6 +77,8 @@ describe('worship in the prompt', () => {
     expect(prompt).toContain('WORSHIP SONG LIST');
     expect(prompt).toContain('宝贵十架 Precious Cross');
     expect(prompt).toContain(WORSHIP_SHAPE_KEY);
+    expect(prompt).toContain('Prefer including ONE song from the Family Music Ministry channel');
+    expect(prompt).toContain('— Keith & Kristyn Getty ('); // channel is in each list line so the preference is actionable
   });
   it('without a catalog: no worship anywhere in the prompt', () => {
     const prompt = buildPackPrompt(base);

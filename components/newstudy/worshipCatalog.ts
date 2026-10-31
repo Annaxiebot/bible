@@ -15,6 +15,7 @@ export interface CatalogSong {
   en: string;       // English title, '' when the song has none
   channel: string;  // display name, as worship.html writes it
   themes: string;   // bilingual theme keywords the AI matches against the passage
+  url?: string;     // direct video URL for songs a YouTube search cannot surface (small original channels)
 }
 
 /** Display title, Chinese first ("宝贵十架 Precious Cross"); single-language songs show their one title. */
@@ -22,9 +23,14 @@ export function songTitle(song: CatalogSong): string {
   return [song.zh, song.en].filter(Boolean).join(' ');
 }
 
-/** The YouTube search link for a catalog song (never a guessed video id — a search cannot 404). */
+/**
+ * The YouTube link for a catalog song: its own url when the catalog carries
+ * one (small original channels a search cannot surface), otherwise a YouTube
+ * search for "title channel" — never a guessed video id, a search cannot 404.
+ */
 export function songSearchUrl(song: CatalogSong): string {
-  return `https://www.youtube.com/results?search_query=${encodeURIComponent(`${songTitle(song)} ${song.channel}`)}`;
+  return song.url
+    ?? `https://www.youtube.com/results?search_query=${encodeURIComponent(`${songTitle(song)} ${song.channel}`)}`;
 }
 
 function isCatalogSong(v: unknown): v is CatalogSong {
@@ -33,7 +39,8 @@ function isCatalogSong(v: unknown): v is CatalogSong {
     && typeof s.zh === 'string' && typeof s.en === 'string'
     && (s.zh.length > 0 || s.en.length > 0)
     && typeof s.channel === 'string' && s.channel.length > 0
-    && typeof s.themes === 'string';
+    && typeof s.themes === 'string'
+    && (s.url === undefined || typeof s.url === 'string');
 }
 
 let cached: Promise<CatalogSong[]> | null = null;
@@ -62,7 +69,7 @@ export function clearWorshipCatalogCache(): void {
 
 /** The prompt's catalog block: one compact line per song the model may pick from (titles are the keys). */
 export function worshipPromptBlock(catalog: CatalogSong[]): string {
-  const lines = catalog.map(s => `- ${songTitle(s)} (${s.themes})`);
+  const lines = catalog.map(s => `- ${songTitle(s)} — ${s.channel} (${s.themes})`);
   return [
     'WORSHIP SONG LIST (pick ONLY from these exact titles):',
     ...lines,

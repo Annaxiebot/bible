@@ -57,6 +57,13 @@ Status: step 1 built 2026-10-11 (Family Music Ministry · Original Christian Son
   it needs verified per-video ids and the privacy-notice update above.
 - The family channel stays on the step-1 page but is not in the catalog
   until the owner names the songs to include (neutrality + accuracy).
+- 2026-10-31, owner asked: all 10 songs from the Family Music Ministry
+  "Original Christian Songs" playlist (the one worship.html links) are in the
+  catalog, each with a DIRECT video url — the one exception to search links,
+  because a YouTube search cannot reliably surface a small original channel.
+  The AI is told to prefer including one FMM song per pick when a theme fits
+  (packPrompt WORSHIP_COUNT_RULE), so each pack carries one of the owner's
+  originals plus widely known songs the group can actually sing.
 
 ## Consequences
 

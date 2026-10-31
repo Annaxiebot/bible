@@ -1,6 +1,16 @@
 {
   "comment": "敬拜诗歌目录 Worship song catalog (ADR-0022 step 2). Songs are LINKED on YouTube, never re-hosted. url is a YouTube search so links cannot rot; a leader can replace it with a specific video in the pack editor. themes feed the AI's passage matching.",
   "songs": [
+    { "zh": "主耶稣我来", "en": "", "channel": "Family Music Ministry", "themes": "coming to Jesus 来到主前, surrender 降服, repentance 悔改", "url": "https://www.youtube.com/watch?v=1gfMtlhm_Oc" },
+    { "zh": "耶稣是我主", "en": "", "channel": "Family Music Ministry", "themes": "lordship 主权, commitment 委身, faith 信心", "url": "https://www.youtube.com/watch?v=PSHj3dBC7PM" },
+    { "zh": "得胜救主", "en": "", "channel": "Family Music Ministry", "themes": "victory 得胜, resurrection 复活, salvation 救恩", "url": "https://www.youtube.com/watch?v=qOg9bVYOPX0" },
+    { "zh": "活水流我心", "en": "", "channel": "Family Music Ministry", "themes": "Holy Spirit 圣灵, living water 活水, renewal 更新", "url": "https://www.youtube.com/watch?v=VDZfbjaQojs" },
+    { "zh": "祢真美丽", "en": "", "channel": "Family Music Ministry", "themes": "adoration 爱慕, beauty of God 神的荣美, worship 敬拜", "url": "https://www.youtube.com/watch?v=rS3eNo_faFw" },
+    { "zh": "", "en": "Praise Our Lord", "channel": "Family Music Ministry", "themes": "praise 赞美, thanksgiving 感恩, joy 喜乐", "url": "https://www.youtube.com/watch?v=Udosekl0Bp8" },
+    { "zh": "十架救赎", "en": "", "channel": "Family Music Ministry", "themes": "cross 十架, redemption 救赎, atonement 赎罪", "url": "https://www.youtube.com/watch?v=hSrSHWO9JV8" },
+    { "zh": "感恩颂", "en": "", "channel": "Family Music Ministry", "themes": "thanksgiving 感恩, gratitude 感谢, God's provision 神的供应", "url": "https://www.youtube.com/watch?v=0v5laL6UJ00" },
+    { "zh": "赞美颂", "en": "", "channel": "Family Music Ministry", "themes": "praise 赞美, worship 敬拜, glory 荣耀", "url": "https://www.youtube.com/watch?v=K53ySwMKXkI" },
+    { "zh": "天上的歌", "en": "Hymns From Heaven", "channel": "Family Music Ministry", "themes": "heaven 天家, hope 盼望, eternity 永恒", "url": "https://www.youtube.com/watch?v=OSPDu4SF-4I" },
     { "zh": "让赞美飞扬", "en": "Let Praise Soar", "channel": "赞美之泉 Stream of Praise", "themes": "praise 赞美, joy 喜乐" },
     { "zh": "这一生最美的祝福", "en": "The Most Beautiful Blessing", "channel": "赞美之泉 Stream of Praise", "themes": "knowing God 认识神, grace 恩典, testimony 见证" },
     { "zh": "宝贵十架", "en": "Precious Cross", "channel": "赞美之泉 Stream of Praise", "themes": "cross 十架, redemption 救赎, gratitude 感恩" },

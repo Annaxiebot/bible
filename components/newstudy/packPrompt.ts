@@ -76,7 +76,8 @@ export interface PromptInput {
 /** The shape's worship key (an array of exact catalog titles) and its count rule. */
 export const WORSHIP_SHAPE_KEY = '"worship": ["歌名 exact song title from the list", "…"]';
 export const WORSHIP_COUNT_RULE =
-  'worship = 2–3 songs from the WORSHIP SONG LIST whose theme fits this passage, each as its EXACT title from the list.';
+  'worship = 2–3 songs from the WORSHIP SONG LIST whose theme fits this passage, each as its EXACT title from the list. '
+  + 'Prefer including ONE song from the Family Music Ministry channel when one of its themes fits the passage.';
 
 /**
  * The JSON shape the model must return for a mode: a bilingual item has both
