@@ -30,14 +30,13 @@ import {
 import SharingControl from '../sharing/SharingControl';
 import type { AutoSaveStatus } from './useAutoSave';
 import {
-  NS_EDIT_TITLE, NS_EDIT_HINTS, NS_PACK_TITLE, NS_SAVED, NS_AUTOSAVED, NS_SAVING, NS_BACK,
+  NS_EDIT_TITLE, NS_EDIT_HINTS, NS_PACK_TITLE, NS_AUTOSAVED, NS_SAVING, NS_BACK,
 } from './newStudyStrings';
 import { textStyle, controlStyle, headingStyle, inputClass, quietButtonClass, labelClass } from './newStudyStyles';
 
 interface Props {
   pack: StudyPack;
   onChange: (pack: StudyPack) => void;
-  onSave: (pack: StudyPack) => Promise<void>;
   onPreview: (pack: StudyPack) => Promise<void>;
   onBack: () => void;
   /** Auto-save state from useAutoSave (NewStudyPage); absent in isolated renders. */
@@ -46,9 +45,8 @@ interface Props {
   scrollToTop?: boolean;
 }
 
-/** The single status line: explicit Save wins, then the quiet auto-save indicator. */
-function statusLine(explicit: 'idle' | 'saved' | 'error', autosave?: Props['autosave']): string | null {
-  if (explicit === 'saved') return NS_SAVED;
+/** The single status line: the quiet auto-save indicator (the explicit Save button is gone — autosave + flush cover it). */
+function statusLine(_explicit: 'idle' | 'error', autosave?: Props['autosave']): string | null {
   if (autosave?.status === 'saved') return NS_AUTOSAVED;
   if (autosave?.status === 'saving') return NS_SAVING;
   return null;
@@ -85,21 +83,21 @@ function useScrollToTopOnMount(ref: React.RefObject<HTMLDivElement | null>, enab
   }, [ref]);
 }
 
-const NewStudyEditor: React.FC<Props> = ({ pack, onChange, onSave, onPreview, onBack, autosave, scrollToTop }) => {
+const NewStudyEditor: React.FC<Props> = ({ pack, onChange, onPreview, onBack, autosave, scrollToTop }) => {
   const rootRef = useRef<HTMLDivElement>(null);
   useScrollToTopOnMount(rootRef, scrollToTop);
-  const [status, setStatus] = useState<'idle' | 'saved' | 'error'>('idle');
+  const [status, setStatus] = useState<'idle' | 'error'>('idle');
   const [error, setError] = useState<string | null>(null);
   const edit = (nextPack: StudyPack) => { setStatus('idle'); onChange(nextPack); };
   const { keys, move, remove, add } = useSectionActions(pack, edit);
   const problem = validateEdited(pack);
 
-  const run = async (action: (p: StudyPack) => Promise<void>, doneStatus: 'saved' | 'idle') => {
+  const run = async (action: (p: StudyPack) => Promise<void>) => {
     if (problem) { setStatus('error'); return; }
     try {
       await action(pack);
       setError(null);
-      setStatus(doneStatus);
+      setStatus('idle');
     } catch (err) {
       setError((err as Error).message);
       setStatus('error');
@@ -135,7 +133,7 @@ const NewStudyEditor: React.FC<Props> = ({ pack, onChange, onSave, onPreview, on
       ))}
       <AddSectionMenu sections={pack.sections} onAdd={add} />
       <EditorActionBar invalid={!!problem} error={shownError} status={shownStatus}
-        onSave={() => void run(onSave, 'saved')} onPreview={() => void run(onPreview, 'idle')} />
+        onPreview={() => void run(onPreview)} />
     </div>
   );
 };

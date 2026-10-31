@@ -1,11 +1,13 @@
 /**
- * EditorActionBar.test.tsx — Save / Preview pinned to the screen's bottom · 操作栏测试
+ * EditorActionBar.test.tsx — Preview pinned to the screen's bottom · 操作栏测试
  *
  * The bar renders with the editor (and only then), is the editor's last
  * child (sticky, so it keeps its place in the flow and never covers the
- * last section), pads for the iPhone home indicator, keeps the ns-save /
- * ns-preview ids, calls the same handlers with the pack, carries the
- * status line, and Back moved to the heading (not duplicated). When
+ * last section), pads for the iPhone home indicator, keeps the ns-preview
+ * id, calls the handler with the pack, carries the status line, and Back
+ * moved to the heading (not duplicated). The explicit Save button is GONE
+ * (owner, 2026-10-31): auto-save + flush made it a redundant second
+ * control, so the bar must have exactly one button. When
  * generation finishes the editor's top scrolls into view — smooth, or
  * instant under reduced motion; opening a saved pack does not scroll.
  */
@@ -18,7 +20,7 @@ import { JOHN3_GENERATED, JOHN3_REQUEST } from './fixtures';
 import NewStudyEditor from '../NewStudyEditor';
 import PhaseView, { Phase, PhaseViewProps } from '../PhaseView';
 import EditorActionBar, { actionBarStyle } from '../EditorActionBar';
-import { NS_BACK, NS_SAVE, NS_PREVIEW, NS_AUTOSAVED } from '../newStudyStrings';
+import { NS_BACK, NS_PREVIEW, NS_AUTOSAVED } from '../newStudyStrings';
 import { REDUCED_MOTION_QUERY } from '../../shared/reducedMotion';
 
 vi.mock('../../../services/bibleDataSource', () => ({
@@ -41,33 +43,29 @@ const rangeReady = () => waitFor(() => expect(screen.getByTestId('ns-range-verse
 
 describe('EditorActionBar', () => {
   it('is the last child of the editor, sticky at the bottom, with safe-area padding and large targets', async () => {
-    render(<NewStudyEditor pack={pack} onChange={() => {}} onSave={async () => {}} onPreview={async () => {}} onBack={() => {}} />);
+    render(<NewStudyEditor pack={pack} onChange={() => {}} onPreview={async () => {}} onBack={() => {}} />);
     await rangeReady();
     const bar = screen.getByTestId('ns-action-bar');
     expect(screen.getByTestId('new-study-editor').lastElementChild).toBe(bar);
     expect(bar.className).toMatch(/\bsticky\b/);
     expect(bar.className).toMatch(/\bbottom-0\b/);
     expect(String(actionBarStyle.paddingBottom)).toContain('env(safe-area-inset-bottom');
-    for (const id of ['ns-save', 'ns-preview']) {
-      const button = screen.getByTestId(id);
-      expect(bar).toContainElement(button);
-      expect(button.style.minHeight).toBe('48px');
-      expect(parseFloat(button.style.fontSize)).toBeGreaterThanOrEqual(20);
-    }
+    const button = screen.getByTestId('ns-preview');
+    expect(bar).toContainElement(button);
+    expect(button.style.minHeight).toBe('48px');
+    expect(parseFloat(button.style.fontSize)).toBeGreaterThanOrEqual(20);
+    // One button only: no Save (auto-save covers it), so no second control.
+    expect(screen.queryByTestId('ns-save')).toBeNull();
+    expect(bar.querySelectorAll('button')).toHaveLength(1);
   });
 
-  it('Save and Preview call the same handlers with the pack; Back sits at the top, once', async () => {
-    const onSave = vi.fn(async () => {});
+  it('Preview calls the handler with the pack; Back sits at the top, once', async () => {
     const onPreview = vi.fn(async () => {});
     const onBack = vi.fn();
-    render(<NewStudyEditor pack={pack} onChange={() => {}} onSave={onSave} onPreview={onPreview} onBack={onBack} />);
+    render(<NewStudyEditor pack={pack} onChange={() => {}} onPreview={onPreview} onBack={onBack} />);
     await rangeReady();
-    expect(screen.getByTestId('ns-save')).toHaveTextContent(NS_SAVE);
     expect(screen.getByTestId('ns-preview')).toHaveTextContent(NS_PREVIEW);
-    expect(screen.getAllByTestId('ns-save')).toHaveLength(1);
     expect(screen.getAllByTestId('ns-preview')).toHaveLength(1);
-    fireEvent.click(screen.getByTestId('ns-save'));
-    await waitFor(() => expect(onSave).toHaveBeenCalledWith(pack));
     fireEvent.click(screen.getByTestId('ns-preview'));
     await waitFor(() => expect(onPreview).toHaveBeenCalledWith(pack));
     const backs = screen.getAllByRole('button', { name: NS_BACK });
@@ -77,11 +75,10 @@ describe('EditorActionBar', () => {
     expect(onBack).toHaveBeenCalledTimes(1);
   });
 
-  it('carries the status line and the error, and disables both buttons while invalid', () => {
-    render(<EditorActionBar invalid error="讨论题不能为空" status={NS_AUTOSAVED} onSave={() => {}} onPreview={() => {}} />);
+  it('carries the status line and the error, and disables Preview while invalid', () => {
+    render(<EditorActionBar invalid error="讨论题不能为空" status={NS_AUTOSAVED} onPreview={() => {}} />);
     expect(screen.getByRole('status')).toHaveTextContent(NS_AUTOSAVED);
     expect(screen.getByRole('alert')).toHaveTextContent('讨论题不能为空');
-    expect(screen.getByTestId('ns-save')).toBeDisabled();
     expect(screen.getByTestId('ns-preview')).toBeDisabled();
   });
 
@@ -94,7 +91,7 @@ describe('EditorActionBar', () => {
 function phaseProps(phase: Phase): PhaseViewProps {
   return {
     phase, configured: true, onGenerate: () => {}, onCancel: () => {}, onBack: () => {}, onChange: () => {},
-    onSave: async () => {}, onPreview: async () => {}, autosave: { status: 'clean', error: null },
+    onPreview: async () => {}, autosave: { status: 'clean', error: null },
   };
 }
 

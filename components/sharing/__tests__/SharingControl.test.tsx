@@ -104,7 +104,7 @@ describe('SharingControl', () => {
 describe('NewStudyEditor + SharingControl', () => {
   it('the control sits above the sections; its result reaches onChange (→ auto-save) as section 2', async () => {
     const onChange = vi.fn();
-    render(<NewStudyEditor pack={CURRENT} onChange={onChange} onSave={async () => undefined}
+    render(<NewStudyEditor pack={CURRENT} onChange={onChange} 
       onPreview={async () => undefined} onBack={() => undefined} />);
     const control = screen.getByTestId('sh-control');
     expect(control.compareDocumentPosition(screen.getAllByTestId('ns-section')[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
