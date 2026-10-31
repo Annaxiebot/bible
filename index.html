@@ -99,6 +99,18 @@
             background: var(--stl-text-3);
             border-radius: 8px;
         }
+        /* Verse popup backdrop: soft dim+blur behind the popup so the verse
+           reads in focus; fades in so hovering across many refs stays calm. */
+        .stl-popup-backdrop {
+            backdrop-filter: blur(3px);
+            -webkit-backdrop-filter: blur(3px);
+            background: rgba(0, 0, 0, 0.25);
+            animation: stl-backdrop-in 0.18s ease-out;
+        }
+        @keyframes stl-backdrop-in {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
         .prose {
             max-width: none;
         }

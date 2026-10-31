@@ -79,6 +79,9 @@ describe('AskAnswer rendering', () => {
     expect(screen.getByTestId('verse-tooltip-title')).toHaveTextContent('马太福音 6:26 · Matthew 6:26');
     expect(tooltip).toHaveTextContent('飞鸟');                 // CUV v.26
     expect(tooltip).toHaveTextContent('birds of the air');     // BSB v.26
+    // A dim+blur backdrop sits behind the popup (focus on the verse) and must
+    // never swallow pointer events — leaving the ref still closes the popup.
+    expect(document.querySelector('.stl-popup-backdrop')).toHaveClass('pointer-events-none');
     fireEvent.mouseLeave(ref);
     // Closing is delayed ~150ms so the pointer can travel into the popup.
     await waitFor(() => expect(screen.queryByRole('tooltip')).not.toBeInTheDocument());
