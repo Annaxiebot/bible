@@ -241,9 +241,31 @@ const WorshipSlide: React.FC<SlideProps> = ({ slide }) => {
   );
 };
 
+/**
+ * Picture slide (ADR-0027): the leader's illustration, centered and contained
+ * (never cropped on the TV), its optional caption under it. packSlides skips
+ * blank-src sections, so src is always set here.
+ */
+const PictureSlide: React.FC<SlideProps> = ({ slide }) => {
+  const t = useSlideTypography();
+  return (
+    <div className="h-full flex flex-col">
+      <Heading text={slide.heading} />
+      <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-[2vh]">
+        <img src={slide.picture?.src} alt={slide.picture?.caption || slide.heading}
+          className="max-h-[78vh] max-w-full object-contain rounded-lg" data-testid="tv-picture" />
+        {slide.picture?.caption?.trim() && (
+          <p className="text-stl-text text-center" style={t.body} data-testid="tv-picture-caption">{slide.picture.caption}</p>
+        )}
+      </div>
+    </div>
+  );
+};
+
 const TVSlide: React.FC<SlideProps> = ({ slide, pack }) => {
   if (slide.kind === 'title') return <TitleSlide slide={slide} />;
   if (slide.kind === 'worship') return <WorshipSlide slide={slide} />;
+  if (slide.kind === 'picture') return <PictureSlide slide={slide} />;
   if (slide.kind === 'scripture') return <ScriptureSlide slide={slide} pack={pack} />;
   if (slide.kind === 'discussion') return <DiscussionSlide slide={slide} pack={pack} />;
   if (slide.kind === 'lifeMenu') return <LifeMenuSlide slide={slide} pack={pack} />;
