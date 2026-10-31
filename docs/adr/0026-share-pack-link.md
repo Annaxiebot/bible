@@ -44,3 +44,10 @@ the separate #/signup path (ADR-0013). public_signup_pack is unchanged.
   "新链接 New link" action can rotate the token if needed.
 - Members load the pack once per open; a leader's later edits are seen on
   the member's next reload (no live sync — out of scope).
+- 查看 view counter (owner asked 2026-10-31): `study_packs.share_views`,
+  bumped by the anon VOLATILE RPC `public_shared_pack_viewed(p_token)` and
+  shown as "查看 N 人 · N viewed" on the leader home counts line and in the
+  share dialog. One count per member DEVICE (a localStorage guard in
+  packShare.markSharedPackViewed), so it approximates people, not page
+  loads; private-mode devices skip counting rather than count every reload.
+  The counter is fire-and-forget: its failure never blocks the deck (R5).

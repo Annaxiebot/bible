@@ -16,6 +16,7 @@ import type { StudyPack } from '../studypack/packTypes';
 import { listLocalPacks } from '../studypack/packSource';
 import { packTime, subscribePackSyncStatus } from '../newstudy/packSync';
 import { getSignupClient } from '../signup/signupClient';
+import { STUDY_PACKS_TABLE } from '../newstudy/packRemote';
 import { SIGNUPS_TABLE, CHECKIN_ANSWERS_TABLE } from '../signup/signupSchema';
 import { REPLACED_COLUMN, isLive } from '../../supabase/functions/send-checkins/replaced';
 import { NS_ERR_STORAGE } from '../newstudy/newStudyStrings';
@@ -24,6 +25,8 @@ import { LH_ERR_COUNTS } from './leaderStrings';
 export interface PackCounts {
   signups: number;
   answers: number;
+  /** Member devices that opened the 分享 share link; undefined when the pack was never shared (no third count shown). */
+  views?: number;
 }
 
 const describe = (err: unknown) => (err instanceof Error ? err.message : String(err));
@@ -54,12 +57,23 @@ async function tallyAnswers(client: SupabaseClient, uid: string): Promise<Map<st
   return countByPack((data ?? []) as Array<{ pack_id: string }>);
 }
 
-/** Sign-ups and shared answers per pack id for this leader. Throws a bilingual error on any failure. */
+/** Link views per pack id: only packs that are or were shared (ADR-0026); one owner-scoped query. */
+async function tallyViews(client: SupabaseClient, uid: string): Promise<Map<string, number>> {
+  const { data, error } = await client
+    .from(STUDY_PACKS_TABLE).select('id, share_views').eq('leader_id', uid).not('share_token', 'is', null);
+  if (error) throw new Error(`${LH_ERR_COUNTS}: ${error.message}`);
+  return new Map(((data ?? []) as Array<{ id: string; share_views?: number | null }>)
+    .map(row => [row.id, row.share_views ?? 0]));
+}
+
+/** Sign-ups, shared answers and link views per pack id for this leader. Throws a bilingual error on any failure. */
 export async function fetchPackCounts(client: SupabaseClient, uid: string): Promise<Map<string, PackCounts>> {
-  const [signups, answers] = await Promise.all([tallySignups(client, uid), tallyAnswers(client, uid)]);
+  const [signups, answers, views] = await Promise.all([
+    tallySignups(client, uid), tallyAnswers(client, uid), tallyViews(client, uid),
+  ]);
   const out = new Map<string, PackCounts>();
-  for (const id of new Set([...signups.keys(), ...answers.keys()])) {
-    out.set(id, { signups: signups.get(id) ?? 0, answers: answers.get(id) ?? 0 });
+  for (const id of new Set([...signups.keys(), ...answers.keys(), ...views.keys()])) {
+    out.set(id, { signups: signups.get(id) ?? 0, answers: answers.get(id) ?? 0, views: views.get(id) });
   }
   return out;
 }

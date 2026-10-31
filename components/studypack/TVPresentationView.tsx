@@ -18,7 +18,7 @@ import { BRAND_EN, BRAND_ZH } from '../landing/landingStrings';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { buildSlides, StudyPack, Slide } from './packTypes';
 import { loadPack } from './packSource';
-import { fetchSharedPack } from './packShare';
+import { fetchSharedPack, markSharedPackViewed } from './packShare';
 import { supabase } from '../../services/supabase';
 import { NS_SHARE_GONE } from '../newstudy/newStudyStrings';
 import { useLocalPackClaim } from '../newstudy/claimLocalPacks';
@@ -161,6 +161,7 @@ async function loadSharedPack(token: string): Promise<StudyPack> {
   if (!supabase) throw new Error(NS_SHARE_GONE);
   const pack = await fetchSharedPack(supabase, token);
   if (!pack) throw new Error(NS_SHARE_GONE);
+  markSharedPackViewed(supabase, token); // count this device once for the leader's 查看 number
   return pack;
 }
 

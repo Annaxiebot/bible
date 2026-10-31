@@ -43,6 +43,8 @@ const fromMock = vi.fn((table: string) => ({
       const rows = (rowsByTable[table] ?? []).filter(r => r.leader_id === value);
       return Object.assign(Promise.resolve(reply(rows)), {
         is: async (col: 'replaced_at', isValue: null) => reply(rows.filter(r => (r[col] ?? null) === isValue)),
+        // tallyViews (share link 查看 counts): only rows that ever minted a token.
+        not: async (col: string) => reply(rows.filter(r => (r as Record<string, unknown>)[col] != null)),
       });
     },
   }),

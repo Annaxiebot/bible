@@ -16,6 +16,7 @@ import {
   NS_SHARE_TITLE, NS_SHARE_INTRO, NS_SHARE_ON, NS_SHARE_OFF, NS_SHARE_OFF_NOTE,
   NS_SHARE_COPY, NS_SHARE_COPIED, NS_SHARE_SIGNIN, NS_CLOSE,
 } from './newStudyStrings';
+import { viewsCountLine } from '../leader/leaderStrings';
 import { textStyle, controlStyle, primaryButtonClass, secondaryButtonClass } from './newStudyStyles';
 import SignupQr from '../signup/SignupQr';
 
@@ -61,7 +62,7 @@ const SharePackDialog: React.FC<Props> = ({ pack, onClose }) => {
     if (!ready || !state || busy) return;
     setBusy(true);
     setError(null);
-    setPackSharing(supabase!, pack.id, uid!, on, state.shareToken)
+    setPackSharing(supabase!, pack.id, uid!, on, state)
       .then(setState)
       .catch(err => setError((err as Error).message))
       .finally(() => setBusy(false));
@@ -79,6 +80,7 @@ const SharePackDialog: React.FC<Props> = ({ pack, onClose }) => {
         {ready && state && (state.shared && state.shareToken ? (
           <>
             <ShareLink token={state.shareToken} />
+            <p className="text-slate-300 text-center" style={textStyle} data-testid="share-views">{viewsCountLine(state.views)}</p>
             <p className="text-slate-500" style={textStyle}>{NS_SHARE_OFF_NOTE}</p>
             <button type="button" disabled={busy} onClick={() => toggle(false)}
               className={secondaryButtonClass} style={controlStyle} data-testid="share-off">{NS_SHARE_OFF}</button>
