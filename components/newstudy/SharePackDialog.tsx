@@ -29,6 +29,9 @@ const ShareLink: React.FC<{ token: string }> = ({ token }) => {
   const [copied, setCopied] = useState(false);
   const url = currentShareUrl(token);
   const copy = () => {
+    // Silent failure is fine (R5): the URL is on screen right above (data-testid="share-url"),
+    // so when a browser denies clipboard access the leader copies it by hand; the button
+    // simply never flips to "已复制 Copied".
     void navigator.clipboard?.writeText(url).then(() => setCopied(true)).catch(() => {});
   };
   return (

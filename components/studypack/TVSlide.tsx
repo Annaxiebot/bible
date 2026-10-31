@@ -225,7 +225,7 @@ const WorshipSlide: React.FC<SlideProps> = ({ slide }) => {
       <Heading text={slide.heading} />
       <FitArea fitKey={slide}>
         {songs.map((song, i) => (
-          <p key={i} className="mb-[2vh]" style={fitted(t.body)}>
+          <p key={`${i}:${song.title}`} className="mb-[2vh]" style={fitted(t.body)}>
             <a href={song.url} target="_blank" rel="noopener noreferrer"
               className="text-stl-gold underline underline-offset-4" data-testid="tv-worship-song">
               {song.title}
