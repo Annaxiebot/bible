@@ -28,9 +28,10 @@ describe('landing copy (2026-10 review)', () => {
     expect(screen.getByText(HERO_SUB_EN)).toHaveAttribute('lang', 'en');
   });
 
-  it('hero separates published Scripture from AI drafts the leader reviews', () => {
-    render(<LandingHero />);
-    const sourceNote = screen.getByTestId('hero-source-note');
+  it('the Scripture-vs-AI-drafts disclosure lives in the footer small print, out of the hero (owner, 2026-10-31)', () => {
+    render(<Landing />);
+    expect(screen.queryByTestId('hero-source-note')).toBeNull();
+    const sourceNote = screen.getByTestId('source-note');
     expect(sourceNote).toHaveTextContent(HERO_SOURCE_NOTE.zh);
     expect(sourceNote).toHaveTextContent(HERO_SOURCE_NOTE.en);
     expect(HERO_SOURCE_NOTE.en).toMatch(/published Bible translations/);

@@ -163,12 +163,16 @@ describe('LeaderHome', () => {
   });
 
   it('signed in: shows the email and a Sign out button (regression: there was no way to sign out)', async () => {
+    window.location.hash = '#/leader';
     render(<LeaderHome />);
     const bar = screen.getByTestId('leader-sign-out');
     expect(bar).toHaveTextContent('lead@example.com');
     fireEvent.click(within(bar).getByRole('button', { name: SETUP_SIGN_OUT }));
     await waitFor(() => expect(signOutMock).toHaveBeenCalledTimes(1));
     expect(within(bar).queryByRole('alert')).toBeNull();
+    // A successful sign-out lands on the home page, not a signed-out leader home
+    // (owner, 2026-10-31). Setting LANDING_HASH ('#') reads back as '' in the DOM.
+    await waitFor(() => expect(window.location.hash).toBe(''));
   });
 
   it('a failed sign-out is shown with the auth message', async () => {

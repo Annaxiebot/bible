@@ -7,6 +7,7 @@
  */
 import React, { useState } from 'react';
 import { authManager } from '../../services/supabase';
+import { LANDING_HASH } from '../landing/landingRoute';
 import { SETUP_SIGN_OUT, SETUP_SIGN_OUT_FAILED, SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../setup/setupStrings';
 
 const textStyle: React.CSSProperties = { fontSize: SETUP_MIN_FONT_PX, lineHeight: 1.5 };
@@ -20,6 +21,8 @@ export const LeaderSignOut: React.FC<{ email: string | null }> = ({ email }) => 
     const { error: failure } = await authManager.signOut();
     setBusy(false);
     setError(failure ? failure.message : null);
+    // Signed out → the home page (owner asked 2026-10-31), not a signed-out leader home.
+    if (!failure) window.location.hash = LANDING_HASH;
   };
   return (
     <div data-testid="leader-sign-out" className="flex flex-wrap items-center gap-x-2 text-stl-text-2" style={textStyle}>

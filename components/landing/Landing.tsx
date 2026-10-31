@@ -28,7 +28,7 @@ import Pill from '../shared/Pill';
 import { splitLabel } from '../studypack/principles';
 import { SETUP_HASH, NEW_STUDY_HASH, SAMPLE_PACK_ID } from './landingRoute';
 import {
-  SITE_LINE, LOOP_LINE_ZH, LOOP_LINE_EN, NEW_STUDY_LINE, NEW_STUDY_SUB, NEW_STUDY_SIGNIN_NOTE, AI_SIGNIN_NOTE,
+  SITE_LINE, LOOP_LINE_ZH, LOOP_LINE_EN, NEW_STUDY_LINE, NEW_STUDY_SUB, NEW_STUDY_SIGNIN_NOTE, AI_SIGNIN_NOTE, HERO_SOURCE_NOTE,
   BRAND_EN, BRAND_ZH_LEAD, BRAND_ZH_HIGHLIGHT, NAV_LINKS, PHOTO_CREDIT, WORSHIP_LABEL, WORSHIP_PAGE,
 } from './landingStrings';
 import { FEEDBACK_LABEL, feedbackHash } from '../../supabase/functions/_shared/feedback';
@@ -85,6 +85,8 @@ const Footer: React.FC = () => {
           </div>
         </div>
         <div className="ld-foot-bottom">
+          {/* The Scripture-vs-AI-drafts disclosure: honest, but small print, not hero copy (owner asked 2026-10-31). */}
+          <p data-testid="source-note">{HERO_SOURCE_NOTE.zh} <span lang="en">{HERO_SOURCE_NOTE.en}</span></p>
           <p>{SITE_LINE}</p>
           <p data-testid="photo-credit">{PHOTO_CREDIT}</p>
         </div>
