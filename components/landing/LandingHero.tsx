@@ -3,17 +3,18 @@
  *
  * Paper hero, style "醒目 Bold": a mono eyebrow, the "Scripture to Life"
  * line, the 活出神的话 headline (霞鹜文楷, 神的话 in the deep-gold gradient),
- * the bilingual sub-line (what the site does, concretely), the source note
- * (published Scripture vs AI drafts the leader reviews), two gold pills —
- * the complete sample and 新建查经 (sign-in with Google or email, disclosed
- * before the click) — and the loop line. Behind it, static rings plus four gold waves that ripple out
+ * the bilingual sub-line (what the site does, concretely), the CTAs —
+ * 新建查经 the gold primary (sign-in with Google or email, disclosed
+ * before the click) and the complete sample as the quiet second — and the
+ * loop line. The source note (published Scripture vs AI drafts) lives in
+ * the footer small print. Behind it, static rings plus four gold waves that ripple out
  * (CSS only, landing.css); the waves are hidden under prefers-reduced-motion
  * and the page reads the same without them (ADR-0003 §16).
  */
 import React from 'react';
 import { SAMPLE_PACK_HASH, NEW_STUDY_HASH } from './landingRoute';
 import {
-  BRAND_EN, BRAND_ZH_LEAD, BRAND_ZH_HIGHLIGHT, HERO_EYEBROW, HERO_SUB_ZH, HERO_SUB_EN, HERO_SOURCE_NOTE,
+  BRAND_EN, BRAND_ZH_LEAD, BRAND_ZH_HIGHLIGHT, HERO_EYEBROW, HERO_SUB_ZH, HERO_SUB_EN,
   GROUP_CTA, NEW_STUDY_LINE, LOOP_LINE_ZH, NEW_STUDY_SIGNIN_NOTE,
 } from './landingStrings';
 import { splitBilingual } from './LandingSection';
@@ -70,17 +71,15 @@ const LandingHero: React.FC = () => (
         <SubZh />
         <span className="ld-en" lang="en">{HERO_SUB_EN}</span>
       </p>
-      <p className="ld-source-note" data-testid="hero-source-note">
-        <span>{HERO_SOURCE_NOTE.zh}</span>{' '}
-        <span lang="en">{HERO_SOURCE_NOTE.en}</span>
-      </p>
       <div className="ld-ctas">
-        <div className="ld-cta">
-          <Pill href={SAMPLE_PACK_HASH} label={GROUP_CTA} arrow testId="hero-sample" />
-        </div>
+        {/* 新建查经 is the weekly action, so it carries the gold; the sample is the quiet first-visit path.
+            The source note (published Scripture vs AI drafts) moved to the footer small print. */}
         <CtaWithNote id="hero-new-study-note" note={NEW_STUDY_SIGNIN_NOTE}>
-          <Pill href={NEW_STUDY_HASH} label={NEW_STUDY_LINE} ghost testId="hero-new-study" describedBy="hero-new-study-note" />
+          <Pill href={NEW_STUDY_HASH} label={NEW_STUDY_LINE} arrow testId="hero-new-study" describedBy="hero-new-study-note" />
         </CtaWithNote>
+        <div className="ld-cta">
+          <Pill href={SAMPLE_PACK_HASH} label={GROUP_CTA} ghost testId="hero-sample" />
+        </div>
       </div>
       <p className="ld-loop-line">{LOOP_LINE_ZH}</p>
     </div>
