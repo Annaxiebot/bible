@@ -15,7 +15,9 @@ import { leaderHash } from '../leader/leaderRoute';
 import { newStudyHash } from '../landing/landingRoute';
 import {
   NS_MY_PACKS, NS_NO_PACKS, NS_EDIT, NS_DELETE, NS_DELETE_CONFIRM, NS_INVALID_RECORDS, NS_SIGNUPS, NS_SIGN_IN_TO_KEEP,
+  NS_SHARE,
 } from './newStudyStrings';
+import SharePackDialog from './SharePackDialog';
 import { textStyle, controlStyle, headingStyle } from './newStudyStyles';
 import BackupPanel from './BackupPanel';
 import { PackListing } from '../shared/PackListing';
@@ -32,6 +34,7 @@ interface Props {
 const PackRow: React.FC<{ pack: StudyPack; packs: LocalPacks; onOpen: (pack: StudyPack) => void }> = ({ pack, packs, onOpen }) => {
   // A real link (#/new/<id>) so the editor URL survives reload; the click opens it in place.
   const open = (e: React.MouseEvent) => { e.preventDefault(); onOpen(pack); };
+  const [sharing, setSharing] = React.useState(false);
   return (
     <li data-testid="pack-row" className={studyRowClass}>
       <DateTile date={pack.date} />
@@ -39,8 +42,11 @@ const PackRow: React.FC<{ pack: StudyPack; packs: LocalPacks; onOpen: (pack: Stu
       <div className="flex items-center gap-2">
         <a href={newStudyHash(pack.id)} data-testid="pack-edit" onClick={open} className={goldButtonClass} style={controlStyle}>{NS_EDIT}</a>
         <a href={leaderHash(pack.id)} data-testid="pack-signups" className={outlineButtonClass} style={controlStyle}>{NS_SIGNUPS}</a>
+        <button type="button" data-testid="pack-share" onClick={() => setSharing(true)}
+          className={outlineButtonClass} style={controlStyle}>{NS_SHARE}</button>
         <TrashButton label={NS_DELETE} onClick={() => { if (window.confirm(NS_DELETE_CONFIRM)) void packs.remove(pack.id); }} />
       </div>
+      {sharing && <SharePackDialog pack={pack} onClose={() => setSharing(false)} />}
     </li>
   );
 };

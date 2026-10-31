@@ -10,6 +10,7 @@
  * app, so existing bookmarks keep working.
  */
 import { getPackIdFromHash } from '../studypack/packTypes';
+import { getShareTokenFromHash } from '../studypack/packShare';
 import { getSignupPackIdFromHash, getQrPackIdFromHash } from '../signup/signupRoute';
 import { getLeaderPackIdFromHash, isLeaderHomeHash } from '../leader/leaderRoute';
 import { getCheckinFromHash, getCheckinStopFromHash } from '../checkin/checkinRoute';
@@ -57,6 +58,7 @@ export type RootView = 'landing' | 'setup' | 'app' | 'pack' | 'new' | 'signup' |
 /** Map a location.hash to the view the root gate should render. */
 export function resolveRootView(hash: string): RootView {
   if (getPackIdFromHash(hash)) return 'pack';
+  if (getShareTokenFromHash(hash)) return 'pack'; // member view of a shared pack (ADR-0026) — same gate
   if (getSignupPackIdFromHash(hash)) return 'signup';
   if (getQrPackIdFromHash(hash)) return 'qr';
   if (getLeaderPackIdFromHash(hash)) return 'leader';
