@@ -102,6 +102,8 @@ describe('AskAIOverlay (streaming)', () => {
     fireEvent.change(screen.getByLabelText(/Ask AI question/), { target: { value: 'Why birds?' } });
     fireEvent.click(screen.getByRole('button', { name: /提问 Ask/ }));
     expect(screen.getByTestId('ask-question')).toHaveTextContent('Why birds?');
+    // Questions read gold so they stand apart from the white answers (owner asked 2026-10-31).
+    expect(screen.getByTestId('ask-question')).toHaveClass('text-stl-gold');
     // The question sits in the conversation, in the latest turn, right above its answer (not pinned as a title).
     expect(within(screen.getByTestId('ask-latest')).getByTestId('ask-question')).toBeInTheDocument();
 
