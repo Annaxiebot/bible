@@ -39,3 +39,22 @@ LANGUAGE sql SECURITY DEFINER SET search_path = public STABLE AS $$
 $$;
 REVOKE ALL ON FUNCTION public.public_shared_pack(TEXT) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.public_shared_pack(TEXT) TO anon, authenticated;
+
+-- 查看计数 link-view counter (owner asked 2026-10-31). Counts member DEVICES,
+-- not page loads: the member view calls public_shared_pack_viewed once per
+-- device (a localStorage guard in packShare.markSharedPackViewed), so the
+-- leader's 查看 N 人 number approximates people. Anon can only add 1 to a
+-- LIVE share's counter — it reads nothing back, and a dead or unknown token
+-- updates no row. Owner reads share_views under the existing owner-only RLS.
+ALTER TABLE study_packs ADD COLUMN IF NOT EXISTS share_views INTEGER NOT NULL DEFAULT 0;
+
+CREATE OR REPLACE FUNCTION public.public_shared_pack_viewed(p_token TEXT)
+RETURNS VOID
+LANGUAGE sql SECURITY DEFINER SET search_path = public VOLATILE AS $$
+  UPDATE study_packs SET share_views = share_views + 1
+  WHERE length(p_token) >= 16
+    AND share_token = p_token
+    AND shared;
+$$;
+REVOKE ALL ON FUNCTION public.public_shared_pack_viewed(TEXT) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.public_shared_pack_viewed(TEXT) TO anon, authenticated;

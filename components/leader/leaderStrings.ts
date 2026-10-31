@@ -71,9 +71,14 @@ export function signupCountLine(signups: number): string {
 export function sharedCountLine(answers: number): string {
   return bilingualLine(`反馈 ${answers} 条`, `${answers} responses`);
 }
-/** The whole counts text as rendered (lh-counts): the sign-up part, then the shared part. */
-export function packCountsLine(signups: number, answers: number): string {
-  return `${signupCountLine(signups)} ${sharedCountLine(answers)}`;
+/** 查看: member devices that opened the 分享 share link (counted once each, packShare.markSharedPackViewed). */
+export function viewsCountLine(views: number): string {
+  return bilingualLine(`查看 ${views} 人`, `${views} viewed`);
+}
+/** The whole counts text as rendered (lh-counts): sign-ups, responses, then link views (views only when shared). */
+export function packCountsLine(signups: number, answers: number, views?: number): string {
+  const base = `${signupCountLine(signups)} ${sharedCountLine(answers)}`;
+  return views === undefined ? base : `${base} ${viewsCountLine(views)}`;
 }
 
 // ---- stop / resume one member, pause the study (ADR-0009) ----

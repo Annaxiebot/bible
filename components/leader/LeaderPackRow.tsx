@@ -19,7 +19,7 @@ import { leaderHash } from './leaderRoute';
 import type { PackCounts } from './leaderHomeData';
 import { NS_EDIT, NS_SHARE } from '../newstudy/newStudyStrings';
 import SharePackDialog from '../newstudy/SharePackDialog';
-import { LH_PRESENT, LH_RESPONSES, LH_QR, signupCountLine, sharedCountLine } from './leaderStrings';
+import { LH_PRESENT, LH_RESPONSES, LH_QR, signupCountLine, sharedCountLine, viewsCountLine } from './leaderStrings';
 import { textStyle, controlStyle } from '../newstudy/newStudyStyles';
 import { requestFullscreen } from '../studypack/fullscreen';
 import { DateTile, StudyHeading, studyRowClass, goldButtonClass, outlineButtonClass, quietRowLinkClass } from '../shared/PackRowParts';
@@ -35,6 +35,9 @@ const Counts: React.FC<{ counts: PackCounts }> = ({ counts }) => (
     {counts.answers > 0
       ? <span data-testid="lh-shared" data-has-shared="true" className={sharedBadgeClass}>{sharedCountLine(counts.answers)}</span>
       : <span data-testid="lh-shared" data-has-shared="false">{sharedCountLine(0)}</span>}
+    {counts.views !== undefined && (
+      <span data-testid="lh-views" className="text-stl-text"> {viewsCountLine(counts.views)}</span>
+    )}
   </span>
 );
 

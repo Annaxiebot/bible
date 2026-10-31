@@ -42,15 +42,17 @@ export function newShareToken(): string {
 export interface PackSharing {
   shared: boolean;
   shareToken: string | null;
+  /** How many member devices opened the link (markSharedPackViewed counts each once). */
+  views: number;
 }
 
 /** The pack's sharing state, owner only. */
 export async function getPackSharing(client: SupabaseClient, id: string, uid: string): Promise<PackSharing> {
   const { data, error } = await client
-    .from(STUDY_PACKS_TABLE).select('shared, share_token').eq('id', id).eq('leader_id', uid).maybeSingle();
+    .from(STUDY_PACKS_TABLE).select('shared, share_token, share_views').eq('id', id).eq('leader_id', uid).maybeSingle();
   if (error) throw new Error(`${PS_ERR_PULL}: ${error.message}`);
-  const row = data as { shared?: boolean; share_token?: string | null } | null;
-  return { shared: !!row?.shared, shareToken: row?.share_token ?? null };
+  const row = data as { shared?: boolean; share_token?: string | null; share_views?: number | null } | null;
+  return { shared: !!row?.shared, shareToken: row?.share_token ?? null, views: row?.share_views ?? 0 };
 }
 
 /**
@@ -59,13 +61,29 @@ export async function getPackSharing(client: SupabaseClient, id: string, uid: st
  * token stays for a later re-share). Returns the resulting state.
  */
 export async function setPackSharing(
-  client: SupabaseClient, id: string, uid: string, on: boolean, existingToken: string | null,
+  client: SupabaseClient, id: string, uid: string, on: boolean, existing: Pick<PackSharing, 'shareToken' | 'views'>,
 ): Promise<PackSharing> {
-  const shareToken = on ? (existingToken ?? newShareToken()) : existingToken;
+  const shareToken = on ? (existing.shareToken ?? newShareToken()) : existing.shareToken;
   const patch = on ? { shared: true, share_token: shareToken } : { shared: false };
   const { error } = await client.from(STUDY_PACKS_TABLE).update(patch).eq('id', id).eq('leader_id', uid);
   if (error) throw new Error(`${NS_SHARE_ERR}: ${error.message}`);
-  return { shared: on, shareToken };
+  return { shared: on, shareToken, views: existing.views };
+}
+
+/** One count per member device: the localStorage guard that keeps reloads from inflating share_views. */
+export const viewedGuardKey = (token: string) => `stl-share-viewed:${token}`;
+
+/**
+ * Count this device once against the share's 查看 view counter. Fire-and-
+ * forget analytics: every failure (storage blocked, RPC down) is swallowed
+ * on purpose (R5) — a member must never lose the deck over a counter.
+ */
+export function markSharedPackViewed(client: SupabaseClient, token: string): void {
+  try {
+    if (localStorage.getItem(viewedGuardKey(token))) return;
+    localStorage.setItem(viewedGuardKey(token), '1');
+  } catch { return; } // storage unavailable (private mode): skip rather than count every reload
+  void client.rpc('public_shared_pack_viewed', { p_token: token }).then(() => {}, () => {});
 }
 
 /** The shared pack behind a member link, or null when the token is unknown or sharing is off. */
