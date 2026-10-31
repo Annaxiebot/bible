@@ -126,6 +126,10 @@ const VerseTooltip: React.FC<VerseTooltipProps> = ({ label, title = label, verse
     >
       {label}
       {open && placement && createPortal(
+        <>
+        {/* Dim+blur everything behind the popup; pointer-events none keeps
+            hover/click behavior (leaving the ref still schedules the close). */}
+        <span aria-hidden className="stl-popup-backdrop fixed inset-0 block pointer-events-none" style={{ zIndex: 9998 }} />
         <span
           role="tooltip"
           data-testid="verse-tooltip"
@@ -146,7 +150,8 @@ const VerseTooltip: React.FC<VerseTooltipProps> = ({ label, title = label, verse
             {title}
           </span>
           <PopupBody state={state} />
-        </span>,
+        </span>
+        </>,
         document.body
       )}
     </span>
