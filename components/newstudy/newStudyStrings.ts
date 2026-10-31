@@ -105,6 +105,12 @@ export const NS_SONG_URL = bilingual('链接', 'Link');
 export const NS_SONG_ADD = bilingual('加一首', 'Add a song');
 export const NS_SONG_REMOVE = bilingual('删除', 'Remove');
 export const NS_QUESTION_REMOVE = bilingual('删除', 'Remove');
+// ---- picture sections (ADR-0027) ----
+export const NS_IMG_PICK = bilingual('选择图片', 'Choose a picture');
+export const NS_IMG_URL = bilingual('或粘贴图片链接', 'or paste an image link');
+export const NS_IMG_CAPTION = bilingual('说明（可选）', 'Caption (optional)');
+export const NS_IMG_TOO_BIG = bilingualLine('图片太大，请换一张小一点的', 'The picture is too large — please pick a smaller one');
+export const NS_IMG_READ_ERR = bilingualLine('无法读取图片', 'The picture could not be read');
 export const NS_SAVE = bilingual('保存', 'Save');
 export const NS_SAVED = bilingual('已保存', 'Saved');
 /** Quiet auto-save indicator: the pack is stored without the leader pressing anything. */

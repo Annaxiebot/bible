@@ -23,12 +23,13 @@ export type SectionKind =
   | 'discussion'
   | 'lifeMenu'
   | 'reflection'
+  | 'picture'     // optional, anywhere after the head: one illustration the leader added (ADR-0027)
   | 'qr'
   | 'closing';
 
 const SECTION_KINDS: readonly SectionKind[] = [
   'title', 'worship', 'sharing', 'scripture', 'context', 'originalLanguage', 'crossRefs',
-  'discussion', 'lifeMenu', 'reflection', 'qr', 'closing',
+  'discussion', 'lifeMenu', 'reflection', 'picture', 'qr', 'closing',
 ];
 
 /** One worship song: display title (Chinese first when it has one) + the YouTube link to open. */
@@ -36,6 +37,17 @@ export interface WorshipSong {
   title: string;     // e.g. "宝贵十架 Precious Cross"
   url: string;       // YouTube watch/search URL — linked, never re-hosted (ADR-0022)
   channel?: string;  // e.g. "赞美之泉 Stream of Praise"
+}
+
+/**
+ * A picture section's one illustration (ADR-0027). `src` is a downscaled
+ * data URL embedded in the pack (imageResize.ts) or a pasted http(s) image
+ * URL; '' mid-edit (the editor starts blank; display skips it). Named
+ * `picture`, not `image` — qr sections carry a LEGACY `image` string.
+ */
+export interface PackPicture {
+  src: string;
+  caption?: string;
 }
 
 export interface LifeMenuRow {
@@ -63,6 +75,7 @@ export interface PackSection {
   keyPhrase?: string;     // scripture only — shown in large type
   verses?: PackVerse[];   // scripture only — the full embedded passage text
   songs?: WorshipSong[];  // worship only — songs to sing before the study
+  picture?: PackPicture;  // picture only — the leader's illustration (ADR-0027)
   headingZh?: string;     // qr only — optional Chinese heading line
   image?: string;         // qr only — legacy static image path; ignored, the QR is drawn per pack
   url?: string;           // qr only — legacy static form URL; ignored, see Slide.signupUrl
@@ -85,7 +98,7 @@ export type SectionOrigin = 'guide' | 'ai';
 const SECTION_ORIGINS: readonly SectionOrigin[] = ['guide', 'ai'];
 
 // Bump on pack-shape changes; appended to the pack URL so a 10-min CDN-cached pack never meets newer code.
-export const PACK_SCHEMA_VERSION = 3; // 3: worship sections (songs[])
+export const PACK_SCHEMA_VERSION = 4; // 3: worship sections (songs[]); 4: picture sections (ADR-0027)
 
 /**
  * Keys an older pack may still carry from the removed Google Forms feature
@@ -133,6 +146,7 @@ export interface Slide {
   headingZh?: string;
   signupUrl?: string;  // qr only — this deployment's sign-up URL (what the QR encodes); absent on demo packs
   songs?: WorshipSong[]; // worship only
+  picture?: PackPicture; // picture only
 }
 
 function isStringArray(value: unknown): value is string[] {
@@ -146,6 +160,14 @@ function isPackVerses(value: unknown): value is PackVerse[] {
     typeof (v as PackVerse).cuv === 'string' && (v as PackVerse).cuv.length > 0 &&
     typeof (v as PackVerse).en === 'string' && (v as PackVerse).en.length > 0
   );
+}
+
+// src may be '' mid-edit (the editor starts a picture blank, like discussion's '' question); display skips it.
+export function isPackPicture(value: unknown): value is PackPicture {
+  const p = value as Partial<PackPicture> | null;
+  return typeof p === 'object' && p !== null
+    && typeof p.src === 'string'
+    && (p.caption === undefined || typeof p.caption === 'string');
 }
 
 // A row's title/url may be '' mid-edit (the editor adds blank rows, like discussion's '' question); display skips them.
@@ -191,6 +213,9 @@ function parseSection(raw: unknown, index: number): PackSection {
   }
   if (s.kind === 'worship' && (!isWorshipSongs(s.songs) || s.songs.length === 0)) {
     throw new Error(`StudyPack worship section ${index} needs non-empty songs[] ({title, url})`);
+  }
+  if (s.kind === 'picture' && !isPackPicture(s.picture)) {
+    throw new Error(`StudyPack picture section ${index} needs a picture ({src, caption?})`);
   }
   if (s.kind === 'qr' && s.image !== undefined && typeof s.image !== 'string') {
     throw new Error(`StudyPack qr section ${index} legacy image must be a string when present`);

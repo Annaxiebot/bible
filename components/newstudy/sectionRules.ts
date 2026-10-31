@@ -20,8 +20,11 @@ import {
 
 /** Kinds the leader may add or remove, in menu order. */
 export const ADDABLE_KINDS: readonly SectionKind[] = [
-  'worship', 'context', 'originalLanguage', 'crossRefs', 'discussion', 'lifeMenu', 'reflection', 'closing',
+  'worship', 'context', 'originalLanguage', 'crossRefs', 'discussion', 'lifeMenu', 'reflection', 'picture', 'closing',
 ];
+
+/** Most picture sections per pack: embedded data URLs grow the pack ~200–400KB each (ADR-0027). */
+export const MAX_PACK_PICTURES = 5;
 
 /** Kinds that appear at most once in a pack. */
 export const SINGLETON_KINDS: readonly SectionKind[] = ['worship', 'lifeMenu', 'reflection', 'qr', 'closing'];
@@ -92,6 +95,7 @@ export function canRemove(sections: readonly PackSection[], i: number): boolean 
 
 export function canAdd(sections: readonly PackSection[], kind: SectionKind): boolean {
   if (!ADDABLE_KINDS.includes(kind)) return false;
+  if (kind === 'picture') return sections.filter(s => s.kind === 'picture').length < MAX_PACK_PICTURES;
   return !SINGLETON_KINDS.includes(kind) || !sections.some(s => s.kind === kind);
 }
 
@@ -131,6 +135,7 @@ export function defaultSection(kind: SectionKind): PackSection {
   const heading = SECTION_HEADINGS[kind as keyof typeof SECTION_HEADINGS];
   switch (kind) {
     case 'worship': return { kind, heading, songs: [{ title: '', url: '' }] };
+    case 'picture': return { kind, heading, picture: { src: '', caption: '' } };
     case 'discussion': return { kind, heading, questions: [''] };
     case 'lifeMenu': return { kind, heading, rows: LIFE_AREAS.map(area => ({ area, practice: '' })) };
     case 'reflection': return { kind, heading, body: [PRIVACY_LINE] };

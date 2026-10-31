@@ -69,6 +69,10 @@ function sectionSlides(pack: StudyPack, section: PackSection): Slide[] {
   if (kind === 'worship' && section.songs) {
     return [{ kind, heading, body, songs: section.songs }];
   }
+  if (kind === 'picture') {
+    // A picture the leader never filled in (blank src mid-edit) makes no slide (ADR-0027).
+    return section.picture?.src.trim() ? [{ kind, heading, picture: section.picture }] : [];
+  }
   if (kind === 'lifeMenu' && rows) {
     const menuChunks = chunkBalanced(rows, () => 1, { maxCost: MAX_LIFE_MENU_ROWS_PER_SLIDE });
     return partSlides(menuChunks, chunk => ({ kind, heading, rows: chunk }));

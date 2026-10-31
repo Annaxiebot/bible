@@ -11,10 +11,12 @@
  * non-verbatim lines (guide/GuideMarks, ADR-0019).
  */
 import React from 'react';
-import { PackSection, WorshipSong } from '../studypack/packTypes';
+import { PackPicture, PackSection, WorshipSong } from '../studypack/packTypes';
 import {
   NS_SCRIPTURE_NOTE, NS_QUESTION_ADD, NS_QUESTION_REMOVE, NS_SONG_TITLE, NS_SONG_URL, NS_SONG_ADD, NS_SONG_REMOVE,
+  NS_IMG_PICK, NS_IMG_URL, NS_IMG_CAPTION,
 } from './newStudyStrings';
+import { downscaleImage } from './imageResize';
 import { textStyle, controlStyle, inputClass, secondaryButtonClass, quietButtonClass, labelClass } from './newStudyStyles';
 import SectionAdjust from './SectionAdjust';
 import { isAdjustable, AdjustPack } from './adjustPrompt';
@@ -115,6 +117,37 @@ const WorshipSection: React.FC<{ section: PackSection; onSongs: (songs: WorshipS
   );
 };
 
+/** One illustration (ADR-0027): pick a photo (embedded, downscaled) or paste an image URL; optional caption. */
+const PictureSection: React.FC<{ section: PackSection; onPicture: (picture: PackPicture) => void }> = ({ section, onPicture }) => {
+  const picture = section.picture ?? { src: '', caption: '' };
+  const [error, setError] = React.useState<string | null>(null);
+  const pick = (file: File | undefined) => {
+    if (!file) return;
+    setError(null);
+    downscaleImage(file)
+      .then(src => onPicture({ ...picture, src }))
+      .catch((err: Error) => setError(err.message)); // surfaced on the role=alert line below
+  };
+  return (
+    <div className="flex flex-col gap-3" data-testid="ns-picture">
+      <SectionHeading text={section.heading} />
+      {picture.src && <img src={picture.src} alt={picture.caption || section.heading}
+        className="max-h-[20vh] self-start rounded-lg" data-testid="ns-picture-preview" />}
+      <label className={`${secondaryButtonClass} self-start cursor-pointer`} style={controlStyle}>
+        {NS_IMG_PICK}
+        <input type="file" accept="image/*" className="hidden" aria-label={NS_IMG_PICK}
+          onChange={e => pick(e.target.files?.[0])} />
+      </label>
+      <input type="url" value={picture.src.startsWith('data:') ? '' : picture.src} placeholder={NS_IMG_URL}
+        aria-label={NS_IMG_URL} onChange={e => onPicture({ ...picture, src: e.target.value })}
+        className={inputClass} style={textStyle} />
+      <input type="text" value={picture.caption ?? ''} placeholder={NS_IMG_CAPTION} aria-label={NS_IMG_CAPTION}
+        onChange={e => onPicture({ ...picture, caption: e.target.value })} className={inputClass} style={textStyle} />
+      {error && <p role="alert" className="text-red-300" style={textStyle}>{error}</p>}
+    </div>
+  );
+};
+
 const LifeMenuSection: React.FC<{ section: PackSection; onRows: (rows: PackSection['rows']) => void }> = ({ section, onRows }) => {
   const rows = section.rows ?? [];
   return (
@@ -152,6 +185,8 @@ const SectionControl: React.FC<SectionEditorProps> = ({ section, onPatch }) => {
       return <QuestionsSection section={section} onQuestions={questions => onPatch({ questions })} />;
     case 'lifeMenu':
       return <LifeMenuSection section={section} onRows={rows => onPatch({ rows })} />;
+    case 'picture':
+      return <PictureSection section={section} onPicture={picture => onPatch({ picture })} />;
     default:
       return <LinesSection section={section} onBody={body => onPatch({ body })} />;
   }
