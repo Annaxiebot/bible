@@ -3,7 +3,7 @@
  *
  * The popup prefers opening above the reference; when there is not enough
  * room it flips below, is clamped horizontally inside the viewport, and its
- * height is capped (≤ half the viewport) so long ranges scroll instead of
+ * height is capped (≤ 60% of the viewport) so long ranges scroll instead of
  * running off screen.
  */
 
@@ -36,7 +36,7 @@ export interface TooltipPlacement {
 export const TOOLTIP_GAP = 8;
 
 /** Height cap as a fraction of the viewport (long ranges scroll). */
-export const TOOLTIP_MAX_HEIGHT_RATIO = 0.5;
+export const TOOLTIP_MAX_HEIGHT_RATIO = 0.6;
 
 /** The popup needs at least this much height to be worth placing on a side. */
 const MIN_USEFUL_HEIGHT = 120;
@@ -56,7 +56,10 @@ export function placeTooltip(anchor: AnchorRect, viewport: ViewportSize): Toolti
   const spaceAbove = anchor.top - 2 * TOOLTIP_GAP;
   const spaceBelow = viewport.height - anchor.bottom - 2 * TOOLTIP_GAP;
 
-  const useAbove = spaceAbove >= Math.min(cap, MIN_USEFUL_HEIGHT) || spaceAbove >= spaceBelow;
+  // Prefer above only when the FULL-height popup fits there; otherwise take
+  // whichever side has more room. (Scar: a ref near the top of the screen
+  // opened a cramped scrolling popup above while below sat half empty.)
+  const useAbove = spaceAbove >= cap || spaceAbove >= spaceBelow;
   if (useAbove) {
     return {
       side: 'above',

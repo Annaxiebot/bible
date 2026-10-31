@@ -1,7 +1,7 @@
 /**
  * tooltipPlacement.test.ts — pure placement math for the verse popup:
  * prefers above, flips below when there is no room above, clamps to the
- * right/left edges, and caps height at half the viewport so long ranges
+ * right/left edges, and caps height at 60% of the viewport so long ranges
  * scroll instead of running off screen.
  */
 import { describe, it, expect } from 'vitest';
@@ -34,7 +34,14 @@ describe('placeTooltip', () => {
     expect(p.left).toBeGreaterThanOrEqual(TOOLTIP_GAP);
   });
 
-  it('never exceeds half the viewport height (long ranges scroll)', () => {
+  it('an upper-third ref opens BELOW when below has more room (no cramped scrolling popup above a half-empty screen)', () => {
+    // anchor.top 270 on 1080p: above has ~254px, below ~780px — below wins.
+    const p = placeTooltip({ top: 270, bottom: 300, left: 200 }, TV);
+    expect(p.side).toBe('below');
+    expect(p.maxHeight).toBeGreaterThan(500);
+  });
+
+  it('never exceeds the viewport-height cap (long ranges scroll)', () => {
     const p = placeTooltip({ top: 1000, bottom: 1030, left: 10 }, TV);
     expect(p.maxHeight).toBeLessThanOrEqual(TV.height * TOOLTIP_MAX_HEIGHT_RATIO);
   });
