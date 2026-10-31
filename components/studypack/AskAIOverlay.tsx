@@ -74,15 +74,17 @@ const Conversation: React.FC<{ ai: AskAI; pack: StudyPack; history: AskHistory }
   const { earlier, question, answer, turn } = splitTurns(ai);
   const streaming = ai.streamingText !== null;
   // The latest turn (its question + answer) in view — after each fit too, since the block also changes
-  // height without a new token (lazy markdown, shrink, fonts). When it fits, show it from its question
-  // down; when it cannot fit (a very long answer at the floor size), keep its newest text in view.
+  // height without a new token (lazy markdown, shrink, fonts). While a too-tall answer STREAMS, keep its
+  // newest text in view; once it finishes (and whenever it fits), show the turn from its question down,
+  // so the reader starts at the top of the answer instead of scrolling back up.
   const scrollToLatest = useCallback(() => {
     const block = latestRef.current;
     const area = areaRef.current;
     // Guarded: jsdom (vitest) does not implement scrollIntoView. No spacer after the block: it would add scroll height.
     if (!block || typeof block.scrollIntoView !== 'function') return;
-    block.scrollIntoView({ block: area && block.offsetHeight <= area.clientHeight ? 'start' : 'end' });
-  }, []);
+    const fits = area && block.offsetHeight <= area.clientHeight;
+    block.scrollIntoView({ block: fits || !streaming ? 'start' : 'end' });
+  }, [streaming]);
   useAnswerFit(areaRef, latestRef, { text: answer, streaming, turnKey: turn, onFitted: scrollToLatest });
   useEffect(scrollToLatest, [scrollToLatest, ai.messages.length, ai.loading, ai.streamingText]);
   return (
