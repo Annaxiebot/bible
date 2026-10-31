@@ -77,7 +77,8 @@ describe('worship in the prompt', () => {
     expect(prompt).toContain('WORSHIP SONG LIST');
     expect(prompt).toContain('宝贵十架 Precious Cross');
     expect(prompt).toContain(WORSHIP_SHAPE_KEY);
-    expect(prompt).toContain('Prefer including ONE song from the Family Music Ministry channel');
+    // Owner's rule (2026-10-31): one FMM song per pick is REQUIRED, not a soft preference the model may skip.
+    expect(prompt).toContain('REQUIRED: exactly ONE of the picks is a Family Music Ministry song');
     expect(prompt).toContain('— Keith & Kristyn Getty ('); // channel is in each list line so the preference is actionable
   });
   it('without a catalog: no worship anywhere in the prompt', () => {
