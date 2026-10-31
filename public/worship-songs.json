@@ -1,5 +1,5 @@
 {
-  "comment": "敬拜诗歌目录 Worship song catalog (ADR-0022 step 2). Songs are LINKED on YouTube, never re-hosted. url is a YouTube search so links cannot rot; a leader can replace it with a specific video in the pack editor. themes feed the AI's passage matching.",
+  "comment": "敬拜诗歌目录 Worship song catalog (ADR-0022 step 2). Songs are LINKED on YouTube, never re-hosted. A song without a url gets a YouTube SEARCH link, which cannot rot; a url field (Family Music Ministry — a search cannot surface a small original channel) is a direct video link. A leader can replace either in the pack editor. themes feed the AI's passage matching.",
   "songs": [
     { "zh": "主耶稣我来", "en": "", "channel": "Family Music Ministry", "themes": "coming to Jesus 来到主前, surrender 降服, repentance 悔改", "url": "https://www.youtube.com/watch?v=1gfMtlhm_Oc" },
     { "zh": "耶稣是我主", "en": "", "channel": "Family Music Ministry", "themes": "lordship 主权, commitment 委身, faith 信心", "url": "https://www.youtube.com/watch?v=PSHj3dBC7PM" },
