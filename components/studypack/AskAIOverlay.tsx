@@ -23,6 +23,7 @@ import AskHistoryNotice, { AskClearButton } from './AskHistoryNotice';
 import AIErrorLine from './AIErrorLine';
 import AskAnswer from './AskAnswer';
 import { useAnswerFit } from './useAnswerFit';
+import { TYPE_SCALE } from './principles';
 import { QuickAISetupForm } from '../setup/QuickAISetup';
 import { askAIModel } from '../../services/aiDefaults';
 
@@ -31,7 +32,9 @@ import { askAIModel } from '../../services/aiDefaults';
 // The latest answer shrinks to fit it (useAnswerFit, down to the senior
 // floor); earlier turns may scroll out above. Scrolling — a thin themed bar
 // — is the last resort when even the floor does not fit.
-const questionStyle: React.CSSProperties = { fontSize: '2.5vh', lineHeight: 1.4 };
+// Questions (and the form/notices) read at the answers' long-text size: the
+// fixed 2.5vh had no phone floor and sat visibly smaller than the answers.
+const questionStyle: React.CSSProperties = { fontSize: TYPE_SCALE.answerLong, lineHeight: 1.4 };
 
 /** Messages before the latest question, the latest question, and its answer (streaming or stored). */
 function splitTurns(ai: AskAI) {
