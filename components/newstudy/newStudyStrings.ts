@@ -132,6 +132,23 @@ export const NS_ERR_SHARING_PLACE = bilingualLine('上周操练分享只能紧�
 export const NS_ERR_WORSHIP_PLACE = bilingualLine('敬拜诗歌只能紧跟在标题之后', 'Worship songs must come right after the title');
 export const NS_ERR_DUPLICATE_SECTION = bilingualLine('这种段落只能有一个', 'Only one section of this kind is allowed');
 
+// ---- share with members (ADR-0026) ----
+export const NS_SHARE = bilingual('分享', 'Share');
+export const NS_SHARE_TITLE = bilingual('分享给组员', 'Share with members');
+export const NS_SHARE_INTRO = bilingualLine(
+  '组员用手机打开链接，就能看到整份查经包（只读，无需账号）',
+  'Members open the link on their phones and read the whole pack (read-only, no account needed)'
+);
+export const NS_SHARE_ON = bilingual('开启分享', 'Start sharing');
+export const NS_SHARE_OFF = bilingual('停止分享', 'Stop sharing');
+export const NS_SHARE_OFF_NOTE = bilingualLine('停止分享后，链接立即失效', 'Stop sharing and the link stops working at once');
+export const NS_SHARE_COPY = bilingual('复制链接', 'Copy link');
+export const NS_SHARE_COPIED = bilingual('已复制', 'Copied');
+export const NS_SHARE_SIGNIN = bilingualLine('分享前请先登录（查经包需同步到你的账号）', 'Sign in first — sharing needs the pack synced to your account');
+export const NS_SHARE_ERR = bilingualLine('分享设置失败', 'Could not update sharing');
+export const NS_SHARE_GONE = bilingualLine('这个分享链接已失效，请向带领者要新的链接', 'This share link is no longer active — ask your leader for a new one');
+export const NS_CLOSE = bilingual('关闭', 'Close');
+
 // ---- my packs ----
 export const NS_MY_PACKS = bilingual('我的查经包', 'My packs');
 export const NS_NO_PACKS = bilingualLine('还没有查经包', 'No packs yet');

@@ -58,9 +58,9 @@ describe('withSharingSection', () => {
     expect(kinds.lastIndexOf('sharing')).toBeLessThan(kinds.indexOf('scripture'));
   });
 
-  it('a pack without the section renders unchanged; schema version stays 2', () => {
+  it('a pack without the section renders unchanged; schema version is pinned', () => {
     expect(buildSlides(CURRENT).map(s => s.kind)).toEqual(['title', 'scripture', 'context', 'closing']);
-    expect(PACK_SCHEMA_VERSION).toBe(2);
+    expect(PACK_SCHEMA_VERSION).toBe(3); // 3: worship sections (ADR-0022 step 2)
   });
 
   it('parseStudyPack rejects a sharing section with an empty body', () => {

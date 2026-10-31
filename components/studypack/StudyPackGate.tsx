@@ -6,26 +6,34 @@
  */
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import { getPackIdFromHash } from './packTypes';
+import { getShareTokenFromHash } from './packShare';
 import { takeTvReturn } from './tvReturn';
+import { LANDING_HASH } from '../landing/landingRoute';
 
 const TVPresentationView = lazy(() => import('./TVPresentationView'));
 
+/** "#/pack/<id>" → the leader's deck; "#/view/<token>" → a member's read-only shared pack (ADR-0026). */
+function routeFromHash(hash: string): { packId: string | null; shareToken: string | null } {
+  return { packId: getPackIdFromHash(hash), shareToken: getShareTokenFromHash(hash) };
+}
+
 const StudyPackGate: React.FC<{ app: React.ReactElement }> = ({ app }) => {
-  const [packId, setPackId] = useState<string | null>(
-    () => getPackIdFromHash(window.location.hash)
-  );
+  const [route, setRoute] = useState(() => routeFromHash(window.location.hash));
 
   useEffect(() => {
-    const onHashChange = () => setPackId(getPackIdFromHash(window.location.hash));
+    const onHashChange = () => setRoute(routeFromHash(window.location.hash));
     window.addEventListener('hashchange', onHashChange);
     return () => window.removeEventListener('hashchange', onHashChange);
   }, []);
 
-  if (!packId) return app;
+  const { packId, shareToken } = route;
+  if (!packId && !shareToken) return app;
   return (
     <Suspense fallback={<div className="fixed inset-0 bg-slate-950" />}>
-      {/* Exit returns to the editor that opened the preview (tvReturn), else to the app as before. */}
-      <TVPresentationView packId={packId} onExit={() => { window.location.hash = takeTvReturn(packId); }} />
+      {/* Exit returns to the editor that opened the preview (tvReturn), else to the app; a member exits to the landing. */}
+      {shareToken
+        ? <TVPresentationView packId={shareToken} shareToken={shareToken} onExit={() => { window.location.hash = LANDING_HASH; }} />
+        : <TVPresentationView packId={packId!} onExit={() => { window.location.hash = takeTvReturn(packId!); }} />}
     </Suspense>
   );
 };

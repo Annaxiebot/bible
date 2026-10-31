@@ -18,6 +18,9 @@ import { BRAND_EN, BRAND_ZH } from '../landing/landingStrings';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { buildSlides, StudyPack, Slide } from './packTypes';
 import { loadPack } from './packSource';
+import { fetchSharedPack } from './packShare';
+import { supabase } from '../../services/supabase';
+import { NS_SHARE_GONE } from '../newstudy/newStudyStrings';
 import { useLocalPackClaim } from '../newstudy/claimLocalPacks';
 import { questionForSelection } from './askAI';
 import { useTVNavigation } from './useTVNavigation';
@@ -81,6 +84,8 @@ interface TVChromeProps {
   onAskAI: () => void;
   /** The one-time full-screen / sideways hint, shown above the first-slide hint. */
   notice: string | null;
+  /** Member view (ADR-0026): no Ask AI pill. */
+  member?: boolean;
 }
 
 /** Accessible name of the progress bar (one use; 中文 first). */
@@ -106,7 +111,7 @@ const TVProgress: React.FC<{ slideCount: number; index: number }> = ({ slideCoun
 );
 
 /** Counter, progress bar, first-slide hints, and Ask AI button (exit stays in the view so it also shows on load/error). */
-const TVChrome: React.FC<TVChromeProps> = ({ slideCount, index, onAskAI, notice }) => {
+const TVChrome: React.FC<TVChromeProps> = ({ slideCount, index, onAskAI, notice, member }) => {
   const compact = useCompactViewport();
   // Signed out, Ask AI opens a sign-in prompt — say so on the pill's line first.
   const needsSignIn = !useAIAccess().available;
@@ -124,7 +129,7 @@ const TVChrome: React.FC<TVChromeProps> = ({ slideCount, index, onAskAI, notice 
         {index === 0 && <p>{compact ? FIRST_SLIDE_HINT_SHORT : FIRST_SLIDE_HINT}</p>}
       </div>
     )}
-    <div className="absolute bottom-[2.5vh] left-1/2 -translate-x-1/2 flex items-center gap-[1vw] whitespace-nowrap max-w-[70vw]">
+    {!member && <div className="absolute bottom-[2.5vh] left-1/2 -translate-x-1/2 flex items-center gap-[1vw] whitespace-nowrap max-w-[70vw]">
       <button
         onClick={(e) => { e.stopPropagation(); onAskAI(); }}
         className="text-stl-text-3 hover:text-stl-gold-hover border border-stl-border rounded-full px-4 py-1"
@@ -139,7 +144,7 @@ const TVChrome: React.FC<TVChromeProps> = ({ slideCount, index, onAskAI, notice 
           {compact ? ASK_AI_SIGNIN_NOTE_SHORT : ASK_AI_SIGNIN_NOTE}
         </span>
       )}
-    </div>
+    </div>}
   </>
   );
 };
@@ -147,9 +152,20 @@ const TVChrome: React.FC<TVChromeProps> = ({ slideCount, index, onAskAI, notice 
 export interface TVPresentationViewProps {
   packId: string;
   onExit: () => void;
+  /** Member view of a shared pack (ADR-0026): loaded by token via public_shared_pack; read-only — no Ask AI, no meeting stats. */
+  shareToken?: string;
 }
 
-const TVPresentationView: React.FC<TVPresentationViewProps> = ({ packId, onExit }) => {
+/** The shared pack behind a token, or the bilingual "link no longer active" error. */
+async function loadSharedPack(token: string): Promise<StudyPack> {
+  if (!supabase) throw new Error(NS_SHARE_GONE);
+  const pack = await fetchSharedPack(supabase, token);
+  if (!pack) throw new Error(NS_SHARE_GONE);
+  return pack;
+}
+
+const TVPresentationView: React.FC<TVPresentationViewProps> = ({ packId, onExit, shareToken }) => {
+  const member = !!shareToken;
   const [pack, setPack] = useState<StudyPack | null>(null);
   const [slides, setSlides] = useState<Slide[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -168,14 +184,14 @@ const TVPresentationView: React.FC<TVPresentationViewProps> = ({ packId, onExit 
     setAskInitial(initialAskQuestion(slide));
     setAskOpen(true);
   };
-  useAskAIHotkey(askOpen, openAsk);
+  useAskAIHotkey(askOpen || member, openAsk);
 
   // Selecting slide text with the mouse asks about it directly.
   const onSlideSelection = useCallback((text: string, verse: number | null) => {
     setAskInitial(questionForSelection(text, verse));
     setAskOpen(true);
   }, []);
-  useSelectToAsk(contentRef, !askOpen && !!slide, onSlideSelection);
+  useSelectToAsk(contentRef, !askOpen && !!slide && !member, onSlideSelection);
 
   // Re-read after a sign-in claims this local pack (claimLocalPacks): the QR appears without a reload.
   const claim = useLocalPackClaim(packId);
@@ -186,7 +202,7 @@ const TVPresentationView: React.FC<TVPresentationViewProps> = ({ packId, onExit 
   }, []);
   useEffect(() => {
     let cancelled = false;
-    loadPack(packId)
+    (shareToken ? loadSharedPack(shareToken) : loadPack(packId))
       .then(loaded => {
         if (cancelled) return;
         // A unique tab / history title per pack (was the brand only).
@@ -198,9 +214,9 @@ const TVPresentationView: React.FC<TVPresentationViewProps> = ({ packId, onExit 
         if (!cancelled) setError(err.message);
       });
     return () => { cancelled = true; };
-  }, [packId, claim.version]);
-  // 10 minutes of visible presentation = one group meeting (ADR-0012; never the demo pack).
-  useMeetingTracker(packId, !!slides);
+  }, [packId, shareToken, claim.version]);
+  // 10 minutes of visible presentation = one group meeting (ADR-0012; never the demo pack, never a member's phone).
+  useMeetingTracker(packId, !!slides && !member);
 
   return (
     <div
@@ -225,7 +241,7 @@ const TVPresentationView: React.FC<TVPresentationViewProps> = ({ packId, onExit 
       </div>
 
       {slides && (
-        <TVChrome slideCount={slides.length} index={nav.index} onAskAI={openAsk} notice={fullscreen.hint} />
+        <TVChrome slideCount={slides.length} index={nav.index} onAskAI={openAsk} notice={fullscreen.hint} member={member} />
       )}
       <button
         onClick={(e) => { e.stopPropagation(); leave(); }}
