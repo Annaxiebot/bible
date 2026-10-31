@@ -77,7 +77,8 @@ export interface PromptInput {
 export const WORSHIP_SHAPE_KEY = '"worship": ["歌名 exact song title from the list", "…"]';
 export const WORSHIP_COUNT_RULE =
   'worship = 2–3 songs from the WORSHIP SONG LIST whose theme fits this passage, each as its EXACT title from the list. '
-  + 'Prefer including ONE song from the Family Music Ministry channel when one of its themes fits the passage.';
+  + 'REQUIRED: exactly ONE of the picks is a Family Music Ministry song — choose the FMM song whose theme fits the '
+  + 'passage best. Only when truly no FMM theme relates may you pick none, and that should be rare.';
 
 /**
  * The JSON shape the model must return for a mode: a bilingual item has both
