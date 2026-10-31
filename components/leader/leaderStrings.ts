@@ -60,13 +60,16 @@ export const LH_LOADING = bilingualLine('读取查经包中', 'Loading your pack
 export const LH_PRESENT = bilingual('放映', 'Present');
 export const LH_RESPONSES = bilingual('报名与反馈', 'Sign-ups & responses');
 export const LH_QR = bilingual('二维码', 'QR');
-export const LH_ERR_COUNTS = bilingualLine('读取报名与分享人数失败', 'Could not load the sign-up and sharing counts');
+export const LH_ERR_COUNTS = bilingualLine('读取报名与反馈数失败', 'Could not load the sign-up and response counts');
 /** The leader home row's counts, in two parts so the shared part can be a badge (LeaderPackRow). */
 export function signupCountLine(signups: number): string {
   return bilingualLine(`报名 ${signups} 人`, `${signups} signed up`);
 }
+// "反馈", not "分享": this counts check-in answers members chose to share with
+// the leader, and the row now also has a 分享 Share (member link) action —
+// two different "分享"s on one row would read as link clicks (ADR-0026).
 export function sharedCountLine(answers: number): string {
-  return bilingualLine(`分享 ${answers} 条`, `${answers} shared`);
+  return bilingualLine(`反馈 ${answers} 条`, `${answers} responses`);
 }
 /** The whole counts text as rendered (lh-counts): the sign-up part, then the shared part. */
 export function packCountsLine(signups: number, answers: number): string {

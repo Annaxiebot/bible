@@ -46,7 +46,7 @@ export const SECTION_HEADINGS = {
   discussion: bilingual('讨论', 'Discussion'),
   lifeMenu: bilingual('生活应用', 'Life Menu'),
   reflection: bilingual('反思', 'Reflection'),
-  qr: bilingual('报名', 'Sign up'),
+  qr: bilingual('行道提醒', 'Live Out the Word'),
   closing: bilingual('闭环', 'Closing'),
 } as const;
 

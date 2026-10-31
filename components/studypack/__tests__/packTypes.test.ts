@@ -257,7 +257,7 @@ describe('buildSlides', () => {
     expect(qrIndex).toBe(DEMO_SLIDE_COUNT - 2); // second to last, before closing
     expect(demoSlides[qrIndex - 1].kind).toBe('reflection');
     expect(demoSlides[qrIndex].signupUrl).toBeUndefined();
-    expect(demoSlides[qrIndex].heading).toBe('报名 Sign up');
+    expect(demoSlides[qrIndex].heading).toBe('行道提醒 Live Out the Word');
     expect(demoSlides[qrIndex + 1].kind).toBe('closing');
     const owned = parseStudyPack({ ...demo, leaderId: 'uid-lead' });
     const ownedQr = buildSlides(owned)[qrIndex];

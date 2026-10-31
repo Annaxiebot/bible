@@ -39,7 +39,9 @@ const QrBody: React.FC<{ state: SignupPackState }> = ({ state }) => {
   return (
     <>
       <SignupQr url={url} size={QR_SIZE} className="border-2 border-stl-line" tone="paper" />
-      <p data-testid="qr-url" className={`break-all font-semibold ${PAPER_ACCENT_CLASS} print:text-black`} style={headingStyle}>{url}</p>
+      <a data-testid="qr-url" href={url} target="_blank" rel="noopener noreferrer"
+        className={`break-all font-semibold underline underline-offset-4 ${PAPER_ACCENT_CLASS} print:text-black print:no-underline`}
+        style={headingStyle}>{url}</a>
       <p className="text-stl-ink print:hidden" style={headingStyle}>{SU_QR_BODY}</p>
       <Pill testId="qr-print" onClick={() => window.print()} label={SU_QR_PRINT} className="print:hidden" />
     </>
