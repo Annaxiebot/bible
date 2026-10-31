@@ -111,7 +111,7 @@ describe('LeaderHome', () => {
     expect(screen.queryByTestId('lh-signin-button')).toBeNull();
   });
 
-  it('signed in: own packs newest first, counts per pack (replaced sign-ups skipped), and the four links + New study', async () => {
+  it('signed in: own packs newest first, counts per pack (replaced sign-ups skipped), and the row actions + New study', async () => {
     await saveLocalPack(pack('local-2026-10-02-matt6', '2026-10-02', '不要忧虑'));
     await saveLocalPack(pack('local-2026-10-09-jhn3', '2026-10-09', '祂必兴旺'));
     await saveLocalPack(pack('local-2026-10-16-rom8', '2026-10-16', 'Someone else', 'uid-other'));
@@ -132,6 +132,11 @@ describe('LeaderHome', () => {
     expect(within(rows[0]).getByTestId('lh-present')).toHaveAttribute('href', packHash(id));
     expect(within(rows[0]).getByTestId('lh-responses')).toHaveAttribute('href', leaderHash(id));
     expect(within(rows[0]).getByTestId('lh-qr')).toHaveAttribute('href', qrHash(id));   // the page that SHOWS the QR, not the member form
+    // 分享 Share opens the member-link dialog right here (ADR-0026) — the leader home must not lack it (regression: it shipped only on PackList).
+    fireEvent.click(within(rows[0]).getByTestId('lh-share'));
+    expect(screen.getByTestId('share-dialog')).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId('share-close'));
+    expect(screen.queryByTestId('share-dialog')).toBeNull();
     expect(screen.getByTestId('lh-new')).toHaveAttribute('href', NEW_STUDY_HASH);
     expect(fromMock).toHaveBeenCalledWith(SIGNUPS_TABLE);
     expect(fromMock).toHaveBeenCalledWith(CHECKIN_ANSWERS_TABLE);

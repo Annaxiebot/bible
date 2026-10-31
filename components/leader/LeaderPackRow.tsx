@@ -3,10 +3,11 @@
  *
  * One compact row: the title, a grey line (date, passage when the title
  * lacks it, "报名 N 人" then "分享 M 条" — a gold-filled badge when M > 0, so
- * new sharing catches the leader's eye; quiet grey at 0), and four links — 放映 Present
+ * new sharing catches the leader's eye; quiet grey at 0), and the actions — 放映 Present
  * (#/pack/<id>) the one gold button; 报名与反馈 Sign-ups & responses
- * (#/leader/<id>), 编辑 Edit (#/new/<id>) and 二维码 QR (#/qr/<id>, the
- * printable code) as quiet text links. Plain hash links,
+ * (#/leader/<id>), 编辑 Edit (#/new/<id>), 二维码 QR (#/qr/<id>, the
+ * printable code) and 分享 Share (the member-link dialog, ADR-0026) as
+ * quiet text links/buttons. Plain hash links,
  * so each target survives reload and the browser's back button returns here.
  * Present also asks for full screen inside its click (the user gesture).
  */
@@ -16,7 +17,8 @@ import { newStudyHash, packHash } from '../landing/landingRoute';
 import { qrHash } from '../signup/signupRoute';
 import { leaderHash } from './leaderRoute';
 import type { PackCounts } from './leaderHomeData';
-import { NS_EDIT } from '../newstudy/newStudyStrings';
+import { NS_EDIT, NS_SHARE } from '../newstudy/newStudyStrings';
+import SharePackDialog from '../newstudy/SharePackDialog';
 import { LH_PRESENT, LH_RESPONSES, LH_QR, signupCountLine, sharedCountLine } from './leaderStrings';
 import { textStyle, controlStyle } from '../newstudy/newStudyStyles';
 import { requestFullscreen } from '../studypack/fullscreen';
@@ -48,16 +50,22 @@ interface Props {
 
 /** One compact row: title + a grey line (date, the passage when the title lacks it, the counts — shared as a badge);
  *  放映 Present the one gold action, the rest quiet links. The list around it is PackListing. */
-export const LeaderPackRow: React.FC<Props> = ({ pack, counts }) => (
-  <li data-testid="lh-pack" className={studyRowClass}>
-    <DateTile date={pack.date} />
-    <StudyHeading pack={pack}>{counts && <Counts counts={counts} />}</StudyHeading>
-    <div className="flex flex-wrap items-center gap-2">
-      <a href={packHash(pack.id)} data-testid="lh-present" className={goldButtonClass} style={controlStyle}
-        onClick={() => requestFullscreen()}>{LH_PRESENT}</a>
-      <a href={leaderHash(pack.id)} data-testid="lh-responses" className={outlineButtonClass} style={controlStyle}>{LH_RESPONSES}</a>
-      <a href={newStudyHash(pack.id)} data-testid="lh-edit" className={quietRowLinkClass} style={controlStyle}>{NS_EDIT}</a>
-      <a href={qrHash(pack.id)} data-testid="lh-qr" className={quietRowLinkClass} style={controlStyle}>{LH_QR}</a>
-    </div>
-  </li>
-);
+export const LeaderPackRow: React.FC<Props> = ({ pack, counts }) => {
+  const [sharing, setSharing] = React.useState(false);
+  return (
+    <li data-testid="lh-pack" className={studyRowClass}>
+      <DateTile date={pack.date} />
+      <StudyHeading pack={pack}>{counts && <Counts counts={counts} />}</StudyHeading>
+      <div className="flex flex-wrap items-center gap-2">
+        <a href={packHash(pack.id)} data-testid="lh-present" className={goldButtonClass} style={controlStyle}
+          onClick={() => requestFullscreen()}>{LH_PRESENT}</a>
+        <a href={leaderHash(pack.id)} data-testid="lh-responses" className={outlineButtonClass} style={controlStyle}>{LH_RESPONSES}</a>
+        <a href={newStudyHash(pack.id)} data-testid="lh-edit" className={quietRowLinkClass} style={controlStyle}>{NS_EDIT}</a>
+        <a href={qrHash(pack.id)} data-testid="lh-qr" className={quietRowLinkClass} style={controlStyle}>{LH_QR}</a>
+        <button type="button" data-testid="lh-share" onClick={() => setSharing(true)}
+          className={quietRowLinkClass} style={controlStyle}>{NS_SHARE}</button>
+      </div>
+      {sharing && <SharePackDialog pack={pack} onClose={() => setSharing(false)} />}
+    </li>
+  );
+};
