@@ -55,7 +55,7 @@ import {
 import { preflightResponse, withCors } from '../_shared/cors.ts';
 
 /** Must equal components/studypack/packTypes.ts PACK_SCHEMA_VERSION (pinned by checkins.test.ts). */
-export const PACK_SCHEMA_VERSION = 2;
+export const PACK_SCHEMA_VERSION = 4;
 
 const JSON_HEADERS = { 'Content-Type': 'application/json' };
 const SIGNUP_COLUMNS = `id, pack_id, leader_id, name, phone, email, consent_checkins, practice_area, practice_text, practice2_area, practice2_text, practice_note, practices, created_at, ${REPLACED_COLUMN}, ${UNSUBSCRIBED_COLUMN}`;
