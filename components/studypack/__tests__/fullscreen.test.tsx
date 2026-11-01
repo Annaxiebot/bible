@@ -85,7 +85,7 @@ describe('leader home 放映 Present', () => {
   it('requests full screen inside the click that follows the link', () => {
     fake = installFakeFullscreen();
     const pack = parseStudyPack(JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8')));
-    render(<ul><LeaderPackRow pack={pack} counts={null} /></ul>);
+    render(<ul><LeaderPackRow pack={pack} counts={null} onDelete={() => undefined} /></ul>);
     fireEvent.click(screen.getByTestId('lh-edit'));
     expect(fake.request).not.toHaveBeenCalled();
     fireEvent.click(screen.getByTestId('lh-present'));

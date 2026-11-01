@@ -114,11 +114,15 @@ export function useLeaderPacks(uid: string): LeaderPacks {
   }, [uid]);
 
   // Account first, then this browser (deletePackEverywhere); the list re-reads at once so the row disappears.
+  // A failed SERVER delete is recorded on PackSyncLine (packSync) and keeps the pack; only a storage error throws,
+  // and the caller discards the promise, so it is caught here and shown on the home's own error line (R5).
   const remove = useCallback(async (id: string) => {
     try {
       await deletePackEverywhere(id);
-    } finally {
-      await refresh(); // a failed server delete keeps the pack; PackSyncLine shows the failure
+      await refresh();
+    } catch (err) {
+      await refresh(); // whatever survived still lists; the error line below must not be wiped by refresh's own error:null
+      setState(s => ({ ...s, error: `${NS_ERR_STORAGE}: ${describe(err)}` }));
     }
   }, [refresh]);
 
