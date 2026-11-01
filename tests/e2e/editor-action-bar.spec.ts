@@ -3,7 +3,8 @@
  *
  * After a (mocked) generation the editor's top is in view and the action
  * bar sits on the bottom edge of the screen at 390×844 and 1280×720 — no
- * scrolling to reach Save / Preview — and at the end of the page the bar
+ * scrolling to reach Preview (the one button; Save is gone, auto-save
+ * covers it) — and at the end of the page the bar
  * does not cover the last section. Preview from the bar opens TV mode in
  * full screen (requested inside the click). In TV mode, F toggles
  * document.fullscreenElement, the one-time "按 F 全屏" hint shows once
@@ -42,7 +43,8 @@ for (const viewport of [{ width: 390, height: 844 }, { width: 1280, height: 720 
         const box = await page.getByText(NS_EDIT_TITLE).boundingBox();
         return box !== null && box.y >= 0 && box.y + box.height <= viewport.height;
       }).toBe(true);
-      for (const id of ['ns-save', 'ns-preview']) {
+      // One button only (owner, 2026-10-31): Save was removed — auto-save covers it.
+      for (const id of ['ns-preview']) {
         const box = (await page.getByTestId(id).boundingBox())!;
         expect(box.y, `${id} is on screen without scrolling`).toBeGreaterThanOrEqual(0);
         expect(box.y + box.height).toBeLessThanOrEqual(viewport.height);

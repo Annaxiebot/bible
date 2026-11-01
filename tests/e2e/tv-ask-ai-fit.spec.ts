@@ -93,10 +93,13 @@ for (const vp of VIEWPORTS) {
       expect(m.scrollbarWidth).toBe('thin');
       expect(m.scrollbarColor).not.toBe('auto'); // theme-colored (index.html .tv-thin-scroll), not the default bar
       await expectInputOnScreen(page, vp.height);
-      // Auto-scroll keeps the end of the latest answer in view.
-      const atEnd = await page.getByTestId('ask-conversation')
-        .evaluate(a => a.scrollTop + a.clientHeight >= a.scrollHeight - 2);
-      expect(atEnd).toBe(true);
+      // When the stream finishes, the view returns to the START of the answer (owner, 2026-10-31):
+      // the latest turn's top sits at the conversation area's visible top.
+      const atStart = await page.getByTestId('ask-conversation').evaluate(a => {
+        const latest = a.querySelector<HTMLElement>('[data-testid="ask-latest"]')!;
+        return Math.abs(latest.getBoundingClientRect().top - a.getBoundingClientRect().top) <= 2;
+      });
+      expect(atStart).toBe(true);
     });
   });
 }
