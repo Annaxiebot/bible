@@ -6,8 +6,9 @@
  * new sharing catches the leader's eye; quiet grey at 0), and the actions — 放映 Present
  * (#/pack/<id>) the one gold button; 报名与反馈 Sign-ups & responses
  * (#/leader/<id>), 编辑 Edit (#/new/<id>), 二维码 QR (#/qr/<id>, the
- * printable code) and 分享 Share (the member-link dialog, ADR-0026) as
- * quiet text links/buttons. Plain hash links,
+ * printable code), 分享 Share (the member-link dialog, ADR-0026) as
+ * quiet text links/buttons, and a quiet trash icon — delete with a
+ * bilingual confirm, for demo packs (same control as My packs). Plain hash links,
  * so each target survives reload and the browser's back button returns here.
  * Present also asks for full screen inside its click (the user gesture).
  */
@@ -17,12 +18,12 @@ import { newStudyHash, packHash } from '../landing/landingRoute';
 import { qrHash } from '../signup/signupRoute';
 import { leaderHash } from './leaderRoute';
 import type { PackCounts } from './leaderHomeData';
-import { NS_EDIT, NS_SHARE } from '../newstudy/newStudyStrings';
+import { NS_EDIT, NS_SHARE, NS_DELETE, NS_DELETE_CONFIRM } from '../newstudy/newStudyStrings';
 import SharePackDialog from '../newstudy/SharePackDialog';
 import { LH_PRESENT, LH_RESPONSES, LH_QR, signupCountLine, sharedCountLine, viewsCountLine } from './leaderStrings';
 import { textStyle, controlStyle } from '../newstudy/newStudyStyles';
 import { requestFullscreen } from '../studypack/fullscreen';
-import { DateTile, StudyHeading, studyRowClass, goldButtonClass, outlineButtonClass, quietRowLinkClass } from '../shared/PackRowParts';
+import { DateTile, StudyHeading, TrashButton, studyRowClass, goldButtonClass, outlineButtonClass, quietRowLinkClass } from '../shared/PackRowParts';
 
 
 /** Shared answers waiting: a high-contrast gold badge (dark text on gold fill). Also the admin's leaders table. */
@@ -49,11 +50,13 @@ interface Props {
   pack: StudyPack;
   /** null while the counts load (or when they failed — the page shows that line once). */
   counts: PackCounts | null;
+  /** Delete the pack everywhere (demo packs); the home refreshes its list after. */
+  onDelete: (id: string) => void;
 }
 
 /** One compact row: title + a grey line (date, the passage when the title lacks it, the counts — shared as a badge);
  *  放映 Present the one gold action, the rest quiet links. The list around it is PackListing. */
-export const LeaderPackRow: React.FC<Props> = ({ pack, counts }) => {
+export const LeaderPackRow: React.FC<Props> = ({ pack, counts, onDelete }) => {
   const [sharing, setSharing] = React.useState(false);
   return (
     <li data-testid="lh-pack" className={studyRowClass}>
@@ -67,6 +70,7 @@ export const LeaderPackRow: React.FC<Props> = ({ pack, counts }) => {
         <a href={qrHash(pack.id)} data-testid="lh-qr" className={quietRowLinkClass} style={controlStyle}>{LH_QR}</a>
         <button type="button" data-testid="lh-share" onClick={() => setSharing(true)}
           className={quietRowLinkClass} style={controlStyle}>{NS_SHARE}</button>
+        <TrashButton label={NS_DELETE} onClick={() => { if (window.confirm(NS_DELETE_CONFIRM)) onDelete(pack.id); }} />
       </div>
       {sharing && <SharePackDialog pack={pack} onClose={() => setSharing(false)} />}
     </li>
