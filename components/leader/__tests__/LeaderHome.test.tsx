@@ -17,7 +17,7 @@ import { saveLocalPack } from '../../studypack/packSource';
 import { idbService } from '../../../services/idbService';
 import { SIGNUPS_TABLE, CHECKIN_ANSWERS_TABLE } from '../../signup/signupSchema';
 import { STUDY_PACKS_TABLE } from '../../newstudy/packRemote';
-import { NS_DELETE, NS_DELETE_CONFIRM } from '../../newstudy/newStudyStrings';
+import { NS_DELETE, NS_DELETE_CONFIRM, NS_ERR_STORAGE } from '../../newstudy/newStudyStrings';
 import { SU_ERR_NOT_CONFIGURED } from '../../signup/signupStrings';
 import { newStudyHash, packHash, NEW_STUDY_HASH } from '../../landing/landingRoute';
 import { qrHash } from '../../signup/signupRoute';
@@ -166,6 +166,22 @@ describe('LeaderHome', () => {
     fireEvent.click(within(row).getByRole('button', { name: NS_DELETE }));
     await waitFor(() => expect(screen.queryByTestId('lh-pack')).toBeNull());
     expect(deletedRemote).toContain(`${STUDY_PACKS_TABLE}:local-2026-10-02-matt6`);
+    confirmSpy.mockRestore();
+  });
+
+  it('a storage error during delete shows the bilingual error line and keeps the pack (not an unhandled rejection)', async () => {
+    await saveLocalPack(pack('local-2026-10-02-matt6', '2026-10-02', '不要忧虑'));
+    render(<LeaderHome />);
+    const row = await screen.findByTestId('lh-pack');
+    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValueOnce(true);
+    // The local half of deletePackEverywhere fails (IndexedDB quota/corruption): remove() must catch it.
+    const idbDelete = vi.spyOn(idbService, 'delete').mockRejectedValueOnce(new Error('quota exceeded'));
+    fireEvent.click(within(row).getByRole('button', { name: NS_DELETE }));
+    // The error line shows AFTER the refresh ran (ordering: refresh's error:null must not wipe it) …
+    expect(await screen.findByText(`${NS_ERR_STORAGE}: quota exceeded`)).toBeInTheDocument();
+    // … and the pack is still listed (nothing was deleted).
+    expect(screen.getByTestId('lh-pack')).toBeInTheDocument();
+    idbDelete.mockRestore();
     confirmSpy.mockRestore();
   });
 
