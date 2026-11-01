@@ -14,7 +14,7 @@ import { useCallback, useEffect, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { StudyPack } from '../studypack/packTypes';
 import { listLocalPacks } from '../studypack/packSource';
-import { packTime, subscribePackSyncStatus } from '../newstudy/packSync';
+import { packTime, subscribePackSyncStatus, deletePackEverywhere } from '../newstudy/packSync';
 import { getSignupClient } from '../signup/signupClient';
 import { STUDY_PACKS_TABLE } from '../newstudy/packRemote';
 import { SIGNUPS_TABLE, CHECKIN_ANSWERS_TABLE } from '../signup/signupSchema';
@@ -84,11 +84,13 @@ export interface LeaderPacks {
   counts: Map<string, PackCounts> | null;
   error: string | null;        // storage error
   countsError: string | null;
+  /** Delete the pack from the account and this browser (demo packs, ADR-0006); a failed server delete shows on PackSyncLine. */
+  remove: (id: string) => Promise<void>;
 }
 
 /** The home's state; re-reads the store whenever a pack sync finishes. */
 export function useLeaderPacks(uid: string): LeaderPacks {
-  const [state, setState] = useState<LeaderPacks>({ packs: null, invalid: [], counts: null, error: null, countsError: null });
+  const [state, setState] = useState<Omit<LeaderPacks, 'remove'>>({ packs: null, invalid: [], counts: null, error: null, countsError: null });
 
   const refresh = useCallback(async () => {
     try {
@@ -111,5 +113,14 @@ export function useLeaderPacks(uid: string): LeaderPacks {
     return () => { cancelled = true; };
   }, [uid]);
 
-  return state;
+  // Account first, then this browser (deletePackEverywhere); the list re-reads at once so the row disappears.
+  const remove = useCallback(async (id: string) => {
+    try {
+      await deletePackEverywhere(id);
+    } finally {
+      await refresh(); // a failed server delete keeps the pack; PackSyncLine shows the failure
+    }
+  }, [refresh]);
+
+  return { ...state, remove };
 }

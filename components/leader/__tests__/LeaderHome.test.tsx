@@ -16,6 +16,8 @@ import { TEST_PACK_PATH } from '../../studypack/__tests__/fixtures';
 import { saveLocalPack } from '../../studypack/packSource';
 import { idbService } from '../../../services/idbService';
 import { SIGNUPS_TABLE, CHECKIN_ANSWERS_TABLE } from '../../signup/signupSchema';
+import { STUDY_PACKS_TABLE } from '../../newstudy/packRemote';
+import { NS_DELETE, NS_DELETE_CONFIRM } from '../../newstudy/newStudyStrings';
 import { SU_ERR_NOT_CONFIGURED } from '../../signup/signupStrings';
 import { newStudyHash, packHash, NEW_STUDY_HASH } from '../../landing/landingRoute';
 import { qrHash } from '../../signup/signupRoute';
@@ -37,7 +39,10 @@ const rowsByTable: Record<string, CountRow[]> = {};
 let countsError: string | null = null;
 /** PostgREST-shaped: .eq() is awaitable and also takes a further .is(col, null) filter, honoured like the server would. */
 const reply = (rows: CountRow[]) => (countsError ? { data: null, error: { message: countsError } } : { data: rows, error: null });
+const deletedRemote: string[] = [];
 const fromMock = vi.fn((table: string) => ({
+  // deletePackEverywhere: .delete().eq('id', id).eq('leader_id', uid) — recorded so the test proves the account copy went too.
+  delete: () => ({ eq: (_c: string, id: string) => ({ eq: async () => { deletedRemote.push(`${table}:${id}`); return { error: null }; } }) }),
   select: () => ({
     eq: (_col: string, value: string) => {
       const rows = (rowsByTable[table] ?? []).filter(r => r.leader_id === value);
@@ -82,6 +87,7 @@ beforeEach(async () => {
   configured = true;
   countsError = null;
   isAdmin = null;
+  deletedRemote.length = 0;
   signInMock.mockReset().mockResolvedValue({ error: null });
   await idbService.clear('studypacks');
   rowsByTable[SIGNUPS_TABLE] = [
@@ -142,6 +148,25 @@ describe('LeaderHome', () => {
     expect(screen.getByTestId('lh-new')).toHaveAttribute('href', NEW_STUDY_HASH);
     expect(fromMock).toHaveBeenCalledWith(SIGNUPS_TABLE);
     expect(fromMock).toHaveBeenCalledWith(CHECKIN_ANSWERS_TABLE);
+  });
+
+  it('delete on a row (demo packs): a bilingual confirm, then the pack leaves the account and this browser; Cancel keeps it', async () => {
+    await saveLocalPack(pack('local-2026-10-02-matt6', '2026-10-02', '不要忧虑'));
+    render(<LeaderHome />);
+    const row = await screen.findByTestId('lh-pack');
+    const confirmSpy = vi.spyOn(window, 'confirm');
+    // Cancel: nothing happens.
+    confirmSpy.mockReturnValueOnce(false);
+    fireEvent.click(within(row).getByRole('button', { name: NS_DELETE }));
+    expect(confirmSpy).toHaveBeenCalledWith(NS_DELETE_CONFIRM);
+    expect(screen.getByTestId('lh-pack')).toBeInTheDocument();
+    expect(deletedRemote).toHaveLength(0);
+    // Confirm: deleted from the account (study_packs) and the list.
+    confirmSpy.mockReturnValueOnce(true);
+    fireEvent.click(within(row).getByRole('button', { name: NS_DELETE }));
+    await waitFor(() => expect(screen.queryByTestId('lh-pack')).toBeNull());
+    expect(deletedRemote).toContain(`${STUDY_PACKS_TABLE}:local-2026-10-02-matt6`);
+    confirmSpy.mockRestore();
   });
 
   it('signed in: the site-wide totals (site_stats) sit under My packs', async () => {

@@ -39,7 +39,7 @@ const SignInPrompt: React.FC = () => (
 );
 
 const MyPacks: React.FC<{ uid: string }> = ({ uid }) => {
-  const { packs, invalid, counts, error, countsError } = useLeaderPacks(uid);
+  const { packs, invalid, counts, error, countsError, remove } = useLeaderPacks(uid);
   return (
     <section data-testid="lh-packs" className="flex flex-col gap-4">
       <a href={NEW_STUDY_HASH} data-testid="lh-new" className={`${primaryLinkClass} self-start`} style={controlStyle}>＋ {NEW_STUDY_LINE}</a>
@@ -51,7 +51,8 @@ const MyPacks: React.FC<{ uid: string }> = ({ uid }) => {
       {packs?.length === 0 && <p className="text-stl-text-2" style={textStyle}>{NS_NO_PACKS}</p>}
       {packs && packs.length > 0 && (
         <PackListing packs={packs} renderRow={p => (
-          <LeaderPackRow key={p.id} pack={p} counts={counts ? (counts.get(p.id) ?? { signups: 0, answers: 0 }) : null} />
+          <LeaderPackRow key={p.id} pack={p} counts={counts ? (counts.get(p.id) ?? { signups: 0, answers: 0 }) : null}
+            onDelete={id => void remove(id)} />
         )} />
       )}
     </section>
