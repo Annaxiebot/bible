@@ -50,10 +50,13 @@ export const SU_REPLACED = bilingualLine('已更新你之前的报名', 'Your ea
 /** mark_replaced_signups failed: the new row is stored, but an earlier one may still get check-ins; the reason follows. */
 export const SU_REPLACE_FAILED = bilingualLine('未能更新之前的报名', 'Could not update your earlier sign-up');
 export const SU_NEXT_NO_CHECKINS = bilingualLine('你选择了不接收提醒', 'You chose not to receive check-ins');
+/** Plain-language privacy at the moment of joining (review 2026-11-02): who sees what, and where the full statement is. */
 export const SU_PRIVACY = bilingualLine(
-  '这些信息只用于你勾选的提醒',
-  'This information is used only for the check-ins you opted into'
+  '这些信息只用于你勾选的提醒，只有你的带领者能看到；周中提醒的回答默认只留在你自己的设备上',
+  'This information is used only for the check-ins you opted into and is visible only to your leader; your check-in answers stay on your own device unless you share them'
 );
+export const SU_PRIVACY_LINK = bilingual('隐私说明', 'Privacy');
+export const SU_PRIVACY_URL = '/privacy.html';
 
 /** Public packs without an owning leader (no leaderId) have no sign-up: shown on the TV qr slide, the landing panel and #/signup. */
 export const SU_DEMO_LINE = bilingualLine('示范包，无报名', 'Demo pack, no sign-up');

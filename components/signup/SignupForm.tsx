@@ -18,6 +18,7 @@ import PracticeStep from './PracticeStep';
 import { readRememberedMember, forgetMember } from './rememberedMember';
 import {
   SU_NAME, SU_PHONE, SU_PHONE_HINT, SU_EMAIL, SU_CONSENT, SU_SUBMIT, SU_SUBMITTING, SU_PRIVACY,
+  SU_PRIVACY_LINK, SU_PRIVACY_URL,
   SU_NEXT_STEP, SU_PREV_STEP, SU_CONTACT_TITLE, commitmentLine, suWelcomeBack, SU_DETAILS_FILLED, SU_EDIT_DETAILS, SU_NOT_YOU,
 } from './signupStrings';
 import { textStyle, controlStyle, headingStyle } from '../newstudy/newStudyStyles';
@@ -134,7 +135,11 @@ const SignupForm: React.FC<Props> = ({ rows, onSubmit }) => {
         </>
       )}
       {error && <p role="alert" className={PAPER_ERROR_CLASS} style={textStyle}>{error}</p>}
-      <p className={PAPER_MUTED_CLASS} style={textStyle}>{SU_PRIVACY}</p>
+      <p className={PAPER_MUTED_CLASS} style={textStyle}>
+        {SU_PRIVACY}
+        {' · '}
+        <a href={SU_PRIVACY_URL} target="_blank" rel="noopener" className="underline underline-offset-4" data-testid="su-privacy-link">{SU_PRIVACY_LINK}</a>
+      </p>
     </form>
   );
 };

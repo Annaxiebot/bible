@@ -43,6 +43,12 @@ const sectionOf = (kind: string) => screen.getAllByTestId('ns-section').find(el 
 const button = (kind: string, label: string) => within(sectionOf(kind)).getByRole('button', { name: new RegExp(`^${label}`) });
 
 describe('NewStudyEditor section toolbar', () => {
+  it('shows the AI-limitations reminder on the review screen (review 2026-11-02)', async () => {
+    await renderHost();
+    expect(screen.getByTestId('ns-ai-caveat')).toHaveTextContent('AI 草稿可能有误');
+    expect(screen.getByTestId('ns-ai-caveat')).toHaveTextContent(/one interpretation/);
+  });
+
   it('moves a section down and back up, keeping its DOM node', async () => {
     const onChange = vi.fn();
     await renderHost({ onChange });

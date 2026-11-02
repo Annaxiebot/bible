@@ -129,6 +129,9 @@ describe('SignupPage', () => {
     expect(screen.getByTestId('su-submit').className).toContain(PILL);
     expect(screen.getByTestId('su-submit')).toHaveAttribute('type', 'submit');
     expect(screen.getByTestId('su-prev').className).toContain('stl-pill-ghost');
+    // Plain-language privacy at the joining moment + a link to the full statement (review 2026-11-02).
+    expect(screen.getByText(/只有你的带领者能看到/)).toBeInTheDocument();
+    expect(screen.getByTestId('su-privacy-link')).toHaveAttribute('href', '/privacy.html');
     fill({ name: '小明', email: 'ming@example.org' });
     fireEvent.click(screen.getByTestId('su-submit'));
     const thanks = await screen.findByTestId('signup-thanks');

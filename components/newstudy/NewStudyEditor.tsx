@@ -33,6 +33,7 @@ import {
   NS_EDIT_TITLE, NS_EDIT_HINTS, NS_PACK_TITLE, NS_AUTOSAVED, NS_SAVING, NS_BACK,
 } from './newStudyStrings';
 import { textStyle, controlStyle, headingStyle, inputClass, quietButtonClass, labelClass } from './newStudyStyles';
+import { AI_CAVEAT } from '../studypack/principles';
 
 interface Props {
   pack: StudyPack;
@@ -115,6 +116,7 @@ const NewStudyEditor: React.FC<Props> = ({ pack, onChange, onPreview, onBack, au
         <button type="button" onClick={onBack} className={`${quietButtonClass} shrink-0 whitespace-nowrap`} style={controlStyle}>{NS_BACK}</button>
       </div>
       <p className="text-slate-400" style={textStyle}>{NS_EDIT_HINTS[packContentLanguage(pack)]}</p>
+      <p className="text-slate-400" style={textStyle} data-testid="ns-ai-caveat">{AI_CAVEAT}</p>
       <label className={labelClass} style={textStyle}>
         <span>{NS_PACK_TITLE}</span>
         <input type="text" value={titleHeading} aria-label={NS_PACK_TITLE} data-testid="ns-title"

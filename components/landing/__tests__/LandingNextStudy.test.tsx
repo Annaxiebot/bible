@@ -53,11 +53,13 @@ describe('LandingNextStudy', () => {
     );
     expect(block).toHaveTextContent(PACK.title);
     expect(block).toHaveTextContent(PACK.passageRef);
-    // A fixed sample, not a maintained schedule (2026-10 review): no date; the home page no longer
-    // says "无需登录 · No sign-in needed" anywhere (owner, 2026-10-23).
+    // A fixed sample, not a maintained schedule (2026-10 review): no date.
     expect(block).not.toHaveTextContent(PACK.date);
-    expect(block.textContent).not.toMatch(/无需登录|No sign-in needed|without signing in/);
-    expect(NEXT_DESC).not.toMatch(/无需登录|without signing in/);
+    // The SAMPLE section says "无需登录 · no sign-in needed" again (owner, 2026-11-02,
+    // superseding 2026-10-23): true of the sample, and its main invitation to a
+    // hesitant leader. Only here — creating a study still requires sign-in.
+    expect(NEXT_DESC).toMatch(/无需登录/);
+    expect(NEXT_DESC).toMatch(/no sign-in needed/);
     expect(screen.queryByTestId('next-study-empty')).toBeNull();
   });
 

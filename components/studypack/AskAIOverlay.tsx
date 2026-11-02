@@ -23,7 +23,7 @@ import AskHistoryNotice, { AskClearButton } from './AskHistoryNotice';
 import AIErrorLine from './AIErrorLine';
 import AskAnswer from './AskAnswer';
 import { useAnswerFit } from './useAnswerFit';
-import { TYPE_SCALE } from './principles';
+import { TYPE_SCALE, AI_CAVEAT } from './principles';
 import { QuickAISetupForm } from '../setup/QuickAISetup';
 import { askAIModel } from '../../services/aiDefaults';
 
@@ -104,6 +104,9 @@ const Conversation: React.FC<{ ai: AskAI; pack: StudyPack; history: AskHistory }
           <div data-testid={streaming ? 'streaming-answer' : undefined}>
             <AskAnswer text={answer} pack={pack} fit complete={!streaming} />
           </div>
+        )}
+        {answer !== null && !streaming && (
+          <p className="text-stl-text-3" style={questionStyle} data-testid="ask-ai-caveat">{AI_CAVEAT}</p>
         )}
         {ai.loading && !streaming && (
           <p className="text-stl-text-3" style={questionStyle} data-testid="ask-thinking">
