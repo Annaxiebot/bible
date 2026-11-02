@@ -187,16 +187,16 @@ describe('chunkVerses', () => {
 });
 
 describe('buildSlides', () => {
-  const DEMO_SLIDE_COUNT = 26;
+  const DEMO_SLIDE_COUNT = 28;   // 2026-11-01: scripture 9-row cap + life-menu 3-row cap (slideFit.ts)
 
   it('splits scripture into parts that fit, keyPhrase on part 1, emphasis on every part', () => {
     const slides = buildSlides(loadRealPack());
     const scripture = slides.filter(s => s.kind === 'scripture');
     expect(scripture.map(s => s.verses!.map(v => v.num))).toEqual([
-      [25], [26, 27], [28, 29], [30, 31], [32, 33, 34],
+      [25], [26, 27], [28, 29], [30], [31, 32], [33, 34],
     ]);
-    expect(scripture.map(s => s.partIndex)).toEqual([1, 2, 3, 4, 5]);
-    expect(scripture.every(s => s.partTotal === 5)).toBe(true);
+    expect(scripture.map(s => s.partIndex)).toEqual([1, 2, 3, 4, 5, 6]);
+    expect(scripture.every(s => s.partTotal === 6)).toBe(true);
     expect(scripture[0].keyPhrase).toContain('不要为生命忧虑');
     expect(scripture[1].keyPhrase).toBeUndefined();
     expect(scripture.every(s => s.emphasis === scripture[0].keyPhrase)).toBe(true);
@@ -241,12 +241,12 @@ describe('buildSlides', () => {
     }
   });
 
-  it('splits the 7-row life menu over two slides (it overflows 1280×720 on one)', () => {
+  it('splits the 7-row life menu over three slides (rows sit AT their senior floor and may not shrink)', () => {
     const slides = buildSlides(loadRealPack());
     const lifeMenu = slides.filter(s => s.kind === 'lifeMenu');
-    expect(lifeMenu.map(s => s.rows!.length)).toEqual([3, 4]);
+    expect(lifeMenu.map(s => s.rows!.length)).toEqual([2, 2, 3]);
     expect(lifeMenu.every(s => s.rows!.length <= MAX_LIFE_MENU_ROWS_PER_SLIDE)).toBe(true);
-    expect(lifeMenu.map(s => s.partIndex)).toEqual([1, 2]);
+    expect(lifeMenu.map(s => s.partIndex)).toEqual([1, 2, 3]);
   });
 
   it('carries the qr section through to a slide between reflection and closing', () => {

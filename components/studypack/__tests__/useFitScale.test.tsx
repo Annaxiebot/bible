@@ -32,6 +32,8 @@ function fakeMeasure(area: HTMLElement | null, content: HTMLElement | null) {
   Object.defineProperty(area, 'clientWidth', { configurable: true, get: () => 1000 });
   Object.defineProperty(content, 'scrollWidth', { configurable: true, get: () => 100 });
   content.getBoundingClientRect = () => ({ height: layout.contentHeight * fit(), width: 100 }) as DOMRect;
+  // contentOverflows reads the AREA's scrollHeight (ADR-0028); a scroll box reports max(own, content).
+  Object.defineProperty(area, 'scrollHeight', { configurable: true, get: () => Math.max(layout.areaHeight, layout.contentHeight * fit()) });
 }
 
 const Probe: React.FC<{ fitKey: unknown }> = ({ fitKey }) => {
@@ -74,7 +76,8 @@ describe('useFitScale', () => {
     const { getByTestId } = render(<Probe fitKey={1} />);
     const area = getByTestId('area');
     expect(fitOf(area)).toBeCloseTo(1.5, 2);
-    expect(FakeResizeObserver.instances[0].observed).toEqual([area]);
+    // The content is observed too (ADR-0028): a late font subset grows it without resizing the area.
+    expect(FakeResizeObserver.instances[0].observed).toEqual([area, area.firstElementChild]);
     layout.areaHeight = 480; // now fits up to 1.2
     act(() => FakeResizeObserver.instances[0].fire());
     expect(fitOf(area)).toBeCloseTo(1.2, 2);

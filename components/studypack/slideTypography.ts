@@ -6,7 +6,8 @@
  * outgrow the width (a 7vh heading wrapped to four lines at 390×844), so the
  * same roles switch to width-based sizes that keep the px floors.
  * Content roles are then multiplied by the slide's fit factor (fitted()),
- * which only ever grows them; headings are never fitted.
+ * which grows them — or shrinks them to the senior floor when the built
+ * slide overflows (fitScale.ts shrink floors); headings are never fitted.
  */
 import type { CSSProperties } from 'react';
 import { useSyncExternalStore } from 'react';
@@ -85,7 +86,8 @@ export function slideTypography(portraitPhone: boolean): SlideTypography {
  * base size × var(--fit), 1 outside a fit area, so the floors above still bind.
  */
 export function fitted(style: CSSProperties, capLine = true): CSSProperties {
-  const fontSize = `calc(${String(style.fontSize)} * var(${FIT_VAR}, 1))`;
+  // The outer max keeps the phone px floor binding even when --fit shrinks below 1 (fitScale shrink floors).
+  const fontSize = `max(16px, calc(${String(style.fontSize)} * var(${FIT_VAR}, 1)))`;
   return capLine ? { ...style, fontSize, maxWidth: `${MAX_LINE_EM}em` } : { ...style, fontSize };
 }
 

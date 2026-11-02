@@ -12,7 +12,8 @@
  * interactive popups (ADR-0003 §8). Bilingual text is Chinese-first (§1).
  * Headings, the title and the key phrase carry .stl-tv-head: Chinese in
  * 霞鹜文楷 WenKai bold, the English half in the TV's Latin face (stlShared.css).
- * Everything under the heading sits in a FitArea: it grows (never shrinks)
+ * Everything under the heading sits in a FitArea: it grows (or, when the
+ * built slide overflows, shrinks to the senior floor — fitScale.ts)
  * to fill the slide down to the bottom safe zone (useFitScale); headings keep
  * one size on every slide. Vertical gaps inside scale with the text.
  */
@@ -21,6 +22,7 @@ import { Slide, StudyPack } from './packTypes';
 import { TRANSLATIONS, bilingual } from './principles';
 import { fitted, useSlideTypography } from './slideTypography';
 import { useFitScale } from './useFitScale';
+import { MIN_BODY_SLIDE_SCALE, MIN_VERSE_SLIDE_SCALE, MIN_SCALE } from './fitScale';
 import RefLinkedText from './RefLinkedText';
 import { HEADING_DETAIL_SEPARATOR, emphasisSegments, keyPhraseFragments, splitHeading } from './slideText';
 import SignupQr from '../signup/SignupQr';
@@ -62,15 +64,21 @@ const Heading: React.FC<{ text: string; counter?: string }> = ({ text, counter }
 
 /**
  * The slide's content area: takes the rest of the slide below the heading and
- * scales its content (--fit) to fill it. overflow-y-auto stays so a slide
- * that overflows even at scale 1 still shows up as scrolling (tv-polish e2e).
+ * scales its content (--fit) to fill it — growing up to MAX_SCALE, or, when
+ * the built slide overflows at 1 (the row estimates are heuristic), shrinking
+ * to `minScale`, the senior floor for the slide's smallest role (fitScale.ts).
+ * overflow-y-auto stays so a slide that overflows even at the floor still
+ * shows up as scrolling (tv-polish e2e) rather than clipping.
  */
-const FitArea: React.FC<{ fitKey: unknown; className?: string; children: React.ReactNode }> = ({ fitKey, className = '', children }) => {
+const FitArea: React.FC<{ fitKey: unknown; className?: string; minScale?: number; children: React.ReactNode }> = ({ fitKey, className = '', minScale = MIN_BODY_SLIDE_SCALE, children }) => {
   const area = useRef<HTMLDivElement>(null);
   const content = useRef<HTMLDivElement>(null);
-  useFitScale(area, content, fitKey);
+  useFitScale(area, content, fitKey, minScale);
   return (
-    <div ref={area} data-testid="tv-fit-area" className={`flex-1 min-h-0 overflow-y-auto ${className}`}>
+    // scrollbar-gutter stable: otherwise a transient scrollbar during the fit search narrows the
+    // area, wraps the text taller, and locks in an overflowing scale (two self-consistent states).
+    <div ref={area} data-testid="tv-fit-area" className={`flex-1 min-h-0 overflow-y-auto ${className}`}
+      style={{ scrollbarGutter: 'stable' }}>
       <div ref={content} data-testid="tv-fit-content">{children}</div>
     </div>
   );
@@ -127,7 +135,7 @@ const ScriptureSlide: React.FC<SlideProps> = ({ slide, pack }) => {
   return (
     <div className="h-full flex flex-col">
       <Heading text={slide.heading} counter={partCounter(slide.partIndex, slide.partTotal)} />
-      <FitArea fitKey={slide}>
+      <FitArea fitKey={slide} minScale={MIN_VERSE_SLIDE_SCALE}>
         {slide.keyPhrase && (
           <p data-testid="key-phrase" className="stl-tv-head text-stl-gold font-semibold mb-[calc(3.5vh*var(--fit,1))]" style={fitted(t.keyPhrase)}>{slide.keyPhrase}</p>
         )}
@@ -168,7 +176,8 @@ const LifeMenuSlide: React.FC<SlideProps> = ({ slide, pack }) => {
   return (
   <div className="h-full flex flex-col">
     <Heading text={slide.heading} counter={partCounter(slide.partIndex, slide.partTotal)} />
-    <FitArea fitKey={slide}>
+    {/* Life-menu rows are AT their senior floor (3.4vh): never shrink; the row split owns overflow. */}
+    <FitArea fitKey={slide} minScale={MIN_SCALE}>
       <table className="w-full border-collapse">
         <tbody>
           {(slide.rows || []).map((row, i) => (

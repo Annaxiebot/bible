@@ -55,7 +55,7 @@ describe('packRange / withScripture', () => {
     for (let i = 2; i < next.sections.length; i++) expect(next.sections[i]).toBe(original.sections[i]);
     expect(next.id).toBe(original.id);
     expect(() => parseStudyPack(next)).not.toThrow();
-    expect(buildSlides(next)).toHaveLength(17); // 3 scripture parts instead of 5 (life menu spans 2 slides)
+    expect(buildSlides(next)).toHaveLength(18); // 2026-11-01 row caps (ADR-0028): one more life-menu slide
   });
 });
 

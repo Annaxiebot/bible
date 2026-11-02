@@ -16,9 +16,9 @@ await preloadMarkdown();
 const packJson = () => JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8'));
 
 // Demo pack slide map (pinned in packTypes.test.ts): 1 title, 2–6 scripture
-// 1/5–5/5, … 14–20 discussion (observation questions first), … 26 closing.
-const DEMO_SLIDES = 26;
-const TO_FIRST_DISCUSSION = 13; // ArrowRight presses from the title slide
+// 1/6–6/6, … 15–21 discussion (observation questions first), … 28 closing.
+const DEMO_SLIDES = 28;
+const TO_FIRST_DISCUSSION = 14; // ArrowRight presses from the title slide
 
 // Mirror of askAIFallback.ts streamStudyAI:
 // (pack, slide, history, question, onText, signal, onModel?) → Promise<{ text, model }>
@@ -79,7 +79,7 @@ describe('TVPresentationView', () => {
     mockFetchOk(packJson());
     await renderLoaded();
     fireEvent.keyDown(window, { key: 'ArrowRight' });
-    expect(screen.getByRole('heading', { name: /经文 Scripture.*· 1\/5/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /经文 Scripture.*· 1\/6/ })).toBeInTheDocument();
     expect(screen.getByText(`2/${DEMO_SLIDES}`)).toBeInTheDocument();
     // Keyboard hints only on the first slide
     expect(screen.queryByText(/Arrow keys or swipe/)).not.toBeInTheDocument();
@@ -91,11 +91,11 @@ describe('TVPresentationView', () => {
     expect(screen.getByText(`${DEMO_SLIDES}/${DEMO_SLIDES}`)).toBeInTheDocument();
   });
 
-  it('renders the embedded bilingual passage across five scripture slides', async () => {
+  it('renders the embedded bilingual passage across six scripture slides', async () => {
     mockFetchOk(packJson());
     await renderLoaded();
     fireEvent.keyDown(window, { key: 'ArrowRight' });
-    // Part 1/5: v.25 under the key phrase, CUV and BSB side by side, no cache involved.
+    // Part 1/6: v.25 under the key phrase, CUV and BSB side by side, no cache involved.
     // The key phrase is gold where it occurs, so the verse text spans several runs.
     const verse25 = (t: string) => (_: string, el: Element | null) => el?.tagName === 'P' && el.textContent === t;
     expect(screen.getByText(verse25('25「所以我告诉你们，不要为生命忧虑吃甚么，喝甚么；为身体忧虑穿甚么。生命不胜于饮食么？身体不胜于衣裳么？'))).toBeInTheDocument();
@@ -104,12 +104,13 @@ describe('TVPresentationView', () => {
     expect(screen.queryByText(/所罗门/)).not.toBeInTheDocument();
     fireEvent.keyDown(window, { key: 'ArrowRight' });
     fireEvent.keyDown(window, { key: 'ArrowRight' });
-    expect(screen.getByRole('heading', { name: /经文 Scripture.*· 3\/5/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: /经文 Scripture.*· 3\/6/ })).toBeInTheDocument();
     expect(screen.getByText(/所罗门极荣华/)).toBeInTheDocument();
     expect(screen.queryByTestId('key-phrase')).not.toBeInTheDocument();
     fireEvent.keyDown(window, { key: 'ArrowRight' });
     fireEvent.keyDown(window, { key: 'ArrowRight' });
-    expect(screen.getByRole('heading', { name: /经文 Scripture.*· 5\/5/ })).toBeInTheDocument();
+    fireEvent.keyDown(window, { key: 'ArrowRight' });
+    expect(screen.getByRole('heading', { name: /经文 Scripture.*· 6\/6/ })).toBeInTheDocument();
     expect(screen.getByText(/seek first the kingdom of God/)).toBeInTheDocument();
   });
 

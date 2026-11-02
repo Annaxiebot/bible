@@ -35,7 +35,11 @@ export const BODY_LINE_EMS = 28;
  * labels and must end above y=648 → 471px; a row is 41px and verses sit 22px
  * apart, so 10 rows in 3 verses (454px) fit.
  */
-export const MAX_VERSE_ROWS_PER_SLIDE = 10;
+export const MAX_VERSE_ROWS_PER_SLIDE = 9;
+// 10 → 9 (usability review 2026-11-01): measured in Chromium at 1280×720, the
+// sample's 10-row scripture slides ran 19–50px past the area — English verses
+// wrap a little longer than the em estimate. 9 rows fit with the ~5% shrink
+// headroom (MIN_VERSE_SLIDE_SCALE) absorbing the residue.
 
 /** One verse column is 42vw / 3.8vh = 19.6em wide on 16:9; 18em leaves room for word wrap. */
 export const VERSE_LINE_EMS = 18;
@@ -43,8 +47,12 @@ export const VERSE_LINE_EMS = 18;
 /** Verse rows the key phrase (gold, 5.4vh, up to 2 lines + margin ≈ 127px) takes from part 1. */
 export const KEY_PHRASE_RESERVE_ROWS = 3;
 
-/** Life-menu rows per slide: 7 rows overflow 1280×720 (788px of 720), 4 fit. */
-export const MAX_LIFE_MENU_ROWS_PER_SLIDE = 4;
+/**
+ * Life-menu rows per slide. Was 4; measured 2026-11-01 at 1280×720 the
+ * sample's 4-row slide ran 79px past the area, and life-menu text sits AT
+ * its senior floor (3.4vh) so it may not shrink — 3 rows fit with margin.
+ */
+export const MAX_LIFE_MENU_ROWS_PER_SLIDE = 3;
 
 /**
  * Advance widths in ems: CJK and full-width forms are square (measured 1.0);

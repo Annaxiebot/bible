@@ -111,6 +111,6 @@ describe('Matthew 6 sample — teaching precision', () => {
     expect(title).toMatch(/Sample study pack/);
     expect(section('qr').heading).toBe('行道提醒 Live Out the Word');
     expect(all).not.toContain('签到');
-    expect(buildSlides(pack).length).toBe(26);
+    expect(buildSlides(pack).length).toBe(28);
   });
 });
