@@ -132,8 +132,8 @@ describe('AskAIOverlay (streaming)', () => {
     expect(screen.queryByTestId('streaming-answer')).not.toBeInTheDocument();
     await waitFor(() => // now a finished message (markdown + verse-ref tooltip)
       expect(screen.getByTestId('ask-answer')).toHaveTextContent('Anxiety follows (v.25).'));
-    // The AI-limitations reminder sits under the finished answer (review 2026-11-02).
-    expect(screen.getByTestId('ask-ai-caveat')).toHaveTextContent('AI 草稿可能有误');
+    // The AI-limitations reminder appears on the footer credits line once an answer exists (review 2026-11-02).
+    expect(screen.getByTestId('ask-ai-caveat')).toHaveTextContent('AI 回答可能有误');
     expect(screen.getByTestId('verse-ref')).toHaveTextContent('v.25');
     expect(screen.getByLabelText(/Ask AI question/)).toBeEnabled();
     // A model other than the main one answered → the quiet backup note (the model id itself is never shown)

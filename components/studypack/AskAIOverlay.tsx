@@ -23,7 +23,7 @@ import AskHistoryNotice, { AskClearButton } from './AskHistoryNotice';
 import AIErrorLine from './AIErrorLine';
 import AskAnswer from './AskAnswer';
 import { useAnswerFit } from './useAnswerFit';
-import { TYPE_SCALE, AI_CAVEAT } from './principles';
+import { TYPE_SCALE, AI_CAVEAT_SHORT } from './principles';
 import { QuickAISetupForm } from '../setup/QuickAISetup';
 import { askAIModel } from '../../services/aiDefaults';
 
@@ -222,27 +222,30 @@ const AskAIOverlay: React.FC<AskAIOverlayProps> = ({ pack, slide, initialQuestio
         </div>
         <Conversation ai={ai} pack={pack} history={history} />
         <QuestionForm ai={ai} />
-        {/* The AI-limitations reminder (review 2026-11-02), OUTSIDE the fitted conversation:
-            inside it the extra line pushed an at-the-floor answer past the fit (tv-ask-ai-citations). */}
-        {ai.messages.some(m => m.role === 'assistant') && (
-          <p className="text-stl-text-3 shrink-0 mt-[0.5vh]" style={{ fontSize: '2vh' }} data-testid="ask-ai-caveat">{AI_CAVEAT}</p>
-        )}
-        <SourcesCredit />
+        {/* The AI-limitations reminder (review 2026-11-02) shares the credits line — OUTSIDE the
+            fitted conversation (inside, its extra line pushed an at-the-floor answer past the fit)
+            and at zero extra height (its own footer line re-broke the fit at 1080p on CI fonts). */}
+        <SourcesCredit caveat={ai.messages.some(m => m.role === 'assistant')} />
       </div>
     </div>
   );
 };
 
-/** The data sources in use, one short line, each name linked (CC BY); nothing when no source is switched on. */
-export const SourcesCredit: React.FC = () => {
+/**
+ * The data sources in use, one short line, each name linked (CC BY); nothing when no source is
+ * switched on. With `caveat` (an answer exists) the AI-limitations reminder leads the same line,
+ * so it costs no extra height against the conversation's fit (review 2026-11-02).
+ */
+export const SourcesCredit: React.FC<{ caveat?: boolean }> = ({ caveat }) => {
   const sources = [
     RELATED_VERSES_ENABLED && { name: OPENBIBLE_NAME, url: OPENBIBLE_URL },
     ORIGINAL_WORDS_ENABLED && { name: STEP_BIBLE_NAME, url: STEP_BIBLE_URL },
   ].filter((x): x is { name: string; url: string } => Boolean(x));
-  if (sources.length === 0) return null;
+  if (sources.length === 0 && !caveat) return null;
   return (
     <p className="text-stl-text-3 shrink-0 mt-[0.5vh]" style={{ fontSize: '1.6vh' }} data-testid="ask-sources">
-      {SOURCES_LABEL}：
+      {caveat && <span data-testid="ask-ai-caveat">{AI_CAVEAT_SHORT}{sources.length > 0 && ' · '}</span>}
+      {sources.length > 0 && <>{SOURCES_LABEL}：</>}
       {sources.map((src, i) => (
         <React.Fragment key={src.name}>
           {i > 0 && ' · '}
