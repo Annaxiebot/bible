@@ -14,8 +14,8 @@ test.describe('TV fit at 1080p', () => {
 
   test('the densest scripture slide (3 bilingual verses) fits without scrolling', async ({ page }) => {
     await openTV(page);
-    await goToSlide(page, DEMO_SLIDE.scripture + 4);
-    await expect(page.getByText(/经文 Scripture.*· 5\/5/)).toBeVisible(); // vv.32–34
+    await goToSlide(page, DEMO_SLIDE.scripture + 5);
+    await expect(page.getByText(/经文 Scripture.*· 6\/6/)).toBeVisible(); // vv.33–34
     // Measure the real face once it and this slide's glyph slices load; the fit re-runs on font load.
     await waitForWenKai(page, 700, '不要忧虑经文');
     await expect.poll(() => page
@@ -46,19 +46,18 @@ for (const viewport of [{ width: 844, height: 390 }, { width: 390, height: 844 }
           maxOverflow: Math.max(...areas.map(a => a.scrollHeight - a.clientHeight)),
         };
       });
-      await goToSlide(page, DEMO_SLIDE.scripture + 4); // densest scripture slide, vv.32–34
+      await goToSlide(page, DEMO_SLIDE.scripture + 5); // densest scripture slide, vv.33–34
       expect(await noHClip()).toBe(true);
       const scripture = await scrolling();
       expect(scripture.allScrollable).toBe(true);
-      if (viewport === SMALLEST_PHONE) expect(scripture.maxOverflow).toBeGreaterThan(0);
 
-      for (let i = 0; i < DEMO_SLIDE.lifeMenu + 1 - (DEMO_SLIDE.scripture + 4); i++) await page.keyboard.press('ArrowRight');
-      await expect(page.getByText(/生活应用 Life Menu · 2\/2/)).toBeVisible();
+      for (let i = 0; i < DEMO_SLIDE.lifeMenu + 1 - (DEMO_SLIDE.scripture + 5); i++) await page.keyboard.press('ArrowRight');
+      await expect(page.getByText(/生活应用 Life Menu · 2\/3/)).toBeVisible();
       expect(await noHClip()).toBe(true);
       const menu = await scrolling();
       expect(menu.allScrollable).toBe(true);
-      // On the smallest phone both slides are taller than the screen, so the scroll path is really exercised.
-      if (viewport === SMALLEST_PHONE) expect(menu.maxOverflow).toBeGreaterThan(0);
+      // Since ADR-0028 (shrink floors + smaller row caps) every sample slide fits even 320×568, so
+      // no slide is REQUIRED to overflow any more; scrolling itself is covered by the Ask AI fit spec.
     });
 
     test('a horizontal swipe still advances while vertical gestures scroll', async ({ page }) => {

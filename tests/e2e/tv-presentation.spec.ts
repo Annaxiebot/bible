@@ -46,11 +46,11 @@ test.describe('TV Presentation Mode', () => {
     await expect(page.getByText(`${TOTAL - 1}/${TOTAL}`)).toBeVisible();
   });
 
-  test('scripture renders the embedded bilingual passage across five slides', async ({ page }) => {
+  test('scripture renders the embedded bilingual passage across six slides', async ({ page }) => {
     await openTV(page);
     await page.keyboard.press('ArrowRight');
-    // Part 1/5 = v.25 under the key phrase, real verse text, CUV + BSB — no IndexedDB cache involved
-    await expect(page.getByText(/经文 Scripture.*· 1\/5/)).toBeVisible();
+    // Part 1/6 = v.25 under the key phrase, real verse text, CUV + BSB — no IndexedDB cache involved
+    await expect(page.getByText(/经文 Scripture.*· 1\/6/)).toBeVisible();
     await expect(page.getByText(/不要为生命忧虑吃甚么/)).toBeVisible();
     // Column headers: 和合本 first, then the pack's English version label (BSB)
     await expect(page.getByText('和合本 CUV', { exact: true })).toBeVisible();
@@ -59,13 +59,14 @@ test.describe('TV Presentation Mode', () => {
 
     await page.keyboard.press('ArrowRight');
     await page.keyboard.press('ArrowRight');
-    await expect(page.getByText(/经文 Scripture.*· 3\/5/)).toBeVisible();
+    await expect(page.getByText(/经文 Scripture.*· 3\/6/)).toBeVisible();
     await expect(page.getByText(/所罗门极荣华/)).toBeVisible();
     await expect(page.getByText(/Solomon in all his glory/)).toBeVisible();
 
     await page.keyboard.press('ArrowRight');
     await page.keyboard.press('ArrowRight');
-    await expect(page.getByText(/经文 Scripture.*· 5\/5/)).toBeVisible();
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByText(/经文 Scripture.*· 6\/6/)).toBeVisible();
     await expect(page.getByText(/你们要先求他的国和他的义/)).toBeVisible();
     await expect(page.getByText(/seek first the kingdom of God/)).toBeVisible();
   });
@@ -134,15 +135,18 @@ test.describe('TV Presentation Mode', () => {
     await expect(page.getByTestId('qr-demo')).toHaveCount(0);
   });
 
-  test('the life menu shows all 7 areas over two slides (3 + 4), in order', async ({ page }) => {
+  test('the life menu shows all 7 areas over three slides (2 + 2 + 3, ADR-0028 row caps), in order', async ({ page }) => {
     await openTV(page);
     await goToSlide(page, DEMO_SLIDE.lifeMenu);
-    await expect(page.getByText(/生活应用 Life Menu · 1\/2/)).toBeVisible();
-    for (const area of LIFE_AREAS.slice(0, 3)) await expect(page.getByText(area)).toBeVisible();
-    await expect(page.getByText(LIFE_AREAS[3])).toHaveCount(0);
+    await expect(page.getByText(/生活应用 Life Menu · 1\/3/)).toBeVisible();
+    for (const area of LIFE_AREAS.slice(0, 2)) await expect(page.getByText(area)).toBeVisible();
+    await expect(page.getByText(LIFE_AREAS[2])).toHaveCount(0);
     await page.keyboard.press('ArrowRight');
-    await expect(page.getByText(/生活应用 Life Menu · 2\/2/)).toBeVisible();
-    for (const area of LIFE_AREAS.slice(3)) await expect(page.getByText(area)).toBeVisible();
+    await expect(page.getByText(/生活应用 Life Menu · 2\/3/)).toBeVisible();
+    for (const area of LIFE_AREAS.slice(2, 4)) await expect(page.getByText(area)).toBeVisible();
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByText(/生活应用 Life Menu · 3\/3/)).toBeVisible();
+    for (const area of LIFE_AREAS.slice(4)) await expect(page.getByText(area)).toBeVisible();
   });
 });
 

@@ -21,6 +21,8 @@ import { TYPE_SCALE } from './principles';
 
 const tooltipTextStyle: React.CSSProperties = { fontSize: TYPE_SCALE.popup, lineHeight: 1.4 };
 const CLOSE_DELAY_MS = 150;
+/** A hover-open and a click within this window are one tap (iOS synthetic-hover sequence). */
+const SAME_TAP_MS = 500;
 
 export interface VerseTooltipProps {
   label: string;             // the reference as written, e.g. "v.26", "路加福音 12:22–31"
@@ -76,6 +78,11 @@ const VerseTooltip: React.FC<VerseTooltipProps> = ({ label, title = label, verse
   const [placement, setPlacement] = useState<TooltipPlacement | null>(null);
   const anchorRef = useRef<HTMLSpanElement>(null);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // When the popup was last opened BY HOVER. A tap on iOS fires a synthetic
+  // mouseenter (which opens) and then click on the SAME tap — without this
+  // guard the click toggled the popup straight back closed, so tapping looked
+  // dead on phones. A click-opened popup is not guarded: its next click closes.
+  const hoverOpenedAt = useRef(0);
   const { state, start } = useLazyVerses(verses, load);
   const open = placement !== null;
 
@@ -120,9 +127,14 @@ const VerseTooltip: React.FC<VerseTooltipProps> = ({ label, title = label, verse
       ref={anchorRef}
       className="relative inline-block text-stl-gold underline decoration-dotted cursor-help"
       data-testid="verse-ref"
-      onMouseEnter={show}
+      onMouseEnter={() => { if (!open) hoverOpenedAt.current = Date.now(); show(); }}
       onMouseLeave={scheduleHide}
-      onClick={e => { e.stopPropagation(); open ? hide() : show(); }}
+      onClick={e => {
+        e.stopPropagation();
+        // The click of the tap whose synthetic hover just opened it must not close it.
+        if (open && Date.now() - hoverOpenedAt.current < SAME_TAP_MS) { hoverOpenedAt.current = 0; return; }
+        open ? hide() : show();
+      }}
     >
       {label}
       {open && placement && createPortal(

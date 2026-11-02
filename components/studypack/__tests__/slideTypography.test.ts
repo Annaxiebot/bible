@@ -61,7 +61,7 @@ describe('useSlideTypography', () => {
 describe('fitted', () => {
   it('multiplies the base size by the fit factor (1 outside a fit area) and caps the line length in ems', () => {
     const style = fitted(slideTypography(false).question);
-    expect(style.fontSize).toBe(`calc(${TYPE_SCALE.question} * var(${FIT_VAR}, 1))`);
+    expect(style.fontSize).toBe(`max(16px, calc(${TYPE_SCALE.question} * var(${FIT_VAR}, 1)))`);   // outer max: the px floor binds even when --fit shrinks
     expect(style.maxWidth).toBe(`${MAX_LINE_EM}em`);
     expect(style.lineHeight).toBe(slideTypography(false).question.lineHeight);
   });

@@ -50,17 +50,18 @@ export async function waitForWenKai(page: Page, weight: 400 | 700, sample: strin
  * (slideFit.ts) is updated here once, not in every spec.
  */
 export const DEMO_SLIDE = {
-  total: 26,
-  scripture: 2,        // 2–6: scripture 1/5–5/5
-  context: 7,          // 7–8
-  originalLanguage: 9, // 9–11
-  crossRefs: 12,       // 12–13
-  discussion: 14,      // 14–20: one per question (observation questions first)
-  weekQuestion: 17,    // Q4 "Where does anxiety actually show up in your week?" — the shortest question
-  lifeMenu: 21,        // 21–22
-  reflection: 23,      // 23–24
-  qr: 25,
-  closing: 26,
+  // 2026-11-01: scripture 9-row cap + life-menu 3-row cap (slideFit.ts) — 26 → 28 slides.
+  total: 28,
+  scripture: 2,        // 2–7: scripture 1/6–6/6
+  context: 8,          // 8–9
+  originalLanguage: 10, // 10–12
+  crossRefs: 13,       // 13–14
+  discussion: 15,      // 15–21: one per question (observation questions first)
+  weekQuestion: 18,    // Q4 "Where does anxiety actually show up in your week?" — the shortest question
+  lifeMenu: 22,        // 22–24
+  reflection: 25,      // 25–26
+  qr: 27,
+  closing: 28,
 } as const;
 
 /** From the title slide, press ArrowRight until slide `n` (1-based) is shown. */

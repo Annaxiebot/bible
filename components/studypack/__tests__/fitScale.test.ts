@@ -61,6 +61,9 @@ function fakeLayout(areaHeight: number, areaWidth: number, contentHeight: number
   const fit = () => Number(area.style.getPropertyValue(FIT_VAR) || 1);
   Object.defineProperty(area, 'clientHeight', { get: () => areaHeight });
   Object.defineProperty(area, 'clientWidth', { get: () => areaWidth });
+  // contentOverflows reads the AREA's scrollHeight (ADR-0028): a scroll box reports
+  // max(own height, content height incl. margins) — modelled as that max here.
+  Object.defineProperty(area, 'scrollHeight', { get: () => Math.max(areaHeight, contentHeight * fit()) });
   Object.defineProperty(content, 'scrollWidth', { get: () => contentWidth * fit() });
   content.getBoundingClientRect = () => ({ height: contentHeight * fit(), width: Math.min(areaWidth, contentWidth * fit()) }) as DOMRect;
   return { area, content };

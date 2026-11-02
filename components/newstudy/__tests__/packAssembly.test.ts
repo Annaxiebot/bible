@@ -127,8 +127,8 @@ describe('assemblePack', () => {
     expect(numbered.sections[0].heading).toMatch(/^第8课 祂必兴旺/);
   });
 
-  it('renders as 19 slides for 15 verses (1 + 5 scripture + 5 questions + 7 sections, life menu over 2)', () => {
-    expect(buildSlides(pack)).toHaveLength(19);
+  it('renders as 20 slides for 15 verses (1 + 5 scripture + 5 questions + 7 sections, life menu over 3 — ADR-0028 row caps)', () => {
+    expect(buildSlides(pack)).toHaveLength(20);
   });
 });
 

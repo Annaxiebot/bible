@@ -118,7 +118,7 @@ for (const viewport of [{ width: 1280, height: 720 }, { width: 1920, height: 108
       await openTV(page);
       await goToSlide(page, DEMO_SLIDE.scripture);
       const heading = page.getByRole('heading', { level: 1 });
-      await expect(heading).toHaveText('经文 Scripture — 马太福音 6:25–34 Matthew · 1/5');
+      await expect(heading).toHaveText('经文 Scripture — 马太福音 6:25–34 Matthew · 1/6');
       const { height, lineHeight } = await heading.evaluate(el => ({
         height: el.getBoundingClientRect().height,
         lineHeight: parseFloat(getComputedStyle(el).lineHeight),

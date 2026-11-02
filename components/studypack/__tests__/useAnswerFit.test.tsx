@@ -34,6 +34,8 @@ function fakeMeasure(area: HTMLElement | null, content: HTMLElement | null) {
   Object.defineProperty(area, 'clientWidth', { configurable: true, get: () => 1000 });
   Object.defineProperty(content, 'scrollWidth', { configurable: true, get: () => 100 });
   content.getBoundingClientRect = () => ({ height: layout.contentHeight * fit(), width: 100 }) as DOMRect;
+  // contentOverflows reads the AREA's scrollHeight (ADR-0028); a scroll box reports max(own, content).
+  Object.defineProperty(area, 'scrollHeight', { configurable: true, get: () => Math.max(layout.areaHeight, layout.contentHeight * fit()) });
 }
 
 interface ProbeProps { text: string | null; streaming: boolean; turn: number; onFitted?: () => void }

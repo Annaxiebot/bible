@@ -14,6 +14,20 @@
 export const MIN_SCALE = 1;
 
 /**
+ * Shrink floors (usability review 2026-11-01: slides clipped scripture/body
+ * tails at presentation size). buildSlides' row estimates are heuristic;
+ * when a built slide still overflows at scale 1, the search may now shrink
+ * it until its SMALLEST fitted role reaches the senior floor (ADR-0003 §15,
+ * 3.6vh) instead of silently scrolling:
+ * - body-based slides (smallest role: body 5vh): 3.6 / 5
+ * - scripture slides (verse 3.8vh): 3.6 / 3.8 — the verse-row split
+ *   (slideFit.ts) owns anything bigger than that ~5%
+ * Life-menu rows are AT their floor (3.4vh) and never shrink.
+ */
+export const MIN_BODY_SLIDE_SCALE = 3.6 / 5;
+export const MIN_VERSE_SLIDE_SCALE = 3.6 / 3.8;
+
+/**
  * The ceiling, for content sparser than anything in the sample pack. There
  * the sparsest slide (the first discussion question) fills its area at ~1.7
  * (6vh → ~10vh at 1080p), so no demo slide reaches the cap. 2.2 lets a
@@ -73,11 +87,16 @@ export function largestFittingScale(
   return lo;
 }
 
-/** Does `content` (with its descendants) spill out of `area`, downward or sideways? */
+/**
+ * Does `content` (with its descendants) spill out of `area`, downward or
+ * sideways? Height reads the AREA's scrollHeight, not the content's rect:
+ * the rect excludes children's bottom margins (mb-*, space-y), so the old
+ * measure under-counted and the search settled on scales that clipped the
+ * last line (usability review 2026-11-01).
+ */
 export function contentOverflows(area: HTMLElement, content: HTMLElement): boolean {
-  const height = content.getBoundingClientRect().height;
   const width = Math.max(content.scrollWidth, content.getBoundingClientRect().width);
-  return height > area.clientHeight + FIT_EPSILON_PX || width > area.clientWidth + FIT_EPSILON_PX;
+  return area.scrollHeight > area.clientHeight + FIT_EPSILON_PX || width > area.clientWidth + FIT_EPSILON_PX;
 }
 
 /**

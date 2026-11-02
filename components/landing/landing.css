@@ -139,9 +139,18 @@ section.ld-dark::before {
 .ld-source-note { max-width: 40em; margin: 18px auto 0; font-size: 1.0625rem; color: var(--stl-ink-2); }
 .ld-loop-line { margin: 56px auto 0; font: 1rem/1.6 var(--ld-mono); color: var(--stl-ink-2); letter-spacing: 0.02em; }
 @media (max-width: 560px) {
-  .ld-hero { padding: 56px 0 72px; }
-  .ld-sub, .ld-sub-zh { font-size: 1.25rem; }
-  .ld-hero .stl-pill { width: 100%; }
+  /* Phones: tighten the hero so BOTH CTAs land in the first screen
+     (usability review 2026-11-01: the sample CTA sat under the fold). */
+  .ld-hero { padding: 40px 0 56px; }
+  .ld-brand-line { margin: 12px 0 4px; }
+  /* Fonts stay at the 20px senior floor (landing.spec MIN_BODY_PX); the fold is won by margins alone. */
+  .ld-sub { margin-top: 16px; font-size: 1.25rem; line-height: 1.5; }
+  .ld-sub-zh { font-size: 1.25rem; }
+  .ld-ctas { margin-top: 24px; }
+  /* Full-width pills must wrap, not spill past the rounded border (the sample label is long).
+     Each language half stays whole (the spans keep nowrap); the wrap happens between them. */
+  .ld-hero .stl-pill { width: 100%; white-space: normal; flex-wrap: wrap; padding: 10px 1.25rem; }
+  .ld-hero .stl-pill > span { white-space: nowrap; }
   .ld-hero .ld-cta { width: 100%; }
 }
 

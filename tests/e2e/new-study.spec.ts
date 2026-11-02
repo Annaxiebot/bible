@@ -111,15 +111,15 @@ test.describe('New study', () => {
     await expect(page).toHaveURL(new RegExp(`#/pack/${PACK_ID}$`));
     await expect(page.getByTestId('tv-presentation')).toBeVisible();
     await expect(page.getByText('祂必兴旺，我必衰微 He Must Increase')).toBeVisible();
-    await expect(page.getByText('1/20')).toBeVisible();
+    await expect(page.getByText('1/22')).toBeVisible();
     await page.keyboard.press('ArrowRight');
-    await expect(page.getByText(/经文 Scripture — 约翰福音 3:22–36 John · 1\/6/)).toBeVisible();
+    await expect(page.getByText(/经文 Scripture — 约翰福音 3:22–36 John · 1\/7/)).toBeVisible();
     await expect(page.getByText('和合本 CUV', { exact: true })).toBeVisible();
     await expect(page.getByText('BSB', { exact: true })).toBeVisible();
     await expect(page.getByText(/这事以后，耶稣和门徒到了犹太地/)).toBeVisible();
     await expect(page.getByText(/Jesus and His disciples went into the Judean countryside/)).toBeVisible();
-    for (let i = 0; i < 18; i++) await page.keyboard.press('ArrowRight');
-    await expect(page.getByText('20/20')).toBeVisible();
+    for (let i = 0; i < 20; i++) await page.keyboard.press('ArrowRight');
+    await expect(page.getByText('22/22')).toBeVisible();
     await expect(page.getByText(/闭环 Closing/)).toBeVisible();
 
     // Preview opened full screen: the first Escape only leaves full screen (the browser's),
@@ -195,27 +195,29 @@ test.describe('New study', () => {
     expect(await editor.locator('[data-testid="ns-section"]').evaluateAll(els => els.map(e => e.getAttribute('data-kind'))))
       .toEqual(['title', 'scripture', 'context', 'crossRefs', 'lifeMenu', 'discussion', 'reflection', 'qr', 'closing']);
 
-    // Preview: 17 slides (1 + 4 scripture + context + crossRefs + 2 lifeMenu (3 + 4 rows) + 5 questions + reflection + qr + closing).
+    // Preview: 18 slides (1 + 4 scripture + context + crossRefs + 3 lifeMenu (2+2+3 rows, ADR-0028) + 5 questions + reflection + qr + closing).
     await page.getByTestId('ns-preview').click();
     await expect(page.getByTestId('tv-presentation')).toBeVisible();
     await expect(page.getByText('祂必兴旺，我必衰微 He Must Increase')).toBeVisible();
     await expect(page.getByText('约翰福音 3:22–30 · John 3:22–30')).toBeVisible();
-    await expect(page.getByText('1/17')).toBeVisible();
+    await expect(page.getByText('1/19')).toBeVisible();
     await page.keyboard.press('ArrowRight');
-    await expect(page.getByText(/经文 Scripture — 约翰福音 3:22–30 John · 1\/4/)).toBeVisible();
-    for (let i = 0; i < 4; i++) await page.keyboard.press('ArrowRight');
-    await expect(page.getByText('6/17')).toBeVisible();
+    await expect(page.getByText(/经文 Scripture — 约翰福音 3:22–30 John · 1\/5/)).toBeVisible();
+    for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowRight');
+    await expect(page.getByText('7/19')).toBeVisible();
     await expect(page.getByText(/^背景 Context/)).toBeVisible();
     await page.keyboard.press('ArrowRight');
     await expect(page.getByText(/^交叉经文 Cross-references/)).toBeVisible();
     await page.keyboard.press('ArrowRight');
-    await expect(page.getByText(/^生活应用 Life Menu · 1\/2/)).toBeVisible();
+    await expect(page.getByText(/^生活应用 Life Menu · 1\/3/)).toBeVisible();
     await page.keyboard.press('ArrowRight');
-    await expect(page.getByText(/^生活应用 Life Menu · 2\/2/)).toBeVisible();
+    await expect(page.getByText(/^生活应用 Life Menu · 2\/3/)).toBeVisible();
+    await page.keyboard.press('ArrowRight');
+    await expect(page.getByText(/^生活应用 Life Menu · 3\/3/)).toBeVisible();
     await page.keyboard.press('ArrowRight');
     await expect(page.getByText(/讨论 Discussion · 1\/5/)).toBeVisible();
     for (let i = 0; i < 7; i++) await page.keyboard.press('ArrowRight');
-    await expect(page.getByText('17/17')).toBeVisible();
+    await expect(page.getByText('19/19')).toBeVisible();
     await expect(page.getByText(/闭环 Closing/)).toBeVisible();
   });
 

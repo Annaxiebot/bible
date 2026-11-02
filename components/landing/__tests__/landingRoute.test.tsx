@@ -297,6 +297,8 @@ describe('LandingGate', () => {
     const link = within(screen.getByTestId('landing-footer')).getByTestId('landing-privacy-link');
     expect(link).toHaveAttribute('href', `${import.meta.env.BASE_URL}${PRIVACY_PAGE}`);
     expect(link.textContent).toBe(PRIVACY_LABEL.replace(' · ', ''));
+    // The who-runs-this line sits in the footer small print with a reachable address (review 2026-11-01).
+    expect(screen.getByTestId('run-by-note')).toHaveTextContent('info@scripturetolife.org');
   });
 
   it('renders the app at #app', () => {

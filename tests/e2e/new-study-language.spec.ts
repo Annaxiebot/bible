@@ -44,8 +44,8 @@ test.describe('New study · content language', () => {
     await page.getByTestId('ns-preview').click();
     await expect(page.getByTestId('tv-presentation')).toBeVisible();
     await expect(page.getByText('祂必兴旺，我必衰微 He Must Increase')).toBeVisible();   // the title stays bilingual
-    for (let i = 0; i < 7; i++) await page.keyboard.press('ArrowRight');
-    await expect(page.getByText('8/20')).toBeVisible();
+    for (let i = 0; i < 8; i++) await page.keyboard.press('ArrowRight');
+    await expect(page.getByText('9/22')).toBeVisible();
     await expect(page.getByText(/^背景 Context/)).toBeVisible();
     const contextLine = page.getByText(`约翰的门徒为${JOHN3_KEYWORD_ZH}的事起了争论`);
     await expect(contextLine).toBeVisible();
@@ -55,7 +55,7 @@ test.describe('New study · content language', () => {
     await expect(page.getByText(`在你的生活里，${JOHN3_KEYWORD_DECREASE_ZH}意味着什么？`)).toBeVisible();
     await page.keyboard.press('ArrowRight');
     await page.keyboard.press('ArrowRight');
-    await expect(page.getByText(/^生活应用 Life Menu · 1\/2/)).toBeVisible();
+    await expect(page.getByText(/^生活应用 Life Menu · 1\/3/)).toBeVisible();
     await expect(page.getByText(LIFE_AREAS[0], { exact: true })).toBeVisible();
     const practice = page.getByText(`一周三次散步时默想第30节的${JOHN3_KEYWORD_DECREASE_ZH}`);
     await expect(practice).toBeVisible();
