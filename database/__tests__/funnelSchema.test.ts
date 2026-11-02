@@ -88,6 +88,9 @@ describe('the privacy page (ADR-0025: in the same release)', () => {
     expect(privacy).toContain('匿名总数：本站按天统计「新建查经」被打开');
     expect(privacy).toContain('totals only, never who, no cookies, no third-party analytics');
     expect(privacy.indexOf('匿名总数：')).toBeLessThan(privacy.indexOf('Anonymous totals:'));
-    expect(privacy).toContain('更新 Updated 2026-10-23');
+    // Dated this release OR LATER: the page's date moves with every later edit,
+    // so an exact pin breaks on unrelated updates (it did, 2026-11-01).
+    const dated = privacy.match(/更新 Updated (\d{4}-\d{2}-\d{2})/)?.[1] ?? '';
+    expect(dated >= '2026-10-23').toBe(true);
   });
 });
