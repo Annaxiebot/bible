@@ -27,6 +27,7 @@ import { clearExternalVerseCache } from '../../studypack/externalVerses';
 import { FEEDBACK_HASH, FEEDBACK_LABEL, feedbackHash } from '../../../supabase/functions/_shared/feedback';
 import { FEEDBACK_PAGE_TEST_ID } from '../../feedback/FeedbackPage';
 import { SOURCE_REPO_URL, CONTRIBUTE_LABEL } from '../../shared/sourceRepo';
+import { PRIVACY_LABEL, PRIVACY_PAGE } from '../landingStrings';
 
 // The pages are React.lazy; their first import is load-dependent (several
 // seconds under heavy CPU load) and must not count against a 1 s findBy.
@@ -287,6 +288,15 @@ describe('LandingGate', () => {
     expect(link).toHaveAttribute('target', '_blank');
     expect(link).toHaveAttribute('rel', 'noopener noreferrer');
     expect(link.textContent).toBe(CONTRIBUTE_LABEL.replace(' · ', ''));
+  });
+
+  it('the footer links 隐私声明 · Privacy to the static privacy page (it existed unlinked — usability review 2026-11-01)', async () => {
+    window.location.hash = '';
+    render(<LandingGate app={app} />);
+    await screen.findByTestId('landing-page');
+    const link = within(screen.getByTestId('landing-footer')).getByTestId('landing-privacy-link');
+    expect(link).toHaveAttribute('href', `${import.meta.env.BASE_URL}${PRIVACY_PAGE}`);
+    expect(link.textContent).toBe(PRIVACY_LABEL.replace(' · ', ''));
   });
 
   it('renders the app at #app', () => {
