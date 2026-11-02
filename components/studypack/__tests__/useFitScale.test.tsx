@@ -10,6 +10,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, act } from '@testing-library/react';
 import { useFitScale } from '../useFitScale';
 import { FIT_VAR, MAX_SCALE } from '../fitScale';
+import { modelAreaScrollHeight } from './fitTestLayout';
 
 class FakeResizeObserver {
   static instances: FakeResizeObserver[] = [];
@@ -32,8 +33,7 @@ function fakeMeasure(area: HTMLElement | null, content: HTMLElement | null) {
   Object.defineProperty(area, 'clientWidth', { configurable: true, get: () => 1000 });
   Object.defineProperty(content, 'scrollWidth', { configurable: true, get: () => 100 });
   content.getBoundingClientRect = () => ({ height: layout.contentHeight * fit(), width: 100 }) as DOMRect;
-  // contentOverflows reads the AREA's scrollHeight (ADR-0028); a scroll box reports max(own, content).
-  Object.defineProperty(area, 'scrollHeight', { configurable: true, get: () => Math.max(layout.areaHeight, layout.contentHeight * fit()) });
+  modelAreaScrollHeight(area, () => layout.contentHeight * fit());
 }
 
 const Probe: React.FC<{ fitKey: unknown }> = ({ fitKey }) => {

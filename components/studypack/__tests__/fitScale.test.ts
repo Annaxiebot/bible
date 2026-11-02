@@ -11,6 +11,7 @@ import {
   applyFitScale, contentOverflows, largestFittingScale,
 } from '../fitScale';
 import { TYPE_SCALE } from '../principles';
+import { modelAreaScrollHeight } from './fitTestLayout';
 
 /** Content that overflows once scale × size passes the area (a model of text growing with --fit). */
 const sizedContent = (size: number, room: number) => (scale: number) => scale * size > room;
@@ -61,9 +62,7 @@ function fakeLayout(areaHeight: number, areaWidth: number, contentHeight: number
   const fit = () => Number(area.style.getPropertyValue(FIT_VAR) || 1);
   Object.defineProperty(area, 'clientHeight', { get: () => areaHeight });
   Object.defineProperty(area, 'clientWidth', { get: () => areaWidth });
-  // contentOverflows reads the AREA's scrollHeight (ADR-0028): a scroll box reports
-  // max(own height, content height incl. margins) — modelled as that max here.
-  Object.defineProperty(area, 'scrollHeight', { get: () => Math.max(areaHeight, contentHeight * fit()) });
+  modelAreaScrollHeight(area, () => contentHeight * fit());
   Object.defineProperty(content, 'scrollWidth', { get: () => contentWidth * fit() });
   content.getBoundingClientRect = () => ({ height: contentHeight * fit(), width: Math.min(areaWidth, contentWidth * fit()) }) as DOMRect;
   return { area, content };
