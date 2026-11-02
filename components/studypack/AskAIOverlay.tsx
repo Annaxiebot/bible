@@ -105,9 +105,6 @@ const Conversation: React.FC<{ ai: AskAI; pack: StudyPack; history: AskHistory }
             <AskAnswer text={answer} pack={pack} fit complete={!streaming} />
           </div>
         )}
-        {answer !== null && !streaming && (
-          <p className="text-stl-text-3" style={questionStyle} data-testid="ask-ai-caveat">{AI_CAVEAT}</p>
-        )}
         {ai.loading && !streaming && (
           <p className="text-stl-text-3" style={questionStyle} data-testid="ask-thinking">
             {thinkingLine(ai.model ?? '')}
@@ -225,6 +222,11 @@ const AskAIOverlay: React.FC<AskAIOverlayProps> = ({ pack, slide, initialQuestio
         </div>
         <Conversation ai={ai} pack={pack} history={history} />
         <QuestionForm ai={ai} />
+        {/* The AI-limitations reminder (review 2026-11-02), OUTSIDE the fitted conversation:
+            inside it the extra line pushed an at-the-floor answer past the fit (tv-ask-ai-citations). */}
+        {ai.messages.some(m => m.role === 'assistant') && (
+          <p className="text-stl-text-3 shrink-0 mt-[0.5vh]" style={{ fontSize: '2vh' }} data-testid="ask-ai-caveat">{AI_CAVEAT}</p>
+        )}
         <SourcesCredit />
       </div>
     </div>
