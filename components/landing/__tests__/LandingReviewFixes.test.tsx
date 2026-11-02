@@ -83,10 +83,15 @@ describe('Landing page — keyboard and language', () => {
     fireEvent.click(skip);
     expect(document.activeElement).toBe(main);
     expect(window.location.hash).toBe('');
-    // The AI sign-in requirement is stated on the page too — Google or email, and no "无需登录" line.
+    // The AI sign-in requirement is stated on the page too — Google or email. "无需登录"
+    // may appear ONLY in the sample section (owner, 2026-11-02, superseding 2026-10-23):
+    // viewing the sample needs no sign-in; creating a study does.
     expect(screen.getByTestId('landing-ai-signin-note')).toHaveTextContent(AI_SIGNIN_NOTE);
     expect(AI_SIGNIN_NOTE).toMatch(/^新建查经与「问一问」需登录（Google 或邮箱）/);
-    expect(screen.getByTestId('landing-page').textContent).not.toMatch(/无需登录|No sign-in needed/);
+    const pageText = screen.getByTestId('landing-page').textContent ?? '';
+    const sampleText = document.getElementById('next')?.textContent ?? '';
+    const outsideSample = pageText.replace(sampleText, '');
+    expect(outsideSample).not.toMatch(/无需登录|No sign-in needed/);
     // English halves are tagged; the page itself is Chinese-first.
     expect(screen.getByTestId('landing-page')).toHaveAttribute('lang', 'zh-Hans');
     const english = Array.from(document.querySelectorAll('.ld-en, .stl-pill-en, .ld-h2-en, .ld-nav-en'));

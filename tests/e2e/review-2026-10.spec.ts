@@ -97,7 +97,10 @@ test.describe('landing — copy, disclosure, keyboard', () => {
     await page.goto('./');
     const sample = page.getByTestId('hero-sample');
     await expect(sample).toHaveAccessibleName(GROUP_CTA);
-    await expect(page.getByTestId('landing-page')).not.toContainText(/无需登录|No sign-in needed/);
+    // "无需登录" only in the SAMPLE section (owner, 2026-11-02, superseding 2026-10-23):
+    // the sample opens with no sign-in; creating a study still requires it.
+    await expect(page.getByTestId('landing-hero')).not.toContainText(/无需登录|No sign-in needed/);
+    await expect(page.locator('#next')).toContainText('无需登录');
     await expect(page.getByTestId('hero-new-study')).toHaveAccessibleDescription(NEW_STUDY_SIGNIN_NOTE);
     await expect(page.getByTestId('personal-open')).toHaveAccessibleName(PERSONAL_CTA);
 

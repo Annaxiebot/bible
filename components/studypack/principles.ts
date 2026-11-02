@@ -39,6 +39,16 @@ export function bilingualLine(zh: string, en: string): string {
   return `${zh}${BILINGUAL_SEPARATOR}${en}`;
 }
 
+/**
+ * The AI-limitations reminder, shown beside generated content (Ask AI answers,
+ * the pack review screen) — not only on the landing page (review 2026-11-02).
+ * One copy (R3).
+ */
+export const AI_CAVEAT = bilingualLine(
+  'AI 草稿可能有误，或只代表一种解经；请对照经文，并以教会的教导为准',
+  'AI drafts can err or reflect one interpretation — check the passage and review with your church’s teaching'
+);
+
 /*
  * ContentLanguage (aiPrompts.ts): how much English a pack's generated lines
  * carry (ADR-0003 §1 note). The fixed headings, the verses (和合本 + BSB) and

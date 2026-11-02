@@ -117,6 +117,8 @@ describe('AskAIOverlay (streaming)', () => {
     act(() => emit('Anxiety follows (v.25).'));
     await waitFor(() =>
       expect(screen.getByTestId('streaming-answer')).toHaveTextContent('Anxiety follows (v.25).'));
+    // No reminder under a still-streaming answer: it belongs to the finished text.
+    expect(screen.queryByTestId('ask-ai-caveat')).not.toBeInTheDocument();
 
     // When the answer finishes, the view returns to the TOP of the latest turn
     // (block 'start'), not the streamed tail (owner asked 2026-10-31). Spy on
@@ -130,6 +132,8 @@ describe('AskAIOverlay (streaming)', () => {
     expect(screen.queryByTestId('streaming-answer')).not.toBeInTheDocument();
     await waitFor(() => // now a finished message (markdown + verse-ref tooltip)
       expect(screen.getByTestId('ask-answer')).toHaveTextContent('Anxiety follows (v.25).'));
+    // The AI-limitations reminder sits under the finished answer (review 2026-11-02).
+    expect(screen.getByTestId('ask-ai-caveat')).toHaveTextContent('AI 草稿可能有误');
     expect(screen.getByTestId('verse-ref')).toHaveTextContent('v.25');
     expect(screen.getByLabelText(/Ask AI question/)).toBeEnabled();
     // A model other than the main one answered → the quiet backup note (the model id itself is never shown)
