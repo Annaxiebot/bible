@@ -9,6 +9,7 @@
  */
 import { Page } from '@playwright/test';
 import { SIGNUPS_TABLE, CHECKIN_ANSWERS_TABLE, PACK_SUMMARIES_TABLE } from '../../../components/signup/signupSchema';
+import { STUDY_PACKS_TABLE } from '../../../supabase/functions/_shared/signup';
 import { E2E_LEADER_ID, E2E_SUPABASE_PATH, injectSupabaseOverride } from './signup';
 import { REPLACED_COLUMN } from '../../../supabase/functions/send-checkins/replaced';
 import { mockAskHistory } from './askHistory';
@@ -26,7 +27,10 @@ export async function fakeLeaderSession(page: Page, leader = E2E_LEADER) {
  * per row; `replaced` are extra sign-up rows a later sign-up replaced — served
  * only to a query without the replaced_at=is.null filter, as PostgREST would.
  */
-export async function mockLeaderCounts(page: Page, signups: string[], answers: string[], replaced: string[] = []) {
+export async function mockLeaderCounts(
+  page: Page, signups: string[], answers: string[], replaced: string[] = [],
+  views: Array<{ id: string; share_views: number }> = [],
+) {
   await injectSupabaseOverride(page);
   const json = { 'Content-Type': 'application/json' };
   const rows = (ids: string[]) => JSON.stringify(ids.map(pack_id => ({ pack_id })));
@@ -38,6 +42,18 @@ export async function mockLeaderCounts(page: Page, signups: string[], answers: s
   });
   await page.route(`**${E2E_SUPABASE_PATH}/rest/v1/${CHECKIN_ANSWERS_TABLE}**`, route =>
     route.fulfill({ status: 200, headers: json, body: rows(answers) }));
+  await mockPackViews(page, views);
+}
+
+/**
+ * Answer the leader's share-view tally (leaderHomeData.tallyViews reads
+ * study_packs since the 查看 counter, ADR-0026): default no shared packs, so
+ * the counts line carries no views part. Without this route the whole counts
+ * fetch rejects and the home shows no counts at all.
+ */
+export async function mockPackViews(page: Page, views: Array<{ id: string; share_views: number }> = []) {
+  await page.route(`**${E2E_SUPABASE_PATH}/rest/v1/${STUDY_PACKS_TABLE}**`, route =>
+    route.fulfill({ status: 200, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(views) }));
 }
 
 /** Rows for the leader's #/leader/<id> page: full sign-up and shared-answer records. */

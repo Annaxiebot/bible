@@ -9,6 +9,7 @@
 import { test, expect } from '@playwright/test';
 import { FIRST_SLIDE_HINT, ASK_AI_LABEL } from '../../components/studypack/tvHints';
 import { LIFE_AREAS } from '../../components/studypack/principles';
+import { SU_QR_HEADING } from '../../components/signup/signupStrings';
 import { DEFAULT_AI_SETUP, wireModelId } from '../../services/aiDefaults';
 import { SETUP_TITLE, SETUP_SIGN_IN_TO_USE_AI } from '../../components/setup/setupStrings';
 import { openTV, DEMO_SLIDE, goToSlide } from './helpers/tv';
@@ -97,7 +98,7 @@ test.describe('TV Presentation Mode', () => {
   test('the QR slide of the demo sample pack shows the bilingual no-sign-up line, no QR', async ({ page }) => {
     await openTV(page);
     await goToSlide(page, DEMO_SLIDE.qr);
-    await expect(page.getByText('报名 Sign up')).toBeVisible();
+    await expect(page.getByText(SU_QR_HEADING)).toBeVisible();
     await expect(page.getByTestId('qr-demo')).toHaveText(SU_DEMO_LINE);
     await expect(page.getByTestId('signup-qr')).toHaveCount(0);
   });
@@ -109,7 +110,7 @@ test.describe('TV Presentation Mode', () => {
     await expect(page.getByTestId('tv-presentation')).toBeVisible();
     await expect(page.getByText(`1/${TOTAL}`)).toBeVisible();
     await goToSlide(page, DEMO_SLIDE.qr);
-    await expect(page.getByText('报名 Sign up')).toBeVisible();
+    await expect(page.getByText(SU_QR_HEADING)).toBeVisible();
     await expect(page.getByTestId('qr-unclaimed')).toContainText(SU_UNCLAIMED_LINE);
     await expect(page.getByTestId('qr-demo')).toHaveCount(0);
     await expect(page.getByTestId('signup-qr')).toHaveCount(0);
@@ -121,7 +122,7 @@ test.describe('TV Presentation Mode', () => {
     await routeOwnedSamplePack(page);
     await openTV(page);
     await goToSlide(page, DEMO_SLIDE.qr);
-    await expect(page.getByText('报名 Sign up')).toBeVisible();
+    await expect(page.getByText(SU_QR_HEADING)).toBeVisible();
     const expectedUrl = expectedSignupUrl(page);
     const qr = page.getByTestId('signup-qr');
     await expect(qr).toHaveAttribute('data-signup-url', expectedUrl);

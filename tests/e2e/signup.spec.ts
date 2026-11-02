@@ -35,7 +35,7 @@ import { RATE_GUARD_PER_EMAIL_DAY, RATE_GUARD_EMAIL_MESSAGE } from '../utils/sig
 import { CHECKIN_ANSWERS_TABLE } from '../../components/signup/signupSchema';
 import { LEADER_HOME_HASH } from '../../components/leader/leaderRoute';
 import { packCountsLine } from '../../components/leader/leaderStrings';
-import { fakeLeaderSession } from './helpers/leader';
+import { fakeLeaderSession, mockPackViews } from './helpers/leader';
 import { SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../../components/setup/setupStrings';
 import {
   routeOwnedSamplePack, E2E_LEADER_ID, E2E_SUPABASE_PATH, seedLocalPack, fetchSamplePack, mockBackend,
@@ -282,6 +282,7 @@ test.describe('Sign-up page', () => {
     expect(mocks.rows().map(r => Boolean(r.replaced_at))).toEqual([true, false]);
 
     await fakeLeaderSession(page);
+    await mockPackViews(page);   // the home's counts also tally share views (study_packs); unrouted, the whole fetch rejects
     await page.goto(`./${LEADER_HOME_HASH}`);
     await page.reload();   // a hash change is not a navigation: reload so the session seam's init script runs
     await expect(page.getByTestId('lh-pack').getByTestId('lh-counts')).toHaveText(packCountsLine(1, 0));
