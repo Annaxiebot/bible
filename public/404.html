@@ -14,7 +14,9 @@
   (function () {
     var path = location.pathname.replace(/\/+$/, '');
     var hash = path && path !== '/' ? '#' + path : '#';
-    location.replace(location.origin + '/' + hash + location.search);
+    // Query before hash, or the params land inside the fragment. Root-only (origin + '/')
+    // is right for this deployment: the custom domain serves BASE_URL '/'.
+    location.replace(location.origin + '/' + location.search + hash);
   })();
 </script>
 <style>:root{color-scheme:dark}body{margin:0;background:#151a23;color:#e4e7ec;font:22px/1.6 system-ui,-apple-system,"PingFang SC",sans-serif;display:grid;place-items:center;min-height:100vh}</style>
