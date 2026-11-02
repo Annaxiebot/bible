@@ -23,7 +23,7 @@ export function useFitScale(
     const content = contentRef.current;
     if (!area || !content) return;
     let live = true;
-    const fit = () => { if (live) { const s = applyFitScale(area, content, { min: minScale, max: MAX_SCALE }); (window as any).__fitlog = [...((window as any).__fitlog ?? []), { t: Math.round(performance.now()), s, sh: area.scrollHeight, ch: area.clientHeight }]; } };
+    const fit = () => { if (live) applyFitScale(area, content, { min: minScale, max: MAX_SCALE }); };
     fit();
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(fit);
     observer?.observe(area);
