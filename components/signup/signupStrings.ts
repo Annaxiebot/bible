@@ -87,6 +87,9 @@ export function commitmentLine(practice: string): string {
 }
 
 // ---- QR panel (TV slide + landing), shared by every pack ----
+/** The QR slide's heading (packAssembly SECTION_HEADINGS.qr reads it). Here, not there: e2e specs import this
+ *  file in node, and packAssembly pulls packSource → idbService, which cannot load outside a browser. */
+export const SU_QR_HEADING = bilingual('行道提醒', 'Live Out the Word');
 export const SU_QR_BODY = bilingualLine('扫码报名，周二周四收到行道提醒', 'Scan to sign up for Tue/Thu reminders to live out the Word');
 /** The leader's #/qr page: print the code, and go back to the leader home. */
 export const SU_QR_PRINT = bilingualLine('打印', 'Print');

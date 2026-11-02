@@ -29,7 +29,7 @@ import { splitLabel } from '../studypack/principles';
 import { SETUP_HASH, NEW_STUDY_HASH, SAMPLE_PACK_ID } from './landingRoute';
 import {
   SITE_LINE, LOOP_LINE_ZH, LOOP_LINE_EN, NEW_STUDY_LINE, NEW_STUDY_SUB, NEW_STUDY_SIGNIN_NOTE, AI_SIGNIN_NOTE, HERO_SOURCE_NOTE,
-  BRAND_EN, BRAND_ZH_LEAD, BRAND_ZH_HIGHLIGHT, NAV_LINKS, PHOTO_CREDIT, WORSHIP_LABEL, WORSHIP_PAGE,
+  BRAND_EN, BRAND_ZH_LEAD, BRAND_ZH_HIGHLIGHT, NAV_LINKS, PHOTO_CREDIT, WORSHIP_LABEL, WORSHIP_PAGE, PRIVACY_LABEL, PRIVACY_PAGE,
 } from './landingStrings';
 import { FEEDBACK_LABEL, feedbackHash } from '../../supabase/functions/_shared/feedback';
 import { SOURCE_REPO_URL, CONTRIBUTE_LABEL, EXTERNAL_LINK_PROPS } from '../shared/sourceRepo';
@@ -59,6 +59,7 @@ const Footer: React.FC = () => {
   const [feedbackZh, feedbackEn] = FEEDBACK_LABEL.split(' · ');
   const [contributeZh, contributeEn] = CONTRIBUTE_LABEL.split(' · ');
   const [worshipZh, worshipEn] = WORSHIP_LABEL.split(' · ');
+  const [privacyZh, privacyEn] = PRIVACY_LABEL.split(' · ');
   return (
     <footer className="ld-footer ld-dark" data-testid="landing-footer">
       <div className="ld-wrap">
@@ -78,6 +79,9 @@ const Footer: React.FC = () => {
             </a>
             <a className="ld-foot-link" href={feedbackHash('landing')} data-testid="landing-feedback-link">
               {feedbackZh}<span className="ld-nav-en" lang="en">{feedbackEn}</span>
+            </a>
+            <a className="ld-foot-link" href={`${import.meta.env.BASE_URL}${PRIVACY_PAGE}`} data-testid="landing-privacy-link">
+              {privacyZh}<span className="ld-nav-en" lang="en">{privacyEn}</span>
             </a>
             <a className="ld-foot-link" href={SOURCE_REPO_URL} {...EXTERNAL_LINK_PROPS} data-testid="landing-contribute-link">
               {contributeZh}<span className="ld-nav-en" lang="en">{contributeEn}</span>

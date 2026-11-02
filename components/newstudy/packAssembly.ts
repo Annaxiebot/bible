@@ -15,7 +15,7 @@ import { HEADING_DETAIL_SEPARATOR } from '../studypack/slideText';
 import { makeLocalPackId } from '../studypack/packSource';
 import { getBookById } from '../../services/bibleBookData';
 import { GeneratedContent } from './generatedPack';
-import { SU_QR_BODY } from '../signup/signupStrings';
+import { SU_QR_BODY, SU_QR_HEADING } from '../signup/signupStrings';
 import { halfWithoutKindLabel } from '../../supabase/functions/send-checkins/promptText';
 import type { LoadedGuide } from './guide/loadGuide';
 
@@ -47,7 +47,7 @@ export const SECTION_HEADINGS = {
   lifeMenu: bilingual('生活应用', 'Life Menu'),
   reflection: bilingual('反思', 'Reflection'),
   picture: bilingual('图片', 'Picture'),
-  qr: bilingual('行道提醒', 'Live Out the Word'),
+  qr: SU_QR_HEADING,
   closing: bilingual('闭环', 'Closing'),
 } as const;
 
