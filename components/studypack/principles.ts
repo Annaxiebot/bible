@@ -48,6 +48,11 @@ export const AI_CAVEAT = bilingualLine(
   'AI 草稿可能有误，或只代表一种解经；请对照经文，并以教会的教导为准',
   'AI drafts can err or reflect one interpretation — check the passage and review with your church’s teaching'
 );
+/** Compact form for the TV Ask AI footer: must share ONE line with the sources credit at 1.6vh, so the conversation's fit loses no height. */
+export const AI_CAVEAT_SHORT = bilingualLine(
+  'AI 回答可能有误，请对照经文',
+  'AI answers can err — check the passage'
+);
 
 /*
  * ContentLanguage (aiPrompts.ts): how much English a pack's generated lines
