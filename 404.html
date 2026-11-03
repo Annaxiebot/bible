@@ -1,0 +1,28 @@
+<!doctype html>
+<!-- GitHub Pages serves this for any unknown path. The app is hash-routed, so a
+     shared or typed path URL (/leader, /new, /pack/...) lands here; turn the
+     path into the matching hash route and let the app decide (an unknown hash
+     shows the home page). Usability review, 2026-11-01. -->
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>转到主页 · Scripture to Life</title>
+<meta name="theme-color" content="#151a23">
+<script>
+  (function () {
+    var path = location.pathname.replace(/\/+$/, '');
+    var hash = path && path !== '/' ? '#' + path : '#';
+    // Query before hash, or the params land inside the fragment. Root-only (origin + '/')
+    // is right for this deployment: the custom domain serves BASE_URL '/'.
+    location.replace(location.origin + '/' + location.search + hash);
+  })();
+</script>
+<style>:root{color-scheme:dark}body{margin:0;background:#151a23;color:#e4e7ec;font:22px/1.6 system-ui,-apple-system,"PingFang SC",sans-serif;display:grid;place-items:center;min-height:100vh}</style>
+</head>
+<body>
+<p>转到主页… <span lang="en">Taking you to the home page…</span><br>
+<a href="/" style="color:#e8d39a">scripturetolife.org</a></p>
+</body>
+</html>

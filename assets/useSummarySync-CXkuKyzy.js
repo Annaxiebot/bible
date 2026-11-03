@@ -1,0 +1,1 @@
+import{r as e}from"./vendor-react-IFO5CCoQ.js";import{cw as c}from"./index-Dv5Z2uEn.js";function a(t){const[o,f]=e.useState({status:"skipped"}),r=e.useRef(t);r.current=t;const d=t==null?void 0:t.id,s=t==null?void 0:t.leaderId;return e.useEffect(()=>{const n=r.current;if(!n||!s)return;let u=!1;return c(n).then(m=>{u||f(m)}),()=>{u=!0}},[d,s]),o}export{a as u};
