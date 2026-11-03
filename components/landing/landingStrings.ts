@@ -16,7 +16,7 @@ export const BRAND_ZH_HIGHLIGHT = BRAND_ZH.slice(2);
 export const SITE_LINE = 'Scripture to Life · scripturetolife.org';
 /** Who runs this (usability review 2026-11-01: an unnamed site asking for sign-in reads as a trust gap). */
 /** No headcount (owner, 2026-11-02): stays true as contributors join; the faith + volunteer + free signal is what builds trust. */
-export const RUN_BY_LINE = '由基督徒义工业余开发维护，免费公益 · Built and run by Christian volunteers, free to use · info@scripturetolife.org';
+export const RUN_BY_LINE = '由基督徒义工开发维护，免费公益 · Built and run by Christian volunteers, free to use · info@scripturetolife.org';
 /** Accessible name of the member pages' brand link home (shared/PaperHeader.tsx). */
 export const HOME_LINK_LABEL = '返回首页 · Home';
 
