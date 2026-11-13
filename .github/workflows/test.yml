@@ -11,7 +11,7 @@ env:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     
     steps:
       - uses: actions/checkout@v5
@@ -51,7 +51,7 @@ jobs:
           retention-days: 30
 
   e2e:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: test
     
     steps:
@@ -79,7 +79,7 @@ jobs:
           retention-days: 30
 
   coverage:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     needs: test
     
     steps:
