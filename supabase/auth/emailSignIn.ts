@@ -17,6 +17,14 @@ import {
 
 /** Digits in the emailed code (Supabase mailer_otp_length); the browser's code box takes exactly this many. */
 export const EMAIL_CODE_LENGTH = 6;
+/**
+ * Whether the sign-in email carries the code. False while the default Supabase
+ * mailer is used: it refuses the custom template, so the stock email holds only
+ * the link (ROADMAP P1). Build setting VITE_EMAIL_CODE_IN_MAIL=true turns the code
+ * box on — set it in deploy.yml after custom SMTP + `email-signin-config.ts --apply`.
+ * Optional chaining: node scripts import this file without Vite's import.meta.env.
+ */
+export const EMAIL_CODE_IN_MAIL = import.meta.env?.VITE_EMAIL_CODE_IN_MAIL === 'true';
 /** Link and code lifetime (Supabase mailer_otp_exp): 15 minutes, ADR-0020. */
 export const OTP_EXPIRY_SECONDS = 15 * 60;
 const OTP_EXPIRY_MINUTES = OTP_EXPIRY_SECONDS / 60;
