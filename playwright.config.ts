@@ -42,6 +42,7 @@ export default defineConfig({
   ],
   webServer: {
     command: 'npm run dev',
+    env: { VITE_EMAIL_CODE_IN_MAIL: 'true' },
     url: 'http://localhost:3000/bible/',
     reuseExistingServer: !process.env.CI,
     timeout: 120000

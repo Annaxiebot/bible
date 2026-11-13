@@ -19,6 +19,10 @@ vi.mock('../../../services/supabase', () => ({
 }));
 const sendMock = vi.fn();
 const verifyMock = vi.fn();
+vi.mock('../../../supabase/auth/emailSignIn', async importOriginal => ({
+  ...(await importOriginal<typeof import('../../../supabase/auth/emailSignIn')>()),
+  EMAIL_CODE_IN_MAIL: true,
+}));
 vi.mock('../emailAuth', async importOriginal => ({
   ...(await importOriginal<typeof import('../emailAuth')>()),
   emailSignInAvailable: () => true,

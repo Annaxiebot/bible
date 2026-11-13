@@ -5,15 +5,17 @@
  * "用邮箱登录 · Sign in with email" toggle). Step "email": the address field +
  * "发送登录链接". Step "sent": "已发送，请查看邮箱" — said the same way whether
  * or not the address has an account — and the 6-digit code box (one-time-code
- * autofill, digits only) + "登录". Step "done": "已登录". Senior type floors
+ * autofill, digits only) + "登录" — or, while the email holds only the link
+ * (EMAIL_CODE_IN_MAIL false), "open it on this device" and no code box.
+ * Step "done": "已登录". Senior type floors
  * (ADR-0003 §15) from setupStrings; stl colour tokens.
  */
 import React from 'react';
-import { EMAIL_CODE_LENGTH } from '../../supabase/auth/emailSignIn';
+import { EMAIL_CODE_LENGTH, EMAIL_CODE_IN_MAIL } from '../../supabase/auth/emailSignIn';
 import { SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../setup/setupStrings';
 import type { EmailSignIn as EmailState } from './useEmailSignIn';
 import {
-  SI_EMAIL_LABEL, SI_EMAIL_PLACEHOLDER, SI_SEND, SI_SENDING, SI_SENT, SI_SENT_HOW, SI_CODE_LABEL,
+  SI_EMAIL_LABEL, SI_EMAIL_PLACEHOLDER, SI_SEND, SI_SENDING, SI_SENT, SI_SENT_HOW, SI_SENT_HOW_LINK_ONLY, SI_CODE_LABEL,
   SI_VERIFY, SI_VERIFYING, SI_OTHER_EMAIL, SI_SIGNED_IN,
 } from './signInStrings';
 
@@ -43,6 +45,14 @@ const EmailStep: React.FC<{ s: EmailState }> = ({ s }) => (
   </form>
 );
 
+const LinkOnlyStep: React.FC<{ s: EmailState }> = ({ s }) => (
+  <div data-testid="email-sign-in-link-step" className="flex flex-col gap-2">
+    <p role="status" className="text-stl-gold" style={textStyle}>{SI_SENT}</p>
+    <p className="text-stl-text-2" style={textStyle}>{SI_SENT_HOW_LINK_ONLY}</p>
+    <button type="button" onClick={s.otherEmail} className={linkClass} style={controlStyle}>{SI_OTHER_EMAIL}</button>
+  </div>
+);
+
 const CodeStep: React.FC<{ s: EmailState }> = ({ s }) => (
   <form data-testid="email-sign-in-code-step" className="flex flex-col gap-2" onSubmit={e => { e.preventDefault(); void s.verify(); }} noValidate>
     <p role="status" className="text-stl-gold" style={textStyle}>{SI_SENT}</p>
@@ -63,9 +73,9 @@ const CodeStep: React.FC<{ s: EmailState }> = ({ s }) => (
   </form>
 );
 
-export const EmailSignInSteps: React.FC<{ s: EmailState }> = ({ s }) => {
+export const EmailSignInSteps: React.FC<{ s: EmailState; codeInMail?: boolean }> = ({ s, codeInMail = EMAIL_CODE_IN_MAIL }) => {
   if (s.step === 'email') return <EmailStep s={s} />;
-  if (s.step === 'sent') return <CodeStep s={s} />;
+  if (s.step === 'sent') return codeInMail ? <CodeStep s={s} /> : <LinkOnlyStep s={s} />;
   if (s.step === 'done') return <p role="status" className="text-stl-gold" style={textStyle} data-testid="email-sign-in-done">{SI_SIGNED_IN}</p>;
   return null;
 };

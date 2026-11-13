@@ -21,6 +21,11 @@ vi.mock('../../../services/supabase', () => ({
 const sendMock = vi.fn();
 const verifyMock = vi.fn();
 let available = true;
+let codeInMail = true;
+vi.mock('../../../supabase/auth/emailSignIn', async importOriginal => {
+  const real = await importOriginal<typeof import('../../../supabase/auth/emailSignIn')>();
+  return { ...real, get EMAIL_CODE_IN_MAIL() { return codeInMail; } };
+});
 vi.mock('../emailAuth', async importOriginal => ({
   ...(await importOriginal<typeof import('../emailAuth')>()),
   emailSignInAvailable: () => available,
@@ -30,7 +35,7 @@ vi.mock('../emailAuth', async importOriginal => ({
 
 import { SignInChoices } from '../SignInChoices';
 import {
-  SI_EMAIL_TOGGLE, SI_EMAIL_LABEL, SI_SEND, SI_SENT, SI_SENT_HOW, SI_CODE_LABEL, SI_VERIFY, SI_SIGNED_IN, SI_OTHER_EMAIL,
+  SI_EMAIL_TOGGLE, SI_EMAIL_LABEL, SI_SEND, SI_SENT, SI_SENT_HOW, SI_SENT_HOW_LINK_ONLY, SI_CODE_LABEL, SI_VERIFY, SI_SIGNED_IN, SI_OTHER_EMAIL,
   SI_ERR_EMAIL, SI_ERR_CODE, SI_ERR_CODE_WRONG,
 } from '../signInStrings';
 import { SU_SIGN_IN_GOOGLE } from '../../signup/signupStrings';
@@ -39,6 +44,7 @@ import { SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../../setup/setupStrings';
 beforeEach(() => {
   configured = true;
   available = true;
+  codeInMail = true;
   googleMock.mockClear();
   sendMock.mockReset().mockResolvedValue(null);
   verifyMock.mockReset().mockResolvedValue(null);
@@ -108,6 +114,22 @@ describe('SignInChoices', () => {
 
     fireEvent.click(screen.getByRole('button', { name: SI_VERIFY }));
     expect(await screen.findByTestId('email-sign-in-done')).toHaveTextContent(SI_SIGNED_IN);
+  });
+
+  it('link-only email (default mailer): "open it on this device", no code box that could never be filled; Use another email goes back', async () => {
+    codeInMail = false;
+    render(<SignInChoices />);
+    openEmail();
+    typeEmail('leader@example.org');
+    send();
+    expect(await screen.findByText(SI_SENT)).toBeInTheDocument();
+    expect(screen.getByText(SI_SENT_HOW_LINK_ONLY)).toBeInTheDocument();
+    expect(SI_SENT_HOW_LINK_ONLY.indexOf('这台设备')).toBeLessThan(SI_SENT_HOW_LINK_ONLY.indexOf('this device'));
+    expect(screen.queryByText(SI_SENT_HOW)).toBeNull();
+    expect(screen.queryByLabelText(SI_CODE_LABEL)).toBeNull();
+    expect(screen.queryByRole('button', { name: SI_VERIFY })).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: SI_OTHER_EMAIL }));
+    expect(screen.getByLabelText(SI_EMAIL_LABEL)).toHaveValue('leader@example.org');
   });
 
   it('a send failure stays on the address with its line; "Use another email" goes back from the code step', async () => {

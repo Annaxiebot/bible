@@ -25,7 +25,12 @@ export const SI_SENT_HOW = bilingualLine(
   `点邮件里的链接，或在下面输入邮件里的 ${EMAIL_CODE_LENGTH} 位登录码`,
   `click the link in the email, or enter its ${EMAIL_CODE_LENGTH}-digit code below`,
 );
-export const SI_CODE_LABEL = bilingual('登录码', 'Sign-in code');
+/** Link-only email (EMAIL_CODE_IN_MAIL false): the link signs in the device that opens it. */
+export const SI_SENT_HOW_LINK_ONLY = bilingualLine(
+  '请在这台设备上打开邮件，点里面的链接登录',
+  'open the email on this device and click its link to sign in',
+);
+export const SI_CODE_LABEL =bilingual('登录码', 'Sign-in code');
 export const SI_VERIFY = bilingual('登录', 'Sign in');
 export const SI_VERIFYING = bilingual('登录中…', 'Signing in…');
 export const SI_OTHER_EMAIL = bilingual('换一个邮箱', 'Use another email');
