@@ -10,7 +10,7 @@
  */
 import { test, expect, Page } from '@playwright/test';
 import { APP_HASH } from '../../shared/landing/landingRoute';
-import { NO_ENGLISH_SECTION_NOTE } from '../../services/bilingualAnswer';
+import { NO_ENGLISH_SECTION_NOTE } from '../../apps/journal/services/bilingualAnswer';
 import { openSignedInChat } from './helpers/hostedAI';
 
 const ZH = '恩典是神白白赐下的礼物 (grace)。';

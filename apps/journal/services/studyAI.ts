@@ -1,0 +1,75 @@
+/**
+ * studyAI.ts — the personal app's one AI path · 个人研经AI (ADR-0007 "Personal app")
+ *
+ * Every AI call of #app (the chat, the journal's AI tools, vibe theming)
+ * goes through here, and from here through the same transport as the study
+ * pages (components/studypack/askAIStream → services/aiTransport):
+ *   signed in → the ai-proxy function, role 'study' (server-picked model,
+ *   its own monthly quota); signed out → AskAIError kind 'sign-in-needed'.
+ * Failures are AskAIErrors carrying the TV overlay's bilingual lines
+ * (askAIErrors / tvHints), so the chat shows them the same way.
+ * Requests always stream (the proxy passes OpenRouter's SSE through);
+ * chatStudyAI simply collects the stream for callers that want the text.
+ */
+import { streamChatCompletionDetailed } from '../../../shared/studypack/askAIStream';
+import { emptyError } from '../../../shared/studypack/askAIErrors';
+import { ROLE_MAX_TOKENS } from '../../../supabase/functions/ai-proxy/policy';
+import { fitHistory, HistoryMessage } from '../../../shared/services/aiHistoryFit';
+import { askAIModel } from '../../../shared/services/aiDefaults';
+
+const STUDY_TEMPERATURE = 0.7;
+
+export type StudyAIMessage = HistoryMessage;
+
+export interface StudyAIOptions {
+  /** A system message ahead of the history (the chat's scholar prompt); none when omitted. */
+  system?: string;
+  /** Aborting resolves with whatever text has arrived. */
+  signal?: AbortSignal;
+}
+
+export interface StudyAIResult {
+  text: string;
+  /** The model that answered (from the stream), else the one requested. */
+  model: string;
+}
+
+export { fitHistory };
+
+/** The chat/completions body (OpenRouter shape; the transport adds role 'study' for the proxy). */
+export function buildStudyBody(prompt: string, history: readonly StudyAIMessage[], system?: string): string {
+  const head = system ? [{ role: 'system', content: system }] : [];
+  const fixedChars = prompt.length + (system?.length ?? 0);
+  return JSON.stringify({
+    model: askAIModel(),
+    stream: true,
+    max_tokens: ROLE_MAX_TOKENS.study,
+    temperature: STUDY_TEMPERATURE,
+    messages: [...head, ...fitHistory(history, fixedChars, head.length + 1), { role: 'user', content: prompt }],
+  });
+}
+
+/**
+ * Stream one answer; `onChunk` receives each content delta. Throws an
+ * AskAIError (sign-in-needed, quota, HTTP, stream, empty…); a user abort
+ * resolves with the partial (possibly empty) text instead.
+ */
+export async function streamStudyAI(
+  prompt: string,
+  history: readonly StudyAIMessage[],
+  onChunk: (text: string) => void,
+  opts: StudyAIOptions = {},
+): Promise<StudyAIResult> {
+  const body = buildStudyBody(prompt, history, opts.system);
+  const requested = (JSON.parse(body) as { model: string }).model;
+  const signal = opts.signal ?? new AbortController().signal;
+  const outcome = await streamChatCompletionDetailed(body, onChunk, signal, { role: 'study' });
+  const model = outcome.model ?? requested;
+  if (!outcome.text && !signal.aborted) throw emptyError(model, outcome.finishReason);
+  return { text: outcome.text, model };
+}
+
+/** One answer as text (the stream collected). Same routing and errors as streamStudyAI. */
+export function chatStudyAI(prompt: string, history: readonly StudyAIMessage[] = [], opts: StudyAIOptions = {}): Promise<StudyAIResult> {
+  return streamStudyAI(prompt, history, () => undefined, opts);
+}

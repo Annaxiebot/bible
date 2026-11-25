@@ -13,7 +13,7 @@ import { createSSEParser, SSEEvent, buildRequestBody } from '../askAIStream';
 import { TEST_PACK_PATH } from './fixtures';
 import { CONTENT_LANGUAGES, ASK_AI_SYSTEM_PROMPT, ASK_AI_ANSWER_CONTRACT, ASK_AI_LANGUAGE_RULES } from '../principles';
 import { finalAIBody } from '../../services/aiFinalBody';
-import { BIBLE_SCHOLAR_SYSTEM_PROMPT } from '../../../services/systemPrompts';
+import { BIBLE_SCHOLAR_SYSTEM_PROMPT } from '../../../apps/journal/services/systemPrompts';
 import { MAX_MESSAGES, messagesProblem } from '../../../supabase/functions/ai-proxy/policy';
 
 function loadPack(): { pack: StudyPack; slide: Slide } {
