@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { autoSaveResearchService } from '../autoSaveResearchService';
-import { verseDataStorage } from '../verseDataStorage';
-import { ChatMessage } from '../../types';
+import { verseDataStorage } from '../../shared/services/verseDataStorage';
+import { ChatMessage } from '../../shared/types';
 
 // Mock verseDataStorage
-vi.mock('../verseDataStorage', () => ({
+vi.mock('../../shared/services/verseDataStorage', () => ({
   verseDataStorage: {
     addAIResearch: vi.fn(),
     getVerseData: vi.fn(),

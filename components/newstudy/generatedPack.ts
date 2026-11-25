@@ -10,14 +10,14 @@
  * ones dropped; the life menu must cover exactly the seven LIFE_AREAS. Any
  * failure throws a bilingual error — a half-pack is never returned.
  */
-import { LIFE_AREAS, ContentLanguage } from '../studypack/principles';
+import { LIFE_AREAS, ContentLanguage } from '../../shared/studypack/principles';
 import { findVerseRefs, VerseRef } from '../studypack/verseRefs';
-import { getBookById } from '../../services/bibleBookData';
-import type { WorshipSong } from '../studypack/packTypes';
+import { getBookById } from '../../shared/services/bibleBookData';
+import type { WorshipSong } from '../../shared/studypack/packTypes';
 import { CatalogSong, matchCatalogSong, toWorshipSongs } from './worshipCatalog';
 import {
   NS_ERR_NO_JSON, NS_ERR_INVALID, NS_ERR_NO_CROSS_REFS, NS_ERR_LIFE_AREAS,
-} from './newStudyStrings';
+} from '../../shared/newstudy/newStudyStrings';
 
 export interface Bilingual { zh: string; en: string }
 export interface CrossRef extends Bilingual { ref: VerseRef }

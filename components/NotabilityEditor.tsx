@@ -22,9 +22,9 @@ import {
   drawPaperBackground,
 } from '../services/strokeNormalizer';
 import { compressImage } from '../services/imageCompressionService';
-import { InlineAIError, useAIFailures } from './studypack/InlineAIError';
-import { migrateStrokes, Y_NORM_PAGE_HEIGHT } from '../services/notabilityStrokeMigration';
-import { NOTABILITY_PAGE_HEIGHT_PX, resolveCanvasHeightPages } from '../services/notabilityCanvasMigration';
+import { InlineAIError, useAIFailures } from '../shared/studypack/InlineAIError';
+import { migrateStrokes, Y_NORM_PAGE_HEIGHT } from '../shared/services/notabilityStrokeMigration';
+import { NOTABILITY_PAGE_HEIGHT_PX, resolveCanvasHeightPages } from '../shared/services/notabilityCanvasMigration';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 

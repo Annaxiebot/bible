@@ -7,8 +7,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { HEADING_DETAIL_SEPARATOR, emphasisSegments, keyPhraseFragments, splitHeading } from '../slideText';
-import { parseStudyPack } from '../packTypes';
-import { TEST_PACK_PATH } from './fixtures';
+import { parseStudyPack } from '../../../shared/studypack/packTypes';
+import { TEST_PACK_PATH } from '../../../shared/studypack/__tests__/fixtures';
 
 const demo = parseStudyPack(JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8')));
 const scripture = demo.sections.find(s => s.kind === 'scripture')!;

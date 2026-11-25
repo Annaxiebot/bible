@@ -8,8 +8,8 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { parseGuidePassageField, readAIPassage } from '../guideAIPassage';
 import { stubFetch } from '../../__tests__/packFetchStub';
-import { NS_ERR_VERSES_UNAVAILABLE } from '../../newStudyStrings';
-import { NP_RANGE, JOHN_13_1_CUV } from './guideFixtureNoPassage';
+import { NS_ERR_VERSES_UNAVAILABLE } from '../../../../shared/newstudy/newStudyStrings';
+import { NP_RANGE, JOHN_13_1_CUV } from '../../../../shared/newstudy/guide/__tests__/guideFixtureNoPassage';
 
 const parse = (passage: unknown) => parseGuidePassageField({ passage });
 

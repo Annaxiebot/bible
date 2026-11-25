@@ -9,7 +9,7 @@
 import React, { useState } from 'react';
 import {
   NS_SECTION_UP, NS_SECTION_DOWN, NS_SECTION_REMOVE, NS_SECTION_REMOVE_CONFIRM, NS_CONFIRM, NS_CANCEL,
-} from './newStudyStrings';
+} from '../../shared/newstudy/newStudyStrings';
 import { textStyle, controlStyle, quietButtonClass, secondaryButtonClass } from './newStudyStyles';
 
 export interface SectionToolbarProps {

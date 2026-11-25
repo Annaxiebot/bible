@@ -10,7 +10,7 @@ import { describe, it, expect } from 'vitest';
 import { validateEdited, withTitle } from '../packEdits';
 import { assemblePack } from '../packAssembly';
 import { validateGenerated } from '../generatedPack';
-import { parseStudyPack } from '../../studypack/packTypes';
+import { parseStudyPack } from '../../../shared/studypack/packTypes';
 import { JOHN3_GENERATED, JOHN3_REQUEST } from './fixtures';
 
 const verses = Array.from({ length: 15 }, (_, i) => ({ num: 22 + i, cuv: `第${22 + i}节`, en: `verse ${22 + i}` }));

@@ -11,11 +11,11 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { readFileSync } from 'fs';
-import { parseStudyPack, buildSlides } from '../packTypes';
+import { parseStudyPack, buildSlides } from '../../../shared/studypack/packTypes';
 import { signInSeam, signOutSeam, finalOfSent } from '../../../tests/utils/hostedSeam';
 import { ASK_AI_RELATED_VERSES_RULE, RELATED_VERSES_HEADING, PromptMessage } from '../../../supabase/functions/_shared/aiPrompts';
-import { OPENBIBLE_NAME, OPENBIBLE_URL } from '../tvHints';
-import { TEST_PACK_PATH } from './fixtures';
+import { OPENBIBLE_NAME, OPENBIBLE_URL } from '../../../shared/studypack/tvHints';
+import { TEST_PACK_PATH } from '../../../shared/studypack/__tests__/fixtures';
 import { stubBundledFetch } from './bundledFetch';
 
 vi.mock('../relatedVerses', async importOriginal => ({

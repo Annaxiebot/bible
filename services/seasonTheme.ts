@@ -8,7 +8,7 @@
  * Winter (Dec-Feb): Cool serene blues, peaceful whites
  */
 
-import { STORAGE_KEYS } from '../constants/storageKeys';
+import { STORAGE_KEYS } from '../shared/constants/storageKeys';
 
 export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
 

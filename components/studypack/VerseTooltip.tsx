@@ -14,10 +14,10 @@
  */
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { PackVerse } from './packTypes';
+import { PackVerse } from '../../shared/studypack/packTypes';
 import { placeTooltip, TooltipPlacement } from './tooltipPlacement';
-import { VERSE_LOAD_ERROR, TV_LOADING } from './tvHints';
-import { TYPE_SCALE } from './principles';
+import { VERSE_LOAD_ERROR, TV_LOADING } from '../../shared/studypack/tvHints';
+import { TYPE_SCALE } from '../../shared/studypack/principles';
 
 const tooltipTextStyle: React.CSSProperties = { fontSize: TYPE_SCALE.popup, lineHeight: 1.4 };
 const CLOSE_DELAY_MS = 150;

@@ -3,7 +3,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { detectGuidePassage, normaliseRefText, TITLE_ZONE_CHARS } from '../guidePassage';
-import { GUIDE_PAGES } from './guideFixture';
+import { GUIDE_PAGES } from '../../../../shared/newstudy/guide/__tests__/guideFixture';
 
 const MARK_1_1_15 = { bookId: 'MRK', chapter: 1, verseFrom: 1, verseTo: 15 };
 const filler = '我们一起读经。'.repeat(Math.ceil(TITLE_ZONE_CHARS / 7) + 1);

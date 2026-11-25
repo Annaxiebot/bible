@@ -8,14 +8,14 @@
  * not a reference, a chapter or verse that does not exist — is null: "not
  * found", which the caller surfaces (the leader picks the passage).
  */
-import type { PackVerse } from '../../studypack/packTypes';
+import type { PackVerse } from '../../../shared/studypack/packTypes';
 import { findVerseRefs } from '../../studypack/verseRefs';
-import { getBookById } from '../../../services/bibleBookData';
+import { getBookById } from '../../../shared/services/bibleBookData';
 import { GUIDE_PASSAGE_FIELD } from '../../../supabase/functions/_shared/aiPrompts';
 import { loadPassage } from '../generatePack';
 import type { VerseRange } from '../packAssembly';
 import { normaliseRefText } from './guidePassage';
-import { NS_ERR_VERSES_OUT_OF_RANGE } from '../newStudyStrings';
+import { NS_ERR_VERSES_OUT_OF_RANGE } from '../../../shared/newstudy/newStudyStrings';
 
 /** The reply's passage as a range inside one existing chapter, or null. */
 export function parseGuidePassageField(raw: Record<string, unknown>): VerseRange | null {

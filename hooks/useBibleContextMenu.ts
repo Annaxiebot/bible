@@ -1,5 +1,5 @@
 import { useCallback } from 'react';
-import { Verse, Book, SelectionInfo } from '../types';
+import { Verse, Book, SelectionInfo } from '../shared/types';
 import { BIBLE_BOOKS } from '../constants';
 
 interface ContextMenuState {

@@ -12,9 +12,9 @@
  * `pack_source: "guide"` and the proxy (or, for the evals, finalAIBody) puts
  * PACK_FROM_GUIDE_SYSTEM_PROMPT first.
  */
-import type { PackVerse } from '../../studypack/packTypes';
-import { PACK_CONTENT_CONTRACT, CONTENT_LANGUAGE_CONTRACTS, TRANSLATIONS, type ContentLanguage } from '../../studypack/principles';
-import { packGenerationModel } from '../../../services/aiDefaults';
+import type { PackVerse } from '../../../shared/studypack/packTypes';
+import { PACK_CONTENT_CONTRACT, CONTENT_LANGUAGE_CONTRACTS, TRANSLATIONS, type ContentLanguage } from '../../../shared/studypack/principles';
+import { packGenerationModel } from '../../../shared/services/aiDefaults';
 import { GUIDE_TEXT_HEADING, GUIDE_SECTION_KINDS, GUIDE_PASSAGE_FIELD, type PackSource } from '../../../supabase/functions/_shared/aiPrompts';
 import {
   PACK_COMPACT_JSON_RULE, PACK_COUNTS, PACK_LENGTH_LIMITS, PACK_MAX_TOKENS, PACK_TEMPERATURE,

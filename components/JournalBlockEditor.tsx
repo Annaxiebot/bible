@@ -23,7 +23,7 @@ import {
   createTextBlock,
   createDrawingBlock,
   createImageBlock,
-} from '../types/journalBlocks';
+} from '../shared/types/journalBlocks';
 
 // ─── Constants ─────────────────────────────────────────────────────────
 

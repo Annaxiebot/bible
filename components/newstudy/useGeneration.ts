@@ -17,7 +17,7 @@ import { generateStudyPack } from './generatePack';
 import { generateGuidePack, GuidePassageNotFound } from './guide/generateGuidePack';
 import { StudyRequest } from './packAssembly';
 import { Phase } from './PhaseView';
-import { startGenerationFunnel, type GenerationFunnel } from '../stats/funnel';
+import { startGenerationFunnel, type GenerationFunnel } from '../../shared/stats/funnel';
 
 export interface Generation {
   generate: (req: StudyRequest) => Promise<void>;

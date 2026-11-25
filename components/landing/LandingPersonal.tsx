@@ -7,12 +7,12 @@
  * Matthew 6:34 in 和合本 and BSB, loaded from the bundled data.
  */
 import React from 'react';
-import { APP_HASH } from './landingRoute';
+import { APP_HASH } from '../../shared/landing/landingRoute';
 import {
   PERSONAL_SECTION_ID, PERSONAL_EYEBROW, PERSONAL_TITLE_ZH, PERSONAL_TITLE_EN, PERSONAL_POINTS,
   PERSONAL_CTA, PERSONAL_VERSE_REF, PERSONAL_VERSE_NOTE, BRAND_ZH_LEAD,
-} from './landingStrings';
-import { TRANSLATIONS } from '../studypack/principles';
+} from '../../shared/landing/landingStrings';
+import { TRANSLATIONS } from '../../shared/studypack/principles';
 import LandingSection from './LandingSection';
 import Pill from '../shared/Pill';
 import { useBundledVerse, BilingualRef } from './LandingVerse';

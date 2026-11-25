@@ -7,11 +7,11 @@
  * JSON (public/bible-data/cuv|bsb/...) on first hover and is cached in
  * memory for the session. No third-party API is involved mid-meeting.
  */
-import { StudyPack, PackVerse } from './packTypes';
+import { StudyPack, PackVerse } from '../../shared/studypack/packTypes';
 import { VerseRef, packVerseIndex, packChapter, packBookId, resolveRef } from './verseRefs';
-import { TRANSLATIONS } from './principles';
-import { fetchBundledChapter } from '../../services/bibleDataSource';
-import { ChapterStorageData } from '../../services/idbService';
+import { TRANSLATIONS } from '../../shared/studypack/principles';
+import { fetchBundledChapter } from '../../shared/services/bibleDataSource';
+import { ChapterStorageData } from '../../shared/services/idbService';
 
 const chapterCache = new Map<string, Promise<ChapterStorageData | null>>();
 

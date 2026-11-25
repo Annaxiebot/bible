@@ -15,11 +15,11 @@ import StopPage from '../StopPage';
 import CheckinPage from '../CheckinPage';
 import { PAPER_PAGE_CLASS } from '../../shared/paperStyles';
 import { PAPER_HOME_TEST_ID } from '../../shared/PaperHeader';
-import { LANDING_HASH } from '../../landing/landingRoute';
-import { checkinStopHash } from '../checkinRoute';
+import { LANDING_HASH } from '../../../shared/landing/landingRoute';
+import { checkinStopHash } from '../../../shared/checkin/checkinRoute';
 import { CHECKIN_CONTEXT_FN } from '../../signup/signupSchema';
 import { UNSUBSCRIBE_FN, RESUBSCRIBE_FN } from '../../../supabase/functions/send-checkins/optout';
-import { CK_STOP, CK_STOPPED, CK_RESUME, CK_RESUMED, CK_ERR_STOP, CK_ERR_LOAD } from '../checkinStrings';
+import { CK_STOP, CK_STOPPED, CK_RESUME, CK_RESUMED, CK_ERR_STOP, CK_ERR_LOAD } from '../../../shared/checkin/checkinStrings';
 
 const ID = '7d4e8b2a-1c3f-4a5b-9e6d-0f1a2b3c4d5e';
 const UNKNOWN = '00000000-0000-4000-8000-000000000000';
@@ -43,7 +43,7 @@ async function fakeRpc(fn: string, args: Record<string, unknown>) {
   return { data: true, error: null };
 }
 const rpcMock = vi.fn(fakeRpc);
-vi.mock('../../../services/supabase', () => ({ supabase: { rpc: (fn: string, args: Record<string, unknown>) => rpcMock(fn, args) } }));
+vi.mock('../../../shared/services/supabase', () => ({ supabase: { rpc: (fn: string, args: Record<string, unknown>) => rpcMock(fn, args) } }));
 
 describe('StopPage', () => {
   beforeEach(() => {

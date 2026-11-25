@@ -8,9 +8,9 @@
  */
 import { describe, it, expect } from 'vitest';
 import { splitGuideAnswers, answerMatcher, lineLooksLikeAnswer, MIN_ANSWER_MATCH_CHARS } from '../guideAnswers';
-import { NP_TEXT, NP_ANSWERS, NP_QUESTIONS, NP_INTRO, LEAKED_ANSWER } from './guideFixtureNoPassage';
+import { NP_TEXT, NP_ANSWERS, NP_QUESTIONS, NP_INTRO, LEAKED_ANSWER } from '../../../../shared/newstudy/guide/__tests__/guideFixtureNoPassage';
 import { GUIDE_TEXT } from './guideFixtureRequest';
-import { GUIDE_QUESTIONS } from './guideFixture';
+import { GUIDE_QUESTIONS } from '../../../../shared/newstudy/guide/__tests__/guideFixture';
 
 describe('splitGuideAnswers', () => {
   it('the bullets under the questions, markers stripped (•, -, ‧); questions and headings stay in the rest', () => {

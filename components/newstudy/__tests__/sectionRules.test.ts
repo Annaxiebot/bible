@@ -4,7 +4,7 @@
  * pack after any allowed step) still passes parseStudyPack.
  */
 import { describe, it, expect } from 'vitest';
-import { PackSection, SectionKind, parseStudyPack } from '../../studypack/packTypes';
+import { PackSection, SectionKind, parseStudyPack } from '../../../shared/studypack/packTypes';
 import { assemblePack } from '../packAssembly';
 import { validateGenerated } from '../generatedPack';
 import { JOHN3_GENERATED, JOHN3_REQUEST } from './fixtures';
@@ -15,7 +15,7 @@ import {
 import { validateEdited, withAddedSection, withMovedSection, withoutSection } from '../packEdits';
 import {
   NS_ERR_TITLE_FIRST, NS_ERR_SCRIPTURE_PLACE, NS_ERR_TAIL, NS_ERR_DUPLICATE_SECTION, NS_ERR_EMPTY_QUESTION,
-} from '../newStudyStrings';
+} from '../../../shared/newstudy/newStudyStrings';
 
 const verses = Array.from({ length: 15 }, (_, i) => ({ num: 22 + i, cuv: `第${22 + i}节`, en: `verse ${22 + i}` }));
 const pack = assemblePack(JOHN3_REQUEST, verses, validateGenerated(JOHN3_GENERATED, JOHN3_REQUEST.contentLanguage));

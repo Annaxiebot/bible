@@ -11,7 +11,7 @@ import { SITE_STATS_FN, SITE_STATS_KEYS } from '../statsRules';
 const STATS_REPLY = { packs: 12, leaders: 10, meetings: 7, signups: 40, practices: 95, checkins_shared: 31, as_of: '2026-10-06T00:00:00Z' };
 const rpc = vi.fn(async (fn: string) => (fn === SITE_STATS_FN ? { data: STATS_REPLY, error: null } : { data: null, error: { message: 'unknown' } }));
 let client: { rpc: typeof rpc } | null = { rpc };
-vi.mock('../../signup/signupClient', () => ({ getSignupClient: () => client }));
+vi.mock('../../../shared/signup/signupClient', () => ({ getSignupClient: () => client }));
 
 import { loadSiteStats, resetSiteStatsCache, parseSiteStats } from '../siteStats';
 

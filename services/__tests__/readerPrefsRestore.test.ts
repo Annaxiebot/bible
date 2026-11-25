@@ -5,10 +5,10 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
-import { STORAGE_KEYS } from '../../constants/storageKeys';
+import { STORAGE_KEYS } from '../../shared/constants/storageKeys';
 import { importPersonalBackup } from '../export/personalDataBackup';
 import { PERSONAL_BACKUP_KIND, PERSONAL_BACKUP_VERSION } from '../export/personalBackupFormat';
-import { useReaderPreferences } from '../readerPreferences';
+import { useReaderPreferences } from '../../shared/services/readerPreferences';
 import { installMemoryStorage } from '../../tests/utils/memoryStorage';
 
 beforeEach(() => { installMemoryStorage(); });

@@ -7,10 +7,10 @@
  * deleted); API keys never leave the browser.
  */
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { idbService } from '../../idbService';
-import type { JournalEntry, ChatHistoryRecord, SpiritualMemoryItem } from '../../idbService';
-import { verseDataStorage } from '../../verseDataStorage';
-import { STORAGE_KEYS } from '../../../constants/storageKeys';
+import { idbService } from '../../../shared/services/idbService';
+import type { JournalEntry, ChatHistoryRecord, SpiritualMemoryItem } from '../../../shared/services/idbService';
+import { verseDataStorage } from '../../../shared/services/verseDataStorage';
+import { STORAGE_KEYS } from '../../../shared/constants/storageKeys';
 import { OWN_OPENROUTER_KEY } from '../../obsoleteStorageKeys';
 import {
   buildPersonalBackup, importPersonalBackup, isPersonalBackup, exportableSettingsKeys,

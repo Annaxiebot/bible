@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import path from 'path';
-import { parseStudyPack, StudyPack } from '../packTypes';
+import { parseStudyPack, StudyPack } from '../../../shared/studypack/packTypes';
 import { findVerseRefs, packVerseIndex, packChapter, packBookId, resolveRef, VerseRef } from '../verseRefs';
-import { CHINESE_ABBREV_TO_BOOK_ID } from '../../../services/bibleBookData';
+import { CHINESE_ABBREV_TO_BOOK_ID } from '../../../shared/services/bibleBookData';
 
 const PACK_PATH = path.resolve(__dirname, '../../../public/packs/2026-10-02-matt6.json');
 const pack: StudyPack = parseStudyPack(JSON.parse(readFileSync(PACK_PATH, 'utf-8')));

@@ -10,8 +10,8 @@ import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { readFileSync } from 'fs';
 import React from 'react';
-import { TEST_PACK_PATH } from './fixtures';
-import { parseStudyPack } from '../packTypes';
+import { TEST_PACK_PATH } from '../../../shared/studypack/__tests__/fixtures';
+import { parseStudyPack } from '../../../shared/studypack/packTypes';
 import RefLinkedText from '../RefLinkedText';
 
 const pack = parseStudyPack(JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8')));

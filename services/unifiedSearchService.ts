@@ -5,10 +5,10 @@
  * Returns merged, deduplicated results with match context.
  */
 
-import { verseDataStorage } from './verseDataStorage';
-import { notesStorage } from './notesStorage';
-import { stripHTML } from '../utils/textUtils';
-import { BOOK_ID_TO_CHINESE_NAME } from './bibleBookData';
+import { verseDataStorage } from '../shared/services/verseDataStorage';
+import { notesStorage } from '../shared/services/notesStorage';
+import { stripHTML } from '../shared/utils/textUtils';
+import { BOOK_ID_TO_CHINESE_NAME } from '../shared/services/bibleBookData';
 
 export type SearchScope = 'all' | 'bible' | 'research' | 'notes';
 

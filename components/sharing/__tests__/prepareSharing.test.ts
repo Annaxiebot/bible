@@ -8,7 +8,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { prepareSharing, SHARING_ATTEMPTS } from '../prepareSharing';
 import { SharingError } from '../sharingReply';
 import { SH_ERR_INVALID, SH_ERR_LOAD, SH_ERR_NOTHING, SHARING_HEADING, practiceCountLine } from '../sharingStrings';
-import { quotaLine } from '../../studypack/tvHints';
+import { quotaLine } from '../../../shared/studypack/tvHints';
 import { SIGNUPS_TABLE, CHECKIN_ANSWERS_TABLE } from '../../signup/signupSchema';
 import {
   LEADER, PREVIOUS, CURRENT, SIGNUPS, IDENTIFIERS, GOOD_REPLY, defaultClient, fakeClient, sseResponse,

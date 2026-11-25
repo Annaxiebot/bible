@@ -10,14 +10,14 @@ import React from 'react';
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, cleanup, within, waitFor } from '@testing-library/react';
 import LandingNextStudy from '../LandingNextStudy';
-import { packHash } from '../landingRoute';
-import { currentSignupUrl, signupHash } from '../../signup/signupRoute';
-import { SU_QR_BODY, qrAltText } from '../../signup/signupStrings';
-import { PACK_SCHEMA_VERSION } from '../../studypack/packTypes';
+import { packHash } from '../../../shared/landing/landingRoute';
+import { currentSignupUrl, signupHash } from '../../../shared/signup/signupRoute';
+import { SU_QR_BODY, qrAltText } from '../../../shared/signup/signupStrings';
+import { PACK_SCHEMA_VERSION } from '../../../shared/studypack/packTypes';
 import {
   NEXT_EYEBROW, NEXT_HEADING_ZH, NEXT_HEADING_EN, NEXT_OPEN_CTA, NEXT_SIGNUP_CTA,
   NEXT_SIGNUP_CLOSE, NEXT_NONE_YET, NEXT_LOADING, NEXT_DESC,
-} from '../landingStrings';
+} from '../../../shared/landing/landingStrings';
 
 const PACK_ID = '2026-10-02-matt6';
 const PACK = {

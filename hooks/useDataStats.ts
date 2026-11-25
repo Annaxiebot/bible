@@ -1,10 +1,10 @@
 import { useState, useEffect } from 'react';
-import { verseDataStorage } from '../services/verseDataStorage';
-import { bibleStorage } from '../services/bibleStorage';
-import { annotationStorage } from '../services/annotationStorage';
+import { verseDataStorage } from '../shared/services/verseDataStorage';
+import { bibleStorage } from '../shared/services/bibleStorage';
+import { annotationStorage } from '../shared/services/annotationStorage';
 import { BIBLE_BOOKS } from '../constants';
 import { useStorageUpdate } from './useStorageUpdate';
-import { stripHTML } from '../utils/textUtils';
+import { stripHTML } from '../shared/utils/textUtils';
 
 export interface NoteDetail {
   bookId: string;

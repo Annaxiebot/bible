@@ -11,7 +11,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import { JSDOM } from 'jsdom';
-import { SAMPLE_PACK_ID } from '../../components/landing/landingRoute';
+import { SAMPLE_PACK_ID } from '../../shared/landing/landingRoute';
 
 const ROOT = path.resolve(__dirname, '../..');
 const VITE = path.join(ROOT, 'node_modules/vite/bin/vite.js');

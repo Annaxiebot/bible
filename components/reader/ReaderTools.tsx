@@ -9,7 +9,7 @@
  * overflowing at any wider width (iPad, split panes).
  */
 import React from 'react';
-import { ENGLISH_EDITIONS, ChineseScript } from '../../services/readerPreferences';
+import { ENGLISH_EDITIONS, ChineseScript } from '../../shared/services/readerPreferences';
 import type { ReaderStrings } from './readerStrings';
 
 /** Font-size bounds: the −/+ buttons stop here and BibleViewer.adjustFontSize clamps to them. */

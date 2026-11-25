@@ -14,7 +14,7 @@
  * (the scrubber closure, kept for checking the AI's reply too).
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { StudyPack } from '../studypack/packTypes';
+import type { StudyPack } from '../../shared/studypack/packTypes';
 import { fetchSignups, fetchAnswers, commitmentCounts } from '../leader/leaderData';
 import { isLive } from '../../supabase/functions/send-checkins/replaced';
 import { ownPacksNewestFirst } from '../leader/leaderHomeData';

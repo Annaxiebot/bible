@@ -12,7 +12,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
-import { ADMIN_FUNNEL_FN, FUNNEL_DAYS, FUNNEL_REPEAT_MINUTES } from '../../stats/funnelRules';
+import { ADMIN_FUNNEL_FN, FUNNEL_DAYS, FUNNEL_REPEAT_MINUTES } from '../../../shared/stats/funnelRules';
 import { ADMIN_DENIED_CODE } from '../adminRules';
 import {
   AD_FUNNEL_TITLE, AD_FUNNEL_NONE, AD_FUNNEL_ERR, AD_FUNNEL_STEPS, AD_DENIED, AD_FUNNEL_COL_WAIT,
@@ -23,7 +23,7 @@ import { ADMIN_FUNNEL } from './adminFixtures';
 
 let reply: { data: unknown; error: { code?: string; message: string } | null } = { data: ADMIN_FUNNEL, error: null };
 const rpcMock = vi.fn(async (_fn: string, _args?: unknown) => reply);
-vi.mock('../../../services/supabase', () => ({
+vi.mock('../../../shared/services/supabase', () => ({
   supabase: { rpc: (fn: string, args?: unknown) => rpcMock(fn, args) },
   isSupabaseConfigured: () => true,
 }));

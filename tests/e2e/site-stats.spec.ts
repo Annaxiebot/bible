@@ -9,9 +9,9 @@
  * for 10 minutes (page clock) is logged once; a reload does not add one.
  */
 import { test, expect } from '@playwright/test';
-import { HONEST_NUMBERS } from '../../components/landing/landingStrings';
-import { LEADER_HOME_HASH } from '../../components/leader/leaderRoute';
-import { packHash } from '../../components/landing/landingRoute';
+import { HONEST_NUMBERS } from '../../shared/landing/landingStrings';
+import { LEADER_HOME_HASH } from '../../shared/leader/leaderRoute';
+import { packHash } from '../../shared/landing/landingRoute';
 import { SITE_STAT_FIGURES, STATS_TITLE, STATS_LIVING, PUBLIC_STATS_MIN_LEADERS, MEETING_MIN_SECONDS } from '../../components/stats/statsRules';
 import { E2E_LEADER_ID, seedLocalPack, fetchSamplePack } from './helpers/signup';
 import { fakeLeaderSession, mockLeaderCounts } from './helpers/leader';

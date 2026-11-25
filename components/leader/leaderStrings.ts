@@ -4,7 +4,7 @@
  * Single source (R3); Chinese first (ADR-0003 §1). Pure module so e2e
  * specs can import it.
  */
-import { bilingual, bilingualLine } from '../studypack/principles';
+import { bilingual, bilingualLine } from '../../shared/studypack/principles';
 
 export const LD_TITLE = bilingual('报名名单', 'Sign-ups');
 export const LD_SIGNIN = bilingualLine('组长请先登录，才能查看名单', 'Leaders, please sign in to see the list');

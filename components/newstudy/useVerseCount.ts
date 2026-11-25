@@ -8,8 +8,8 @@
  * or a deployment missing the file), number = the verse count.
  */
 import { useEffect, useState } from 'react';
-import { fetchBundledChapter } from '../../services/bibleDataSource';
-import { TRANSLATIONS } from '../studypack/principles';
+import { fetchBundledChapter } from '../../shared/services/bibleDataSource';
+import { TRANSLATIONS } from '../../shared/studypack/principles';
 
 export type VerseCount = number | null | undefined;
 

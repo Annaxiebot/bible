@@ -9,13 +9,13 @@
  * so and offers nothing else.
  */
 import React, { useEffect, useState } from 'react';
-import { StudyPack } from '../studypack/packTypes';
-import { PackSharing, getPackSharing, setPackSharing, currentShareUrl } from '../studypack/packShare';
-import { supabase, authManager } from '../../services/supabase';
+import { StudyPack } from '../../shared/studypack/packTypes';
+import { PackSharing, getPackSharing, setPackSharing, currentShareUrl } from '../../shared/studypack/packShare';
+import { supabase, authManager } from '../../shared/services/supabase';
 import {
   NS_SHARE_TITLE, NS_SHARE_INTRO, NS_SHARE_ON, NS_SHARE_OFF, NS_SHARE_OFF_NOTE,
   NS_SHARE_COPY, NS_SHARE_COPIED, NS_SHARE_SIGNIN, NS_CLOSE,
-} from './newStudyStrings';
+} from '../../shared/newstudy/newStudyStrings';
 import { viewsCountLine } from '../leader/leaderStrings';
 import { textStyle, controlStyle, primaryButtonClass, secondaryButtonClass } from './newStudyStyles';
 import SignupQr from '../signup/SignupQr';

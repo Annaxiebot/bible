@@ -9,8 +9,8 @@
  * through the scrubber once more, so a name the model happened to produce
  * never reaches the slide.
  */
-import type { ContentLanguage } from '../studypack/principles';
-import { contentLine } from '../studypack/principles';
+import type { ContentLanguage } from '../../shared/studypack/principles';
+import { contentLine } from '../../shared/studypack/principles';
 import { hasHalves, requiredHalves, trimHalves, Bilingual } from '../newstudy/generatedPack';
 import {
   SHARING_THEMES_MIN, SHARING_THEMES_MAX, SHARING_QUOTES_MAX, QUOTE_MAX_ZH_CHARS, QUOTE_MAX_EN_CHARS,

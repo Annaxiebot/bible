@@ -9,11 +9,11 @@
  * License, credited in the footer); the first loads eagerly, the rest lazily.
  */
 import React from 'react';
-import { SAMPLE_PACK_HASH } from './landingRoute';
+import { SAMPLE_PACK_HASH } from '../../shared/landing/landingRoute';
 import {
   GROUP_SECTION_ID, NEXT_SECTION_ID, GROUP_EYEBROW, GROUP_TITLE_ZH, GROUP_HEADING_EN, GROUP_PHOTOS,
   GROUP_CTA, GROUP_QR_CTA, LEADER_ZH, LEADER_EN,
-} from './landingStrings';
+} from '../../shared/landing/landingStrings';
 import LandingSection, { Bilingual } from './LandingSection';
 import Pill from '../shared/Pill';
 import { scrollToSection } from './LandingNav';

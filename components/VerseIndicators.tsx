@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { stripHTML } from '../utils/textUtils';
+import { stripHTML } from '../shared/utils/textUtils';
 
 interface VerseIndicatorsProps {
   hasNote: boolean;

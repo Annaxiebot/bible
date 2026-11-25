@@ -7,7 +7,7 @@
  * text. Chinese first (ADR-0003 §1); app-owned lines are bilingual in every
  * content-language mode.
  */
-import { bilingualLine } from '../studypack/principles';
+import { bilingualLine } from '../../shared/studypack/principles';
 
 /** The section heading on the editor and the TV slide. */
 export const SHARING_HEADING = bilingualLine('上周操练分享', "Last week's sharing");

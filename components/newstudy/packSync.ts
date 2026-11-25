@@ -20,14 +20,14 @@
  *   nothing throws. A server error becomes a typed failure the status line
  *   (PackSyncLine) shows (R5).
  */
-import { supabase } from '../../services/supabase';
+import { supabase } from '../../shared/services/supabase';
 import { signedInUid } from '../../services/sessionUid';
-import type { StudyPack } from '../studypack/packTypes';
+import type { StudyPack } from '../../shared/studypack/packTypes';
 import {
   listLocalPacks, saveSyncedPack, markPackSynced, deleteLocalPack, getLocalPack, type LocalPackList,
 } from '../studypack/packSource';
-import { listRemotePacks, upsertRemotePack, deleteRemotePack } from './packRemote';
-import { PS_ERR_INVALID_REMOTE } from './packSyncStrings';
+import { listRemotePacks, upsertRemotePack, deleteRemotePack } from '../../shared/newstudy/packRemote';
+import { PS_ERR_INVALID_REMOTE } from '../../shared/newstudy/packSyncStrings';
 
 export const PACK_PUSH_DEBOUNCE_MS = 1500;
 

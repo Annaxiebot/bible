@@ -15,7 +15,7 @@
  * different passages tie.
  */
 import { findBookNames, findVerseRefs } from '../../studypack/verseRefs';
-import { getBookById } from '../../../services/bibleBookData';
+import { getBookById } from '../../../shared/services/bibleBookData';
 import type { VerseRange } from '../packAssembly';
 
 export interface GuidePassage {

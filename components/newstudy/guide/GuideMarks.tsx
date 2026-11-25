@@ -13,7 +13,7 @@
  * passage in the guide than the pack uses — quiet, the leader decides.
  */
 import React from 'react';
-import type { PackSection, StudyPack } from '../../studypack/packTypes';
+import type { PackSection, StudyPack } from '../../../shared/studypack/packTypes';
 import { stillNotVerbatim, stillLeaderAnswers } from './guidePack';
 import { GD_FROM_GUIDE, GD_AI_DRAFTED, notVerbatimLine, leaderAnswerLine, passageMismatchLine } from './guideStrings';
 import { rangeKey } from './guidePassage';

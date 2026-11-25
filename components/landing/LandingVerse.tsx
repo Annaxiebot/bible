@@ -13,7 +13,7 @@ import { findVerseRefs } from '../studypack/verseRefs';
 import { planExternalRef } from '../studypack/externalVerses';
 import { bilingualRefLabel } from '../studypack/refLabel';
 import VerseTooltip from '../studypack/VerseTooltip';
-import type { PackVerse } from '../studypack/packTypes';
+import type { PackVerse } from '../../shared/studypack/packTypes';
 
 /** Load one "Book C:V" reference's 和合本 + BSB text; null until loaded (or if it cannot be). */
 export function useBundledVerse(ref: string): PackVerse | null {

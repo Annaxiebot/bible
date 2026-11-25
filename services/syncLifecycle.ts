@@ -13,8 +13,8 @@
  *     Local data is never touched: it stays in this browser.
  * Token refreshes re-notify with the same user and do nothing.
  */
-import { authManager, syncManager, type AuthState } from './supabase';
-import { syncService } from './syncService';
+import { authManager, syncManager, type AuthState } from '../shared/services/supabase';
+import { syncService } from '../shared/services/syncService';
 
 /** localStorage prefix: "<prefix><uid>" = "1" once a full sync finished cleanly for that user here. */
 export const FULL_SYNC_DONE_PREFIX = 'bible_sync_full_done:';

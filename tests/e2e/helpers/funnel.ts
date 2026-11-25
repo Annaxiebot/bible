@@ -11,7 +11,7 @@
  */
 import { Page } from '@playwright/test';
 import { E2E_SUPABASE_PATH, injectSupabaseOverride } from './signup';
-import { LOG_FUNNEL_FN, FUNNEL_WAIT_EVENTS, FUNNEL_MAX_WAIT_SECONDS, isFunnelEvent } from '../../../components/stats/funnelRules';
+import { LOG_FUNNEL_FN, FUNNEL_WAIT_EVENTS, FUNNEL_MAX_WAIT_SECONDS, isFunnelEvent } from '../../../shared/stats/funnelRules';
 
 export interface FunnelCall { p_event: string; p_wait_seconds: number | null; authorization: string | undefined }
 

@@ -16,23 +16,23 @@ import { GuideEntry, passageHint } from '../GuideEntry';
 import NewStudyForm from '../../NewStudyForm';
 import SectionEditor from '../../SectionEditor';
 import { adjustSection } from '../../adjustSection';
-import type { PackSection, StudyPack } from '../../../studypack/packTypes';
+import type { PackSection, StudyPack } from '../../../../shared/studypack/packTypes';
 import type { PdfDocLike } from '../guidePdf';
 import type { LoadedGuide } from '../loadGuide';
 import { detectGuidePassage } from '../guidePassage';
 import { AJ_OPEN, AJ_SEND, AJ_CHIPS } from '../../adjustStrings';
-import { NS_GENERATE } from '../../newStudyStrings';
+import { NS_GENERATE } from '../../../../shared/newstudy/newStudyStrings';
 import {
   GD_PICK, GD_ERR_NO_TEXT, GD_LOADED, GD_DROP, GD_PASSAGE_UNSURE, GD_FROM_GUIDE, GD_AI_DRAFTED, notVerbatimLine,
   GD_ERR_NO_PASSAGE, leaderAnswerLine,
 } from '../guideStrings';
 import { GuidePassageNotice } from '../GuideMarks';
-import { LEAKED_ANSWER } from './guideFixtureNoPassage';
+import { LEAKED_ANSWER } from '../../../../shared/newstudy/guide/__tests__/guideFixtureNoPassage';
 import { LOADED_GUIDE, GUIDE_TEXT, GUIDE_REQUEST } from './guideFixtureRequest';
-import { GUIDE_QUESTIONS, TIDIED_QUESTION } from './guideFixture';
+import { GUIDE_QUESTIONS, TIDIED_QUESTION } from '../../../../shared/newstudy/guide/__tests__/guideFixture';
 
 vi.mock('../../adjustSection', () => ({ adjustSection: vi.fn() }));
-vi.mock('../../../../services/bibleDataSource', () => ({
+vi.mock('../../../../shared/services/bibleDataSource', () => ({
   fetchBundledChapter: async () => ({ verses: Array.from({ length: 36 }, (_, i) => ({ verse: i + 1, text: `v${i + 1}` })) }),
 }));
 

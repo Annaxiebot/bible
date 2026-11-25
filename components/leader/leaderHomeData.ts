@@ -12,14 +12,14 @@
  */
 import { useCallback, useEffect, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { StudyPack } from '../studypack/packTypes';
+import type { StudyPack } from '../../shared/studypack/packTypes';
 import { listLocalPacks } from '../studypack/packSource';
 import { packTime, subscribePackSyncStatus, deletePackEverywhere } from '../newstudy/packSync';
-import { getSignupClient } from '../signup/signupClient';
-import { STUDY_PACKS_TABLE } from '../newstudy/packRemote';
+import { getSignupClient } from '../../shared/signup/signupClient';
+import { STUDY_PACKS_TABLE } from '../../shared/newstudy/packRemote';
 import { SIGNUPS_TABLE, CHECKIN_ANSWERS_TABLE } from '../signup/signupSchema';
 import { REPLACED_COLUMN, isLive } from '../../supabase/functions/send-checkins/replaced';
-import { NS_ERR_STORAGE } from '../newstudy/newStudyStrings';
+import { NS_ERR_STORAGE } from '../../shared/newstudy/newStudyStrings';
 import { LH_ERR_COUNTS } from './leaderStrings';
 
 export interface PackCounts {

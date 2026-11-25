@@ -20,15 +20,15 @@
  * Every failure renders inline (role=alert).
  */
 import React, { useEffect, useState } from 'react';
-import { authManager } from '../../services/supabase';
-import { getSignupClient } from '../signup/signupClient';
-import { useLeaderSession } from './useLeaderSession';
+import { authManager } from '../../shared/services/supabase';
+import { getSignupClient } from '../../shared/signup/signupClient';
+import { useLeaderSession } from '../../shared/leader/useLeaderSession';
 import { AuthPanel } from '../AuthPanel';
 import { loadPack } from '../studypack/packSource';
-import type { StudyPack } from '../studypack/packTypes';
-import { downloadFile } from '../../services/export/fileDownloader';
-import { SU_ERR_NOT_CONFIGURED, SU_DEMO_LINE } from '../signup/signupStrings';
-import { NEW_STUDY_HASH } from '../landing/landingRoute';
+import type { StudyPack } from '../../shared/studypack/packTypes';
+import { downloadFile } from '../../shared/services/export/fileDownloader';
+import { SU_ERR_NOT_CONFIGURED, SU_DEMO_LINE } from '../../shared/signup/signupStrings';
+import { NEW_STUDY_HASH } from '../../shared/landing/landingRoute';
 import { useSummarySync } from '../signup/useSummarySync';
 import { useLocalPackClaim } from '../newstudy/claimLocalPacks';
 import {

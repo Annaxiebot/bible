@@ -11,12 +11,12 @@
  * kept in the URL or browser storage; each visit reads fresh.
  */
 import React, { useState } from 'react';
-import { useLeaderSession } from '../leader/useLeaderSession';
-import { LEADER_HOME_HASH } from '../leader/leaderRoute';
+import { useLeaderSession } from '../../shared/leader/useLeaderSession';
+import { LEADER_HOME_HASH } from '../../shared/leader/leaderRoute';
 import { LD_BACK } from '../leader/leaderStrings';
-import { SU_ERR_NOT_CONFIGURED } from '../signup/signupStrings';
+import { SU_ERR_NOT_CONFIGURED } from '../../shared/signup/signupStrings';
 import { textStyle, controlStyle, pageTitleStyle } from '../newstudy/newStudyStyles';
-import { splitLabel } from '../studypack/principles';
+import { splitLabel } from '../../shared/studypack/principles';
 import { useIsSiteAdmin, useAdminData, type AdminData } from './adminData';
 import { AdminLeaders } from './AdminLeaders';
 import { AdminFeedback } from './AdminFeedback';

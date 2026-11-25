@@ -16,7 +16,7 @@ import {
   FEEDBACK_FUNCTION, FEEDBACK_LABEL, FEEDBACK_MAX_CHARS, HONEYPOT_FIELD, validateFeedback,
 } from '../../../supabase/functions/_shared/feedback';
 import { FB_ERRORS, FB_THANKS, FB_EMAIL_LABEL, FB_MESSAGE_LABEL } from '../feedbackStrings';
-import { SETUP_MIN_FONT_PX } from '../../setup/setupStrings';
+import { SETUP_MIN_FONT_PX } from '../../../shared/setup/setupStrings';
 import { SOURCE_REPO_URL, CONTRIBUTE_PROMPT } from '../../shared/sourceRepo';
 
 const httpError = (status: number, body: unknown) =>
@@ -35,7 +35,7 @@ async function fakeInvoke(fn: string, options: { body: Record<string, unknown> }
   if (mode === 'down') return { data: null, error: httpError(500, { error: 'feedback insert failed' }) };
   return { data: { id: 'row-1', emailed: true }, error: null };
 }
-vi.mock('../../../services/supabase', () => ({
+vi.mock('../../../shared/services/supabase', () => ({
   supabase: { functions: { invoke: (fn: string, options: { body: Record<string, unknown> }) => fakeInvoke(fn, options) } },
 }));
 

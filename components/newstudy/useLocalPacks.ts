@@ -12,14 +12,14 @@
  * failures show on PackSyncLine.
  */
 import { useState, useEffect, useCallback } from 'react';
-import { StudyPack, parseStudyPack } from '../studypack/packTypes';
+import { StudyPack, parseStudyPack } from '../../shared/studypack/packTypes';
 import { listLocalPacks, saveLocalPack, isLocalPackId, LOCAL_PACK_PREFIX } from '../studypack/packSource';
-import { downloadFile } from '../../services/export/fileDownloader';
-import { authManager } from '../../services/supabase';
+import { downloadFile } from '../../shared/services/export/fileDownloader';
+import { authManager } from '../../shared/services/supabase';
 import { stampLeader } from './packAssembly';
 import { stampUpdated, schedulePackPush, deletePackEverywhere, subscribePackSyncStatus } from './packSync';
 import { syncPackSummary } from '../signup/packSummary';
-import { NS_ERR_STORAGE, NS_ERR_IMPORT } from './newStudyStrings';
+import { NS_ERR_STORAGE, NS_ERR_IMPORT } from '../../shared/newstudy/newStudyStrings';
 import { backupFileName, buildBackup, readBackup } from './packBackup';
 import { todayIso } from './NewStudyForm';
 

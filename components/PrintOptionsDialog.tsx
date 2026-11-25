@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { BIBLE_BOOKS } from '../constants';
-import { getChineseName } from '../services/bibleBookData';
+import { getChineseName } from '../shared/services/bibleBookData';
 import type { PrintOptions } from '../services/printService';
 import { Dialog } from './Dialog';
 

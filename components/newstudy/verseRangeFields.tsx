@@ -10,10 +10,10 @@
  * ≥48px targets) under the caller's test-id prefix.
  */
 import React, { useState } from 'react';
-import { getBookById } from '../../services/bibleBookData';
-import { TV_LOADING } from '../studypack/tvHints';
+import { getBookById } from '../../shared/services/bibleBookData';
+import { TV_LOADING } from '../../shared/studypack/tvHints';
 import { VerseRange } from './packAssembly';
-import { NS_CHAPTER, NS_VERSE_FROM, NS_VERSE_TO } from './newStudyStrings';
+import { NS_CHAPTER, NS_VERSE_FROM, NS_VERSE_TO } from '../../shared/newstudy/newStudyStrings';
 import { textStyle, controlStyle, inputClass, labelClass } from './newStudyStyles';
 import { useVerseCount, chapterKey, MAX_VERSES_IN_A_CHAPTER } from './useVerseCount';
 

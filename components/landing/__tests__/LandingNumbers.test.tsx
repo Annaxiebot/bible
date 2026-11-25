@@ -12,8 +12,8 @@ import path from 'node:path';
 import { describe, it, expect } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import LandingNumbers from '../LandingNumbers';
-import { HONEST_NUMBERS, BOOK_COUNT, VERSE_COUNT_LABEL, OFFLINE_FIGURE } from '../landingStrings';
-import { TRANSLATIONS } from '../../studypack/principles';
+import { HONEST_NUMBERS, BOOK_COUNT, VERSE_COUNT_LABEL, OFFLINE_FIGURE } from '../../../shared/landing/landingStrings';
+import { TRANSLATIONS } from '../../../shared/studypack/principles';
 
 const CUV_DIR = path.resolve(__dirname, '../../../public/bible-data', TRANSLATIONS.zh.id);
 

@@ -10,7 +10,7 @@
  * It is inserted right after the title (sectionRules.SHARING_INDEX), so
  * it is slide 2; a second run replaces the first.
  */
-import type { PackSection, StudyPack } from '../studypack/packTypes';
+import type { PackSection, StudyPack } from '../../shared/studypack/packTypes';
 import { SHARING_INDEX, insertItem } from '../newstudy/sectionRules';
 import type { SharingDraft } from './sharingReply';
 import { SHARING_HEADING, PracticeCount, practiceCountLine, quoteLine } from './sharingStrings';

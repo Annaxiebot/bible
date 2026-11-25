@@ -14,7 +14,7 @@ import { readFileSync, existsSync } from 'fs';
 import os from 'os';
 import https from 'https';
 import path from 'path';
-import { parseStudyPack } from '../../components/studypack/packTypes';
+import { parseStudyPack } from '../../shared/studypack/packTypes';
 import { packSummaryFrom } from '../../components/signup/packSummary';
 import { SUMMARY_COLUMNS, passageFromSummary, PackSummaryRow } from '../../supabase/functions/send-checkins/packSource';
 

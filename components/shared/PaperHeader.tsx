@@ -10,9 +10,9 @@
  * "意见反馈 · Feedback" link (ADR-0011; from=member) — off on #/feedback itself.
  */
 import React from 'react';
-import { LANDING_HASH } from '../landing/landingRoute';
-import { BRAND_EN, BRAND_ZH, HOME_LINK_LABEL } from '../landing/landingStrings';
-import { SETUP_MIN_TAP_PX } from '../setup/setupStrings';
+import { LANDING_HASH } from '../../shared/landing/landingRoute';
+import { BRAND_EN, BRAND_ZH, HOME_LINK_LABEL } from '../../shared/landing/landingStrings';
+import { SETUP_MIN_TAP_PX } from '../../shared/setup/setupStrings';
 import { FEEDBACK_LABEL, feedbackHash } from '../../supabase/functions/_shared/feedback';
 import { PAPER_LINK_CLASS } from './paperStyles';
 

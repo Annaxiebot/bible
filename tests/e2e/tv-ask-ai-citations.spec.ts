@@ -14,7 +14,7 @@ import { test, expect } from '@playwright/test';
 import { openTV, DEMO_SLIDE, goToSlide } from './helpers/tv';
 import { signInAsLeader, mockAIStream } from './helpers/hostedAI';
 import { streamChunks } from './helpers/askAnswers';
-import { NO_SUCH_VERSE_MARK, VERSES_CITED_HEADING } from '../../components/studypack/tvHints';
+import { NO_SUCH_VERSE_MARK, VERSES_CITED_HEADING } from '../../shared/studypack/tvHints';
 
 const ANSWER =
   '耶稣叫我们不要为明天忧虑（v.34）。从整本圣经来看 · Across the whole Bible：' +

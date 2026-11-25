@@ -11,7 +11,7 @@
  * section — all AI-written content — is the very same object as before.
  * Failures throw the bilingual loadPassage errors (unavailable / out of range).
  */
-import { StudyPack, PackSection, PackVerse } from '../studypack/packTypes';
+import { StudyPack, PackSection, PackVerse } from '../../shared/studypack/packTypes';
 import { packBookId, packChapter } from '../studypack/verseRefs';
 import { loadPassage } from './generatePack';
 import { VerseRange, scriptureSection, passageLabel } from './packAssembly';

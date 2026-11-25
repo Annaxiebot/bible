@@ -3,7 +3,7 @@ import React from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import MoreOptions, { optionsSummary } from '../MoreOptions';
-import { NS_MORE_OPTIONS } from '../newStudyStrings';
+import { NS_MORE_OPTIONS } from '../../../shared/newstudy/newStudyStrings';
 
 describe('MoreOptions', () => {
   it('folded by default: the summary shows, the fields are hidden; one click opens them', () => {

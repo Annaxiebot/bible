@@ -6,10 +6,10 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'fs';
-import { parseStudyPack, StudyPack } from '../packTypes';
+import { parseStudyPack, StudyPack } from '../../../shared/studypack/packTypes';
 import { findVerseRefs } from '../verseRefs';
 import { planRef, planExternalRef, loadExternalVerses, clearExternalVerseCache } from '../externalVerses';
-import { TEST_PACK_PATH } from './fixtures';
+import { TEST_PACK_PATH } from '../../../shared/studypack/__tests__/fixtures';
 
 const pack: StudyPack = parseStudyPack(JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8')));
 

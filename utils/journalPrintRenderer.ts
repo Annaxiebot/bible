@@ -5,8 +5,8 @@
  * suitable for printing via browser print dialog or PDF export.
  */
 
-import type { JournalBlock, TextBlock, DrawingBlock, ImageBlock } from '../types/journalBlocks';
-import type { JournalEntry } from '../services/idbService';
+import type { JournalBlock, TextBlock, DrawingBlock, ImageBlock } from '../shared/types/journalBlocks';
+import type { JournalEntry } from '../shared/services/idbService';
 import {
   parseCanvasData,
   renderAllStrokes,

@@ -2,20 +2,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { highlightMatches, unifiedSearch } from '../unifiedSearchService';
 
 // Mock dependencies
-vi.mock('../verseDataStorage', () => ({
+vi.mock('../../shared/services/verseDataStorage', () => ({
   verseDataStorage: {
     searchResearch: vi.fn().mockResolvedValue([]),
     searchNotes: vi.fn().mockResolvedValue([]),
   },
 }));
 
-vi.mock('../notesStorage', () => ({
+vi.mock('../../shared/services/notesStorage', () => ({
   notesStorage: {
     getAllNotes: vi.fn().mockResolvedValue({}),
   },
 }));
 
-vi.mock('../bibleBookData', () => ({
+vi.mock('../../shared/services/bibleBookData', () => ({
   BOOK_ID_TO_CHINESE_NAME: {
     GEN: '创世记',
     EXO: '出埃及记',
@@ -23,7 +23,7 @@ vi.mock('../bibleBookData', () => ({
   },
 }));
 
-vi.mock('../../utils/textUtils', () => ({
+vi.mock('../../shared/utils/textUtils', () => ({
   stripHTML: (text: string) => text.replace(/<[^>]+>/g, ''),
 }));
 
@@ -96,7 +96,7 @@ describe('unifiedSearchService', () => {
     });
 
     it('searches AI research entries', async () => {
-      const { verseDataStorage } = await import('../verseDataStorage');
+      const { verseDataStorage } = await import('../../shared/services/verseDataStorage');
       (verseDataStorage.searchResearch as any).mockResolvedValue([
         {
           id: 'GEN:1:1',
@@ -116,7 +116,7 @@ describe('unifiedSearchService', () => {
     });
 
     it('searches personal notes from verseDataStorage', async () => {
-      const { verseDataStorage } = await import('../verseDataStorage');
+      const { verseDataStorage } = await import('../../shared/services/verseDataStorage');
       (verseDataStorage.searchNotes as any).mockResolvedValue([
         {
           id: 'PSA:23:1',
@@ -139,12 +139,12 @@ describe('unifiedSearchService', () => {
     });
 
     it('searches general notes from notesStorage', async () => {
-      const { notesStorage } = await import('../notesStorage');
+      const { notesStorage } = await import('../../shared/services/notesStorage');
       (notesStorage.getAllNotes as any).mockResolvedValue({
         'GEN:1:1': 'My note about creation and God',
       });
       // Clear verseDataStorage mock to avoid duplicate results
-      const { verseDataStorage } = await import('../verseDataStorage');
+      const { verseDataStorage } = await import('../../shared/services/verseDataStorage');
       (verseDataStorage.searchNotes as any).mockResolvedValue([]);
 
       const results = await unifiedSearch('creation', 'notes');
@@ -162,7 +162,7 @@ describe('unifiedSearchService', () => {
       vi.stubGlobal('localStorage', makeStorage({ bible_cache_GEN_1: cacheData }));
 
       // Set up AI research
-      const { verseDataStorage } = await import('../verseDataStorage');
+      const { verseDataStorage } = await import('../../shared/services/verseDataStorage');
       (verseDataStorage.searchResearch as any).mockResolvedValue([
         {
           id: 'GEN:1:1',
@@ -175,7 +175,7 @@ describe('unifiedSearchService', () => {
         },
       ]);
       (verseDataStorage.searchNotes as any).mockResolvedValue([]);
-      const { notesStorage } = await import('../notesStorage');
+      const { notesStorage } = await import('../../shared/services/notesStorage');
       (notesStorage.getAllNotes as any).mockResolvedValue({});
 
       const results = await unifiedSearch('God', 'all');

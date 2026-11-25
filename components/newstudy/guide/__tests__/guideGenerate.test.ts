@@ -15,15 +15,15 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { generateStudyPack } from '../../generatePack';
 import { generateGuidePack } from '../generateGuidePack';
-import { parseStudyPack, type StudyPack } from '../../../studypack/packTypes';
-import { finalAIBody } from '../../../../services/aiFinalBody';
+import { parseStudyPack, type StudyPack } from '../../../../shared/studypack/packTypes';
+import { finalAIBody } from '../../../../shared/services/aiFinalBody';
 import { signInSeam, signOutSeam } from '../../../../tests/utils/hostedSeam';
 import { PACK_FROM_GUIDE_SYSTEM_PROMPT, GUIDE_TEXT_HEADING } from '../../../../supabase/functions/_shared/aiPrompts';
 import { stubFetch, chunked, isAICall } from '../../__tests__/packFetchStub';
 import { markGuidePack, stillNotVerbatim, guideKindsOf } from '../guidePack';
 import { validateGenerated } from '../../generatedPack';
 import { assemblePack } from '../../packAssembly';
-import { GUIDE_GENERATED, GUIDE_REPLY_JSON, GUIDE_QUESTIONS, GUIDE_INTRO, GUIDE_LEADER_NOTE, TIDIED_QUESTION } from './guideFixture';
+import { GUIDE_GENERATED, GUIDE_REPLY_JSON, GUIDE_QUESTIONS, GUIDE_INTRO, GUIDE_LEADER_NOTE, TIDIED_QUESTION } from '../../../../shared/newstudy/guide/__tests__/guideFixture';
 import { GUIDE_REQUEST, GUIDE_TEXT } from './guideFixtureRequest';
 
 const getItem = window.localStorage.getItem as ReturnType<typeof vi.fn>;

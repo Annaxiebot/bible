@@ -6,7 +6,7 @@
  * CUV + BSB text, so no network beyond the dev server is needed.
  */
 import { BrowserContext, Page } from '@playwright/test';
-import { APP_HASH } from '../../../components/landing/landingRoute';
+import { APP_HASH } from '../../../shared/landing/landingRoute';
 
 const MATT7_LAST_READ = JSON.stringify({ bookId: 'MAT', bookName: '马太福音 Matthew', chapter: 7, timestamp: 1 });
 

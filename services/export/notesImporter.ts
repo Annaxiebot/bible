@@ -1,5 +1,5 @@
-import { verseDataStorage } from '../verseDataStorage';
-import { VerseData } from '../../types/verseData';
+import { verseDataStorage } from '../../shared/services/verseDataStorage';
+import { VerseData } from '../../shared/types/verseData';
 import { BibleNotesExport, MergeStrategy, NotesImportResult } from './exportTypes';
 
 export async function importFromJSON(

@@ -8,9 +8,9 @@
  * to the same page (ADR-0006). ≥ 48px either way (.stl-pill-sm).
  */
 import React from 'react';
-import { useLeaderSession, leaderDisplayName } from '../leader/useLeaderSession';
-import { LEADER_HOME_HASH } from '../leader/leaderRoute';
-import { NAV_LEADER_SIGNIN } from './landingStrings';
+import { useLeaderSession, leaderDisplayName } from '../../shared/leader/useLeaderSession';
+import { LEADER_HOME_HASH } from '../../shared/leader/leaderRoute';
+import { NAV_LEADER_SIGNIN } from '../../shared/landing/landingStrings';
 import Pill from '../shared/Pill';
 
 const SIGNIN_LABEL = `${NAV_LEADER_SIGNIN.zh} ${NAV_LEADER_SIGNIN.en}`;

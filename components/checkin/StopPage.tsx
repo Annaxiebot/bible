@@ -12,8 +12,8 @@
  * link home (shared/PaperHeader) on top.
  */
 import React, { useState } from 'react';
-import { getSignupClient } from '../signup/signupClient';
-import { SU_ERR_NOT_CONFIGURED } from '../signup/signupStrings';
+import { getSignupClient } from '../../shared/signup/signupClient';
+import { SU_ERR_NOT_CONFIGURED } from '../../shared/signup/signupStrings';
 import { textStyle, headingStyle, pageTitleStyle } from '../newstudy/newStudyStyles';
 import {
   PAPER_PAGE_CLASS, PAPER_COLUMN_CLASS, PAPER_HEAD_CLASS, PAPER_MUTED_CLASS, PAPER_ERROR_CLASS, PAPER_LINK_CLASS,
@@ -21,8 +21,8 @@ import {
 import Pill from '../shared/Pill';
 import PaperHeader from '../shared/PaperHeader';
 import { setMemberSubscription } from './checkinClient';
-import { checkinHash, checkinStopHash } from './checkinRoute';
-import { CK_TITLE, CK_STOP, CK_STOP_BUSY, CK_STOPPED, CK_RESUME, CK_RESUMED } from './checkinStrings';
+import { checkinHash, checkinStopHash } from '../../shared/checkin/checkinRoute';
+import { CK_TITLE, CK_STOP, CK_STOP_BUSY, CK_STOPPED, CK_RESUME, CK_RESUMED } from '../../shared/checkin/checkinStrings';
 
 type Phase = 'subscribed' | 'stopped' | 'resumed';
 

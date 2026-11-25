@@ -7,9 +7,9 @@
  * the sign-in line. The settings button opens the AI service dialog.
  */
 import { test, expect } from '@playwright/test';
-import { APP_HASH } from '../../components/landing/landingRoute';
-import { SETUP_TITLE, SETUP_HOSTED_READY, SETUP_SIGN_IN_TO_USE_AI, SETUP_OPEN_BUTTON } from '../../components/setup/setupStrings';
-import { AI_SIGN_IN_NEEDED } from '../../components/studypack/tvHints';
+import { APP_HASH } from '../../shared/landing/landingRoute';
+import { SETUP_TITLE, SETUP_HOSTED_READY, SETUP_SIGN_IN_TO_USE_AI, SETUP_OPEN_BUTTON } from '../../shared/setup/setupStrings';
+import { AI_SIGN_IN_NEEDED } from '../../shared/studypack/tvHints';
 import { openSignedInChat, failOnOpenRouter, CHAT_ANSWER } from './helpers/hostedAI';
 
 test.describe('AI Chat View', () => {

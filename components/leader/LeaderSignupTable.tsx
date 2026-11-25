@@ -15,7 +15,7 @@
 import React from 'react';
 import type { SignupRecord } from './leaderData';
 import { SubscriptionCell } from './LeaderOptOut';
-import { splitLabel } from '../studypack/principles';
+import { splitLabel } from '../../shared/studypack/principles';
 import { compactTime, fullTime } from './leaderTime';
 import {
   LD_COL_NAME, LD_COL_PHONE, LD_COL_EMAIL, LD_COL_CONSENT, LD_COL_TIME, LD_YES, LD_NO, LD_EMPTY_CELL,

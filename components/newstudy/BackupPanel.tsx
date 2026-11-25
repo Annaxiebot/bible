@@ -8,7 +8,7 @@
  */
 import React, { useRef, useState } from 'react';
 import type { LocalPacks } from './useLocalPacks';
-import { NS_BACKUP_TOGGLE, NS_BACKUP_NOTE, NS_BACKUP_DOWNLOAD, NS_BACKUP_RESTORE, NS_BACKUP_RESTORED } from './newStudyStrings';
+import { NS_BACKUP_TOGGLE, NS_BACKUP_NOTE, NS_BACKUP_DOWNLOAD, NS_BACKUP_RESTORE, NS_BACKUP_RESTORED } from '../../shared/newstudy/newStudyStrings';
 import { secondaryButtonClass, controlStyle, textStyle } from './newStudyStyles';
 
 const BackupPanel: React.FC<{ packs: LocalPacks }> = ({ packs }) => {

@@ -5,7 +5,7 @@
  * leader page section (LeaderAskHistory). Chinese first. Pure module so e2e
  * specs can import it.
  */
-import { bilingual, bilingualLine } from './principles';
+import { bilingual, bilingualLine } from '../../shared/studypack/principles';
 import { ASK_HISTORY_LIMIT } from './askHistoryRules';
 
 // ---- TV panel ----

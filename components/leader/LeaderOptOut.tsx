@@ -9,7 +9,7 @@
  * leaderSubscription; every failure is an inline alert.
  */
 import React, { useEffect, useState } from 'react';
-import { getSignupClient } from '../signup/signupClient';
+import { getSignupClient } from '../../shared/signup/signupClient';
 import type { UnsubscribedBy } from '../../supabase/functions/send-checkins/optout';
 import type { SignupRecord } from './leaderData';
 import { leaderSetSubscription, MemberChoiceError, fetchPackPaused, setPackPaused } from './leaderSubscription';

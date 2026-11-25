@@ -11,20 +11,20 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'fs';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { parseStudyPack } from '../../studypack/packTypes';
-import { TEST_PACK_PATH } from '../../studypack/__tests__/fixtures';
+import { parseStudyPack } from '../../../shared/studypack/packTypes';
+import { TEST_PACK_PATH } from '../../../shared/studypack/__tests__/fixtures';
 import {
   packSummaryFrom, upsertPackSummary, syncPackSummary, keyVerseNumber, PACK_SUMMARIES_TABLE,
 } from '../packSummary';
 import { assemblePack } from '../../newstudy/packAssembly';
 import { validateGenerated } from '../../newstudy/generatedPack';
 import { JOHN3_GENERATED, JOHN3_REQUEST } from '../../newstudy/__tests__/fixtures';
-import { SU_SUMMARY_FAILED } from '../signupStrings';
+import { SU_SUMMARY_FAILED } from '../../../shared/signup/signupStrings';
 
 const upsertMock = vi.fn();
 let uid: string | null = 'uid-lead';
 let configured = true;
-vi.mock('../../../services/supabase', () => ({
+vi.mock('../../../shared/services/supabase', () => ({
   get supabase() { return configured ? { from: () => ({ upsert: upsertMock }) } : null; },
   authManager: { getUserId: () => uid },
 }));

@@ -11,11 +11,11 @@
  * non-verbatim lines (guide/GuideMarks, ADR-0019).
  */
 import React from 'react';
-import { PackPicture, PackSection, WorshipSong } from '../studypack/packTypes';
+import { PackPicture, PackSection, WorshipSong } from '../../shared/studypack/packTypes';
 import {
   NS_SCRIPTURE_NOTE, NS_QUESTION_ADD, NS_QUESTION_REMOVE, NS_SONG_TITLE, NS_SONG_URL, NS_SONG_ADD, NS_SONG_REMOVE,
   NS_IMG_PICK, NS_IMG_URL, NS_IMG_CAPTION,
-} from './newStudyStrings';
+} from '../../shared/newstudy/newStudyStrings';
 import { downscaleImage } from './imageResize';
 import { textStyle, controlStyle, inputClass, secondaryButtonClass, quietButtonClass, labelClass } from './newStudyStyles';
 import SectionAdjust from './SectionAdjust';

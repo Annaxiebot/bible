@@ -6,9 +6,9 @@
  * falling back to DEFAULT_CONTENT_LANGUAGE on a first visit or an unknown
  * stored value. Storage is injectable for tests.
  */
-import { STORAGE_KEYS } from '../../constants/storageKeys';
+import { STORAGE_KEYS } from '../../shared/constants/storageKeys';
 import { noteLeaderSettingChanged } from '../../services/leaderSettingsKeys';
-import { ContentLanguage, DEFAULT_CONTENT_LANGUAGE, isContentLanguage } from '../studypack/principles';
+import { ContentLanguage, DEFAULT_CONTENT_LANGUAGE, isContentLanguage } from '../../shared/studypack/principles';
 
 type KeyStore = Pick<Storage, 'getItem' | 'setItem'>;
 

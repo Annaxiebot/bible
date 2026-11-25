@@ -10,7 +10,7 @@
  * Large type, ≥48px targets (newStudyStyles).
  */
 import React, { useState } from 'react';
-import { PackSection } from '../studypack/packTypes';
+import { PackSection } from '../../shared/studypack/packTypes';
 import { AdjustPack } from './adjustPrompt';
 import { useSectionAdjust, SectionAdjustState } from './useSectionAdjust';
 import { AJ_OPEN, AJ_FIELD, AJ_SEND, AJ_BUSY, AJ_UNDO, AJ_CHIPS } from './adjustStrings';

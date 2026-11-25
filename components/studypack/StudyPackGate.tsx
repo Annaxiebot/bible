@@ -5,10 +5,10 @@
  * normal app. Keeps the touch-point in index.tsx to a single wrapper line.
  */
 import React, { useState, useEffect, lazy, Suspense } from 'react';
-import { getPackIdFromHash } from './packTypes';
-import { getShareTokenFromHash } from './packShare';
+import { getPackIdFromHash } from '../../shared/studypack/packTypes';
+import { getShareTokenFromHash } from '../../shared/studypack/packShare';
 import { takeTvReturn } from './tvReturn';
-import { LANDING_HASH } from '../landing/landingRoute';
+import { LANDING_HASH } from '../../shared/landing/landingRoute';
 
 const TVPresentationView = lazy(() => import('./TVPresentationView'));
 

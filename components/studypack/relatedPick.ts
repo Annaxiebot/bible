@@ -16,7 +16,7 @@
  * call slower than PICK_TIMEOUT_MS falls back to the vote top 6, and the
  * reason is in the result's warnings with source 'votes' (R5).
  */
-import { streamChatCompletionDetailed } from './askAIStream';
+import { streamChatCompletionDetailed } from '../../shared/studypack/askAIStream';
 import { ChosenTargets, RELATED_VERSES_MAX, RankedTarget, TargetChooser, capByBook, targetLabel } from './relatedVerses';
 import { XrefLoader, widenPool } from './relatedSecondHop';
 import { PickCandidate, formatPickRequest } from '../../supabase/functions/_shared/aiPrompts';

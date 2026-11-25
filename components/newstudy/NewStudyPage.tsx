@@ -17,13 +17,13 @@
  * TV preview — reopens the same editor.
  */
 import React, { useState, useEffect, useCallback } from 'react';
-import { StudyPack } from '../studypack/packTypes';
+import { StudyPack } from '../../shared/studypack/packTypes';
 import { findLeaderPack, LOCAL_PACK_NOT_FOUND } from '../studypack/packSource';
 import { rememberTvReturn } from '../studypack/tvReturn';
 import { requestFullscreen, exitFullscreen } from '../studypack/fullscreen';
-import { QuickAISetupForm } from '../setup/QuickAISetup';
-import { useAIAccess } from '../setup/useAIAccess';
-import { NEW_STUDY_HASH, newStudyHash, getNewStudyPackIdFromHash, packHash, SAMPLE_PACK_HASH } from '../landing/landingRoute';
+import { QuickAISetupForm } from '../../shared/setup/QuickAISetup';
+import { useAIAccess } from '../../shared/setup/useAIAccess';
+import { NEW_STUDY_HASH, newStudyHash, getNewStudyPackIdFromHash, packHash, SAMPLE_PACK_HASH } from '../../shared/landing/landingRoute';
 import PhaseView, { Phase } from './PhaseView';
 import PackList from './PackList';
 import FirstTimeGuide from './FirstTimeGuide';
@@ -34,8 +34,8 @@ import { useAutoSave } from './useAutoSave';
 import { todayIso } from './NewStudyForm';
 import { readDefaultContentLanguage } from './contentLanguageDefault';
 import { guideStudyRequest } from './guide/generateGuidePack';
-import { useNewStudyOpened } from '../stats/funnel';
-import { NS_TITLE, NS_INTRO, NS_PRIVACY, NS_BACK, NS_ERR_STORAGE, NS_SAMPLE_NO_SIGNIN } from './newStudyStrings';
+import { useNewStudyOpened } from '../../shared/stats/funnel';
+import { NS_TITLE, NS_INTRO, NS_PRIVACY, NS_BACK, NS_ERR_STORAGE, NS_SAMPLE_NO_SIGNIN } from '../../shared/newstudy/newStudyStrings';
 import { textStyle, controlStyle, quietButtonClass, pageTitleStyle } from './newStudyStyles';
 
 /**

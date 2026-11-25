@@ -9,23 +9,23 @@
  * sits under the latest answer, and a quiet Clear empties the view.
  */
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { StudyPack, Slide } from './packTypes';
-import { AskAIMessage } from './askAI';
+import { StudyPack, Slide } from '../../shared/studypack/packTypes';
+import { AskAIMessage } from '../../shared/studypack/askAI';
 import {
   ASK_AI_LABEL, ASK_QUESTION_LABEL, ASK_INPUT_PLACEHOLDER, ASK_SUBMIT_LABEL, thinkingLine, BACKUP_MODEL_NOTE,
   SOURCES_LABEL, OPENBIBLE_NAME, OPENBIBLE_URL, STEP_BIBLE_NAME, STEP_BIBLE_URL,
-} from './tvHints';
+} from '../../shared/studypack/tvHints';
 import { RELATED_VERSES_ENABLED } from './relatedVerses';
 import { ORIGINAL_WORDS_ENABLED } from './originalWords';
 import { useAskAI, AskAI } from './useAskAI';
 import { useAskHistory, AskHistory } from './useAskHistory';
 import AskHistoryNotice, { AskClearButton } from './AskHistoryNotice';
-import AIErrorLine from './AIErrorLine';
+import AIErrorLine from '../../shared/studypack/AIErrorLine';
 import AskAnswer from './AskAnswer';
 import { useAnswerFit } from './useAnswerFit';
-import { TYPE_SCALE, AI_CAVEAT_SHORT } from './principles';
-import { QuickAISetupForm } from '../setup/QuickAISetup';
-import { askAIModel } from '../../services/aiDefaults';
+import { TYPE_SCALE, AI_CAVEAT_SHORT } from '../../shared/studypack/principles';
+import { QuickAISetupForm } from '../../shared/setup/QuickAISetup';
+import { askAIModel } from '../../shared/services/aiDefaults';
 
 // Layout (ADR-0003 §10): the header, the latest question and the input are
 // pinned; the conversation area between them takes all remaining height.

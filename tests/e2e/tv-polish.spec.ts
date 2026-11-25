@@ -11,7 +11,7 @@
  * the heading grows (useFitScale) until it fills its area or hits a bound.
  */
 import { test, expect, Page } from '@playwright/test';
-import { ASK_AI_LABEL } from '../../components/studypack/tvHints';
+import { ASK_AI_LABEL } from '../../shared/studypack/tvHints';
 import { FIT_VAR, MAX_SCALE } from '../../components/studypack/fitScale';
 import { openTV, goToSlide, DEMO_SLIDE, waitForWenKai } from './helpers/tv';
 

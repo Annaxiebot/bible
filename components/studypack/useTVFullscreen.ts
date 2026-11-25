@@ -16,13 +16,13 @@
  *   before the browser's exit or just after it.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { STORAGE_KEYS } from '../../constants/storageKeys';
+import { STORAGE_KEYS } from '../../shared/constants/storageKeys';
 import {
   FULLSCREEN_EVENTS, fullscreenElement, fullscreenSupported, requestFullscreen, exitFullscreen,
   toggleFullscreen, hasTransientActivation,
 } from './fullscreen';
 import { PORTRAIT_PHONE_QUERY } from './slideTypography';
-import { FULLSCREEN_HINT, SIDEWAYS_HINT } from './tvHints';
+import { FULLSCREEN_HINT, SIDEWAYS_HINT } from '../../shared/studypack/tvHints';
 
 export const FULLSCREEN_HINT_MS = 4000;
 /** An Escape keydown this soon after leaving full screen belongs to that exit. */

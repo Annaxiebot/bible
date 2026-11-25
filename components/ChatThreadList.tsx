@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ChatHistoryRecord } from '../services/idbService';
+import { ChatHistoryRecord } from '../shared/services/idbService';
 import { getAllThreads, createThread, deleteThread, updateThread } from '../services/chatHistoryStorage';
 
 interface ChatThreadListProps {

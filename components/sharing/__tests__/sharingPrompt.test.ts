@@ -4,7 +4,7 @@
 import { describe, it, expect } from 'vitest';
 import { buildSharingPrompt, buildSharingRequestBody, sharingShape, SHARING_MAX_TOKENS } from '../sharingPrompt';
 import { loadSharingMaterial } from '../sharingData';
-import { CONTENT_LANGUAGE_CONTRACTS, SHARING_CONTENT_CONTRACT } from '../../studypack/principles';
+import { CONTENT_LANGUAGE_CONTRACTS, SHARING_CONTENT_CONTRACT } from '../../../shared/studypack/principles';
 import { ROLE_MAX_TOKENS } from '../../../supabase/functions/ai-proxy/policy';
 import { LEADER, PREVIOUS, CURRENT, CLOSING_Q, IDENTIFIERS, defaultClient } from './fixtures';
 

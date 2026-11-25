@@ -9,10 +9,10 @@ import React, { useState } from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import SectionEditor from '../SectionEditor';
 import { adjustSection } from '../adjustSection';
-import { PackSection } from '../../studypack/packTypes';
+import { PackSection } from '../../../shared/studypack/packTypes';
 import { AJ_OPEN, AJ_CHIPS, AJ_BUSY, AJ_UNDO, AJ_SEND } from '../adjustStrings';
-import { quotaLine } from '../../studypack/tvHints';
-import { AskAIError } from '../../studypack/askAIErrors';
+import { quotaLine } from '../../../shared/studypack/tvHints';
+import { AskAIError } from '../../../shared/studypack/askAIErrors';
 
 vi.mock('../adjustSection', () => ({ adjustSection: vi.fn() }));
 const adjust = vi.mocked(adjustSection);

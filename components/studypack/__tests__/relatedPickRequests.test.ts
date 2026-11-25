@@ -11,12 +11,12 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'fs';
 import { createHash } from 'crypto';
-import { parseStudyPack, buildSlides } from '../packTypes';
+import { parseStudyPack, buildSlides } from '../../../shared/studypack/packTypes';
 import { signInSeam, signOutSeam, finalOfSent } from '../../../tests/utils/hostedSeam';
 import { PICK_SYSTEM_PROMPT, SCOPE_GUARD, PromptMessage, RELATED_VERSES_HEADING } from '../../../supabase/functions/_shared/aiPrompts';
 import { validateRequest, ASK_AI_MODEL } from '../../../supabase/functions/ai-proxy/policy';
-import { finalAIBody } from '../../../services/aiFinalBody';
-import { REQUEST_HASH_PACK_PATH } from './fixtures';
+import { finalAIBody } from '../../../shared/services/aiFinalBody';
+import { REQUEST_HASH_PACK_PATH } from '../../../shared/studypack/__tests__/fixtures';
 
 // Original-word retrieval is not under test here (originalWords tests cover it): with the
 // ADR-0018 switch on it finds nothing, so these requests stay exactly what this file pins.

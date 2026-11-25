@@ -8,7 +8,7 @@
  * splitBilingualAnswer. Old threads and research hold the retired `[SPLIT]`
  * marker; this module's legacy path still splits them.
  */
-import { bilingualLine } from '../components/studypack/principles';
+import { bilingualLine } from '../shared/studypack/principles';
 
 /** The two section headings the prompt asks for, each on its own line. */
 export const ZH_SECTION_HEADING = '## 中文';

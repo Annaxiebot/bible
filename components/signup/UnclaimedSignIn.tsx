@@ -10,10 +10,10 @@
  * failure renders under the line.
  */
 import React from 'react';
-import { isSupabaseConfigured } from '../../services/supabase';
-import { useGoogleSignIn } from './useGoogleSignIn';
+import { isSupabaseConfigured } from '../../shared/services/supabase';
+import { useGoogleSignIn } from '../../shared/signup/useGoogleSignIn';
 import { useLocalPackClaim } from '../newstudy/claimLocalPacks';
-import { SU_UNCLAIMED_LINE, SU_SIGN_IN_GOOGLE, SU_SIGNING_IN, SU_ERR_NOT_CONFIGURED } from './signupStrings';
+import { SU_UNCLAIMED_LINE, SU_SIGN_IN_GOOGLE, SU_SIGNING_IN, SU_ERR_NOT_CONFIGURED } from '../../shared/signup/signupStrings';
 import Pill from '../shared/Pill';
 import { PAPER_ERROR_CLASS } from '../shared/paperStyles';
 

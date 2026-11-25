@@ -13,7 +13,7 @@
  * pack was gone — nothing had persisted it.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { StudyPack } from '../studypack/packTypes';
+import type { StudyPack } from '../../shared/studypack/packTypes';
 
 export const AUTOSAVE_DELAY_MS = 500;
 

@@ -8,7 +8,7 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { readFileSync } from 'fs';
 import path from 'path';
 import { useChineseScript } from '../useChineseScript';
-import type { Verse } from '../../types';
+import type { Verse } from '../../shared/types';
 
 // The bundled CUV Matthew 7 (Simplified) — the text the reviewer saw.
 const MATT7 = JSON.parse(readFileSync(path.resolve(__dirname, '../../public/bible-data/cuv/MAT/7.json'), 'utf8'));

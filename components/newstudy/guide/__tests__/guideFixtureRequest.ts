@@ -7,7 +7,7 @@
 import type { StudyRequest } from '../../packAssembly';
 import type { LoadedGuide } from '../loadGuide';
 import { detectGuidePassage } from '../guidePassage';
-import { GUIDE_FIXTURE_FILE, GUIDE_PAGES } from './guideFixture';
+import { GUIDE_FIXTURE_FILE, GUIDE_PAGES } from '../../../../shared/newstudy/guide/__tests__/guideFixture';
 
 export const GUIDE_TEXT = GUIDE_PAGES.map(page => page.join('\n')).join('\n\n');
 

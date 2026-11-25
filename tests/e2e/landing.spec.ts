@@ -17,11 +17,11 @@ import { test, expect, Page } from '@playwright/test';
 import {
   BRAND_ZH, GROUP_CTA, PERSONAL_CTA, GROUP_TITLE_ZH, PERSONAL_TITLE_ZH, SITE_LINE, LOOP_STEPS,
   NAV_LINKS, NEXT_OPEN_CTA, NEXT_SIGNUP_CTA, HONEST_NUMBERS, GROUP_PHOTOS,
-} from '../../components/landing/landingStrings';
-import { SETUP_HASH, SAMPLE_PACK_ID } from '../../components/landing/landingRoute';
-import { signupHash } from '../../components/signup/signupRoute';
+} from '../../shared/landing/landingStrings';
+import { SETUP_HASH, SAMPLE_PACK_ID } from '../../shared/landing/landingRoute';
+import { signupHash } from '../../shared/signup/signupRoute';
 import { routeOwnedSamplePack, expectedSignupUrl } from './helpers/signup';
-import { SETUP_TITLE, SETUP_SIGN_IN_TO_USE_AI } from '../../components/setup/setupStrings';
+import { SETUP_TITLE, SETUP_SIGN_IN_TO_USE_AI } from '../../shared/setup/setupStrings';
 import { OWN_OPENROUTER_KEY } from '../../services/obsoleteStorageKeys';
 
 const PHONE = { width: 390, height: 844 };

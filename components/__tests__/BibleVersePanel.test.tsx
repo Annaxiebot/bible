@@ -2,7 +2,7 @@ import React, { createRef } from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import BibleVersePanel from '../BibleVersePanel';
-import { setReaderPreference } from '../../services/readerPreferences';
+import { setReaderPreference } from '../../shared/services/readerPreferences';
 import { installMemoryStorage } from '../../tests/utils/memoryStorage';
 import type { InlineBibleAnnotationHandle, AnnotationToolState } from '../InlineBibleAnnotation';
 

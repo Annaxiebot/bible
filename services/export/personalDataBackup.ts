@@ -12,15 +12,15 @@
  * present on both sides keeps the newer one by its own timestamp; records
  * with no timestamp (bookmarks, plans, settings) are only added when absent.
  */
-import { idbService } from '../idbService';
-import type { NoteRecord, AnnotationRecord, Bookmark, JournalEntry, ChatHistoryRecord, SpiritualMemoryItem, ReadingPlanState } from '../idbService';
-import type { VerseData } from '../../types/verseData';
-import { verseDataStorage } from '../verseDataStorage';
-import { readingHistory, type ChapterHistory, type ReadingPosition } from '../readingHistory';
-import { SYNCED_SETTINGS_KEYS } from '../syncService';
-import { notifyReaderPreferencesChanged } from '../readerPreferences';
+import { idbService } from '../../shared/services/idbService';
+import type { NoteRecord, AnnotationRecord, Bookmark, JournalEntry, ChatHistoryRecord, SpiritualMemoryItem, ReadingPlanState } from '../../shared/services/idbService';
+import type { VerseData } from '../../shared/types/verseData';
+import { verseDataStorage } from '../../shared/services/verseDataStorage';
+import { readingHistory, type ChapterHistory, type ReadingPosition } from '../../shared/services/readingHistory';
+import { SYNCED_SETTINGS_KEYS } from '../../shared/services/syncService';
+import { notifyReaderPreferencesChanged } from '../../shared/services/readerPreferences';
 import { importReadingHistory } from './fullBackupImporter';
-import { downloadFile } from './fileDownloader';
+import { downloadFile } from '../../shared/services/export/fileDownloader';
 
 import { PERSONAL_BACKUP_KIND, PERSONAL_BACKUP_VERSION, personalBackupFilename } from './personalBackupFormat';
 

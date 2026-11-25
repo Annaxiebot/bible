@@ -7,8 +7,8 @@
  * and chapter from the caller. Unresolvable refs fall back to the text as
  * written.
  */
-import { BIBLE_BOOKS } from '../../services/bibleBookData';
-import { bilingual } from './principles';
+import { BIBLE_BOOKS } from '../../shared/services/bibleBookData';
+import { bilingual } from '../../shared/studypack/principles';
 import { VerseRef } from './verseRefs';
 
 const RANGE_DASH = '–';

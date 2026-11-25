@@ -9,9 +9,9 @@ import {
   loadPack, saveLocalPack, getLocalPack, listLocalPacks, deleteLocalPack, isLocalPackId, makeLocalPackId, packSignupState,
   LOCAL_PACK_NOT_FOUND, LOCAL_PACK_PREFIX,
 } from '../packSource';
-import { parseStudyPack, StudyPack } from '../packTypes';
-import { idbService } from '../../../services/idbService';
-import { SAMPLE_PACK_ID, TEST_PACK_PATH } from './fixtures';
+import { parseStudyPack, StudyPack } from '../../../shared/studypack/packTypes';
+import { idbService } from '../../../shared/services/idbService';
+import { SAMPLE_PACK_ID, TEST_PACK_PATH } from '../../../shared/studypack/__tests__/fixtures';
 
 const sample: StudyPack = parseStudyPack(JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8')));
 const local = (id: string): StudyPack => ({ ...sample, id });

@@ -10,11 +10,11 @@
  * NS_ERR_INVALID. The returned section keeps kind and heading (and every
  * other field) — only body / questions / rows change.
  */
-import { PackSection, LifeMenuRow } from '../studypack/packTypes';
-import { streamChatCompletionDetailed, AIRequestMeta } from '../studypack/askAIStream';
-import { emptyError } from '../studypack/askAIErrors';
+import { PackSection, LifeMenuRow } from '../../shared/studypack/packTypes';
+import { streamChatCompletionDetailed, AIRequestMeta } from '../../shared/studypack/askAIStream';
+import { emptyError } from '../../shared/studypack/askAIErrors';
 import { extractJsonObject } from './generatedPack';
-import { NS_ERR_INVALID, NS_ERR_LIFE_AREAS } from './newStudyStrings';
+import { NS_ERR_INVALID, NS_ERR_LIFE_AREAS } from '../../shared/newstudy/newStudyStrings';
 import {
   AdjustInput, buildAdjustRequestBody, ADJUST_MIN_QUESTIONS, ADJUST_MAX_QUESTIONS, ADJUST_MAX_BODY_LINES,
 } from './adjustPrompt';

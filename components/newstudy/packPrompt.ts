@@ -7,10 +7,10 @@
  * (ADR-0003 §4) and is given to the model here as source material. Content
  * rules are imported from principles.ts — never pasted (R3).
  */
-import { PackVerse } from '../studypack/packTypes';
+import { PackVerse } from '../../shared/studypack/packTypes';
 import {
   PACK_CONTENT_CONTRACT, CONTENT_LANGUAGE_CONTRACTS, ContentLanguage, LIFE_AREAS, TRANSLATIONS,
-} from '../studypack/principles';
+} from '../../shared/studypack/principles';
 import { CatalogSong, worshipPromptBlock } from './worshipCatalog';
 
 /**

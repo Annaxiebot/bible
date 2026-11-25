@@ -42,7 +42,7 @@ type Handler = (event: { data: unknown }) => Promise<void>;
 /** Import the worker module afresh and drive its message handler directly; returns what it posts back. */
 async function freshWorker() {
   const add = vi.spyOn(self, 'addEventListener');
-  await import('../chineseConverter.worker');
+  await import('../chineseConverter.worker.ts');
   const handler = add.mock.calls.find(call => call[0] === 'message')![1] as unknown as Handler;
   add.mockRestore();
   const posted: unknown[] = [];

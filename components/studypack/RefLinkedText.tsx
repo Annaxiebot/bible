@@ -7,13 +7,13 @@
  * embedded verses, everything else lazily from the bundled Bible data.
  */
 import React from 'react';
-import { StudyPack } from './packTypes';
+import { StudyPack } from '../../shared/studypack/packTypes';
 import { VerseRef, findVerseRefs, packBookId, packChapter } from './verseRefs';
 import { planRef } from './externalVerses';
 import { bilingualRefLabel } from './refLabel';
 import VerseTooltip from './VerseTooltip';
-import { NO_SUCH_VERSE_MARK } from './tvHints';
-import { TYPE_SCALE } from './principles';
+import { NO_SUCH_VERSE_MARK } from '../../shared/studypack/tvHints';
+import { TYPE_SCALE } from '../../shared/studypack/principles';
 
 /** Smaller than the answer, never below the smallest TV text (the popup floor). */
 const markStyle: React.CSSProperties = { fontSize: `max(${TYPE_SCALE.popup}, 0.75em)` };

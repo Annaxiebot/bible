@@ -14,7 +14,7 @@
  * at the top of the editor instead.
  */
 import React from 'react';
-import { NS_PREVIEW } from './newStudyStrings';
+import { NS_PREVIEW } from '../../shared/newstudy/newStudyStrings';
 import { textStyle, controlStyle, primaryButtonClass } from './newStudyStyles';
 
 /** Space below the buttons; the home-indicator inset is added on top of it. */

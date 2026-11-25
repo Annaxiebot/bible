@@ -10,9 +10,9 @@ import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import PaperHeader, { PAPER_HOME_TEST_ID, PAPER_FEEDBACK_TEST_ID } from '../PaperHeader';
 import { FEEDBACK_LABEL, feedbackHash } from '../../../supabase/functions/_shared/feedback';
-import { LANDING_HASH, resolveRootView } from '../../landing/landingRoute';
-import { BRAND_EN, BRAND_ZH, HOME_LINK_LABEL } from '../../landing/landingStrings';
-import { SETUP_MIN_TAP_PX } from '../../setup/setupStrings';
+import { LANDING_HASH, resolveRootView } from '../../../shared/landing/landingRoute';
+import { BRAND_EN, BRAND_ZH, HOME_LINK_LABEL } from '../../../shared/landing/landingStrings';
+import { SETUP_MIN_TAP_PX } from '../../../shared/setup/setupStrings';
 
 describe('PaperHeader', () => {
   it('is one link to the landing named 返回首页 · Home', () => {

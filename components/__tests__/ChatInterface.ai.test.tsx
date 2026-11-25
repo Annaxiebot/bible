@@ -14,7 +14,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
 let session: { access_token: string } | null = null;
-vi.mock('../../services/supabase', () => {
+vi.mock('../../shared/services/supabase', () => {
   const state = () => ({ user: session ? { id: 'uid-1', email: 'me@example.org' } : null, session, isAuthenticated: !!session, isLoading: false });
   return {
     supabase: { auth: { getSession: async () => ({ data: { session }, error: null }) } },
@@ -28,7 +28,7 @@ vi.mock('../../services/supabase', () => {
     },
   };
 });
-vi.mock('../signup/signupClient', () => ({ getSignupClient: () => null }));
+vi.mock('../../shared/signup/signupClient', () => ({ getSignupClient: () => null }));
 vi.mock('../../services/chatHistoryStorage', () => ({
   loadThreadMessages: vi.fn(async () => []),
   saveThreadMessages: vi.fn(async () => undefined),
@@ -40,8 +40,8 @@ vi.mock('../../services/chatHistoryStorage', () => ({
 vi.mock('../../services/backgroundBibleDownload', () => ({ backgroundBibleDownload: { notifyApiActivity: vi.fn() } }));
 
 import ChatInterface from '../ChatInterface';
-import { SETUP_TITLE, SETUP_HOSTED_READY, SETUP_SIGN_IN_TO_USE_AI, SETUP_OPEN_BUTTON, PERSONAL_AI_UNAVAILABLE_NOTE } from '../setup/setupStrings';
-import { AI_SIGN_IN_NEEDED } from '../studypack/tvHints';
+import { SETUP_TITLE, SETUP_HOSTED_READY, SETUP_SIGN_IN_TO_USE_AI, SETUP_OPEN_BUTTON, PERSONAL_AI_UNAVAILABLE_NOTE } from '../../shared/setup/setupStrings';
+import { AI_SIGN_IN_NEEDED } from '../../shared/studypack/tvHints';
 import { BIBLE_SCHOLAR_SYSTEM_PROMPT } from '../../services/systemPrompts';
 import { NO_ENGLISH_SECTION_NOTE } from '../../services/bilingualAnswer';
 import { findChapterThread, loadThreadMessages } from '../../services/chatHistoryStorage';

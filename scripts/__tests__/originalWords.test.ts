@@ -10,7 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { BIBLE_BOOKS } from '../../services/bibleBookData';
+import { BIBLE_BOOKS } from '../../shared/services/bibleBookData';
 import {
   STEP_BOOK_ORDER, WORD_FIELD_SEPARATOR, stepToAppIds, parseWordRef, isNestleAlandWord, tagntWord, tahotWord,
   hebrewRoot, keptMorph, packWord, addWords, usedStrongIds,

@@ -18,8 +18,8 @@
  * one size on every slide. Vertical gaps inside scale with the text.
  */
 import React, { useRef } from 'react';
-import { Slide, StudyPack } from './packTypes';
-import { TRANSLATIONS, bilingual } from './principles';
+import { Slide, StudyPack } from '../../shared/studypack/packTypes';
+import { TRANSLATIONS, bilingual } from '../../shared/studypack/principles';
 import { fitted, useSlideTypography } from './slideTypography';
 import { useFitScale } from './useFitScale';
 import { MIN_BODY_SLIDE_SCALE, MIN_VERSE_SLIDE_SCALE, MIN_SCALE } from './fitScale';

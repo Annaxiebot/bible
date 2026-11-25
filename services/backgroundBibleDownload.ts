@@ -5,10 +5,10 @@
  * with a 3-second delay between requests to stay well under the API rate limit.
  * Resumes across sessions using IndexedDB metadata.
  */
-import { bibleStorage, chosenEnglishVersion, BibleTranslation } from './bibleStorage';
-import { BIBLE_BOOKS } from './bibleBookData';
-import { buildChapterUrl } from './apiConfig';
-import { fetchBundledChapter } from './bibleDataSource';
+import { bibleStorage, chosenEnglishVersion, BibleTranslation } from '../shared/services/bibleStorage';
+import { BIBLE_BOOKS } from '../shared/services/bibleBookData';
+import { buildChapterUrl } from '../shared/services/apiConfig';
+import { fetchBundledChapter } from '../shared/services/bibleDataSource';
 import { TIMING } from '../constants/appConfig';
 
 export interface BgDownloadProgress {

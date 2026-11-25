@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { readingHistory } from '../services/readingHistory';
+import { readingHistory } from '../shared/services/readingHistory';
 import { BIBLE_BOOKS } from '../constants';
 import { useReaderStrings } from './reader/useReaderStrings';
-import { useReaderPreferences } from '../services/readerPreferences';
+import { useReaderPreferences } from '../shared/services/readerPreferences';
 import { bookLabel } from './reader/readerStrings';
 
 interface ReadingHistoryProps {

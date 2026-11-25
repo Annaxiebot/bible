@@ -15,14 +15,14 @@ import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { readFileSync } from 'fs';
 import { createHash } from 'crypto';
-import { parseStudyPack, buildSlides } from '../packTypes';
+import { parseStudyPack, buildSlides } from '../../../shared/studypack/packTypes';
 import { signInSeam, signOutSeam, finalOfSent } from '../../../tests/utils/hostedSeam';
 import {
   ASK_AI_ANSWER_CONTRACT, ASK_AI_ORIGINAL_WORDS_RULE, ASK_AI_RELATED_VERSES_RULE, ORIGINAL_WORDS_HEADING, PromptMessage, askSystemText,
 } from '../../../supabase/functions/_shared/aiPrompts';
 import { validateRequest } from '../../../supabase/functions/ai-proxy/policy';
-import { STEP_BIBLE_NAME, STEP_BIBLE_URL } from '../tvHints';
-import { REQUEST_HASH_PACK_PATH } from './fixtures';
+import { STEP_BIBLE_NAME, STEP_BIBLE_URL } from '../../../shared/studypack/tvHints';
+import { REQUEST_HASH_PACK_PATH } from '../../../shared/studypack/__tests__/fixtures';
 import { stubBundledFetch } from './bundledFetch';
 
 const origSwitch = vi.hoisted(() => ({ on: false }));
@@ -32,8 +32,8 @@ vi.mock('../originalWords', async importOriginal => {
 });
 
 import { streamStudyAI } from '../askAIFallback';
-import { buildRequestBody } from '../askAIStream';
-import { questionForSelection } from '../askAI';
+import { buildRequestBody } from '../../../shared/studypack/askAIStream';
+import { questionForSelection } from '../../../shared/studypack/askAI';
 import { clearRelatedVersesCache, loadRelatedVerses } from '../relatedVerses';
 import { clearExternalVerseCache } from '../externalVerses';
 import { ORIGINAL_WORDS_ENABLED, clearOriginalWordsCache, lastOriginalWords } from '../originalWords';

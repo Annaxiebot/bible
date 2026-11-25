@@ -8,10 +8,10 @@
  * line rule) — never pasted here (R3). The reply is one strict JSON object
  * (sharingReply validates it).
  */
-import type { StudyPack } from '../studypack/packTypes';
-import { packContentLanguage } from '../studypack/packTypes';
-import { CONTENT_LANGUAGE_CONTRACTS, ContentLanguage, SHARING_CONTENT_CONTRACT } from '../studypack/principles';
-import { packGenerationModel } from '../../services/aiDefaults';
+import type { StudyPack } from '../../shared/studypack/packTypes';
+import { packContentLanguage } from '../../shared/studypack/packTypes';
+import { CONTENT_LANGUAGE_CONTRACTS, ContentLanguage, SHARING_CONTENT_CONTRACT } from '../../shared/studypack/principles';
+import { packGenerationModel } from '../../shared/services/aiDefaults';
 import { ROLE_MAX_TOKENS } from '../../supabase/functions/ai-proxy/policy';
 import { PACK_COMPACT_JSON_RULE } from '../newstudy/packPrompt';
 import type { SharingMaterial } from './sharingData';

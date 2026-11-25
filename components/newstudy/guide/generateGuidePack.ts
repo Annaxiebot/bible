@@ -14,12 +14,12 @@
  * when it differs from the passage used. The AI never supplies verse text.
  * Streaming, the one continuation and JSON validation are the passage path's own.
  */
-import { parseStudyPack, type StudyPack } from '../../studypack/packTypes';
-import type { ContentLanguage } from '../../studypack/principles';
+import { parseStudyPack, type StudyPack } from '../../../shared/studypack/packTypes';
+import type { ContentLanguage } from '../../../shared/studypack/principles';
 import { loadPassage, streamPackReply, parseGenerated, cancelled, FINISH_LENGTH, type ProgressReporter } from '../generatePack';
 import { assemblePack, passageLabel, type StudyRequest } from '../packAssembly';
 import { FIRST_STUDY } from '../nextStudy';
-import { NS_STEP_VERSES, NS_STEP_AI, NS_STEP_VALIDATE, NS_ERR_OUTPUT_LIMIT } from '../newStudyStrings';
+import { NS_STEP_VERSES, NS_STEP_AI, NS_STEP_VALIDATE, NS_ERR_OUTPUT_LIMIT } from '../../../shared/newstudy/newStudyStrings';
 import { buildGuideRequestBody } from './guidePrompt';
 import { markGuidePack } from './guidePack';
 import { readAIPassage, type AIPassage } from './guideAIPassage';

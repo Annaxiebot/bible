@@ -6,7 +6,7 @@
  * the caller renders a failure line; nothing is swallowed.
  */
 import { useEffect, useRef, useState } from 'react';
-import type { StudyPack } from '../studypack/packTypes';
+import type { StudyPack } from '../../shared/studypack/packTypes';
 import { syncPackSummary, SummarySync } from './packSummary';
 
 export function useSummarySync(pack: StudyPack | null): SummarySync {

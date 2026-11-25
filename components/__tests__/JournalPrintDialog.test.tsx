@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import JournalPrintDialog from '../JournalPrintDialog';
-import type { JournalEntry } from '../../services/idbService';
+import type { JournalEntry } from '../../shared/services/idbService';
 
 const makeEntry = (overrides: Partial<JournalEntry> = {}): JournalEntry => ({
   id: `e${Math.random()}`,

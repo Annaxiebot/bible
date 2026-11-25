@@ -9,7 +9,7 @@
  * reload; an answer without English never loses text.
  */
 import { test, expect, Page } from '@playwright/test';
-import { APP_HASH } from '../../components/landing/landingRoute';
+import { APP_HASH } from '../../shared/landing/landingRoute';
 import { NO_ENGLISH_SECTION_NOTE } from '../../services/bilingualAnswer';
 import { openSignedInChat } from './helpers/hostedAI';
 

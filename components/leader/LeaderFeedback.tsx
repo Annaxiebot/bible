@@ -12,7 +12,7 @@
  * here (ADR-0004 §7).
  */
 import React from 'react';
-import { CK_KIND_LABEL } from '../checkin/checkinStrings';
+import { CK_KIND_LABEL } from '../../shared/checkin/checkinStrings';
 import { SignupRecord, AnswerRecord, feedbackCounts } from './leaderData';
 import { compactTime, fullTime } from './leaderTime';
 import { LD_FEEDBACK, LD_FEEDBACK_NONE, answeredLine } from './leaderStrings';

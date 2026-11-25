@@ -10,7 +10,7 @@ import {
   FIT_SEARCH_STEPS, FIT_VAR, MAX_ANSWER_SCALE, MAX_SCALE, MIN_ANSWER_SCALE, MIN_SCALE,
   applyFitScale, contentOverflows, largestFittingScale,
 } from '../fitScale';
-import { TYPE_SCALE } from '../principles';
+import { TYPE_SCALE } from '../../../shared/studypack/principles';
 import { modelAreaScrollHeight } from './fitTestLayout';
 
 /** Content that overflows once scale × size passes the area (a model of text growing with --fit). */

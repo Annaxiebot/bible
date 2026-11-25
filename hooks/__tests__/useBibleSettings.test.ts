@@ -1,8 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 import { useBibleSettings } from '../useBibleSettings';
-import { STORAGE_KEYS } from '../../constants/storageKeys';
-import { notifyReaderPreferencesChanged } from '../../services/readerPreferences';
+import { STORAGE_KEYS } from '../../shared/constants/storageKeys';
+import { notifyReaderPreferencesChanged } from '../../shared/services/readerPreferences';
 import { installMemoryStorage } from '../../tests/utils/memoryStorage';
 
 vi.mock('../../services/chineseConverter', () => ({ preloadConverter: vi.fn(() => Promise.resolve()) }));

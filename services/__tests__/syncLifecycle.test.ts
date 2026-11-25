@@ -6,7 +6,7 @@
  * (including a token refresh for the same user) notifies again.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { AuthState } from '../supabase';
+import type { AuthState } from '../../shared/services/supabase';
 import { startSyncLifecycle, FULL_SYNC_DONE_PREFIX, type SyncLifecycleDeps } from '../syncLifecycle';
 
 function authHub() {

@@ -6,7 +6,7 @@
  * specs can import it. Failure lines are NOT here: transport failures reuse
  * askAIErrors/tvHints, an unusable reply reuses NS_ERR_INVALID.
  */
-import { bilingualLine } from '../studypack/principles';
+import { bilingualLine } from '../../shared/studypack/principles';
 
 export const AJ_OPEN = bilingualLine('AI 修改', 'Adjust with AI');
 export const AJ_FIELD = bilingualLine('告诉 AI 怎样改这一段', 'Tell the AI how to change this section');

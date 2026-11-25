@@ -14,7 +14,7 @@
 
 import React, { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import SimpleDrawingCanvas, { SimpleDrawingCanvasHandle } from './SimpleDrawingCanvas';
-import { annotationStorage } from '../services/annotationStorage';
+import { annotationStorage } from '../shared/services/annotationStorage';
 
 export interface AnnotationToolState {
   tool: 'pen' | 'marker' | 'highlighter' | 'eraser';

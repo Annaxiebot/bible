@@ -12,11 +12,11 @@
  * and the page reads the same without them (ADR-0003 §16).
  */
 import React from 'react';
-import { SAMPLE_PACK_HASH, NEW_STUDY_HASH } from './landingRoute';
+import { SAMPLE_PACK_HASH, NEW_STUDY_HASH } from '../../shared/landing/landingRoute';
 import {
   BRAND_EN, BRAND_ZH_LEAD, BRAND_ZH_HIGHLIGHT, HERO_EYEBROW, HERO_SUB_ZH, HERO_SUB_EN,
   GROUP_CTA, NEW_STUDY_LINE, LOOP_LINE_ZH, NEW_STUDY_SIGNIN_NOTE,
-} from './landingStrings';
+} from '../../shared/landing/landingStrings';
 import { splitBilingual } from './LandingSection';
 import Pill from '../shared/Pill';
 

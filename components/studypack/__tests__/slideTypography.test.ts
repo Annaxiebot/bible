@@ -8,7 +8,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { MAX_LINE_EM, PORTRAIT_PHONE_QUERY, fitted, slideTypography, useSlideTypography, SlideTypography } from '../slideTypography';
 import { FIT_VAR } from '../fitScale';
-import { TYPE_SCALE } from '../principles';
+import { TYPE_SCALE } from '../../../shared/studypack/principles';
 
 const pxFloor = (size: unknown) => Number(/max\((\d+)px/.exec(String(size))?.[1]);
 const ROLES: Array<keyof SlideTypography> = [

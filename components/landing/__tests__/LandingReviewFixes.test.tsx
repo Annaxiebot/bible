@@ -10,12 +10,12 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import LandingHero from '../LandingHero';
 import LandingPersonal from '../LandingPersonal';
 import Landing from '../Landing';
-import { SAMPLE_PACK_HASH, NEW_STUDY_HASH, APP_HASH } from '../landingRoute';
+import { SAMPLE_PACK_HASH, NEW_STUDY_HASH, APP_HASH } from '../../../shared/landing/landingRoute';
 import {
   HERO_SUB_ZH, HERO_SUB_EN, HERO_SOURCE_NOTE, GROUP_CTA, NEW_STUDY_LINE,
   NEW_STUDY_SIGNIN_NOTE, PERSONAL_CTA, NEXT_HEADING_EN, NEXT_EYEBROW, AI_SIGNIN_NOTE,
-} from '../landingStrings';
-import { MAIN_CONTENT_ID, SKIP_LINK_LABEL } from '../../shared/SkipLink';
+} from '../../../shared/landing/landingStrings';
+import { MAIN_CONTENT_ID, SKIP_LINK_LABEL } from '../../../shared/components/SkipLink';
 
 describe('landing copy (2026-10 review)', () => {
   it('hero says concretely what the site does, in both languages', () => {
@@ -64,8 +64,8 @@ describe('landing copy (2026-10 review)', () => {
   });
 
   it('copy never says 签到 for sign-up', async () => {
-    const strings = await import('../landingStrings');
-    const ns = await import('../../newstudy/newStudyStrings');
+    const strings = await import('../../../shared/landing/landingStrings');
+    const ns = await import('../../../shared/newstudy/newStudyStrings');
     const all = JSON.stringify(strings) + JSON.stringify(ns);
     expect(all).not.toContain('签到');
   });

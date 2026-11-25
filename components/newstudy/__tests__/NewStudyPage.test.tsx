@@ -12,16 +12,16 @@ import React from 'react';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 import { signInSeam, signOutSeam } from '../../../tests/utils/hostedSeam';
-import { idbService } from '../../../services/idbService';
+import { idbService } from '../../../shared/services/idbService';
 import { assemblePack } from '../packAssembly';
 import { validateGenerated } from '../generatedPack';
 import { JOHN3_GENERATED, JOHN3_REQUEST } from './fixtures';
-import { SETUP_TITLE } from '../../setup/setupStrings';
+import { SETUP_TITLE } from '../../../shared/setup/setupStrings';
 import {
   NS_TITLE, NS_GENERATE, NS_BOOK, NS_EDIT_TITLE, NS_AUTOSAVED, NS_PREVIEW, NS_MY_PACKS, NS_NO_PACKS,
   NS_RETRY, NS_ERR_NO_JSON, NS_ERR_RANGE, NS_SCRIPTURE_NOTE, NS_QUESTION_ADD, NS_STEP_AI, NS_EDIT, NS_BACK,
-} from '../newStudyStrings';
-import { newStudyHash, NEW_STUDY_HASH } from '../../landing/landingRoute';
+} from '../../../shared/newstudy/newStudyStrings';
+import { newStudyHash, NEW_STUDY_HASH } from '../../../shared/landing/landingRoute';
 import { TV_RETURN_KEY } from '../../studypack/tvReturn';
 import { AUTOSAVE_DELAY_MS } from '../useAutoSave';
 import NewStudyPage from '../NewStudyPage';
@@ -34,7 +34,7 @@ vi.mock('../generatePack', () => ({
   generateStudyPack: (...args: unknown[]) => generateMock(...args),
 }));
 // The form's verse dropdowns read the bundled chapter; every chapter here has 36 verses.
-vi.mock('../../../services/bibleDataSource', () => ({
+vi.mock('../../../shared/services/bibleDataSource', () => ({
   fetchBundledChapter: async () => ({
     verses: Array.from({ length: 36 }, (_, i) => ({ verse: i + 1, text: `v${i + 1}` })),
   }),

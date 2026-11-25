@@ -1,20 +1,20 @@
 import React, { useState, useCallback, useRef, useEffect, lazy, Suspense } from 'react';
-import { SelectionInfo } from './types';
+import { SelectionInfo } from './shared/types';
 import { exportImportService, BackupSummaryData } from './services/exportImportService';
-import { notesStorage } from './services/notesStorage';
-import { readingHistory } from './services/readingHistory';
-import { verseDataStorage } from './services/verseDataStorage';
-import { annotationStorage } from './services/annotationStorage';
+import { notesStorage } from './shared/services/notesStorage';
+import { readingHistory } from './shared/services/readingHistory';
+import { verseDataStorage } from './shared/services/verseDataStorage';
+import { annotationStorage } from './shared/services/annotationStorage';
 import { BIBLE_BOOKS } from './constants';
 import { Toast } from './components/Toast';
 import { printStudyNotes, PrintOptions } from './services/printService';
 import { useSeasonThemeInit, SeasonThemeProvider } from './hooks/useSeasonTheme';
 import { VibeStyles, isVibeAvailable, loadVibeStyles, getEmptyStyles } from './services/vibe';
 import { useDataStats } from './hooks/useDataStats';
-import './services/syncService'; // Initialize sync service
+import './shared/services/syncService'; // Initialize sync service
 import { backgroundBibleDownload, BgDownloadProgress } from './services/backgroundBibleDownload';
 import LayoutToolbar, { LayoutMode, getLayoutMode, layoutModeToSplits, getSavedLayout } from './components/LayoutToolbar';
-import SkipLink, { MAIN_CONTENT_ID } from './components/shared/SkipLink';
+import SkipLink, { MAIN_CONTENT_ID } from './shared/components/SkipLink';
 
 // Lazy load heavy components for code splitting
 const BibleViewer = lazy(() => import('./components/BibleViewer'));
@@ -331,7 +331,7 @@ const App: React.FC = () => {
         ops.push(annotationStorage.clearAllAnnotations());
       }
       // Also clear from Supabase if logged in
-      const { supabase, authManager, canSync } = await import('./services/supabase');
+      const { supabase, authManager, canSync } = await import('./shared/services/supabase');
       if (supabase && canSync()) {
         const userId = authManager.getUserId();
         if (userId) {

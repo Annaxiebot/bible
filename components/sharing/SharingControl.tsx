@@ -9,7 +9,7 @@
  * out (no RLS rows to read) the control is not shown.
  */
 import React from 'react';
-import type { StudyPack } from '../studypack/packTypes';
+import type { StudyPack } from '../../shared/studypack/packTypes';
 import { useSharing, SharingStatus } from './useSharing';
 import {
   SH_PREPARE, SH_PREVIOUS_LABEL, SH_HINT, SH_LOADING, SH_DRAFTING, SH_DONE, SH_DONE_COUNTS_ONLY, SH_NO_PREVIOUS,

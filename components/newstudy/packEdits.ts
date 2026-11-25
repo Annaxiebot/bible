@@ -6,8 +6,8 @@
  * validation that gates Save/Preview. No React, so the tests and the range
  * change (scriptureRange) import it without rendering.
  */
-import { StudyPack, PackSection, SectionKind, parseStudyPack } from '../studypack/packTypes';
-import { NS_ERR_EMPTY_QUESTION, NS_ERR_INVALID } from './newStudyStrings';
+import { StudyPack, PackSection, SectionKind, parseStudyPack } from '../../shared/studypack/packTypes';
+import { NS_ERR_EMPTY_QUESTION, NS_ERR_INVALID } from '../../shared/newstudy/newStudyStrings';
 import {
   validateSectionOrder, moveItem, removeItem, insertItem, insertPosition, defaultSection,
 } from './sectionRules';

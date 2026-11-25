@@ -9,7 +9,7 @@ import {
   createTextBlock,
   createDrawingBlock,
   createImageBlock,
-} from '../../types/journalBlocks';
+} from '../../shared/types/journalBlocks';
 
 // Mock SimpleDrawingCanvas since it needs canvas APIs
 vi.mock('../SimpleDrawingCanvas', () => {

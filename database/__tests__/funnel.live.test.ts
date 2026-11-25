@@ -20,7 +20,7 @@ import { describe, it, expect } from 'vitest';
 import { LIVE, runSql } from './liveSql';
 import {
   LOG_FUNNEL_FN, ADMIN_FUNNEL_FN, FUNNEL_DAILY_CEILING, FUNNEL_MAX_WAIT_SECONDS, FUNNEL_MAX_DAYS, FUNNEL_DAYS,
-} from '../../components/stats/funnelRules';
+} from '../../shared/stats/funnelRules';
 import { ADMIN_DENIED_CODE } from '../../components/admin/adminRules';
 import { CHECKIN_TIMEZONE } from '../../supabase/functions/send-checkins/templates';
 

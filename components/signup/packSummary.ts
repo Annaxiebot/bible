@@ -14,9 +14,9 @@
  * editor save and the sign-in claim.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { PackVerse, StudyPack } from '../studypack/packTypes';
-import { supabase, authManager } from '../../services/supabase';
-import { SU_SUMMARY_FAILED } from './signupStrings';
+import type { PackVerse, StudyPack } from '../../shared/studypack/packTypes';
+import { supabase, authManager } from '../../shared/services/supabase';
+import { SU_SUMMARY_FAILED } from '../../shared/signup/signupStrings';
 import { PACK_SUMMARIES_TABLE } from './signupSchema';
 
 /** Defined once in the pure signupSchema (e2e specs import it); re-exported for existing callers. */

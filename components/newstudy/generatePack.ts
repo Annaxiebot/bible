@@ -17,12 +17,12 @@
  * Every failure throws a bilingual Error; a cancel throws an AbortError the
  * caller treats as "back to the form", not as a failure.
  */
-import { PackVerse, StudyPack } from '../studypack/packTypes';
-import { TRANSLATIONS } from '../studypack/principles';
-import { packGenerationModel } from '../../services/aiDefaults';
-import { streamChatCompletionDetailed, StreamOutcome, AIRequestMeta } from '../studypack/askAIStream';
-import { withModel } from '../studypack/tvHints';
-import { fetchBundledChapter } from '../../services/bibleDataSource';
+import { PackVerse, StudyPack } from '../../shared/studypack/packTypes';
+import { TRANSLATIONS } from '../../shared/studypack/principles';
+import { packGenerationModel } from '../../shared/services/aiDefaults';
+import { streamChatCompletionDetailed, StreamOutcome, AIRequestMeta } from '../../shared/studypack/askAIStream';
+import { withModel } from '../../shared/studypack/tvHints';
+import { fetchBundledChapter } from '../../shared/services/bibleDataSource';
 import {
   buildPackPrompt, PACK_MAX_TOKENS, PACK_TEMPERATURE, PACK_CONTINUE_PROMPT,
 } from './packPrompt';
@@ -33,7 +33,7 @@ import {
   NS_STEP_VERSES, NS_STEP_AI, NS_STEP_VALIDATE, NS_PROGRESS_CHARS,
   NS_ERR_VERSES_UNAVAILABLE, NS_ERR_VERSES_OUT_OF_RANGE, NS_ERR_NO_JSON, NS_ERR_OUTPUT_LIMIT,
   NS_VERSE_OMITTED_NOTE,
-} from './newStudyStrings';
+} from '../../shared/newstudy/newStudyStrings';
 
 export type ProgressReporter = (step: string, detail?: string) => void;
 

@@ -8,8 +8,8 @@
  * ChatGPT-style: each thread has a title, creation date, and messages.
  */
 
-import { idbService, ChatHistoryRecord, ChatHistoryMessage } from './idbService';
-import { ChatMessage } from '../types';
+import { idbService, ChatHistoryRecord, ChatHistoryMessage } from '../shared/services/idbService';
+import { ChatMessage } from '../shared/types';
 
 // ---------------------------------------------------------------------------
 // Helpers -- serialise / deserialise ChatMessage <-> ChatHistoryMessage

@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { List, RowComponentProps, useDynamicRowHeight } from 'react-window';
-import { verseDataStorage } from '../services/verseDataStorage';
-import { notesStorage } from '../services/notesStorage';
-import { annotationStorage } from '../services/annotationStorage';
+import { verseDataStorage } from '../shared/services/verseDataStorage';
+import { notesStorage } from '../shared/services/notesStorage';
+import { annotationStorage } from '../shared/services/annotationStorage';
 import { useStorageUpdate } from '../hooks/useStorageUpdate';
 import { BIBLE_BOOKS } from '../constants';
-import { VerseData, AIResearchEntry } from '../types/verseData';
+import { VerseData, AIResearchEntry } from '../shared/types/verseData';
 import { exportImportService } from '../services/exportImportService';
-import { stripHTML } from '../utils/textUtils';
+import { stripHTML } from '../shared/utils/textUtils';
 
 type NoteRowProps = {
   notes: NoteItem[];

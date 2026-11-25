@@ -9,11 +9,11 @@
  * one typed value the control renders; a cancel on unmount is silent.
  */
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { StudyPack } from '../studypack/packTypes';
+import type { StudyPack } from '../../shared/studypack/packTypes';
 import { listLocalPacks } from '../studypack/packSource';
-import { hostedUid } from '../../services/aiTransport';
-import { getSignupClient } from '../signup/signupClient';
-import { NS_ERR_STORAGE } from '../newstudy/newStudyStrings';
+import { hostedUid } from '../../shared/services/aiTransport';
+import { getSignupClient } from '../../shared/signup/signupClient';
+import { NS_ERR_STORAGE } from '../../shared/newstudy/newStudyStrings';
 import { previousPackCandidates, defaultPreviousPack } from './sharingData';
 import { prepareSharing } from './prepareSharing';
 import { withSharingSection } from './sharingSection';

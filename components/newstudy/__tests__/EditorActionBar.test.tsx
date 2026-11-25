@@ -20,10 +20,10 @@ import { JOHN3_GENERATED, JOHN3_REQUEST } from './fixtures';
 import NewStudyEditor from '../NewStudyEditor';
 import PhaseView, { Phase, PhaseViewProps } from '../PhaseView';
 import EditorActionBar, { actionBarStyle } from '../EditorActionBar';
-import { NS_BACK, NS_PREVIEW, NS_AUTOSAVED } from '../newStudyStrings';
+import { NS_BACK, NS_PREVIEW, NS_AUTOSAVED } from '../../../shared/newstudy/newStudyStrings';
 import { REDUCED_MOTION_QUERY } from '../../shared/reducedMotion';
 
-vi.mock('../../../services/bibleDataSource', () => ({
+vi.mock('../../../shared/services/bibleDataSource', () => ({
   fetchBundledChapter: async () => ({ verses: Array.from({ length: 36 }, (_, i) => ({ verse: i + 1, text: `v${i + 1}` })) }),
 }));
 

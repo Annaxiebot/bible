@@ -8,9 +8,9 @@
  * form. The rest of the New study flow is in new-study.spec.ts.
  */
 import { test, expect } from '@playwright/test';
-import { NS_GENERATE, NS_EDIT_TITLE, NS_EDIT, NS_EDIT_HINTS } from '../../components/newstudy/newStudyStrings';
+import { NS_GENERATE, NS_EDIT_TITLE, NS_EDIT, NS_EDIT_HINTS } from '../../shared/newstudy/newStudyStrings';
 import { JOHN3_REPLY_JSON_ZH, JOHN3_KEYWORD_ZH, JOHN3_KEYWORD_DECREASE_ZH } from '../../components/newstudy/__tests__/fixtures';
-import { LIFE_AREAS, BILINGUAL_SEPARATOR } from '../../components/studypack/principles';
+import { LIFE_AREAS, BILINGUAL_SEPARATOR } from '../../shared/studypack/principles';
 import { sseBody } from './helpers/tv';
 import { signInAsLeader, mockAISequence } from './helpers/hostedAI';
 import { openNewStudy, fillJohn3, chunked, openMoreOptions } from './helpers/newStudy';

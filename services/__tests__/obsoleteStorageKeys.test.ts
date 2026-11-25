@@ -5,8 +5,8 @@
  */
 import { describe, it, expect } from 'vitest';
 import { OBSOLETE_AI_STORAGE_KEYS, OWN_OPENROUTER_KEY, removeObsoleteAIStorageKeys } from '../obsoleteStorageKeys';
-import { STORAGE_KEYS } from '../../constants/storageKeys';
-import { SYNCED_SETTINGS_KEYS } from '../syncService';
+import { STORAGE_KEYS } from '../../shared/constants/storageKeys';
+import { SYNCED_SETTINGS_KEYS } from '../../shared/services/syncService';
 
 function makeStorage(initial: Record<string, string>) {
   const store = { ...initial };

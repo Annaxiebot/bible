@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { verseDataStorage } from '../services/verseDataStorage';
-import { AIResearchEntry } from '../types/verseData';
+import { verseDataStorage } from '../shared/services/verseDataStorage';
+import { AIResearchEntry } from '../shared/types/verseData';
 import { useStorageUpdate } from './useStorageUpdate';
 
 export type GeneralResearchEntry = AIResearchEntry;

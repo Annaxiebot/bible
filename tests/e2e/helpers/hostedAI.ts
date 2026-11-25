@@ -12,7 +12,7 @@
  * which no page may make any more.
  */
 import { Page, expect } from '@playwright/test';
-import { AI_PROXY_FUNCTION } from '../../../services/aiProxyRoute';
+import { AI_PROXY_FUNCTION } from '../../../shared/services/aiProxyRoute';
 import { injectSupabaseOverride, E2E_SUPABASE_PATH, E2E_LEADER_ID } from './signup';
 import { OPENROUTER_CHAT_URL, sseBody } from './tv';
 

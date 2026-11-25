@@ -1,4 +1,4 @@
-import { useReaderPreferences } from '../../services/readerPreferences';
+import { useReaderPreferences } from '../../shared/services/readerPreferences';
 import { readerStrings, ReaderStrings } from './readerStrings';
 
 /** The reader's strings in the chosen interface language (re-renders on change, any tab). */

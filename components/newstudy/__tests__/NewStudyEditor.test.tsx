@@ -8,16 +8,16 @@
 import React, { useState } from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent, within, waitFor } from '@testing-library/react';
-import { StudyPack, parseStudyPack } from '../../studypack/packTypes';
+import { StudyPack, parseStudyPack } from '../../../shared/studypack/packTypes';
 import { assemblePack, SECTION_HEADINGS } from '../packAssembly';
 import { validateGenerated } from '../generatedPack';
 import NewStudyEditor from '../NewStudyEditor';
 import { JOHN3_GENERATED, JOHN3_REQUEST } from './fixtures';
 import {
   NS_SECTION_REMOVE_CONFIRM, NS_ERR_EMPTY_QUESTION, NS_SECTION_UP, NS_SECTION_DOWN, NS_SECTION_REMOVE,
-} from '../newStudyStrings';
+} from '../../../shared/newstudy/newStudyStrings';
 
-vi.mock('../../../services/bibleDataSource', () => ({
+vi.mock('../../../shared/services/bibleDataSource', () => ({
   fetchBundledChapter: async () => ({ verses: Array.from({ length: 36 }, (_, i) => ({ verse: i + 1, text: `v${i + 1}` })) }),
 }));
 

@@ -13,8 +13,8 @@ import {
 } from '../caps.ts';
 import { quotaFailure } from '../responses.ts';
 import { IS_SITE_ADMIN_FN } from '../../../../components/admin/adminRules';
-import { hostedErrorFromStatus } from '../../../../components/studypack/askAIErrors';
-import { AI_DAILY_CAP_REACHED } from '../../../../components/studypack/tvHints';
+import { hostedErrorFromStatus } from '../../../../shared/studypack/askAIErrors';
+import { AI_DAILY_CAP_REACHED } from '../../../../shared/studypack/tvHints';
 
 const envOf = (vars: Record<string, string>) => (name: string) => vars[name] ?? '';
 

@@ -8,7 +8,7 @@
  * bilingual message, never a silent empty page.
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { StudyPack } from '../../studypack/packTypes';
+import type { StudyPack } from '../../../shared/studypack/packTypes';
 
 const findLeaderPack = vi.fn();
 const loadPack = vi.fn();
@@ -19,11 +19,11 @@ vi.mock('../../studypack/packSource', async (importOriginal) => ({
 }));
 const rpc = vi.fn();
 let client: { rpc: typeof rpc } | null = { rpc };
-vi.mock('../signupClient', () => ({ getSignupClient: () => client }));
+vi.mock('../../../shared/signup/signupClient', () => ({ getSignupClient: () => client }));
 
 import { loadSignupPack, parseSignupPack, SignupPackError, toSignupPack } from '../signupPack';
 import { SIGNUP_PACK_FN, SIGNUP_PACK_KEYS } from '../signupSchema';
-import { SU_ERR_NOT_CONFIGURED, SU_PACK_ASK_LEADER, SU_PACK_INVALID } from '../signupStrings';
+import { SU_ERR_NOT_CONFIGURED, SU_PACK_ASK_LEADER, SU_PACK_INVALID } from '../../../shared/signup/signupStrings';
 
 const LOCAL_ID = 'local-2026-10-02-pro1';
 const LEADER = 'uid-lead';

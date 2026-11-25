@@ -14,21 +14,21 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { signInSeam, signOutSeam, SEAM_BASE, SEAM_ANON_KEY } from '../../../tests/utils/hostedSeam';
 import { installMemoryStorage } from '../../../tests/utils/memoryStorage';
-import { idbService } from '../../../services/idbService';
+import { idbService } from '../../../shared/services/idbService';
 import { assemblePack } from '../packAssembly';
 import { validateGenerated } from '../generatedPack';
 import { JOHN3_GENERATED, JOHN3_REQUEST } from './fixtures';
-import { NS_GENERATE, NS_EDIT_TITLE, NS_RETRY, NS_ERR_NO_JSON, NS_CANCEL } from '../newStudyStrings';
-import { newStudyHash } from '../../landing/landingRoute';
-import { LOG_FUNNEL_FN } from '../../stats/funnelRules';
-import { resetFunnelMemory } from '../../stats/funnel';
+import { NS_GENERATE, NS_EDIT_TITLE, NS_RETRY, NS_ERR_NO_JSON, NS_CANCEL } from '../../../shared/newstudy/newStudyStrings';
+import { newStudyHash } from '../../../shared/landing/landingRoute';
+import { LOG_FUNNEL_FN } from '../../../shared/stats/funnelRules';
+import { resetFunnelMemory } from '../../../shared/stats/funnel';
 import NewStudyPage from '../NewStudyPage';
 
 const generateMock = vi.fn();
 vi.mock('../generatePack', () => ({
   generateStudyPack: (...args: unknown[]) => generateMock(...args),
 }));
-vi.mock('../../../services/bibleDataSource', () => ({
+vi.mock('../../../shared/services/bibleDataSource', () => ({
   fetchBundledChapter: async () => ({
     verses: Array.from({ length: 36 }, (_, i) => ({ verse: i + 1, text: `v${i + 1}` })),
   }),

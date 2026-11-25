@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Verse } from '../types';
-import { fetchChapter as loadChapterFromSource } from '../services/bibleDataSource';
-import { bibleStorage, BibleTranslation } from '../services/bibleStorage';
+import { Verse } from '../shared/types';
+import { fetchChapter as loadChapterFromSource } from '../shared/services/bibleDataSource';
+import { bibleStorage, BibleTranslation } from '../shared/services/bibleStorage';
 
 export type ReaderColumn = 'chinese' | 'english';
 export type ColumnStatus = 'loading' | 'ready' | 'error';

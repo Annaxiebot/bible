@@ -9,9 +9,9 @@
  * FIRST_STUDY (Mark 1:1–15: the shortest Gospel, Jesus at the centre from the
  * first verse — a good first book for a new group).
  */
-import type { StudyPack } from '../studypack/packTypes';
+import type { StudyPack } from '../../shared/studypack/packTypes';
 import { packPassage } from '../studypack/relatedVerses';
-import { BIBLE_BOOKS, getBookById } from '../../services/bibleBookData';
+import { BIBLE_BOOKS, getBookById } from '../../shared/services/bibleBookData';
 import type { VerseRange } from './packAssembly';
 
 /** The first study's passage when the leader has no pack yet. */

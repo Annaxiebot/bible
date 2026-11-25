@@ -9,8 +9,8 @@ import {
   buildAdjustPrompt, buildAdjustRequestBody, isAdjustable, adjustContent, ADJUST_MAX_TOKENS, ADJUST_MAX_QUESTIONS,
 } from '../adjustPrompt';
 import { PACK_COMPACT_JSON_RULE, PACK_TEMPERATURE } from '../packPrompt';
-import { PACK_CONTENT_CONTRACT, CONTENT_LANGUAGE_CONTRACTS, LIFE_AREAS } from '../../studypack/principles';
-import { PackSection } from '../../studypack/packTypes';
+import { PACK_CONTENT_CONTRACT, CONTENT_LANGUAGE_CONTRACTS, LIFE_AREAS } from '../../../shared/studypack/principles';
+import { PackSection } from '../../../shared/studypack/packTypes';
 
 const REF = '约翰福音 3:22–36 · John 3:22–36';
 const discussion: PackSection = { kind: 'discussion', heading: '讨论 Discussion HEADING', questions: ['问题一', '问题二', '问题三'] };

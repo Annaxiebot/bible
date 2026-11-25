@@ -3,11 +3,11 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import { readFileSync } from 'fs';
 import React from 'react';
 import { signInSeam, signOutSeam } from '../../../tests/utils/hostedSeam';
-import { SAMPLE_PACK_ID, TEST_PACK_PATH } from './fixtures';
+import { SAMPLE_PACK_ID, TEST_PACK_PATH } from '../../../shared/studypack/__tests__/fixtures';
 import TVPresentationView from '../TVPresentationView';
-import { preloadMarkdown } from '../../LazyMarkdown';
-import { FIRST_SLIDE_HINT, ASK_AI_LABEL, ASK_AI_SIGNIN_NOTE } from '../tvHints';
-import { SETUP_TITLE } from '../../setup/setupStrings';
+import { preloadMarkdown } from '../../../shared/components/LazyMarkdown';
+import { FIRST_SLIDE_HINT, ASK_AI_LABEL, ASK_AI_SIGNIN_NOTE } from '../../../shared/studypack/tvHints';
+import { SETUP_TITLE } from '../../../shared/setup/setupStrings';
 
 // Warm react-markdown outside every timed budget; see preloadMarkdown() for why.
 await preloadMarkdown();

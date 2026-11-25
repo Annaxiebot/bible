@@ -21,18 +21,18 @@ import { FunctionsHttpError } from '@supabase/supabase-js';
 import SignupPage from '../SignupPage';
 import { SIGNUP_FUNCTION, SIGNUP_PROBLEM_TEXT, validateSignupBody } from '../../../supabase/functions/_shared/signup';
 import { saveLocalPack } from '../../studypack/packSource';
-import { idbService } from '../../../services/idbService';
-import { checkinHash } from '../../checkin/checkinRoute';
-import { CK_WELCOME_FAILED } from '../../checkin/checkinStrings';
+import { idbService } from '../../../shared/services/idbService';
+import { checkinHash } from '../../../shared/checkin/checkinRoute';
+import { CK_WELCOME_FAILED } from '../../../shared/checkin/checkinStrings';
 import {
   SU_TITLE, SU_NAME, SU_EMAIL, SU_PHONE, SU_CONSENT, SU_SUBMIT, SU_ERR_NAME, SU_ERR_EMAIL_REQUIRED, SU_ERR_SUBMIT, SU_ERR_PRACTICE,
   SU_THANKS, SU_NEXT, SU_NEXT_NO_CHECKINS, SU_ERR_PACK, SU_ERR_NOT_CONFIGURED, SU_DEMO_LINE, SU_UNCLAIMED_LINE,
   SU_SIGN_IN_GOOGLE, SU_PRACTICE_TITLE, SU_NEXT_STEP, SU_REPLACED, SU_REPLACE_FAILED, commitmentLine,
-} from '../signupStrings';
-import { SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../../setup/setupStrings';
+} from '../../../shared/signup/signupStrings';
+import { SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../../../shared/setup/setupStrings';
 import { PAPER_PAGE_CLASS } from '../../shared/paperStyles';
 import { PAPER_HOME_TEST_ID } from '../../shared/PaperHeader';
-import { LANDING_HASH } from '../../landing/landingRoute';
+import { LANDING_HASH } from '../../../shared/landing/landingRoute';
 
 const WENKAI_HEAD = 'stl-head';
 const PILL = 'stl-pill';
@@ -53,7 +53,7 @@ const fromMock = vi.fn();
 const rpcMock = vi.fn();
 const signInMock = vi.fn(async () => ({ error: null }));
 let configured = true;
-vi.mock('../../../services/supabase', () => ({
+vi.mock('../../../shared/services/supabase', () => ({
   get supabase() { return configured ? { from: fromMock, rpc: rpcMock, functions: { invoke: invokeMock } } : null; },
   isSupabaseConfigured: () => configured,
   authManager: { getUserId: () => null, signInWithGoogle: () => signInMock(), subscribe: () => () => undefined },

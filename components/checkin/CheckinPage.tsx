@@ -13,8 +13,8 @@
  * home (shared/PaperHeader) on top.
  */
 import React, { useEffect, useState } from 'react';
-import { getSignupClient } from '../signup/signupClient';
-import { SU_ERR_NOT_CONFIGURED } from '../signup/signupStrings';
+import { getSignupClient } from '../../shared/signup/signupClient';
+import { SU_ERR_NOT_CONFIGURED } from '../../shared/signup/signupStrings';
 import { textStyle, headingStyle, pageTitleStyle } from '../newstudy/newStudyStyles';
 import {
   PAPER_PAGE_CLASS, PAPER_COLUMN_CLASS, PAPER_HEAD_CLASS, PAPER_MUTED_CLASS, PAPER_ACCENT_CLASS, PAPER_ERROR_CLASS, PAPER_OK_CLASS,
@@ -22,7 +22,7 @@ import {
 } from '../shared/paperStyles';
 import Pill from '../shared/Pill';
 import PaperHeader from '../shared/PaperHeader';
-import type { CheckinKind } from './checkinRoute';
+import type { CheckinKind } from '../../shared/checkin/checkinRoute';
 import { CheckinSubscription } from './StopPage';
 import {
   CheckinContext, fetchCheckinContext, shareAnswer, readPrivateAnswer, keepPrivateAnswer, promptFor, kindForToday,
@@ -31,7 +31,7 @@ import { practiceItems, ownVersionLine } from '../../supabase/functions/send-che
 import {
   CK_TITLE, CK_LOADING, CK_PRACTICE_LABEL, CK_QUESTION_LABEL, CK_ANSWER, CK_KEEP_PRIVATE, CK_SHARE, CK_SHARING, CK_KEPT,
   CK_SHARED, CK_ERR_EMPTY, CK_PRIVACY, CK_KIND_LABEL,
-} from './checkinStrings';
+} from '../../shared/checkin/checkinStrings';
 
 type ContextState =
   | { status: 'loading' }

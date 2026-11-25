@@ -6,8 +6,8 @@
  * deterministic (date + passage), so specs can address it in IndexedDB.
  */
 import { expect, Page } from '@playwright/test';
-import { NEW_STUDY_HASH } from '../../../components/landing/landingRoute';
-import type { ContentLanguage } from '../../../components/studypack/principles';
+import { NEW_STUDY_HASH } from '../../../shared/landing/landingRoute';
+import type { ContentLanguage } from '../../../shared/studypack/principles';
 
 export const PACK_ID = 'local-2026-10-02-jhn3';
 

@@ -1,8 +1,8 @@
-import { verseDataStorage } from '../verseDataStorage';
-import { VerseData } from '../../types/verseData';
+import { verseDataStorage } from '../../shared/services/verseDataStorage';
+import { VerseData } from '../../shared/types/verseData';
 import { BIBLE_BOOKS } from '../../constants';
 import { BibleNotesExport } from './exportTypes';
-import { stripHTML } from '../../utils/textUtils';
+import { stripHTML } from '../../shared/utils/textUtils';
 
 export function calculateMetadata(data: VerseData[]) {
   const booksSet = new Set<string>();

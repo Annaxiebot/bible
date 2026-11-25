@@ -5,8 +5,8 @@
  * Uses chunked scanning with yielding to avoid blocking the UI.
  */
 
-import { bibleStorage, chosenEnglishVersion, BibleTranslation } from './bibleStorage';
-import { BIBLE_BOOKS, TOTAL_CHAPTERS, OT_BOOKS, NT_BOOKS } from './bibleBookData';
+import { bibleStorage, chosenEnglishVersion, BibleTranslation } from '../shared/services/bibleStorage';
+import { BIBLE_BOOKS, TOTAL_CHAPTERS, OT_BOOKS, NT_BOOKS } from '../shared/services/bibleBookData';
 import { toSimplifiedAsync } from './chineseConverter';
 
 export interface SearchResult {

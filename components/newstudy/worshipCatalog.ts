@@ -8,7 +8,7 @@
  * URL in the pack editor. The catalog is fetched once per session; a fetch
  * failure means "no suggestions", never a failed pack (generatePack).
  */
-import type { WorshipSong } from '../studypack/packTypes';
+import type { WorshipSong } from '../../shared/studypack/packTypes';
 
 export interface CatalogSong {
   zh: string;       // Chinese title, '' when the song has none

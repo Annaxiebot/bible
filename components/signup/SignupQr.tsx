@@ -13,9 +13,9 @@
  */
 import React, { useEffect, useState } from 'react';
 import QRCode from 'qrcode';
-import type { StudyPack } from '../studypack/packTypes';
-import { qrAltText, SU_QR_FAILED } from './signupStrings';
-import { QR_SVG_OPTIONS } from './signupRoute';
+import type { StudyPack } from '../../shared/studypack/packTypes';
+import { qrAltText, SU_QR_FAILED } from '../../shared/signup/signupStrings';
+import { QR_SVG_OPTIONS } from '../../shared/signup/signupRoute';
 import { useSummarySync } from './useSummarySync';
 
 interface Props {

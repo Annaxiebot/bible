@@ -22,10 +22,10 @@
 
 import { chatStudyAI, streamStudyAI } from './studyAI';
 import { JOURNAL_LANGUAGE_DIRECTIVE } from './systemPrompts';
-import { emptyError } from '../components/studypack/askAIErrors';
-import { journalStorage } from './journalStorage';
-import { JournalEntry, SpiritualMemoryItem } from './idbService';
-import { spiritualMemory } from './spiritualMemory';
+import { emptyError } from '../shared/studypack/askAIErrors';
+import { journalStorage } from '../shared/services/journalStorage';
+import { JournalEntry, SpiritualMemoryItem } from '../shared/services/idbService';
+import { spiritualMemory } from '../shared/services/spiritualMemory';
 
 // ─── Streaming AI helper ─────────────────────────────────────────────────
 

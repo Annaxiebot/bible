@@ -9,14 +9,14 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
-import { NAV_LEADER_SIGNIN } from '../landingStrings';
-import { LEADER_HOME_HASH } from '../../leader/leaderRoute';
+import { NAV_LEADER_SIGNIN } from '../../../shared/landing/landingStrings';
+import { LEADER_HOME_HASH } from '../../../shared/leader/leaderRoute';
 
 type User = { id: string; email: string | null } | null;
 let user: User = null;
 let fullName: string | null = null;
 const signInMock = vi.fn();
-vi.mock('../../../services/supabase', () => ({
+vi.mock('../../../shared/services/supabase', () => ({
   isSupabaseConfigured: () => true,
   authManager: {
     getState: () => ({ user, session: null, isAuthenticated: !!user, isLoading: false }),
@@ -27,7 +27,7 @@ vi.mock('../../../services/supabase', () => ({
 }));
 
 import LandingLeaderLink from '../LandingLeaderLink';
-import { leaderDisplayName } from '../../leader/useLeaderSession';
+import { leaderDisplayName } from '../../../shared/leader/useLeaderSession';
 
 beforeEach(() => {
   user = null;

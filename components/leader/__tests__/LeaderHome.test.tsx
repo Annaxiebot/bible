@@ -11,24 +11,24 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { readFileSync } from 'fs';
-import { parseStudyPack } from '../../studypack/packTypes';
-import { TEST_PACK_PATH } from '../../studypack/__tests__/fixtures';
+import { parseStudyPack } from '../../../shared/studypack/packTypes';
+import { TEST_PACK_PATH } from '../../../shared/studypack/__tests__/fixtures';
 import { saveLocalPack } from '../../studypack/packSource';
-import { idbService } from '../../../services/idbService';
+import { idbService } from '../../../shared/services/idbService';
 import { SIGNUPS_TABLE, CHECKIN_ANSWERS_TABLE } from '../../signup/signupSchema';
-import { STUDY_PACKS_TABLE } from '../../newstudy/packRemote';
-import { NS_DELETE, NS_DELETE_CONFIRM, NS_ERR_STORAGE } from '../../newstudy/newStudyStrings';
-import { SU_ERR_NOT_CONFIGURED } from '../../signup/signupStrings';
-import { newStudyHash, packHash, NEW_STUDY_HASH } from '../../landing/landingRoute';
-import { qrHash } from '../../signup/signupRoute';
-import { leaderHash } from '../leaderRoute';
+import { STUDY_PACKS_TABLE } from '../../../shared/newstudy/packRemote';
+import { NS_DELETE, NS_DELETE_CONFIRM, NS_ERR_STORAGE } from '../../../shared/newstudy/newStudyStrings';
+import { SU_ERR_NOT_CONFIGURED } from '../../../shared/signup/signupStrings';
+import { newStudyHash, packHash, NEW_STUDY_HASH } from '../../../shared/landing/landingRoute';
+import { qrHash } from '../../../shared/signup/signupRoute';
+import { leaderHash } from '../../../shared/leader/leaderRoute';
 import { LH_SIGNIN, LH_ERR_COUNTS, packCountsLine } from '../leaderStrings';
-import { SI_EMAIL_TOGGLE } from '../../signin/signInStrings';
-import { SETUP_SIGN_OUT, SETUP_SIGN_OUT_FAILED } from '../../setup/setupStrings';
+import { SI_EMAIL_TOGGLE } from '../../../shared/signin/signInStrings';
+import { SETUP_SIGN_OUT, SETUP_SIGN_OUT_FAILED } from '../../../shared/setup/setupStrings';
 import { SITE_STATS_FN } from '../../stats/statsRules';
 import { IS_SITE_ADMIN_FN } from '../../admin/adminRules';
 import { AD_TITLE } from '../../admin/adminStrings';
-import { ADMIN_HASH } from '../../landing/landingRoute';
+import { ADMIN_HASH } from '../../../shared/landing/landingRoute';
 
 let uid: string | null = 'uid-lead';
 let configured = true;
@@ -64,7 +64,7 @@ const rpcMock = vi.fn(async (fn: string) => {
   return { data: null, error: { message: `unknown ${fn}` } };
 });
 const authState = () => ({ user: uid ? { id: uid, email: 'lead@example.com' } : null, session: null, isAuthenticated: !!uid, isLoading: false });
-vi.mock('../../../services/supabase', () => ({
+vi.mock('../../../shared/services/supabase', () => ({
   get supabase() { return configured ? { from: fromMock, rpc: rpcMock } : null; },
   isSupabaseConfigured: () => configured,
   authManager: {

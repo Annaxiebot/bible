@@ -9,7 +9,7 @@
  * #/admin directly, which shows the failure in full.
  */
 import React from 'react';
-import { ADMIN_HASH } from '../landing/landingRoute';
+import { ADMIN_HASH } from '../../shared/landing/landingRoute';
 import { AD_TITLE } from './adminStrings';
 import { useIsSiteAdmin } from './adminData';
 import { controlStyle } from '../newstudy/newStudyStyles';

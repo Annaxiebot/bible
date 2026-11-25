@@ -9,7 +9,7 @@
  */
 import React, { useState } from 'react';
 import type { StudyRequest } from './packAssembly';
-import { NS_MORE_OPTIONS, NS_CONTENT_LANGUAGE_SHORT, NS_WORSHIP_SHORT } from './newStudyStrings';
+import { NS_MORE_OPTIONS, NS_CONTENT_LANGUAGE_SHORT, NS_WORSHIP_SHORT } from '../../shared/newstudy/newStudyStrings';
 import { textStyle, controlStyle } from './newStudyStyles';
 
 /** "中文为主 · 第4课 · 恩典 · 2026-10-07": the folded fields' current values, empty parts left out. */

@@ -9,8 +9,8 @@
  * chapter refs carry a bookId so the caller can resolve them from the
  * bundled Bible data (ADR-0003 §8: every reference is interactive).
  */
-import { StudyPack, PackVerse } from './packTypes';
-import { BIBLE_BOOKS, CHINESE_ABBREV_TO_BOOK_ID } from '../../services/bibleBookData';
+import { StudyPack, PackVerse } from '../../shared/studypack/packTypes';
+import { BIBLE_BOOKS, CHINESE_ABBREV_TO_BOOK_ID } from '../../shared/services/bibleBookData';
 
 export interface VerseRef {
   index: number;      // start offset in the source text

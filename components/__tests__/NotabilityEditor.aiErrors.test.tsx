@@ -12,7 +12,7 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
 
-vi.mock('../../services/supabase', async importOriginal => {
+vi.mock('../../shared/services/supabase', async importOriginal => {
   const state = () => ({ user: null, session: null, isAuthenticated: false, isLoading: false });
   return {
     ...(await importOriginal<object>()),
@@ -27,12 +27,12 @@ vi.mock('../../services/supabase', async importOriginal => {
     },
   };
 });
-vi.mock('../signup/signupClient', () => ({ getSignupClient: () => null }));
+vi.mock('../../shared/signup/signupClient', () => ({ getSignupClient: () => null }));
 
 import NotabilityEditor from '../NotabilityEditor';
-import { AskAIError, signInNeededError } from '../studypack/askAIErrors';
-import { AI_SIGN_IN_NEEDED, quotaLine } from '../studypack/tvHints';
-import { SETUP_TITLE, SETUP_OPEN_BUTTON } from '../setup/setupStrings';
+import { AskAIError, signInNeededError } from '../../shared/studypack/askAIErrors';
+import { AI_SIGN_IN_NEEDED, quotaLine } from '../../shared/studypack/tvHints';
+import { SETUP_TITLE, SETUP_OPEN_BUTTON } from '../../shared/setup/setupStrings';
 
 const QUOTA_LIMIT = 30;
 

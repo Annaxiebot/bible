@@ -5,7 +5,7 @@
  * bilingual() ("中文 English", split by splitLabel for the two-line header),
  * so the Chinese half never contains a space. Pure, so e2e specs import it.
  */
-import { bilingual, bilingualLine } from '../studypack/principles';
+import { bilingual, bilingualLine } from '../../shared/studypack/principles';
 
 /** The page title and the leader-home link text. */
 export const AD_TITLE = bilingualLine('管理', 'Admin');

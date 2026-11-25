@@ -9,7 +9,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { LOG_PRESENTATION_FN, MEETING_MIN_SECONDS, MEETING_MAX_SECONDS } from '../statsRules';
-import { SAMPLE_PACK_ID } from '../../landing/landingRoute';
+import { SAMPLE_PACK_ID } from '../../../shared/landing/landingRoute';
 
 type RpcReply = { data: unknown; error: { message: string } | null };
 const rpc = vi.fn(async (fn: string, args: { p_pack_id: string; p_seconds: number }): Promise<RpcReply> => {
@@ -18,7 +18,7 @@ const rpc = vi.fn(async (fn: string, args: { p_pack_id: string; p_seconds: numbe
   return { data: true, error: null };
 });
 let client: { rpc: typeof rpc } | null = { rpc };
-vi.mock('../../signup/signupClient', () => ({ getSignupClient: () => client }));
+vi.mock('../../../shared/signup/signupClient', () => ({ getSignupClient: () => client }));
 
 import { useMeetingTracker, logPresentation } from '../useMeetingTracker';
 

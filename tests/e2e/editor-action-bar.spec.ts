@@ -11,8 +11,8 @@
  * for 4 s, and an Escape that leaves full screen keeps the deck open.
  */
 import { test, expect, Page } from '@playwright/test';
-import { NS_GENERATE, NS_EDIT_TITLE } from '../../components/newstudy/newStudyStrings';
-import { FULLSCREEN_HINT } from '../../components/studypack/tvHints';
+import { NS_GENERATE, NS_EDIT_TITLE } from '../../shared/newstudy/newStudyStrings';
+import { FULLSCREEN_HINT } from '../../shared/studypack/tvHints';
 import { ESCAPE_GRACE_MS } from '../../components/studypack/useTVFullscreen';
 import { JOHN3_REPLY_JSON } from '../../components/newstudy/__tests__/fixtures';
 import { openTV } from './helpers/tv';

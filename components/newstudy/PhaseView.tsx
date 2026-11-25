@@ -10,12 +10,12 @@
  * generating → editor brings the editor's top into view (scrollToTop).
  */
 import React, { useEffect, useRef } from 'react';
-import { StudyPack } from '../studypack/packTypes';
+import { StudyPack } from '../../shared/studypack/packTypes';
 import NewStudyForm from './NewStudyForm';
 import NewStudyEditor from './NewStudyEditor';
 import { StudyRequest } from './packAssembly';
 import type { AutoSaveStatus } from './useAutoSave';
-import { NS_CANCEL, NS_RETRY, NS_BACK } from './newStudyStrings';
+import { NS_CANCEL, NS_RETRY, NS_BACK } from '../../shared/newstudy/newStudyStrings';
 import { textStyle, controlStyle, headingStyle, secondaryButtonClass, quietButtonClass } from './newStudyStyles';
 import type { NextStudy } from './nextStudy';
 import type { LoadedGuide } from './guide/loadGuide';

@@ -8,11 +8,11 @@
  * the built-in page. No live AI call, no live Supabase.
  */
 import { test, expect } from '@playwright/test';
-import { NS_GENERATE, NS_EDIT_TITLE, NS_AUTOSAVED } from '../../components/newstudy/newStudyStrings';
+import { NS_GENERATE, NS_EDIT_TITLE, NS_AUTOSAVED } from '../../shared/newstudy/newStudyStrings';
 import { JOHN3_REPLY_JSON } from '../../components/newstudy/__tests__/fixtures';
-import { signupHash } from '../../components/signup/signupRoute';
-import { checkinHash } from '../../components/checkin/checkinRoute';
-import { SU_SUBMIT, SU_THANKS } from '../../components/signup/signupStrings';
+import { signupHash } from '../../shared/signup/signupRoute';
+import { checkinHash } from '../../shared/checkin/checkinRoute';
+import { SU_SUBMIT, SU_THANKS } from '../../shared/signup/signupStrings';
 import { signInAsLeader, mockAIStream } from './helpers/hostedAI';
 import { E2E_LEADER_ID, mockBackend } from './helpers/signup';
 import { PACK_ID, openNewStudy, fillJohn3, chunked } from './helpers/newStudy';

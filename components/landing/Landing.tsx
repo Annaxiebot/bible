@@ -25,16 +25,16 @@ import LandingPersonal from './LandingPersonal';
 import LandingNextStudy from './LandingNextStudy';
 import LandingNumbers from './LandingNumbers';
 import Pill from '../shared/Pill';
-import { splitLabel } from '../studypack/principles';
-import { SETUP_HASH, NEW_STUDY_HASH, SAMPLE_PACK_ID } from './landingRoute';
+import { splitLabel } from '../../shared/studypack/principles';
+import { SETUP_HASH, NEW_STUDY_HASH, SAMPLE_PACK_ID } from '../../shared/landing/landingRoute';
 import {
   SITE_LINE, RUN_BY_LINE, LOOP_LINE_ZH, LOOP_LINE_EN, NEW_STUDY_LINE, NEW_STUDY_SUB, NEW_STUDY_SIGNIN_NOTE, AI_SIGNIN_NOTE, HERO_SOURCE_NOTE,
   BRAND_EN, BRAND_ZH_LEAD, BRAND_ZH_HIGHLIGHT, NAV_LINKS, PHOTO_CREDIT, WORSHIP_LABEL, WORSHIP_PAGE, PRIVACY_LABEL, PRIVACY_PAGE,
-} from './landingStrings';
+} from '../../shared/landing/landingStrings';
 import { FEEDBACK_LABEL, feedbackHash } from '../../supabase/functions/_shared/feedback';
 import { SOURCE_REPO_URL, CONTRIBUTE_LABEL, EXTERNAL_LINK_PROPS } from '../shared/sourceRepo';
-import QuickAISetupDialog from '../setup/QuickAISetup';
-import SkipLink, { MAIN_CONTENT_ID } from '../shared/SkipLink';
+import QuickAISetupDialog from '../../shared/setup/QuickAISetup';
+import SkipLink, { MAIN_CONTENT_ID } from '../../shared/components/SkipLink';
 import { CtaWithNote } from './LandingHero';
 
 /** Third door: "新建查经 New study" → #/new, with its one-line description. */

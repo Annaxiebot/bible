@@ -7,8 +7,8 @@
  */
 import { describe, it, expect, beforeAll, vi } from 'vitest';
 import { readFileSync } from 'fs';
-import { parseStudyPack } from '../packTypes';
-import { questionForSelection } from '../askAI';
+import { parseStudyPack } from '../../../shared/studypack/packTypes';
+import { questionForSelection } from '../../../shared/studypack/askAI';
 import { clearOriginalWordsCache, loadOriginalWords } from '../originalWords';
 import { checkLexicalAccuracy, normaliseScript, normaliseStrong, normaliseTranslit } from '../lexicalAccuracy';
 import type { OriginalWord } from '../../../supabase/functions/_shared/aiPrompts';

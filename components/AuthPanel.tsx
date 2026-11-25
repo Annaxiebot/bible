@@ -5,8 +5,8 @@
  */
 
 import { useState, useEffect } from 'react';
-import { authManager, syncManager, isSupabaseConfigured, type AuthState, type SyncStatus, type SyncProgress } from '../services/supabase';
-import { syncService } from '../services/syncService';
+import { authManager, syncManager, isSupabaseConfigured, type AuthState, type SyncStatus, type SyncProgress } from '../shared/services/supabase';
+import { syncService } from '../shared/services/syncService';
 import '../styles/AuthPanel.css';
 
 export function AuthPanel() {

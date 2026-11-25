@@ -29,7 +29,7 @@ const hub = vi.hoisted(() => {
 
 const signIn = vi.fn();
 const signOut = vi.fn();
-vi.mock('../../services/supabase', () => ({
+vi.mock('../../shared/services/supabase', () => ({
   isSupabaseConfigured: () => true,
   authManager: {
     getState: () => hub.state,
@@ -48,15 +48,15 @@ vi.mock('../../services/supabase', () => ({
     cancelSync: vi.fn(),
   },
 }));
-vi.mock('../../services/syncService', () => ({ syncService: { performFullSync: vi.fn() } }));
+vi.mock('../../shared/services/syncService', () => ({ syncService: { performFullSync: vi.fn() } }));
 const exportAll = vi.fn();
 vi.mock('../../services/export/fullBackupExporter', () => ({ exportAndDownloadAll: () => exportAll() }));
 
 import SyncStatusLine from '../SyncStatusLine';
 import { SYNC_LINE_LOCAL, SYNC_LINE_SYNCED } from '../syncLineStrings';
-import { SETUP_SIGN_OUT } from '../setup/setupStrings';
+import { SETUP_SIGN_OUT } from '../../shared/setup/setupStrings';
 import { AuthPanel } from '../AuthPanel';
-import { authManager } from '../../services/supabase';
+import { authManager } from '../../shared/services/supabase';
 import { startSyncLifecycle, type SyncLifecycleDeps } from '../../services/syncLifecycle';
 
 function lifecycle() {

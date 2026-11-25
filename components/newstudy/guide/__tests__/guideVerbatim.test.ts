@@ -7,7 +7,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { guideMatcher, itemIsVerbatim, normaliseForMatch } from '../guideVerbatim';
-import { GUIDE_PAGES, GUIDE_QUESTIONS, TIDIED_QUESTION } from './guideFixture';
+import { GUIDE_PAGES, GUIDE_QUESTIONS, TIDIED_QUESTION } from '../../../../shared/newstudy/guide/__tests__/guideFixture';
 
 const guide = GUIDE_PAGES.flat().join('\n');
 const isVerbatim = guideMatcher(guide);

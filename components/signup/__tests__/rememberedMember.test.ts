@@ -1,7 +1,7 @@
 // A returning member's details live on their own phone (localStorage) — and nothing breaks without it.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readRememberedMember, rememberMember, forgetMember } from '../rememberedMember';
-import { STORAGE_KEYS } from '../../../constants/storageKeys';
+import { STORAGE_KEYS } from '../../../shared/constants/storageKeys';
 
 const store = new Map<string, string>();
 const ls = window.localStorage as unknown as Record<'getItem' | 'setItem' | 'removeItem', ReturnType<typeof vi.fn>>;

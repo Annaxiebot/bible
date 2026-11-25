@@ -14,9 +14,9 @@ import {
 } from '../fullscreen';
 import { installFakeFullscreen, FakeFullscreen } from './fakeFullscreen';
 import { LeaderPackRow } from '../../leader/LeaderPackRow';
-import { parseStudyPack } from '../packTypes';
+import { parseStudyPack } from '../../../shared/studypack/packTypes';
 import { readFileSync } from 'fs';
-import { TEST_PACK_PATH } from './fixtures';
+import { TEST_PACK_PATH } from '../../../shared/studypack/__tests__/fixtures';
 
 let fake: FakeFullscreen | null = null;
 afterEach(() => { fake?.uninstall(); fake = null; vi.unstubAllGlobals(); });

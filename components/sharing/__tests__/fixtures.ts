@@ -7,7 +7,7 @@
  */
 import { vi } from 'vitest';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { StudyPack } from '../../studypack/packTypes';
+import type { StudyPack } from '../../../shared/studypack/packTypes';
 import type { SignupRecord, AnswerRecord } from '../../leader/leaderData';
 import { SIGNUPS_TABLE, CHECKIN_ANSWERS_TABLE } from '../../signup/signupSchema';
 import { CLOSING_LEAD } from '../../newstudy/packAssembly';

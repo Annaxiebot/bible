@@ -9,16 +9,16 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'fs';
-import { parseStudyPack } from '../packTypes';
-import { TEST_PACK_PATH, SAMPLE_PACK_ID } from './fixtures';
-import { idbService } from '../../../services/idbService';
-import { makeFakeStudyPacks } from '../../newstudy/__tests__/fakeStudyPacks';
-import { PS_ERR_PULL } from '../../newstudy/packSyncStrings';
+import { parseStudyPack } from '../../../shared/studypack/packTypes';
+import { TEST_PACK_PATH, SAMPLE_PACK_ID } from '../../../shared/studypack/__tests__/fixtures';
+import { idbService } from '../../../shared/services/idbService';
+import { makeFakeStudyPacks } from '../../../shared/newstudy/__tests__/fakeStudyPacks';
+import { PS_ERR_PULL } from '../../../shared/newstudy/packSyncStrings';
 
 let uid: string | null = 'uid-lead';
 let configured = true;
 let fake = makeFakeStudyPacks();
-vi.mock('../../../services/supabase', () => ({
+vi.mock('../../../shared/services/supabase', () => ({
   get supabase() { return configured ? fake.client : null; },
   authManager: { getState: () => ({ isAuthenticated: !!uid }), getUserId: () => uid },
 }));

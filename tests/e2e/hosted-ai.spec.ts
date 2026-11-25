@@ -13,17 +13,17 @@
  * Chinese-first line on New study. A signed-out visitor sees the sign-in prompt.
  */
 import { test, expect } from '@playwright/test';
-import { SETUP_HASH } from '../../components/landing/landingRoute';
-import { SETUP_TITLE, SETUP_HOSTED_READY, SETUP_SIGN_IN_TO_USE_AI } from '../../components/setup/setupStrings';
-import { AI_CREDIT_USED_UP, AI_DAILY_CAP_REACHED } from '../../components/studypack/tvHints';
-import { NS_GENERATE } from '../../components/newstudy/newStudyStrings';
-import { E2E_ACCESS_TOKEN } from '../../services/aiProxyRoute';
+import { SETUP_HASH } from '../../shared/landing/landingRoute';
+import { SETUP_TITLE, SETUP_HOSTED_READY, SETUP_SIGN_IN_TO_USE_AI } from '../../shared/setup/setupStrings';
+import { AI_CREDIT_USED_UP, AI_DAILY_CAP_REACHED } from '../../shared/studypack/tvHints';
+import { NS_GENERATE } from '../../shared/newstudy/newStudyStrings';
+import { E2E_ACCESS_TOKEN } from '../../shared/services/aiProxyRoute';
 import { E2E_SUPABASE_PATH, E2E_ANON_KEY } from './helpers/signup';
 import { openTV, goToSlide, DEMO_SLIDE, sseBody } from './helpers/tv';
 import { signInAsLeader, mockProxy, failOnOpenRouter } from './helpers/hostedAI';
 import { openNewStudy, fillJohn3 } from './helpers/newStudy';
 import { ASK_AI_ANSWER_CONTRACT } from '../../supabase/functions/_shared/aiPrompts';
-import { LEGACY_CONTENT_LANGUAGE } from '../../components/studypack/principles';
+import { LEGACY_CONTENT_LANGUAGE } from '../../shared/studypack/principles';
 
 const MODEL = 'google/gemini-2.5-flash';
 

@@ -13,7 +13,7 @@ import {
   IS_SITE_ADMIN_FN, ADMIN_LEADERS_FN, ADMIN_FEEDBACK_FN, ADMIN_STATS_FN, ADMIN_DENIED_CODE,
 } from '../../../components/admin/adminRules';
 import { ADMIN_LEADERS, ADMIN_FEEDBACK, ADMIN_STATS, ADMIN_FUNNEL } from '../../../components/admin/__tests__/adminFixtures';
-import { ADMIN_FUNNEL_FN } from '../../../components/stats/funnelRules';
+import { ADMIN_FUNNEL_FN } from '../../../shared/stats/funnelRules';
 
 export interface FakeAdminServer {
   /** Every RPC name called, in order. */

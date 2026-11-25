@@ -9,14 +9,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'fs';
 import path from 'path';
-import { parseStudyPack, StudyPack } from '../packTypes';
+import { parseStudyPack, StudyPack } from '../../../shared/studypack/packTypes';
 import { clearExternalVerseCache } from '../externalVerses';
 import {
   RELATED_VERSES_ENABLED, RELATED_VERSES_MAX, RELATED_PER_BOOK, RELATED_VERSES_PER_REF,
   XrefChapter, PassageSpan, parseCompactRef, rankRelated, focusVerses, packPassage,
   loadRelatedVerses, lastRelatedVerses, clearRelatedVersesCache, citedFromMemory,
 } from '../relatedVerses';
-import { TEST_PACK_PATH } from './fixtures';
+import { TEST_PACK_PATH } from '../../../shared/studypack/__tests__/fixtures';
 import { stubBundledFetch } from './bundledFetch';
 
 const pack: StudyPack = parseStudyPack(JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8')));

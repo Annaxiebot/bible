@@ -12,10 +12,10 @@ import {
   generateSpiritualProfile,
   generateProactiveSuggestion,
 } from '../journalAIService';
-import { journalStorage } from '../journalStorage';
-import { spiritualMemory } from '../spiritualMemory';
-import type { JournalEntry, SpiritualMemoryItem } from '../idbService';
-import { AskAIError, signInNeededError } from '../../components/studypack/askAIErrors';
+import { journalStorage } from '../../shared/services/journalStorage';
+import { spiritualMemory } from '../../shared/services/spiritualMemory';
+import type { JournalEntry, SpiritualMemoryItem } from '../../shared/services/idbService';
+import { AskAIError, signInNeededError } from '../../shared/studypack/askAIErrors';
 
 // The journal's AI goes through the personal app's one AI path (services/studyAI, role 'study').
 const { mockStreamStudyAI } = vi.hoisted(() => ({

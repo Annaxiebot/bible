@@ -1,17 +1,17 @@
 import React, { useState, useEffect, useRef, lazy, Suspense } from 'react';
-import { SelectionInfo, MediaAttachment } from '../types';
-import { VerseData, PersonalNote, AIResearchEntry } from '../types/verseData';
-import { verseDataStorage } from '../services/verseDataStorage';
+import { SelectionInfo, MediaAttachment } from '../shared/types';
+import { VerseData, PersonalNote, AIResearchEntry } from '../shared/types/verseData';
+import { verseDataStorage } from '../shared/services/verseDataStorage';
 import { useStorageUpdate } from '../hooks/useStorageUpdate';
 import SimpleDrawingCanvas, { SimpleDrawingCanvasHandle } from './SimpleDrawingCanvas';
-import LazyMarkdown from './LazyMarkdown';
+import LazyMarkdown from '../shared/components/LazyMarkdown';
 import { usePaperType } from '../hooks/usePaperType';
 import type { PaperType } from '../services/strokeNormalizer';
 import { downloadNote, readNoteFile } from '../services/fileSystem';
 import { IMAGE, TIMING } from '../constants/appConfig';
 import 'katex/dist/katex.min.css';
 import { CHINESE_ABBREV_TO_BOOK_ID, BIBLE_BOOKS } from '../constants';
-import { stripHTML } from '../utils/textUtils';
+import { stripHTML } from '../shared/utils/textUtils';
 
 const JournalView = lazy(() => import('./JournalView'));
 

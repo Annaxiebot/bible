@@ -2,8 +2,8 @@ import { describe, it, expect, vi } from 'vitest';
 import React, { useState } from 'react';
 import { render, screen, fireEvent } from '@testing-library/react';
 import SectionEditor from '../SectionEditor';
-import { PackSection } from '../../studypack/packTypes';
-import { NS_QUESTION_REMOVE } from '../newStudyStrings';
+import { PackSection } from '../../../shared/studypack/packTypes';
+import { NS_QUESTION_REMOVE } from '../../../shared/newstudy/newStudyStrings';
 
 /** Minimal stateful host so removals re-render the list like the real editor. */
 const Host: React.FC<{ initial: string[]; onChange?: (q: string[]) => void }> = ({ initial, onChange }) => {

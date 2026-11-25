@@ -12,8 +12,8 @@ import {
   getJournalPrintCSS,
   type JournalPrintOptions,
 } from '../journalPrintRenderer';
-import type { TextBlock, DrawingBlock, ImageBlock, JournalBlock } from '../../types/journalBlocks';
-import type { JournalEntry } from '../../services/idbService';
+import type { TextBlock, DrawingBlock, ImageBlock, JournalBlock } from '../../shared/types/journalBlocks';
+import type { JournalEntry } from '../../shared/services/idbService';
 
 // Mock strokeNormalizer — parseCanvasData returns null for empty, mock data for valid
 vi.mock('../../services/strokeNormalizer', () => ({

@@ -14,16 +14,16 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { generateGuidePack, guideStudyRequest, GuidePassageNotFound } from '../generateGuidePack';
 import { detectGuidePassage } from '../guidePassage';
 import type { LoadedGuide } from '../loadGuide';
-import type { StudyPack } from '../../../studypack/packTypes';
+import type { StudyPack } from '../../../../shared/studypack/packTypes';
 import { signInSeam, signOutSeam } from '../../../../tests/utils/hostedSeam';
 import { stubFetch, chunked, isAICall } from '../../__tests__/packFetchStub';
 import { GD_ERR_NO_PASSAGE } from '../guideStrings';
 import { NO_PASSAGE_LINE } from '../guidePrompt';
-import { GUIDE_GENERATED, GUIDE_REPLY_JSON } from './guideFixture';
+import { GUIDE_GENERATED, GUIDE_REPLY_JSON } from '../../../../shared/newstudy/guide/__tests__/guideFixture';
 import { GUIDE_REQUEST, LOADED_GUIDE } from './guideFixtureRequest';
 import {
   NP_FILE, NP_TEXT, NP_RANGE, NP_REPLY_JSON, NP_QUESTIONS, NP_ANSWERS, LEAKED_ANSWER, JOHN_13_1_CUV, npReplyWith,
-} from './guideFixtureNoPassage';
+} from '../../../../shared/newstudy/guide/__tests__/guideFixtureNoPassage';
 
 const getItem = window.localStorage.getItem as ReturnType<typeof vi.fn>;
 const section = (pack: StudyPack, kind: string) => pack.sections.find(s => s.kind === kind)!;

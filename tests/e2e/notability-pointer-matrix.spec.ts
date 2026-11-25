@@ -16,9 +16,9 @@
  */
 
 import { test, expect, type Page } from '@playwright/test';
-import { APP_HASH } from '../../components/landing/landingRoute';
+import { APP_HASH } from '../../shared/landing/landingRoute';
 import { tap, drag, hold } from './helpers/pointerSynth';
-import { NOTABILITY_PAGE_HEIGHT_PX } from '../../services/notabilityCanvasMigration';
+import { NOTABILITY_PAGE_HEIGHT_PX } from '../../shared/services/notabilityCanvasMigration';
 
 // CSS dimension string used to identify the live-stroke canvas by its inline
 // style height (ADR-0002 fix #2). Sourced from the single source of truth so

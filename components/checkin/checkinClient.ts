@@ -11,9 +11,9 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { CHECKIN_CONTEXT_FN, SHARE_ANSWER_FN } from '../signup/signupSchema';
-import { CK_ERR_LOAD, CK_ERR_SHARE, CK_DEFAULT_QUESTION, CK_ERR_STOP } from './checkinStrings';
+import { CK_ERR_LOAD, CK_ERR_SHARE, CK_DEFAULT_QUESTION, CK_ERR_STOP } from '../../shared/checkin/checkinStrings';
 import { UNSUBSCRIBE_FN, RESUBSCRIBE_FN } from '../../supabase/functions/send-checkins/optout';
-import { CheckinKind, CHECKIN_KINDS } from './checkinRoute';
+import { CheckinKind, CHECKIN_KINDS } from '../../shared/checkin/checkinRoute';
 import type { ChosenPractice } from '../../supabase/functions/send-checkins/practices';
 import { promptWithoutKindLabel } from '../../supabase/functions/send-checkins/promptText';
 

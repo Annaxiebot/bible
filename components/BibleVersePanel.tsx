@@ -1,8 +1,8 @@
 import React from 'react';
-import { DEFAULT_ENGLISH_VERSION, normalizeChineseVersion } from '../services/bibleStorage';
-import { Verse } from '../types';
+import { DEFAULT_ENGLISH_VERSION, normalizeChineseVersion } from '../shared/services/bibleStorage';
+import { Verse } from '../shared/types';
 import { useSeasonTheme } from '../hooks/useSeasonTheme';
-import { englishEditionLabel } from '../services/readerPreferences';
+import { englishEditionLabel } from '../shared/services/readerPreferences';
 import type { ColumnStatus } from '../hooks/useBilingualChapter';
 import { useReaderStrings } from './reader/useReaderStrings';
 import { chineseLang } from './reader/readerStrings';

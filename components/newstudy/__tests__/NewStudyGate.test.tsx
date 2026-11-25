@@ -13,22 +13,22 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { OWN_OPENROUTER_KEY } from '../../../services/obsoleteStorageKeys';
-import { idbService } from '../../../services/idbService';
-import { SETUP_SIGN_IN_TO_USE_AI } from '../../setup/setupStrings';
-import { NS_SAMPLE_NO_SIGNIN, NS_MY_PACKS, NS_BACKUP_TOGGLE, NS_PRIVACY, NS_SIGN_IN_TO_KEEP, NS_GUIDE_TITLE } from '../newStudyStrings';
-import { SI_EMAIL_TOGGLE } from '../../signin/signInStrings';
+import { idbService } from '../../../shared/services/idbService';
+import { SETUP_SIGN_IN_TO_USE_AI } from '../../../shared/setup/setupStrings';
+import { NS_SAMPLE_NO_SIGNIN, NS_MY_PACKS, NS_BACKUP_TOGGLE, NS_PRIVACY, NS_SIGN_IN_TO_KEEP, NS_GUIDE_TITLE } from '../../../shared/newstudy/newStudyStrings';
+import { SI_EMAIL_TOGGLE } from '../../../shared/signin/signInStrings';
 import { saveLocalPack } from '../../studypack/packSource';
 import { assemblePack } from '../packAssembly';
 import { validateGenerated } from '../generatedPack';
 import { JOHN3_GENERATED, JOHN3_REQUEST } from './fixtures';
-import { SAMPLE_PACK_HASH } from '../../landing/landingRoute';
+import { SAMPLE_PACK_HASH } from '../../../shared/landing/landingRoute';
 
 let signedInUid: string | null = null;
 const authState = () => ({
   user: signedInUid ? { id: signedInUid, email: 'leader@example.com' } : null,
   session: null, isAuthenticated: !!signedInUid, isLoading: false,
 });
-vi.mock('../../../services/supabase', () => ({
+vi.mock('../../../shared/services/supabase', () => ({
   supabase: null,
   isSupabaseConfigured: () => true,
   canSync: () => false,
@@ -42,11 +42,11 @@ vi.mock('../../../services/supabase', () => ({
 }));
 vi.mock('../generatePack', () => ({ generateStudyPack: vi.fn() }));
 // A configured client, so the email choice shows beside Google (no call is made in these tests).
-vi.mock('../../signup/signupClient', async importOriginal => ({
-  ...(await importOriginal<typeof import('../../signup/signupClient')>()),
+vi.mock('../../../shared/signup/signupClient', async importOriginal => ({
+  ...(await importOriginal<typeof import('../../../shared/signup/signupClient')>()),
   getSignupClient: () => ({ auth: {} }),
 }));
-vi.mock('../../../services/bibleDataSource', () => ({
+vi.mock('../../../shared/services/bibleDataSource', () => ({
   fetchBundledChapter: async () => ({ verses: Array.from({ length: 36 }, (_, i) => ({ verse: i + 1, text: `v${i + 1}` })) }),
 }));
 

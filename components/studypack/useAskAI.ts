@@ -15,11 +15,11 @@
  * view without touching what is saved.
  */
 import { useState, useCallback, useRef, useEffect, Dispatch, SetStateAction } from 'react';
-import { useAIAccess } from '../setup/useAIAccess';
-import { StudyPack, Slide } from './packTypes';
-import { resolveAskAIModel, AskAIMessage } from './askAI';
+import { useAIAccess } from '../../shared/setup/useAIAccess';
+import { StudyPack, Slide } from '../../shared/studypack/packTypes';
+import { resolveAskAIModel, AskAIMessage } from '../../shared/studypack/askAI';
 import { streamStudyAI } from './askAIFallback';
-import { AskAIErrorKind, asAskAIError } from './askAIErrors';
+import { AskAIErrorKind, asAskAIError } from '../../shared/studypack/askAIErrors';
 import type { AskExchange } from './askHistory';
 
 export interface AskAIFailure {

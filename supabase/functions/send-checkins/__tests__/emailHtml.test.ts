@@ -20,7 +20,7 @@ import { FEEDBACK_LABEL, FEEDBACK_HASH } from '../../_shared/feedback.ts';
 import { packFromSummary, PackSummaryRow } from '../packSource.ts';
 import { resendBody } from '../senders.ts';
 import { EMAIL_COLORS, EMAIL_BRAND_EN, EMAIL_BRAND_ZH, EMAIL_BODY_PX, EMAIL_MAX_WIDTH_PX, EMAIL_SCRIPTURE_FONT, EMAIL_HEAD_FONT, EMAIL_BODY_FONT } from '../emailStyle.ts';
-import { BRAND_EN, BRAND_ZH, SITE_LINE } from '../../../../components/landing/landingStrings';
+import { BRAND_EN, BRAND_ZH, SITE_LINE } from '../../../../shared/landing/landingStrings';
 
 const ROW: PackSummaryRow = {
   pack_id: 'local-2026-10-02-pro1', leader_id: 'uid-lead', title: '第1课 箴言 1:1–33',

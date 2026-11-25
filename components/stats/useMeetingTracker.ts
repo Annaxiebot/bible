@@ -11,8 +11,8 @@
  */
 import { useEffect } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { getSignupClient } from '../signup/signupClient';
-import { SAMPLE_PACK_ID } from '../landing/landingRoute';
+import { getSignupClient } from '../../shared/signup/signupClient';
+import { SAMPLE_PACK_ID } from '../../shared/landing/landingRoute';
 import { LOG_PRESENTATION_FN, MEETING_MIN_SECONDS } from './statsRules';
 
 const MS_PER_SECOND = 1000;

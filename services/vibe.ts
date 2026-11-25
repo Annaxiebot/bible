@@ -7,8 +7,8 @@
  */
 
 import { chatStudyAI } from './studyAI';
-import { isAIAvailable } from './aiTransport';
-import { STORAGE_KEYS } from '../constants/storageKeys';
+import { isAIAvailable } from '../shared/services/aiTransport';
+import { STORAGE_KEYS } from '../shared/constants/storageKeys';
 
 export interface VibeStyles {
   bible_panel: string;

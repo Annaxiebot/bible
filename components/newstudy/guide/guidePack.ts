@@ -11,8 +11,8 @@
  * line that matches one of the guide's answer bullets (guideAnswers.ts) goes
  * into `leaderAnswer` the same way (ADR-0019 amendment).
  */
-import type { PackSection, StudyPack } from '../../studypack/packTypes';
-import { contentLine, type ContentLanguage } from '../../studypack/principles';
+import type { PackSection, StudyPack } from '../../../shared/studypack/packTypes';
+import { contentLine, type ContentLanguage } from '../../../shared/studypack/principles';
 import { GUIDE_SECTION_KINDS, type GuideSectionKind } from '../../../supabase/functions/_shared/aiPrompts';
 import type { Bilingual, GeneratedContent } from '../generatedPack';
 import { guideMatcher, itemIsVerbatim } from './guideVerbatim';

@@ -13,10 +13,10 @@
  * A cancel (signal) throws an AbortError the caller ignores.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { PackSection, StudyPack } from '../studypack/packTypes';
-import { packContentLanguage } from '../studypack/packTypes';
-import { streamChatCompletionDetailed, AIRequestMeta } from '../studypack/askAIStream';
-import { asAskAIError } from '../studypack/askAIErrors';
+import type { PackSection, StudyPack } from '../../shared/studypack/packTypes';
+import { packContentLanguage } from '../../shared/studypack/packTypes';
+import { streamChatCompletionDetailed, AIRequestMeta } from '../../shared/studypack/askAIStream';
+import { asAskAIError } from '../../shared/studypack/askAIErrors';
 import { extractJsonObject } from '../newstudy/generatedPack';
 import { loadSharingMaterial, SharingMaterial } from './sharingData';
 import { buildSharingRequestBody } from './sharingPrompt';

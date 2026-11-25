@@ -7,17 +7,17 @@
 import React, { useState } from 'react';
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { StudyPack, buildSlides, parseStudyPack } from '../../studypack/packTypes';
+import { StudyPack, buildSlides, parseStudyPack } from '../../../shared/studypack/packTypes';
 import { assemblePack } from '../packAssembly';
 import { validateGenerated } from '../generatedPack';
 import { packRange, withScripture } from '../scriptureRange';
 import ScriptureRangeEditor from '../ScriptureRangeEditor';
 import { JOHN3_GENERATED, JOHN3_REQUEST } from './fixtures';
-import { NS_RANGE_UPDATED, NS_ERR_VERSES_OUT_OF_RANGE, NS_ERR_VERSES_UNAVAILABLE } from '../newStudyStrings';
+import { NS_RANGE_UPDATED, NS_ERR_VERSES_OUT_OF_RANGE, NS_ERR_VERSES_UNAVAILABLE } from '../../../shared/newstudy/newStudyStrings';
 
 /** Mirrors the real seam: John 3 has 36 verses in both translations; any other chapter is missing. */
 const fetchMock = vi.fn();
-vi.mock('../../../services/bibleDataSource', () => ({
+vi.mock('../../../shared/services/bibleDataSource', () => ({
   fetchBundledChapter: (...args: unknown[]) => fetchMock(...args),
 }));
 function bundledChapter(bookId: string, chapter: number, translation: string) {

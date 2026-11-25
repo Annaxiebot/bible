@@ -11,10 +11,10 @@
  */
 import React, { useState, useEffect, lazy, Suspense } from 'react';
 import StudyPackGate from '../studypack/StudyPackGate';
-import { resolveRootView, RootView } from './landingRoute';
-import { getSignupPackIdFromHash, getQrPackIdFromHash } from '../signup/signupRoute';
-import { getLeaderPackIdFromHash } from '../leader/leaderRoute';
-import { getCheckinFromHash, getCheckinStopFromHash } from '../checkin/checkinRoute';
+import { resolveRootView, RootView } from '../../shared/landing/landingRoute';
+import { getSignupPackIdFromHash, getQrPackIdFromHash } from '../../shared/signup/signupRoute';
+import { getLeaderPackIdFromHash } from '../../shared/leader/leaderRoute';
+import { getCheckinFromHash, getCheckinStopFromHash } from '../../shared/checkin/checkinRoute';
 import { installClaimOnSignIn } from '../newstudy/claimLocalPacks';
 import { getFeedbackContextFromHash } from '../../supabase/functions/_shared/feedback';
 

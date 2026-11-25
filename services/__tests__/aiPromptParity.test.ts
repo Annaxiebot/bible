@@ -11,19 +11,19 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'fs';
 import { validateRequest, upstreamBody, AIRole } from '../../supabase/functions/ai-proxy/policy';
-import { parseStudyPack, buildSlides } from '../../components/studypack/packTypes';
-import { buildRequestBody } from '../../components/studypack/askAIStream';
-import { TEST_PACK_PATH } from '../../components/studypack/__tests__/fixtures';
-import { CONTENT_LANGUAGES } from '../../components/studypack/principles';
+import { parseStudyPack, buildSlides } from '../../shared/studypack/packTypes';
+import { buildRequestBody } from '../../shared/studypack/askAIStream';
+import { TEST_PACK_PATH } from '../../shared/studypack/__tests__/fixtures';
+import { CONTENT_LANGUAGES } from '../../shared/studypack/principles';
 
 let session: { access_token: string } | null = null;
-vi.mock('../supabase', () => ({
+vi.mock('../../shared/services/supabase', () => ({
   supabase: { auth: { getSession: async () => ({ data: { session }, error: null }) } },
   authManager: { getState: () => ({ user: null, session, isAuthenticated: false, isLoading: false }) },
 }));
 
-import { sendAIRequest } from '../aiTransport';
-import { finalAIBody } from '../aiFinalBody';
+import { sendAIRequest } from '../../shared/services/aiTransport';
+import { finalAIBody } from '../../shared/services/aiFinalBody';
 import { buildStudyBody } from '../studyAI';
 
 /** The JSON body of the one fetch the browser made (to the proxy). */

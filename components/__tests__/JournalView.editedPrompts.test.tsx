@@ -12,17 +12,17 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 
-vi.mock('../../services/syncService', () => ({
+vi.mock('../../shared/services/syncService', () => ({
   syncService: { canSync: () => false, syncJournal: vi.fn(), fetchJournalEntryBody: vi.fn(async () => undefined) },
 }));
-vi.mock('../signup/signupClient', () => ({ getSignupClient: () => null }));
+vi.mock('../../shared/signup/signupClient', () => ({ getSignupClient: () => null }));
 
 const { streamStudyAI, chatStudyAI } = vi.hoisted(() => ({ streamStudyAI: vi.fn(), chatStudyAI: vi.fn() }));
 vi.mock('../../services/studyAI', () => ({ streamStudyAI, chatStudyAI }));
 
 import JournalView from '../JournalView';
-import { journalStorage } from '../../services/journalStorage';
-import { spiritualMemory } from '../../services/spiritualMemory';
+import { journalStorage } from '../../shared/services/journalStorage';
+import { spiritualMemory } from '../../shared/services/spiritualMemory';
 import { DEFAULT_PROMPTS, type JournalPromptConfig } from '../../services/journalAIService';
 
 const ENTRY_TEXT = 'Today I learned that grace is a gift I cannot earn, and I am grateful.';

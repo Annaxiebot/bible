@@ -6,20 +6,20 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent, within } from '@testing-library/react';
 import { readFileSync } from 'fs';
 import TVSlide from '../TVSlide';
-import { parseStudyPack, buildSlides } from '../packTypes';
-import { TEST_PACK_PATH } from './fixtures';
-import { TYPE_SCALE } from '../principles';
-import { currentSignupUrl } from '../../signup/signupRoute';
+import { parseStudyPack, buildSlides } from '../../../shared/studypack/packTypes';
+import { TEST_PACK_PATH } from '../../../shared/studypack/__tests__/fixtures';
+import { TYPE_SCALE } from '../../../shared/studypack/principles';
+import { currentSignupUrl } from '../../../shared/signup/signupRoute';
 import {
   SU_DEMO_LINE, SU_QR_BODY, SU_UNCLAIMED_LINE, SU_SIGN_IN_GOOGLE, SU_CLAIM_FAILED, SU_ERR_NOT_CONFIGURED, qrAltText,
-} from '../../signup/signupStrings';
+} from '../../../shared/signup/signupStrings';
 import { LOCAL_PACKS_CLAIMED_EVENT } from '../../newstudy/claimLocalPacks';
 
 const syncMock = vi.fn(async (_pack: unknown) => ({ status: 'synced' as const }));
 vi.mock('../../signup/packSummary', () => ({ syncPackSummary: (pack: unknown) => syncMock(pack) }));
 const signInMock = vi.fn(async () => ({ error: null }));
 let configured = true;
-vi.mock('../../../services/supabase', () => ({
+vi.mock('../../../shared/services/supabase', () => ({
   isSupabaseConfigured: () => configured,
   authManager: { signInWithGoogle: () => signInMock(), subscribe: () => () => undefined, getUserId: () => null },
 }));

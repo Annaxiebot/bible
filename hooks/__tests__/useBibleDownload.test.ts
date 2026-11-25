@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook } from '@testing-library/react';
 import { useBibleDownload } from '../useBibleDownload';
 
-vi.mock('../../services/bibleStorage', () => ({
+vi.mock('../../shared/services/bibleStorage', () => ({
   bibleStorage: {
     getAllOfflineChapters: vi.fn().mockResolvedValue(new Set<string>()),
     hasChapter: vi.fn().mockResolvedValue(false),
@@ -21,7 +21,7 @@ vi.mock('../../services/backgroundBibleDownload', () => ({
   },
 }));
 
-vi.mock('../../services/apiConfig', () => ({
+vi.mock('../../shared/services/apiConfig', () => ({
   buildChapterUrl: vi.fn(() => 'https://example.com/api/chapter'),
 }));
 

@@ -14,12 +14,12 @@ import {
 import {
   PACK_COMPACT_JSON_RULE, PACK_COUNTS, PACK_LENGTH_LIMITS, PACK_MAX_TOKENS, generatedShape, buildPackPrompt,
 } from '../../packPrompt';
-import { PACK_CONTENT_CONTRACT, CONTENT_LANGUAGE_CONTRACTS } from '../../../studypack/principles';
+import { PACK_CONTENT_CONTRACT, CONTENT_LANGUAGE_CONTRACTS } from '../../../../shared/studypack/principles';
 import {
   GUIDE_TEXT_HEADING, PACK_FROM_GUIDE_RULES, PACK_FROM_GUIDE_SYSTEM_PROMPT, SCOPE_GUARD,
 } from '../../../../supabase/functions/_shared/aiPrompts';
 import { validateRequest } from '../../../../supabase/functions/ai-proxy/policy';
-import { finalAIBody } from '../../../../services/aiFinalBody';
+import { finalAIBody } from '../../../../shared/services/aiFinalBody';
 import { GUIDE_TEXT } from './guideFixtureRequest';
 
 const VERSES = [{ num: 1, cuv: '神的儿子，耶稣基督福音的起头。', en: 'This is the beginning of the gospel of Jesus Christ, the Son of God.' }];

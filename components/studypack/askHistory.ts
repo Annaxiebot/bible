@@ -10,7 +10,7 @@
  * error carrying the server's message; callers show it (R5).
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { AskAIMessage } from './askAI';
+import type { AskAIMessage } from '../../shared/studypack/askAI';
 import { STUDY_PACKS_TABLE } from '../../supabase/functions/_shared/signup';
 import {
   ASK_HISTORY_TABLE, SAVE_ASK_EXCHANGE_FN, ASK_HISTORY_FULL_CODE, ASK_REPLACE_COLUMN,

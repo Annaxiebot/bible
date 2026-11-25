@@ -11,10 +11,10 @@
  * answer; any failure becomes `problem`, one quiet line in the panel (R5).
  */
 import { useCallback, useEffect, useState } from 'react';
-import type { StudyPack } from './packTypes';
-import type { AskAIMessage } from './askAI';
-import { getSignupClient } from '../signup/signupClient';
-import { useLeaderSession } from '../leader/useLeaderSession';
+import type { StudyPack } from '../../shared/studypack/packTypes';
+import type { AskAIMessage } from '../../shared/studypack/askAI';
+import { getSignupClient } from '../../shared/signup/signupClient';
+import { useLeaderSession } from '../../shared/leader/useLeaderSession';
 import { AskExchange, listAskHistory, saveAskExchange, exchangesToMessages } from './askHistory';
 
 export interface AskHistory {

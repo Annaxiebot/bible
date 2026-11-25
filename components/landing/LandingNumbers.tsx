@@ -14,7 +14,7 @@
 import React from 'react';
 import {
   NUMBERS_EYEBROW, NUMBERS_HEADING_ZH, NUMBERS_HEADING_EN, NUMBERS_DESC, HONEST_NUMBERS,
-} from './landingStrings';
+} from '../../shared/landing/landingStrings';
 import LandingSection from './LandingSection';
 import { useSiteStats } from '../stats/siteStats';
 import {

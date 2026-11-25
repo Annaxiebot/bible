@@ -3,12 +3,12 @@ import { render, screen, fireEvent, waitFor, act, within } from '@testing-librar
 import { readFileSync } from 'fs';
 import React from 'react';
 import { signInSeam, signOutSeam } from '../../../tests/utils/hostedSeam';
-import { TEST_PACK_PATH } from './fixtures';
-import { parseStudyPack, buildSlides, StudyPack, Slide } from '../packTypes';
-import { SETUP_TITLE, SETUP_OPEN_BUTTON, SETUP_CANCEL, SETUP_SIGN_IN_TO_USE_AI } from '../../setup/setupStrings';
-import { ASK_AI_MODEL } from '../../../services/aiDefaults';
-import { AI_CREDITS_MESSAGE, AI_EMPTY, TV_RETRY, thinkingLine, modelLine, BACKUP_MODEL_NOTE } from '../tvHints';
-import { AskAIError, emptyError, timeoutError } from '../askAIErrors';
+import { TEST_PACK_PATH } from '../../../shared/studypack/__tests__/fixtures';
+import { parseStudyPack, buildSlides, StudyPack, Slide } from '../../../shared/studypack/packTypes';
+import { SETUP_TITLE, SETUP_OPEN_BUTTON, SETUP_CANCEL, SETUP_SIGN_IN_TO_USE_AI } from '../../../shared/setup/setupStrings';
+import { ASK_AI_MODEL } from '../../../shared/services/aiDefaults';
+import { AI_CREDITS_MESSAGE, AI_EMPTY, TV_RETRY, thinkingLine, modelLine, BACKUP_MODEL_NOTE } from '../../../shared/studypack/tvHints';
+import { AskAIError, emptyError, timeoutError } from '../../../shared/studypack/askAIErrors';
 
 // Mirror of askAIFallback.ts streamStudyAI:
 // (pack, slide, history, question, onText, signal, onModel?) → Promise<{ text, model }>,
@@ -19,7 +19,7 @@ vi.mock('../askAIFallback', () => ({
 }));
 
 import AskAIOverlay from '../AskAIOverlay';
-import { preloadMarkdown } from '../../LazyMarkdown';
+import { preloadMarkdown } from '../../../shared/components/LazyMarkdown';
 
 
 

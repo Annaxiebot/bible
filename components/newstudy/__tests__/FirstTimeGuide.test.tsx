@@ -9,17 +9,17 @@
 import React from 'react';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { STORAGE_KEYS, NEW_STUDY_GUIDE_DISMISSED_VALUE } from '../../../constants/storageKeys';
-import { idbService } from '../../../services/idbService';
+import { STORAGE_KEYS, NEW_STUDY_GUIDE_DISMISSED_VALUE } from '../../../shared/constants/storageKeys';
+import { idbService } from '../../../shared/services/idbService';
 import { signInSeam, signOutSeam } from '../../../tests/utils/hostedSeam';
 import { saveLocalPack } from '../../studypack/packSource';
 import { assemblePack } from '../packAssembly';
 import { validateGenerated } from '../generatedPack';
 import { JOHN3_GENERATED, JOHN3_REQUEST } from './fixtures';
-import { NS_GUIDE_TITLE, NS_GUIDE_STEPS, NS_GUIDE_GOT_IT, NS_MY_PACKS } from '../newStudyStrings';
+import { NS_GUIDE_TITLE, NS_GUIDE_STEPS, NS_GUIDE_GOT_IT, NS_MY_PACKS } from '../../../shared/newstudy/newStudyStrings';
 import NewStudyPage from '../NewStudyPage';
 
-vi.mock('../../../services/bibleDataSource', () => ({
+vi.mock('../../../shared/services/bibleDataSource', () => ({
   fetchBundledChapter: async () => ({
     verses: Array.from({ length: 36 }, (_, i) => ({ verse: i + 1, text: `v${i + 1}` })),
   }),

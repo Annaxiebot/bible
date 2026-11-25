@@ -6,7 +6,7 @@
 import { describe, it, expect, vi, afterAll } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { useChineseScript } from '../useChineseScript';
-import type { Verse } from '../../types';
+import type { Verse } from '../../shared/types';
 
 const state = vi.hoisted(() => {
   const s = {

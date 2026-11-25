@@ -11,8 +11,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { render, screen, within, fireEvent, cleanup } from '@testing-library/react';
 import LandingNav from '../LandingNav';
 import Landing from '../Landing';
-import { NAV_LINKS, NAV_LABEL, NEXT_NONE_YET, NAV_LEADER_SIGNIN, GROUP_QR_CTA, NEXT_SECTION_ID } from '../landingStrings';
-import { LEADER_HOME_HASH } from '../../leader/leaderRoute';
+import { NAV_LINKS, NAV_LABEL, NEXT_NONE_YET, NAV_LEADER_SIGNIN, GROUP_QR_CTA, NEXT_SECTION_ID } from '../../../shared/landing/landingStrings';
+import { LEADER_HOME_HASH } from '../../../shared/leader/leaderRoute';
 
 describe('LandingNav', () => {
   beforeEach(() => {

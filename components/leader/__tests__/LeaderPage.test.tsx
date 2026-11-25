@@ -15,9 +15,9 @@ import {
   LD_TITLE, LD_SIGNIN, LD_NONE, LD_NOT_OWNER, countLine, LD_YES, LD_NO, LD_EXPORT, LD_TEST, LD_TEST_OK, LD_TEST_FAILED,
   LD_COMMITMENTS, LD_FEEDBACK, answeredLine, areaCountLine, LD_STOP, LD_RESUME, LD_BY_MEMBER, LD_PAUSE, LD_COL_NAME, LD_EMPTY_CELL,
 } from '../leaderStrings';
-import { SU_ERR_NOT_CONFIGURED, SU_DEMO_LINE, SU_SUMMARY_FAILED } from '../../signup/signupStrings';
+import { SU_ERR_NOT_CONFIGURED, SU_DEMO_LINE, SU_SUMMARY_FAILED } from '../../../shared/signup/signupStrings';
 import { packSummaryFrom } from '../../signup/packSummary';
-import { CK_KIND_LABEL } from '../../checkin/checkinStrings';
+import { CK_KIND_LABEL } from '../../../shared/checkin/checkinStrings';
 import { compactTime, fullTime } from '../leaderTime';
 
 const authState = { user: null as { id: string; email: string } | null, session: null, isAuthenticated: false, isLoading: false };
@@ -28,7 +28,7 @@ const answersEqMock = vi.fn();
 const upsertMock = vi.fn();
 const invokeMock = vi.fn();
 let configured = true;
-vi.mock('../../../services/supabase', () => ({
+vi.mock('../../../shared/services/supabase', () => ({
   authManager: {
     getState: () => authState,
     subscribe: (listener: (s: typeof authState) => void) => { listener(authState); return () => undefined; },
@@ -52,7 +52,7 @@ vi.mock('../../AuthPanel', () => ({ AuthPanel: () => <div data-testid="auth-pane
 // Ask AI history (ADR-0021) has its own test (LeaderAskHistory.test.tsx); here only where and for whom it mounts.
 vi.mock('../LeaderAskHistory', () => ({ AskHistorySection: (p: { packId: string; leaderId: string }) => <section data-testid="ask-history-stub" data-pack={`${p.packId}|${p.leaderId}`} /> }));
 const downloadMock = vi.fn();
-vi.mock('../../../services/export/fileDownloader', () => ({ downloadFile: (...args: unknown[]) => downloadMock(...args) }));
+vi.mock('../../../shared/services/export/fileDownloader', () => ({ downloadFile: (...args: unknown[]) => downloadMock(...args) }));
 
 const PACK_ID = '2026-10-02-matt6';
 const LEADER_ID = 'uid-lead';

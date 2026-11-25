@@ -1,4 +1,4 @@
-import { bibleStorage, BibleTranslation, ChapterStorageData } from '../bibleStorage';
+import { bibleStorage, BibleTranslation, ChapterStorageData } from '../../shared/services/bibleStorage';
 import { BibleTextExport, BibleImportResult } from './exportTypes';
 
 export async function exportBibleTexts(): Promise<string> {

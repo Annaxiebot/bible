@@ -13,13 +13,13 @@
  * (AdminLink, ADR-0023); nothing else differs.
  */
 import React from 'react';
-import { SignInChoices } from '../signin/SignInChoices';
-import { SU_ERR_NOT_CONFIGURED } from '../signup/signupStrings';
-import { NEW_STUDY_HASH, LANDING_HASH } from '../landing/landingRoute';
-import { NEW_STUDY_LINE } from '../landing/landingStrings';
-import { NS_NO_PACKS, NS_INVALID_RECORDS } from '../newstudy/newStudyStrings';
+import { SignInChoices } from '../../shared/signin/SignInChoices';
+import { SU_ERR_NOT_CONFIGURED } from '../../shared/signup/signupStrings';
+import { NEW_STUDY_HASH, LANDING_HASH } from '../../shared/landing/landingRoute';
+import { NEW_STUDY_LINE } from '../../shared/landing/landingStrings';
+import { NS_NO_PACKS, NS_INVALID_RECORDS } from '../../shared/newstudy/newStudyStrings';
 import { PackSyncLine } from '../newstudy/PackSyncLine';
-import { useLeaderSession } from './useLeaderSession';
+import { useLeaderSession } from '../../shared/leader/useLeaderSession';
 import { useLeaderPacks } from './leaderHomeData';
 import { LeaderPackRow, primaryLinkClass } from './LeaderPackRow';
 import { LH_TITLE, LH_SIGNIN, LH_LOADING, LD_BACK } from './leaderStrings';

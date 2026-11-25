@@ -9,15 +9,15 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { generateStudyPack, loadPassage } from '../generatePack';
 import { PACK_CONTINUE_PROMPT } from '../packPrompt';
 import { JOHN3_REQUEST, JOHN3_REPLY_JSON } from './fixtures';
-import { STORAGE_KEYS } from '../../../constants/storageKeys';
-import { E2E_ACCESS_TOKEN } from '../../../services/aiProxyRoute';
+import { STORAGE_KEYS } from '../../../shared/constants/storageKeys';
+import { E2E_ACCESS_TOKEN } from '../../../shared/services/aiProxyRoute';
 import { signInSeam, signOutSeam } from '../../../tests/utils/hostedSeam';
-import { PACK_GENERATION_MODEL } from '../../../services/aiDefaults';
-import { modelLine } from '../../studypack/tvHints';
+import { PACK_GENERATION_MODEL } from '../../../shared/services/aiDefaults';
+import { modelLine } from '../../../shared/studypack/tvHints';
 import {
   NS_STEP_VERSES, NS_STEP_AI, NS_STEP_VALIDATE, NS_ERR_NO_JSON, NS_ERR_VERSES_OUT_OF_RANGE,
   NS_ERR_VERSES_UNAVAILABLE, NS_ERR_OUTPUT_LIMIT, NS_VERSE_OMITTED_NOTE,
-} from '../newStudyStrings';
+} from '../../../shared/newstudy/newStudyStrings';
 import { stubFetch, chunked, isAICall, SERVED_MODEL } from './packFetchStub';
 
 describe('loadPassage', () => {

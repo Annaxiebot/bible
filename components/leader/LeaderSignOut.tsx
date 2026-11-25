@@ -6,9 +6,9 @@
  * sign-out strings (one source, R3).
  */
 import React, { useState } from 'react';
-import { authManager } from '../../services/supabase';
-import { LANDING_HASH } from '../landing/landingRoute';
-import { SETUP_SIGN_OUT, SETUP_SIGN_OUT_FAILED, SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../setup/setupStrings';
+import { authManager } from '../../shared/services/supabase';
+import { LANDING_HASH } from '../../shared/landing/landingRoute';
+import { SETUP_SIGN_OUT, SETUP_SIGN_OUT_FAILED, SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../../shared/setup/setupStrings';
 
 const textStyle: React.CSSProperties = { fontSize: SETUP_MIN_FONT_PX, lineHeight: 1.5 };
 const controlStyle: React.CSSProperties = { ...textStyle, minHeight: SETUP_MIN_TAP_PX };

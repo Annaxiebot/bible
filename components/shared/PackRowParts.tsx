@@ -7,7 +7,7 @@
  * outlined action, and a quiet trash icon for delete.
  */
 import React from 'react';
-import type { StudyPack } from '../studypack/packTypes';
+import type { StudyPack } from '../../shared/studypack/packTypes';
 import { textStyle, controlStyle } from '../newstudy/newStudyStyles';
 
 const MONTHS_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];

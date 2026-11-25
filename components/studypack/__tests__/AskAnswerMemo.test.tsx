@@ -9,11 +9,11 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render } from '@testing-library/react';
 import { readFileSync } from 'fs';
 import React from 'react';
-import { parseStudyPack, StudyPack } from '../packTypes';
-import { TEST_PACK_PATH } from './fixtures';
+import { parseStudyPack, StudyPack } from '../../../shared/studypack/packTypes';
+import { TEST_PACK_PATH } from '../../../shared/studypack/__tests__/fixtures';
 
 const captured: unknown[] = [];
-vi.mock('../../LazyMarkdown', () => ({
+vi.mock('../../../shared/components/LazyMarkdown', () => ({
   default: ({ components, children }: { components: unknown; children: string }) => {
     captured.push(components);
     return <div>{children}</div>;

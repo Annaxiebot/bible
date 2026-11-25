@@ -12,17 +12,17 @@
  * A presentation open for 10 minutes of visible time is logged once as a
  * group meeting (useMeetingTracker, ADR-0012).
  */
-import { FIRST_SLIDE_HINT, FIRST_SLIDE_HINT_SHORT, ASK_AI_LABEL, ASK_AI_SIGNIN_NOTE, ASK_AI_SIGNIN_NOTE_SHORT, TV_LOADING } from './tvHints';
-import { useAIAccess } from '../setup/useAIAccess';
-import { BRAND_EN, BRAND_ZH } from '../landing/landingStrings';
+import { FIRST_SLIDE_HINT, FIRST_SLIDE_HINT_SHORT, ASK_AI_LABEL, ASK_AI_SIGNIN_NOTE, ASK_AI_SIGNIN_NOTE_SHORT, TV_LOADING } from '../../shared/studypack/tvHints';
+import { useAIAccess } from '../../shared/setup/useAIAccess';
+import { BRAND_EN, BRAND_ZH } from '../../shared/landing/landingStrings';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { buildSlides, StudyPack, Slide } from './packTypes';
+import { buildSlides, StudyPack, Slide } from '../../shared/studypack/packTypes';
 import { loadPack } from './packSource';
-import { fetchSharedPack, markSharedPackViewed } from './packShare';
-import { supabase } from '../../services/supabase';
-import { NS_SHARE_GONE } from '../newstudy/newStudyStrings';
+import { fetchSharedPack, markSharedPackViewed } from '../../shared/studypack/packShare';
+import { supabase } from '../../shared/services/supabase';
+import { NS_SHARE_GONE } from '../../shared/newstudy/newStudyStrings';
 import { useLocalPackClaim } from '../newstudy/claimLocalPacks';
-import { questionForSelection } from './askAI';
+import { questionForSelection } from '../../shared/studypack/askAI';
 import { useTVNavigation } from './useTVNavigation';
 import { useTVFullscreen } from './useTVFullscreen';
 import { exitFullscreen } from './fullscreen';

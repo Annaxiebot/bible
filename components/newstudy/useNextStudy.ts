@@ -6,9 +6,9 @@
  * the same source as the form's verse dropdowns.
  */
 import { useEffect, useState } from 'react';
-import type { StudyPack } from '../studypack/packTypes';
-import { TRANSLATIONS } from '../studypack/principles';
-import { fetchBundledChapter } from '../../services/bibleDataSource';
+import type { StudyPack } from '../../shared/studypack/packTypes';
+import { TRANSLATIONS } from '../../shared/studypack/principles';
+import { fetchBundledChapter } from '../../shared/services/bibleDataSource';
 import { FIRST_STUDY, NextStudy, suggestNextStudy, VerseCounter } from './nextStudy';
 
 const bundledVerseCount: VerseCounter = async (bookId, chapter) => {

@@ -6,14 +6,14 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { adjustSection, validateAdjusted, AdjustError } from '../adjustSection';
-import { sendAIRequest } from '../../../services/aiTransport';
-import { PackSection } from '../../studypack/packTypes';
-import { LIFE_AREAS } from '../../studypack/principles';
-import { quotaLine, AI_SIGN_IN_NEEDED } from '../../studypack/tvHints';
-import { AskAIError } from '../../studypack/askAIErrors';
-import { NS_ERR_INVALID, NS_ERR_LIFE_AREAS } from '../newStudyStrings';
+import { sendAIRequest } from '../../../shared/services/aiTransport';
+import { PackSection } from '../../../shared/studypack/packTypes';
+import { LIFE_AREAS } from '../../../shared/studypack/principles';
+import { quotaLine, AI_SIGN_IN_NEEDED } from '../../../shared/studypack/tvHints';
+import { AskAIError } from '../../../shared/studypack/askAIErrors';
+import { NS_ERR_INVALID, NS_ERR_LIFE_AREAS } from '../../../shared/newstudy/newStudyStrings';
 
-vi.mock('../../../services/aiTransport', () => ({ sendAIRequest: vi.fn() }));
+vi.mock('../../../shared/services/aiTransport', () => ({ sendAIRequest: vi.fn() }));
 const send = vi.mocked(sendAIRequest);
 
 const discussion: PackSection = { kind: 'discussion', heading: '讨论 Discussion', questions: ['旧一', '旧二'] };

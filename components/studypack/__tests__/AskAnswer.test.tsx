@@ -3,11 +3,11 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { readFileSync } from 'fs';
 import path from 'path';
 import React from 'react';
-import { parseStudyPack, StudyPack } from '../packTypes';
+import { parseStudyPack, StudyPack } from '../../../shared/studypack/packTypes';
 import AskAnswer, { answerFontSize, fittedAnswerFontSize } from '../AskAnswer';
 import { FIT_VAR } from '../fitScale';
-import { preloadMarkdown } from '../../LazyMarkdown';
-import { TYPE_SCALE } from '../principles';
+import { preloadMarkdown } from '../../../shared/components/LazyMarkdown';
+import { TYPE_SCALE } from '../../../shared/studypack/principles';
 
 // Warm react-markdown outside every timed budget; see preloadMarkdown() for why.
 await preloadMarkdown();

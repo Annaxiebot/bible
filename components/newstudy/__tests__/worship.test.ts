@@ -15,9 +15,9 @@ import { worshipPicks, validateGenerated } from '../generatedPack';
 import { buildPackPrompt, WORSHIP_SHAPE_KEY } from '../packPrompt';
 import { assemblePack } from '../packAssembly';
 import { validateSectionOrder, insertPosition, defaultSection, canAdd } from '../sectionRules';
-import { parseStudyPack, PackSection } from '../../studypack/packTypes';
-import { buildSlides } from '../../studypack/packSlides';
-import { NS_ERR_WORSHIP_PLACE } from '../newStudyStrings';
+import { parseStudyPack, PackSection } from '../../../shared/studypack/packTypes';
+import { buildSlides } from '../../../shared/studypack/packSlides';
+import { NS_ERR_WORSHIP_PLACE } from '../../../shared/newstudy/newStudyStrings';
 import { JOHN3_REQUEST, JOHN3_GENERATED } from './fixtures';
 
 const CATALOG: CatalogSong[] = [

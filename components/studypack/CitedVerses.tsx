@@ -11,8 +11,8 @@
  */
 import React from 'react';
 import { CitedRef } from './citations';
-import { TYPE_SCALE } from './principles';
-import { VERSES_CITED_HEADING } from './tvHints';
+import { TYPE_SCALE } from '../../shared/studypack/principles';
+import { VERSES_CITED_HEADING } from '../../shared/studypack/tvHints';
 
 const citedStyle: React.CSSProperties = { fontSize: TYPE_SCALE.verse, lineHeight: 1.35 };
 const MORE_MARK = '…';

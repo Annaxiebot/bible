@@ -11,7 +11,7 @@
  */
 import type { CSSProperties } from 'react';
 import { useSyncExternalStore } from 'react';
-import { TYPE_SCALE } from './principles';
+import { TYPE_SCALE } from '../../shared/studypack/principles';
 import { FIT_VAR } from './fitScale';
 
 /** Longest line a fitted text block may run, in its own ems (~36 汉字 / ~70 Latin letters), so a wide screen never gets one giant line. */

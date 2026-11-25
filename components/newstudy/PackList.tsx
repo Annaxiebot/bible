@@ -8,15 +8,15 @@
  * these packs live only in this browser until the leader signs in.
  */
 import React from 'react';
-import { StudyPack } from '../studypack/packTypes';
+import { StudyPack } from '../../shared/studypack/packTypes';
 import { LocalPacks } from './useLocalPacks';
 import { PackSyncLine } from './PackSyncLine';
-import { leaderHash } from '../leader/leaderRoute';
-import { newStudyHash } from '../landing/landingRoute';
+import { leaderHash } from '../../shared/leader/leaderRoute';
+import { newStudyHash } from '../../shared/landing/landingRoute';
 import {
   NS_MY_PACKS, NS_NO_PACKS, NS_EDIT, NS_DELETE, NS_DELETE_CONFIRM, NS_INVALID_RECORDS, NS_SIGNUPS, NS_SIGN_IN_TO_KEEP,
   NS_SHARE,
-} from './newStudyStrings';
+} from '../../shared/newstudy/newStudyStrings';
 import SharePackDialog from './SharePackDialog';
 import { textStyle, controlStyle, headingStyle } from './newStudyStyles';
 import BackupPanel from './BackupPanel';

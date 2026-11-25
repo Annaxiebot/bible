@@ -28,7 +28,7 @@ vi.mock('../../studypack/askHistory', () => ({
   fetchReplaceOldest: (...a: unknown[]) => fetchReplaceMock(...a),
   setReplaceOldest: (...a: unknown[]) => setReplaceMock(...a),
 }));
-vi.mock('../../signup/signupClient', () => ({ getSignupClient: () => ({}) }));
+vi.mock('../../../shared/signup/signupClient', () => ({ getSignupClient: () => ({}) }));
 
 import { AskHistorySection } from '../LeaderAskHistory';
 

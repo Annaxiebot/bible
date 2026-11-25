@@ -11,12 +11,12 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, act } from '@testing-library/react';
 import { readFileSync } from 'fs';
 import React from 'react';
-import { TEST_PACK_PATH } from './fixtures';
-import { parseStudyPack, buildSlides } from '../packTypes';
-import { ASK_AI_MODEL } from '../../../services/aiDefaults';
-import { SETUP_OPEN_BUTTON } from '../../setup/setupStrings';
-import { AI_CREDIT_USED_UP, AI_SERVICE_PAUSED, AI_DAILY_CAP_REACHED, TV_RETRY, quotaLine } from '../tvHints';
-import { AskAIError } from '../askAIErrors';
+import { TEST_PACK_PATH } from '../../../shared/studypack/__tests__/fixtures';
+import { parseStudyPack, buildSlides } from '../../../shared/studypack/packTypes';
+import { ASK_AI_MODEL } from '../../../shared/services/aiDefaults';
+import { SETUP_OPEN_BUTTON } from '../../../shared/setup/setupStrings';
+import { AI_CREDIT_USED_UP, AI_SERVICE_PAUSED, AI_DAILY_CAP_REACHED, TV_RETRY, quotaLine } from '../../../shared/studypack/tvHints';
+import { AskAIError } from '../../../shared/studypack/askAIErrors';
 
 const streamStudyAIMock = vi.fn();
 vi.mock('../askAIFallback', () => ({
@@ -34,7 +34,7 @@ function signIn(uid: string) {
   signedInUid = uid;
   act(() => authListeners.forEach(l => l(authState())));
 }
-vi.mock('../../../services/supabase', () => ({
+vi.mock('../../../shared/services/supabase', () => ({
   supabase: null,
   isSupabaseConfigured: () => true,
   authManager: {
@@ -46,10 +46,10 @@ vi.mock('../../../services/supabase', () => ({
     signOut: vi.fn(async () => ({ error: null })),
   },
 }));
-vi.mock('../../signup/signupClient', () => ({ getSignupClient: () => null }));
+vi.mock('../../../shared/signup/signupClient', () => ({ getSignupClient: () => null }));
 
 import AskAIOverlay from '../AskAIOverlay';
-import { preloadMarkdown } from '../../LazyMarkdown';
+import { preloadMarkdown } from '../../../shared/components/LazyMarkdown';
 
 function renderOverlay(initialQuestion: string | null = null) {
   const pack = parseStudyPack(JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8')));

@@ -8,7 +8,7 @@
  * Used by every landing CTA and the sign-up / check-in / stop / QR pages.
  */
 import React from 'react';
-import { splitLabel } from '../studypack/principles';
+import { splitLabel } from '../../shared/studypack/principles';
 
 interface PillProps {
   label: string;

@@ -9,7 +9,7 @@ import {
   clearAllThreads,
   getOrCreateChapterThread,
 } from '../chatHistoryStorage';
-import { ChatMessage } from '../../types';
+import { ChatMessage } from '../../shared/types';
 
 describe('chatHistoryStorage', () => {
   beforeEach(async () => {

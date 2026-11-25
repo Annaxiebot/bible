@@ -10,8 +10,8 @@
  * session. Large type (newStudyStyles), Chinese first (newStudyStrings).
  */
 import React, { useState } from 'react';
-import { STORAGE_KEYS, NEW_STUDY_GUIDE_DISMISSED_VALUE } from '../../constants/storageKeys';
-import { NS_GUIDE_TITLE, NS_GUIDE_STEPS, NS_GUIDE_MARKS, NS_GUIDE_GOT_IT } from './newStudyStrings';
+import { STORAGE_KEYS, NEW_STUDY_GUIDE_DISMISSED_VALUE } from '../../shared/constants/storageKeys';
+import { NS_GUIDE_TITLE, NS_GUIDE_STEPS, NS_GUIDE_MARKS, NS_GUIDE_GOT_IT } from '../../shared/newstudy/newStudyStrings';
 import { textStyle, controlStyle, secondaryButtonClass } from './newStudyStyles';
 
 

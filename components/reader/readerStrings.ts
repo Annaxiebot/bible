@@ -7,7 +7,7 @@
  * English is complete — chapter options, search, history, script control,
  * load errors and retry included (2026-10 review).
  */
-import type { UiLanguage, ChineseScript } from '../../services/readerPreferences';
+import type { UiLanguage, ChineseScript } from '../../shared/services/readerPreferences';
 
 export interface ReaderStrings {
   /** BCP 47 tag for the interface chrome. */

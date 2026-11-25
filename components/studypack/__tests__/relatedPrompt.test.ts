@@ -12,17 +12,17 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'fs';
 import { createHash } from 'crypto';
-import { parseStudyPack, buildSlides, StudyPack, Slide } from '../packTypes';
-import { buildRequestBody } from '../askAIStream';
+import { parseStudyPack, buildSlides, StudyPack, Slide } from '../../../shared/studypack/packTypes';
+import { buildRequestBody } from '../../../shared/studypack/askAIStream';
 import { streamStudyAI } from '../askAIFallback';
-import { finalAIBody } from '../../../services/aiFinalBody';
+import { finalAIBody } from '../../../shared/services/aiFinalBody';
 import { validateRequest } from '../../../supabase/functions/ai-proxy/policy';
 import {
   ASK_AI_ANSWER_CONTRACT, ASK_AI_RELATED_VERSES_RULE, RELATED_VERSES_HEADING, PromptMessage,
 } from '../../../supabase/functions/_shared/aiPrompts';
 import { signInSeam, signOutSeam, finalOfSent } from '../../../tests/utils/hostedSeam';
 import { RelatedVerse } from '../relatedVerses';
-import { REQUEST_HASH_PACK_PATH } from './fixtures';
+import { REQUEST_HASH_PACK_PATH } from '../../../shared/studypack/__tests__/fixtures';
 
 // Original-word retrieval is not under test here (originalWords tests cover it): with the
 // ADR-0018 switch on it finds nothing, so these requests stay exactly what this file pins.

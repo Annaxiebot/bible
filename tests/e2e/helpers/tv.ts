@@ -4,7 +4,7 @@
  * One copy (R3) used by tv-presentation, tv-cross-refs and tv-phone specs.
  */
 import { expect, Page } from '@playwright/test';
-import { SAMPLE_PACK_HASH } from '../../../components/landing/landingRoute';
+import { SAMPLE_PACK_HASH } from '../../../shared/landing/landingRoute';
 
 /** No page may call this any more (ADR-0007, 2026-10-23: AI goes through the proxy); specs route it only to count and abort. */
 export const OPENROUTER_CHAT_URL = 'https://openrouter.ai/api/v1/chat/completions';

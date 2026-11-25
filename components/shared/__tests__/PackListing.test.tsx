@@ -3,8 +3,8 @@ import React from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { readFileSync } from 'fs';
-import { parseStudyPack, StudyPack } from '../../studypack/packTypes';
-import { TEST_PACK_PATH } from '../../studypack/__tests__/fixtures';
+import { parseStudyPack, StudyPack } from '../../../shared/studypack/packTypes';
+import { TEST_PACK_PATH } from '../../../shared/studypack/__tests__/fixtures';
 import { PackListing, PACK_LIST_PREVIEW, PACK_SEARCH_FROM } from '../PackListing';
 
 const base: StudyPack = parseStudyPack(JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8')));

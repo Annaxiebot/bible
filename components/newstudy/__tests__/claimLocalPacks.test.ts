@@ -11,15 +11,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { claimLocalPacks, installClaimOnSignIn, useLocalPackClaim, LOCAL_PACKS_CLAIMED_EVENT, ClaimResult } from '../claimLocalPacks';
 import { saveLocalPack, getLocalPack } from '../../studypack/packSource';
-import { idbService } from '../../../services/idbService';
+import { idbService } from '../../../shared/services/idbService';
 import { assemblePack } from '../packAssembly';
 import { validateGenerated } from '../generatedPack';
 import { JOHN3_GENERATED, JOHN3_REQUEST } from './fixtures';
-import { SU_CLAIM_FAILED } from '../../signup/signupStrings';
+import { SU_CLAIM_FAILED } from '../../../shared/signup/signupStrings';
 
 type Listener = (state: { user: { id: string } | null }) => void;
 let listener: Listener | null = null;
-vi.mock('../../../services/supabase', () => ({
+vi.mock('../../../shared/services/supabase', () => ({
   supabase: null,  // the pack sync that follows the claim is a no-op here (packSync.test.ts)
   authManager: {
     getUserId: () => null,

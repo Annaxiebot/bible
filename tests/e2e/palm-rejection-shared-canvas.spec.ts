@@ -40,7 +40,7 @@
  */
 
 import { test, expect, type Locator, type Page } from '@playwright/test';
-import { APP_HASH } from '../../components/landing/landingRoute';
+import { APP_HASH } from '../../shared/landing/landingRoute';
 import { dispatchTouchFrames, type SynthContact } from './helpers/pointerSynth';
 import { PALM } from '../../constants/appConfig';
 

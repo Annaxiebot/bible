@@ -7,8 +7,8 @@
  * The SQL (database/site-stats-schema.sql) repeats the meeting limits and the
  * keys; database/__tests__/siteStatsSchema.test.ts pins them equal.
  */
-import { bilingualLine } from '../studypack/principles';
-import { BRAND_ZH } from '../landing/landingStrings';
+import { bilingualLine } from '../../shared/studypack/principles';
+import { BRAND_ZH } from '../../shared/landing/landingStrings';
 
 export const SITE_STATS_FN = 'site_stats';
 export const LOG_PRESENTATION_FN = 'log_presentation';

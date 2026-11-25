@@ -8,8 +8,8 @@
  * version. Large type, ≥48px targets (newStudyStyles).
  */
 import React from 'react';
-import type { LifeMenuRow } from '../studypack/packTypes';
-import { SU_PRACTICE_TITLE, SU_PRACTICE_INTRO, SU_PRACTICE_NOTE } from './signupStrings';
+import type { LifeMenuRow } from '../../shared/studypack/packTypes';
+import { SU_PRACTICE_TITLE, SU_PRACTICE_INTRO, SU_PRACTICE_NOTE } from '../../shared/signup/signupStrings';
 import { textStyle, controlStyle, headingStyle } from '../newstudy/newStudyStyles';
 import { PAPER_HEAD_CLASS, PAPER_MUTED_CLASS, PAPER_ACCENT_CLASS, PAPER_INPUT_CLASS, PAPER_LABEL_CLASS } from '../shared/paperStyles';
 

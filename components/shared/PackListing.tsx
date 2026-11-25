@@ -9,8 +9,8 @@
  * shared with the admin's leaders list). Each page renders its own row.
  */
 import React, { useState } from 'react';
-import type { StudyPack } from '../studypack/packTypes';
-import { NS_SHOW_ALL, NS_SHOW_FEWER, NS_SEARCH_PACKS, NS_SEARCH_NONE } from '../newstudy/newStudyStrings';
+import type { StudyPack } from '../../shared/studypack/packTypes';
+import { NS_SHOW_ALL, NS_SHOW_FEWER, NS_SEARCH_PACKS, NS_SEARCH_NONE } from '../../shared/newstudy/newStudyStrings';
 import { textStyle, controlStyle } from '../newstudy/newStudyStyles';
 import { LIST_SEARCH_FROM, filterByQuery, ListSearchBox } from './ListSearch';
 

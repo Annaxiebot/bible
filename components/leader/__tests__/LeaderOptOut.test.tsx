@@ -64,7 +64,7 @@ function summaries() {
   };
 }
 
-vi.mock('../../../services/supabase', () => ({
+vi.mock('../../../shared/services/supabase', () => ({
   supabase: {
     rpc: async (fn: string, args: { p_id: string; p_stop: boolean }) => leaderRpc(fn, args),
     from: (table: string) => { if (table !== 'pack_summaries') throw new Error(table); return summaries(); },
@@ -123,7 +123,7 @@ describe('SubscriptionCell', () => {
 
   it('leaderSetSubscription maps STL01 to MemberChoiceError', async () => {
     db.signups.set('m', { leader: LEADER, at: 'x', by: 'member' });
-    const { supabase } = await import('../../../services/supabase');
+    const { supabase } = await import('../../../shared/services/supabase');
     await expect(leaderSetSubscription(supabase as never, 'm', false)).rejects.toBeInstanceOf(MemberChoiceError);
   });
 });

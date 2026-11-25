@@ -16,7 +16,7 @@ import { getLocalPack, deleteLocalPack } from '../../studypack/packSource';
 
 let uid: string | null = null;
 // supabase: null → packSync (account push) is a no-op here; packSync.test.ts covers it.
-vi.mock('../../../services/supabase', () => ({ supabase: null, authManager: { getUserId: () => uid } }));
+vi.mock('../../../shared/services/supabase', () => ({ supabase: null, authManager: { getUserId: () => uid } }));
 const syncMock = vi.fn();
 vi.mock('../../signup/packSummary', () => ({ syncPackSummary: (pack: unknown) => syncMock(pack) }));
 

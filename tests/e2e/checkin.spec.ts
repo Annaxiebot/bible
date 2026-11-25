@@ -9,10 +9,10 @@
  * (file budget). No live Supabase.
  */
 import { test, expect } from '@playwright/test';
-import { checkinHash } from '../../components/checkin/checkinRoute';
+import { checkinHash } from '../../shared/checkin/checkinRoute';
 import {
   CK_TITLE, CK_KEEP_PRIVATE, CK_SHARE, CK_KEPT, CK_SHARED, CK_KIND_LABEL, CK_QUESTION_LABEL,
-} from '../../components/checkin/checkinStrings';
+} from '../../shared/checkin/checkinStrings';
 import {
   E2E_SIGNUP_ID as SIGNUP_ID, E2E_SUPABASE_PATH, mockBackend, E2E_CHECKIN_PRACTICES, E2E_CHECKIN_NOTE,
 } from './helpers/signup';

@@ -7,14 +7,14 @@
  * @module autoSaveResearchService
  */
 
-import { verseDataStorage } from './verseDataStorage';
+import { verseDataStorage } from '../shared/services/verseDataStorage';
 import { createMediaAttachment } from '../utils/mediaUtils';
-import { ChatMessage } from '../types';
+import { ChatMessage } from '../shared/types';
 import { splitBilingualAnswer } from './bilingualAnswer';
-import { AIResearchEntry } from '../types/verseData';
+import { AIResearchEntry } from '../shared/types/verseData';
 import { AUTO_SAVE } from '../constants/appConfig';
-import { STORAGE_KEYS } from '../constants/storageKeys';
-import { safeGetJSON, safeSetJSON } from '../utils/localStorageUtil';
+import { STORAGE_KEYS } from '../shared/constants/storageKeys';
+import { safeGetJSON, safeSetJSON } from '../shared/utils/localStorageUtil';
 
 /**
  * Configuration for auto-save behavior

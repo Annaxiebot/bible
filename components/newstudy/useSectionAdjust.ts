@@ -10,7 +10,7 @@
  * Unmount aborts the request.
  */
 import { useEffect, useRef, useState } from 'react';
-import { PackSection, packContentLanguage } from '../studypack/packTypes';
+import { PackSection, packContentLanguage } from '../../shared/studypack/packTypes';
 import { adjustContent, AdjustPack } from './adjustPrompt';
 import { adjustSection } from './adjustSection';
 

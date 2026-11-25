@@ -12,10 +12,10 @@
  * answers they shared from the old row move onto the live one.
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { StudyPack } from '../studypack/packTypes';
+import type { StudyPack } from '../../shared/studypack/packTypes';
 import { SIGNUPS_TABLE, CHECKIN_ANSWERS_TABLE, SEND_CHECKINS_FUNCTION } from '../signup/signupSchema';
-import type { CheckinKind } from '../checkin/checkinRoute';
-import { CHECKIN_KINDS } from '../checkin/checkinRoute';
+import type { CheckinKind } from '../../shared/checkin/checkinRoute';
+import { CHECKIN_KINDS } from '../../shared/checkin/checkinRoute';
 import { LD_ERR_LOAD, LD_TEST_FAILED } from './leaderStrings';
 import { chosenPractices, ChosenPractice } from '../../supabase/functions/send-checkins/practices';
 import { REPLACED_COLUMN, isLive, signupEmailKey } from '../../supabase/functions/send-checkins/replaced';

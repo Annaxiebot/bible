@@ -10,8 +10,8 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import QRCode from 'qrcode';
 import SignupQr from '../SignupQr';
-import { qrAltText, SU_QR_FAILED } from '../signupStrings';
-import { signupUrl, QR_SVG_OPTIONS, qrModulesPath } from '../signupRoute';
+import { qrAltText, SU_QR_FAILED } from '../../../shared/signup/signupStrings';
+import { signupUrl, QR_SVG_OPTIONS, qrModulesPath } from '../../../shared/signup/signupRoute';
 
 const URL_TEXT = signupUrl('2026-10-02-matt6', 'https://scripturetolife.org', '/');
 

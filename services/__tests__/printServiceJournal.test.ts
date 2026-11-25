@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Mock journalStorage
 const mockGetEntry = vi.fn();
 const mockGetAllEntries = vi.fn();
-vi.mock('../journalStorage', () => ({
+vi.mock('../../shared/services/journalStorage', () => ({
   journalStorage: {
     getEntry: (...args: any[]) => mockGetEntry(...args),
     getAllEntries: (...args: any[]) => mockGetAllEntries(...args),
@@ -36,7 +36,7 @@ import {
   printJournalEntriesByIds,
   printJournalDateRange,
 } from '../printService';
-import type { JournalEntry } from '../idbService';
+import type { JournalEntry } from '../../shared/services/idbService';
 
 const makeEntry = (overrides: Partial<JournalEntry> = {}): JournalEntry => ({
   id: 'e1',

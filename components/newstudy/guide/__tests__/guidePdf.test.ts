@@ -23,7 +23,7 @@ import {
   GD_ERR_NO_TEXT, GD_ERR_TOO_MANY_PAGES, GD_ERR_TOO_MUCH_TEXT, GD_ERR_TOO_BIG, GD_ERR_NOT_PDF, GD_ERR_UNREADABLE,
 } from '../guideStrings';
 import { writePdf } from './pdfWriter';
-import { GUIDE_PAGES, GUIDE_FIXTURE_FILE, GUIDE_TITLE, GUIDE_INTRO, GUIDE_OUTLINE, GUIDE_QUESTIONS } from './guideFixture';
+import { GUIDE_PAGES, GUIDE_FIXTURE_FILE, GUIDE_TITLE, GUIDE_INTRO, GUIDE_OUTLINE, GUIDE_QUESTIONS } from '../../../../shared/newstudy/guide/__tests__/guideFixture';
 
 pdfjs.GlobalWorkerOptions.workerSrc = pathToFileURL(
   createRequire(import.meta.url).resolve('pdfjs-dist/legacy/build/pdf.worker.mjs'),

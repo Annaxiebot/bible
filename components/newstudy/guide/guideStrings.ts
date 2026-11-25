@@ -5,7 +5,7 @@
  * them. Chinese first (ADR-0003 §1). Pure module (no React). "{n}" / "{name}"
  * are filled by the caller.
  */
-import { bilingualLine } from '../../studypack/principles';
+import { bilingualLine } from '../../../shared/studypack/principles';
 
 export const GD_PICK = bilingualLine('从讲义 PDF 生成', 'From a study-guide PDF');
 export const GD_READING = bilingualLine('正在读取讲义…', 'Reading the guide…');

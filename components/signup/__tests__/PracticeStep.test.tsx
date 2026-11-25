@@ -10,9 +10,9 @@ import React, { useState } from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import PracticeStep, { toggleChoice, PracticeChoice, CHOICE_ON_CLASS, CHOICE_OFF_CLASS } from '../PracticeStep';
-import { validatePractice } from '../signupClient';
-import { SU_PRACTICE_INTRO, SU_ERR_PRACTICE } from '../signupStrings';
-import { SETUP_MIN_TAP_PX } from '../../setup/setupStrings';
+import { validatePractice } from '../../../shared/signup/signupClient';
+import { SU_PRACTICE_INTRO, SU_ERR_PRACTICE } from '../../../shared/signup/signupStrings';
+import { SETUP_MIN_TAP_PX } from '../../../shared/setup/setupStrings';
 
 const ROWS = [
   { area: '健康 Health', practice: '睡前程序 · Wind-down' },

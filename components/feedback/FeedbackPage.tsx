@@ -12,7 +12,7 @@
  * One line at the bottom points developers to the public repo (sourceRepo).
  */
 import React, { useState } from 'react';
-import { getSignupClient } from '../signup/signupClient';
+import { getSignupClient } from '../../shared/signup/signupClient';
 import { textStyle, controlStyle, pageTitleStyle } from '../newstudy/newStudyStyles';
 import {
   PAPER_PAGE_CLASS, PAPER_COLUMN_CLASS, PAPER_HEAD_CLASS, PAPER_ERROR_CLASS, PAPER_INPUT_CLASS, PAPER_LABEL_CLASS, PAPER_MUTED_CLASS,

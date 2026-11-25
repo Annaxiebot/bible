@@ -14,16 +14,16 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import QrPage from '../QrPage';
 import { PAPER_PAGE_CLASS } from '../../shared/paperStyles';
 import { PAPER_HOME_TEST_ID } from '../../shared/PaperHeader';
-import { LANDING_HASH } from '../../landing/landingRoute';
-import { currentSignupUrl } from '../signupRoute';
-import { LEADER_HOME_HASH } from '../../leader/leaderRoute';
+import { LANDING_HASH } from '../../../shared/landing/landingRoute';
+import { currentSignupUrl } from '../../../shared/signup/signupRoute';
+import { LEADER_HOME_HASH } from '../../../shared/leader/leaderRoute';
 import { saveLocalPack } from '../../studypack/packSource';
-import { idbService } from '../../../services/idbService';
+import { idbService } from '../../../shared/services/idbService';
 import {
   SU_QR_BODY, SU_QR_PRINT, SU_QR_BACK, SU_DEMO_LINE, SU_UNCLAIMED_LINE, SU_ERR_PACK, qrAltText,
-} from '../signupStrings';
+} from '../../../shared/signup/signupStrings';
 
-vi.mock('../../../services/supabase', () => ({
+vi.mock('../../../shared/services/supabase', () => ({
   supabase: null,
   isSupabaseConfigured: () => true,
   authManager: { getUserId: () => null, signInWithGoogle: async () => ({ error: null }), subscribe: () => () => undefined },

@@ -8,7 +8,7 @@
 
 import React from 'react';
 import { BIBLE_BOOKS, CHINESE_ABBREV_TO_BOOK_ID } from '../constants';
-import { BOOK_ID_TO_CHINESE_NAME } from './bibleBookData';
+import { BOOK_ID_TO_CHINESE_NAME } from '../shared/services/bibleBookData';
 import {
   BibleRef,
   BOOK_ID_TO_ENGLISH,

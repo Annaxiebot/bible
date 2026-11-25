@@ -7,7 +7,7 @@
  * cannot decide — the answer renders as before (every ref a popover).
  */
 import { useEffect, useState } from 'react';
-import { StudyPack } from './packTypes';
+import { StudyPack } from '../../shared/studypack/packTypes';
 import { CitedRef, checkAnswerRefs, loadCitedRefs } from './citations';
 
 export interface CitationCheck {

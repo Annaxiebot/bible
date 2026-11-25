@@ -8,7 +8,7 @@
  */
 import React, { useEffect, useState } from 'react';
 import { subscribePackSyncStatus, type PackSyncStatus } from './packSync';
-import { PS_SYNCING, PS_SYNCED } from './packSyncStrings';
+import { PS_SYNCING, PS_SYNCED } from '../../shared/newstudy/packSyncStrings';
 import { textStyle } from './newStudyStyles';
 
 export const PackSyncLine: React.FC = () => {

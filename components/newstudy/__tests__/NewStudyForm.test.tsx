@@ -10,21 +10,21 @@ import React from 'react';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { setLeaderSettingListener } from '../../../services/leaderSettingsKeys';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { getBookById } from '../../../services/bibleBookData';
-import { TV_LOADING } from '../../studypack/tvHints';
-import { NS_ERR_RANGE, NS_ERR_CHAPTER } from '../newStudyStrings';
+import { getBookById } from '../../../shared/services/bibleBookData';
+import { TV_LOADING } from '../../../shared/studypack/tvHints';
+import { NS_ERR_RANGE, NS_ERR_CHAPTER } from '../../../shared/newstudy/newStudyStrings';
 import NewStudyForm, { validateRequest, DEFAULT_REQUEST } from '../NewStudyForm';
-import { STORAGE_KEYS } from '../../../constants/storageKeys';
+import { STORAGE_KEYS } from '../../../shared/constants/storageKeys';
 import { MAX_VERSES_IN_A_CHAPTER } from '../useVerseCount';
 import { readDefaultContentLanguage, rememberContentLanguage } from '../contentLanguageDefault';
-import { NS_CONTENT_LANGUAGE_OPTIONS } from '../newStudyStrings';
-import { CONTENT_LANGUAGES, DEFAULT_CONTENT_LANGUAGE } from '../../studypack/principles';
+import { NS_CONTENT_LANGUAGE_OPTIONS } from '../../../shared/newstudy/newStudyStrings';
+import { CONTENT_LANGUAGES, DEFAULT_CONTENT_LANGUAGE } from '../../../shared/studypack/principles';
 
 /** Verse counts the mocked bundled data reports; anything else is 30. */
 const VERSE_COUNTS: Record<string, number> = {
   'MRK/1': 45, 'MAT/6': 34, 'JHN/1': 51, 'JHN/3': 36 };
 const fetchMock = vi.fn();
-vi.mock('../../../services/bibleDataSource', () => ({
+vi.mock('../../../shared/services/bibleDataSource', () => ({
   fetchBundledChapter: (...args: unknown[]) => fetchMock(...args),
 }));
 

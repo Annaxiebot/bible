@@ -7,7 +7,7 @@
  * 1280px long edge and re-encoded as JPEG, dropping quality once before
  * refusing. Pack-level cap: sectionRules.MAX_PACK_PICTURES.
  */
-import { NS_IMG_TOO_BIG, NS_IMG_READ_ERR } from './newStudyStrings';
+import { NS_IMG_TOO_BIG, NS_IMG_READ_ERR } from '../../shared/newstudy/newStudyStrings';
 
 /** Refuse absurd inputs before decoding (a phone photo is well under this). */
 export const MAX_INPUT_BYTES = 20 * 1024 * 1024;

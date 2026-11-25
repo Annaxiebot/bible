@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { calculateMetadata, groupByBook } from '../notesExporter';
-import { VerseData } from '../../../types/verseData';
+import { VerseData } from '../../../shared/types/verseData';
 
 function makeVerseData(overrides: Partial<VerseData> = {}): VerseData {
   return {

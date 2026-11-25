@@ -9,17 +9,17 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { readFileSync } from 'fs';
-import { TEST_PACK_PATH } from './fixtures';
-import { SAMPLE_PACK_ID } from '../../landing/landingRoute';
+import { TEST_PACK_PATH } from '../../../shared/studypack/__tests__/fixtures';
+import { SAMPLE_PACK_ID } from '../../../shared/landing/landingRoute';
 import { LOG_PRESENTATION_FN, MEETING_MIN_SECONDS, MEETING_MAX_SECONDS } from '../../stats/statsRules';
-import { preloadMarkdown } from '../../LazyMarkdown';
+import { preloadMarkdown } from '../../../shared/components/LazyMarkdown';
 
 await preloadMarkdown();
 
 const rpc = vi.fn(async (fn: string, args: { p_seconds: number }) => (
   fn === LOG_PRESENTATION_FN && args.p_seconds >= MEETING_MIN_SECONDS && args.p_seconds <= MEETING_MAX_SECONDS
     ? { data: true, error: null } : { data: null, error: { message: 'refused' } }));
-vi.mock('../../signup/signupClient', () => ({ getSignupClient: () => ({ rpc }) }));
+vi.mock('../../../shared/signup/signupClient', () => ({ getSignupClient: () => ({ rpc }) }));
 
 import TVPresentationView from '../TVPresentationView';
 

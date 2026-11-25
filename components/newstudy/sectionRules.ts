@@ -10,13 +10,13 @@
  * predicates and operations below all derive from `validateSectionOrder`,
  * so the toolbar can never offer a step the validator would then reject.
  */
-import { PackSection, SectionKind } from '../studypack/packTypes';
-import { LIFE_AREAS } from '../studypack/principles';
+import { PackSection, SectionKind } from '../../shared/studypack/packTypes';
+import { LIFE_AREAS } from '../../shared/studypack/principles';
 import { SECTION_HEADINGS, PRIVACY_LINE, CLOSING_LEAD } from './packAssembly';
 import {
   NS_ERR_TITLE_FIRST, NS_ERR_SCRIPTURE_PLACE, NS_ERR_TAIL, NS_ERR_DUPLICATE_SECTION, NS_ERR_SHARING_PLACE,
   NS_ERR_WORSHIP_PLACE,
-} from './newStudyStrings';
+} from '../../shared/newstudy/newStudyStrings';
 
 /** Kinds the leader may add or remove, in menu order. */
 export const ADDABLE_KINDS: readonly SectionKind[] = [

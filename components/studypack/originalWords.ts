@@ -16,11 +16,11 @@
  * Never rejects: a failed load comes back in `warnings` (and in
  * lastOriginalWords / window.__ORIGINAL_WORDS__ in dev) — never silent (R5).
  */
-import { StudyPack } from './packTypes';
+import { StudyPack } from '../../shared/studypack/packTypes';
 import { VerseRef, packVerseIndex } from './verseRefs';
 import { bilingualRefLabel } from './refLabel';
 import { focusVerses, packPassage, PassageSpan } from './relatedVerses';
-import { originalLexiconUrl, originalWordsChapterUrl } from '../../services/bibleDataSource';
+import { originalLexiconUrl, originalWordsChapterUrl } from '../../shared/services/bibleDataSource';
 import type { OriginalWord, OriginalWordsVerse } from '../../supabase/functions/_shared/aiPrompts';
 // The stored word's field separator: one copy, owned by the build script that writes the data (R3).
 import { WORD_FIELD_SEPARATOR } from '../../scripts/lib/stepWords.mjs';

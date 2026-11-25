@@ -6,7 +6,7 @@
  * (LOOP_STEPS). A small arrow joins each card to the next.
  */
 import React from 'react';
-import { LOOP_STEPS, LOOP_EYEBROW, LOOP_HEADING_ZH, LOOP_HEADING_EN } from './landingStrings';
+import { LOOP_STEPS, LOOP_EYEBROW, LOOP_HEADING_ZH, LOOP_HEADING_EN } from '../../shared/landing/landingStrings';
 import LandingSection, { Bilingual } from './LandingSection';
 
 const numeral = (i: number) => String(i + 1).padStart(2, '0');

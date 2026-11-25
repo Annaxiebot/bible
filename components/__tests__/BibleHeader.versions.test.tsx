@@ -1,10 +1,10 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
-import { setReaderPreference } from '../../services/readerPreferences';
+import { setReaderPreference } from '../../shared/services/readerPreferences';
 import { installMemoryStorage } from '../../tests/utils/memoryStorage';
 import BibleHeader from '../BibleHeader';
-import type { Book } from '../../types';
+import type { Book } from '../../shared/types';
 
 vi.mock('../../hooks/useSeasonTheme', () => ({
   useSeasonTheme: () => ({ theme: { accent: '#4f46e5' } }),

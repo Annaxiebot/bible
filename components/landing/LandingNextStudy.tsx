@@ -14,16 +14,16 @@
  */
 import React, { useEffect, useState } from 'react';
 import { loadPack } from '../studypack/packSource';
-import type { StudyPack } from '../studypack/packTypes';
+import type { StudyPack } from '../../shared/studypack/packTypes';
 import SignupQr from '../signup/SignupQr';
-import { signupHash, currentSignupUrl } from '../signup/signupRoute';
-import { SU_QR_BODY } from '../signup/signupStrings';
-import { packHash } from './landingRoute';
+import { signupHash, currentSignupUrl } from '../../shared/signup/signupRoute';
+import { SU_QR_BODY } from '../../shared/signup/signupStrings';
+import { packHash } from '../../shared/landing/landingRoute';
 import {
   NEXT_SECTION_ID, NEXT_EYEBROW, NEXT_HEADING_ZH, NEXT_HEADING_EN, NEXT_DESC, NEXT_OPEN_CTA,
   NEXT_SIGNUP_CTA, NEXT_SIGNUP_CLOSE, NEXT_SIGNUP_LINK, NEXT_NONE_YET, NEXT_LOADING, NEXT_VERSE_REF,
-} from './landingStrings';
-import { TRANSLATIONS } from '../studypack/principles';
+} from '../../shared/landing/landingStrings';
+import { TRANSLATIONS } from '../../shared/studypack/principles';
 import LandingSection, { splitBilingual } from './LandingSection';
 import Pill from '../shared/Pill';
 import { useBundledVerse, BilingualRef } from './LandingVerse';

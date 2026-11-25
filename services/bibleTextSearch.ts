@@ -4,11 +4,11 @@
  * Extracted from BibleViewer.handleSearch to keep functions under 50 lines.
  */
 
-import { bibleStorage, BibleTranslation } from './bibleStorage';
-import { verseDataStorage } from './verseDataStorage';
+import { bibleStorage, BibleTranslation } from '../shared/services/bibleStorage';
+import { verseDataStorage } from '../shared/services/verseDataStorage';
 import { toSimplifiedAsync } from './chineseConverter';
 import { BIBLE_BOOKS } from '../constants';
-import { stripHTML } from '../utils/textUtils';
+import { stripHTML } from '../shared/utils/textUtils';
 
 export const MAX_SEARCH_RESULTS = 50;
 export const SNIPPET_MAX_LENGTH = 100;

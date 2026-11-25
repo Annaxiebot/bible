@@ -8,16 +8,16 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor } from '@testing-library/react';
 import { readFileSync } from 'fs';
 import React from 'react';
-import { TEST_PACK_PATH } from './fixtures';
-import { preloadMarkdown } from '../../LazyMarkdown';
-import { ASK_AI_LABEL } from '../tvHints';
-import { NS_SHARE_GONE } from '../../newstudy/newStudyStrings';
+import { TEST_PACK_PATH } from '../../../shared/studypack/__tests__/fixtures';
+import { preloadMarkdown } from '../../../shared/components/LazyMarkdown';
+import { ASK_AI_LABEL } from '../../../shared/studypack/tvHints';
+import { NS_SHARE_GONE } from '../../../shared/newstudy/newStudyStrings';
 
 await preloadMarkdown();
 
 const rpcMock = vi.fn();
-vi.mock('../../../services/supabase', async (importOriginal) => {
-  const real = await importOriginal<typeof import('../../../services/supabase')>();
+vi.mock('../../../shared/services/supabase', async (importOriginal) => {
+  const real = await importOriginal<typeof import('../../../shared/services/supabase')>();
   return { ...real, supabase: { rpc: (...args: unknown[]) => rpcMock(...args) } };
 });
 

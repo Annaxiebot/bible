@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef } from 'react';
-import { Verse } from '../types';
+import { Verse } from '../shared/types';
 import { SWIPE } from '../constants/appConfig';
 import { navigationTouch, realTouches, findTouchById } from '../utils/touchClassification';
 

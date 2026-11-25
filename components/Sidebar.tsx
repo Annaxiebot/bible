@@ -1,17 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { useReaderPreferences, setReaderPreference, ENGLISH_EDITIONS } from '../services/readerPreferences';
-import { SELECTABLE_CHINESE_VERSIONS } from '../services/bibleStorage';
+import { useReaderPreferences, setReaderPreference, ENGLISH_EDITIONS } from '../shared/services/readerPreferences';
+import { SELECTABLE_CHINESE_VERSIONS } from '../shared/services/bibleStorage';
 import { UI_LANGUAGE_OPTIONS } from './reader/readerStrings';
 import { useDataStats } from '../hooks/useDataStats';
 import { useGeneralResearch } from '../hooks/useGeneralResearch';
-import { bookmarkStorage, Bookmark } from '../services/bookmarkStorage';
-import { readingPlanStorage, ReadingPlanState, READING_PLANS, PlanType, ReadingPlanDay } from '../services/readingPlanStorage';
+import { bookmarkStorage, Bookmark } from '../shared/services/bookmarkStorage';
+import { readingPlanStorage, ReadingPlanState, READING_PLANS, PlanType, ReadingPlanDay } from '../shared/services/readingPlanStorage';
 import { useSeasonTheme } from '../hooks/useSeasonTheme';
 import { ALL_SEASONS, getThemeForSeason, getSeason } from '../services/seasonTheme';
 import SyncStatusLine from './SyncStatusLine';
 import { autoSaveResearchService } from '../services/autoSaveResearchService';
-import { PERSONAL_AI_FEATURE_PAUSED } from './setup/setupStrings';
-import { BRAND_EN, PERSONAL_TITLE_ZH } from './landing/landingStrings';
+import { PERSONAL_AI_FEATURE_PAUSED } from '../shared/setup/setupStrings';
+import { BRAND_EN, PERSONAL_TITLE_ZH } from '../shared/landing/landingStrings';
 
 export interface BgDownloadProgress {
   cached: number;

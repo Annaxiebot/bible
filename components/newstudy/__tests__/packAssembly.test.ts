@@ -6,12 +6,12 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { assemblePack, passageLabel, stampLeader, SECTION_HEADINGS, PRIVACY_LINE } from '../packAssembly';
-import { SU_QR_BODY } from '../../signup/signupStrings';
+import { SU_QR_BODY } from '../../../shared/signup/signupStrings';
 import { validateGenerated } from '../generatedPack';
-import { parseStudyPack, buildSlides } from '../../studypack/packTypes';
-import { LIFE_AREAS, TRANSLATIONS, BILINGUAL_SEPARATOR } from '../../studypack/principles';
+import { parseStudyPack, buildSlides } from '../../../shared/studypack/packTypes';
+import { LIFE_AREAS, TRANSLATIONS, BILINGUAL_SEPARATOR } from '../../../shared/studypack/principles';
 import { isLocalPackId } from '../../studypack/packSource';
-import { TEST_PACK_PATH } from '../../studypack/__tests__/fixtures';
+import { TEST_PACK_PATH } from '../../../shared/studypack/__tests__/fixtures';
 import {
   JOHN3_GENERATED, JOHN3_REQUEST, JOHN3_GENERATED_ZH, JOHN3_REQUEST_ZH, JOHN3_KEYWORD_ZH, JOHN3_KEYWORD_DECREASE_ZH,
 } from './fixtures';

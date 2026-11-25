@@ -19,7 +19,7 @@ import {
 } from './adminStrings';
 import {
   FUNNEL_DAYS, FUNNEL_REPEAT_MINUTES, signInStartedEvent, signInDoneEvent, type FunnelEvent,
-} from '../stats/funnelRules';
+} from '../../shared/stats/funnelRules';
 import { Header } from '../leader/LeaderSignupTable';
 import { LD_EMPTY_CELL } from '../leader/leaderStrings';
 import { textStyle } from '../newstudy/newStudyStyles';

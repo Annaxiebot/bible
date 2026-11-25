@@ -13,16 +13,16 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'fs';
-import { parseStudyPack, StudyPack } from '../../studypack/packTypes';
-import { TEST_PACK_PATH } from '../../studypack/__tests__/fixtures';
+import { parseStudyPack, StudyPack } from '../../../shared/studypack/packTypes';
+import { TEST_PACK_PATH } from '../../../shared/studypack/__tests__/fixtures';
 import { saveLocalPack, saveSyncedPack, getLocalPack, listLocalPacks } from '../../studypack/packSource';
-import { idbService } from '../../../services/idbService';
-import { makeFakeStudyPacks } from './fakeStudyPacks';
+import { idbService } from '../../../shared/services/idbService';
+import { makeFakeStudyPacks } from '../../../shared/newstudy/__tests__/fakeStudyPacks';
 
 let uid: string | null = 'uid-lead';
 let configured = true;
 let fake = makeFakeStudyPacks();
-vi.mock('../../../services/supabase', () => ({
+vi.mock('../../../shared/services/supabase', () => ({
   get supabase() { return configured ? fake.client : null; },
   authManager: { getState: () => ({ isAuthenticated: !!uid }), getUserId: () => uid },
 }));
@@ -31,7 +31,7 @@ import {
   PACK_PUSH_DEBOUNCE_MS, planPackMerge, stampUpdated, schedulePackPush, pushPack, syncPacksOnSignIn,
   deletePackEverywhere, subscribePackSyncStatus, resetPackSync, type PackSyncStatus,
 } from '../packSync';
-import { PS_ERR_PUSH, PS_ERR_PULL, PS_ERR_DELETE, PS_ERR_INVALID_REMOTE } from '../packSyncStrings';
+import { PS_ERR_PUSH, PS_ERR_PULL, PS_ERR_DELETE, PS_ERR_INVALID_REMOTE } from '../../../shared/newstudy/packSyncStrings';
 
 const sample = parseStudyPack(JSON.parse(readFileSync(TEST_PACK_PATH, 'utf-8')));
 const T1 = new Date('2026-10-01T10:00:00Z');

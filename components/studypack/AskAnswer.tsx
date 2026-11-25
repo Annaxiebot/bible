@@ -10,10 +10,10 @@
  * overlay's latest answer (fit) lists the cited outside verses (CitedVerses).
  */
 import React, { createContext, useContext, useMemo } from 'react';
-import LazyMarkdown from '../LazyMarkdown';
-import { StudyPack } from './packTypes';
+import LazyMarkdown from '../../shared/components/LazyMarkdown';
+import { StudyPack } from '../../shared/studypack/packTypes';
 import { linkifyChildren } from './RefLinkedText';
-import { TYPE_SCALE } from './principles';
+import { TYPE_SCALE } from '../../shared/studypack/principles';
 import { fitted } from './slideTypography';
 import { useCitationCheck, NO_CITATION_CHECK } from './useCitationCheck';
 import CitedVerses from './CitedVerses';

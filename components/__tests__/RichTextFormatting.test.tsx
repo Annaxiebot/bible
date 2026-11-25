@@ -5,7 +5,7 @@ import JournalBlockEditor, { execFormat, insertLink } from '../JournalBlockEdito
 import {
   type JournalBlock,
   createTextBlock,
-} from '../../types/journalBlocks';
+} from '../../shared/types/journalBlocks';
 
 // Mock SimpleDrawingCanvas
 vi.mock('../SimpleDrawingCanvas', () => {

@@ -13,13 +13,13 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, within, fireEvent } from '@testing-library/react';
 import { readFileSync } from 'fs';
 import React from 'react';
-import { parseStudyPack, StudyPack } from '../packTypes';
+import { parseStudyPack, StudyPack } from '../../../shared/studypack/packTypes';
 import AskAnswer from '../AskAnswer';
 import { clearExternalVerseCache } from '../externalVerses';
-import { NO_SUCH_VERSE_MARK, VERSES_CITED_HEADING } from '../tvHints';
+import { NO_SUCH_VERSE_MARK, VERSES_CITED_HEADING } from '../../../shared/studypack/tvHints';
 import { MAX_CITED_REFS, MAX_CITED_VERSES } from '../citations';
-import { preloadMarkdown } from '../../LazyMarkdown';
-import { TEST_PACK_PATH } from './fixtures';
+import { preloadMarkdown } from '../../../shared/components/LazyMarkdown';
+import { TEST_PACK_PATH } from '../../../shared/studypack/__tests__/fixtures';
 import { stubBundledFetch } from './bundledFetch';
 
 // Warm react-markdown outside every timed budget; see preloadMarkdown() for why.

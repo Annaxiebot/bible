@@ -9,7 +9,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'fs';
 import path from 'path';
-import { parseStudyPack, StudyPack } from '../packTypes';
+import { parseStudyPack, StudyPack } from '../../../shared/studypack/packTypes';
 import { clearExternalVerseCache } from '../externalVerses';
 import {
   RELATED_VERSES_MAX, RELATED_PER_BOOK, XrefChapter, PassageSpan, RankedTarget,
@@ -21,7 +21,7 @@ import {
 } from '../relatedPick';
 import { isSecondHop, widenPool } from '../relatedSecondHop';
 import { PICK_SYSTEM_PROMPT, formatPickRequest } from '../../../supabase/functions/_shared/aiPrompts';
-import { TEST_PACK_PATH } from './fixtures';
+import { TEST_PACK_PATH } from '../../../shared/studypack/__tests__/fixtures';
 import { stubBundledFetch } from './bundledFetch';
 
 const XREF_DIR = path.resolve(__dirname, '../../../public/bible-data/xref');

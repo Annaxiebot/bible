@@ -8,7 +8,7 @@ import './styles/stlShared.css'; // font stacks, paper page shell, gold pill (la
 import { startLeaderSettingsSync } from './services/leaderSettings';
 import { startSyncLifecycle } from './services/syncLifecycle';
 import { removeObsoleteAIStorageKeys } from './services/obsoleteStorageKeys';
-import { startFunnelSignInWatch } from './components/stats/funnelSignIn';
+import { startFunnelSignInWatch } from './shared/stats/funnelSignIn';
 import { takeOverRoot } from './utils/mountRoot';
 
 // The removed multi-provider AI left API keys and toggles in this browser; nothing reads them (ADR-0007).

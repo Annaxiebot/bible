@@ -14,10 +14,10 @@
  * the just-claimed packs are pushed; a sign-out drops pending pushes.
  */
 import { useEffect, useState } from 'react';
-import { authManager } from '../../services/supabase';
+import { authManager } from '../../shared/services/supabase';
 import { listLocalPacks, saveLocalPack } from '../studypack/packSource';
 import { syncPackSummary } from '../signup/packSummary';
-import { SU_CLAIM_FAILED } from '../signup/signupStrings';
+import { SU_CLAIM_FAILED } from '../../shared/signup/signupStrings';
 import { stampLeader } from './packAssembly';
 import { syncPacksOnSignIn, resetPackSync } from './packSync';
 

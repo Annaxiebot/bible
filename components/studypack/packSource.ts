@@ -9,11 +9,11 @@
  * before. The local store helpers live here too so the New-study page, TV
  * mode and packSync share one definition of "a local pack".
  */
-import { idbService, LocalPackRecord } from '../../services/idbService';
-import { supabase } from '../../services/supabase';
+import { idbService, LocalPackRecord } from '../../shared/services/idbService';
+import { supabase } from '../../shared/services/supabase';
 import { signedInUid } from '../../services/sessionUid';
-import { fetchRemotePack } from '../newstudy/packRemote';
-import { parseStudyPack, StudyPack, PACK_SCHEMA_VERSION } from './packTypes';
+import { fetchRemotePack } from '../../shared/newstudy/packRemote';
+import { parseStudyPack, StudyPack, PACK_SCHEMA_VERSION } from '../../shared/studypack/packTypes';
 
 export const LOCAL_PACK_PREFIX = 'local-';
 

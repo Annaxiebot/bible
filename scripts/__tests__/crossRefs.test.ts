@@ -9,7 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { BIBLE_BOOKS } from '../../services/bibleBookData';
+import { BIBLE_BOOKS } from '../../shared/services/bibleBookData';
 import { loadBooks } from '../lib/books.mjs';
 import {
   OSIS_BOOK_ORDER, osisToAppIds, parseOsisVerse, compactTarget, parseLine, buildChapters,

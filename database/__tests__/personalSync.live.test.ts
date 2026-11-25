@@ -17,7 +17,7 @@ import https from 'https';
 import path from 'path';
 import {
   PERSONAL_SYNC_TABLES, verseDataRow, bookmarkRow, chatHistoryRow, spiritualMemoryRow, syncMetadataRow,
-} from '../../services/syncRows';
+} from '../../shared/services/syncRows';
 
 const TOKEN_FILE = path.join(os.homedir(), '.supabase', 'access-token');
 const PROJECT_REF_FILE = path.resolve(__dirname, '../../supabase/.temp/project-ref');

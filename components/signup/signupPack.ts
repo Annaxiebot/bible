@@ -11,10 +11,10 @@
  */
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { findLeaderPack, isLocalPackId, loadPack } from '../studypack/packSource';
-import { isLifeMenuRows, type LifeMenuRow, type StudyPack } from '../studypack/packTypes';
-import { getSignupClient } from './signupClient';
+import { isLifeMenuRows, type LifeMenuRow, type StudyPack } from '../../shared/studypack/packTypes';
+import { getSignupClient } from '../../shared/signup/signupClient';
 import { SIGNUP_PACK_FN } from './signupSchema';
-import { SU_ERR_NOT_CONFIGURED, SU_PACK_ASK_LEADER, SU_PACK_INVALID } from './signupStrings';
+import { SU_ERR_NOT_CONFIGURED, SU_PACK_ASK_LEADER, SU_PACK_INVALID } from '../../shared/signup/signupStrings';
 
 /** What the sign-up page reads from a pack — and all the public projection returns. */
 export interface SignupPack extends Pick<StudyPack, 'id' | 'title' | 'passageRef' | 'leaderId'> {

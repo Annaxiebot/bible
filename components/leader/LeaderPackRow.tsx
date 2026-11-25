@@ -13,12 +13,12 @@
  * Present also asks for full screen inside its click (the user gesture).
  */
 import React from 'react';
-import type { StudyPack } from '../studypack/packTypes';
-import { newStudyHash, packHash } from '../landing/landingRoute';
-import { qrHash } from '../signup/signupRoute';
-import { leaderHash } from './leaderRoute';
+import type { StudyPack } from '../../shared/studypack/packTypes';
+import { newStudyHash, packHash } from '../../shared/landing/landingRoute';
+import { qrHash } from '../../shared/signup/signupRoute';
+import { leaderHash } from '../../shared/leader/leaderRoute';
 import type { PackCounts } from './leaderHomeData';
-import { NS_EDIT, NS_SHARE, NS_DELETE, NS_DELETE_CONFIRM } from '../newstudy/newStudyStrings';
+import { NS_EDIT, NS_SHARE, NS_DELETE, NS_DELETE_CONFIRM } from '../../shared/newstudy/newStudyStrings';
 import SharePackDialog from '../newstudy/SharePackDialog';
 import { LH_PRESENT, LH_RESPONSES, LH_QR, signupCountLine, sharedCountLine, viewsCountLine } from './leaderStrings';
 import { textStyle, controlStyle } from '../newstudy/newStudyStyles';

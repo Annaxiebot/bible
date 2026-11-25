@@ -12,7 +12,7 @@
  */
 import { useEffect, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { getSignupClient } from '../signup/signupClient';
+import { getSignupClient } from '../../shared/signup/signupClient';
 import {
   IS_SITE_ADMIN_FN, ADMIN_LEADERS_FN, ADMIN_FEEDBACK_FN, ADMIN_STATS_FN, ADMIN_DENIED_CODE,
   type AdminLeader, type AdminFeedback, type AdminStats,

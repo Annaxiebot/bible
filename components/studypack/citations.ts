@@ -16,11 +16,11 @@
  * The TV "verses cited" block then shows the valid refs that point outside
  * the pack's embedded passage, with their real 和合本 + BSB text.
  */
-import { StudyPack, PackVerse } from './packTypes';
+import { StudyPack, PackVerse } from '../../shared/studypack/packTypes';
 import { VerseRef, findVerseRefs, packBookId, packChapter } from './verseRefs';
 import { planRef, bundledVerseNumbers, loadExternalVerses } from './externalVerses';
 import { bilingualRefLabel } from './refLabel';
-import { BIBLE_BOOKS } from '../../services/bibleBookData';
+import { BIBLE_BOOKS } from '../../shared/services/bibleBookData';
 
 /** At most this many cited references under a TV answer. */
 export const MAX_CITED_REFS = 3;

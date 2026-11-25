@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import type { JournalEntry } from '../services/idbService';
+import type { JournalEntry } from '../shared/services/idbService';
 import type { JournalPrintOptions } from '../utils/journalPrintRenderer';
 
 interface JournalPrintDialogProps {

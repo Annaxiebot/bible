@@ -3,14 +3,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 const getChapter = vi.fn();
-vi.mock('../bibleStorage', async () => {
-  const actual = await vi.importActual<typeof import('../bibleStorage')>('../bibleStorage');
+vi.mock('../../shared/services/bibleStorage', async () => {
+  const actual = await vi.importActual<typeof import('../../shared/services/bibleStorage')>('../../shared/services/bibleStorage');
   return { ...actual, bibleStorage: { getChapter: (...args: unknown[]) => getChapter(...args) } };
 });
 vi.mock('../chineseConverter', () => ({ toSimplifiedAsync: async (text: string) => text }));
 
 import { bibleSearchService, scopeTranslations } from '../bibleSearchService';
-import { STORAGE_KEYS } from '../../constants/storageKeys';
+import { STORAGE_KEYS } from '../../shared/constants/storageKeys';
 
 const JOHN_3_16 = { verse: 16, text: 'For God so loved the world' };
 

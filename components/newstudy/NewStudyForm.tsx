@@ -9,16 +9,16 @@
  * the guide's banner sits on top and its passage pre-fills the dropdowns.
  */
 import React, { useState } from 'react';
-import { BIBLE_BOOKS, getBookById } from '../../services/bibleBookData';
+import { BIBLE_BOOKS, getBookById } from '../../shared/services/bibleBookData';
 import { StudyRequest } from './packAssembly';
 import {
   NS_BOOK, NS_LESSON_TITLE, NS_LESSON_NUMBER, NS_DATE, NS_GENERATE, NS_GENERATING, NS_ERR_RANGE, NS_ERR_CHAPTER,
   NS_CONTENT_LANGUAGE, NS_CONTENT_LANGUAGE_OPTIONS, NS_WORSHIP_OPTION,
-} from './newStudyStrings';
+} from '../../shared/newstudy/newStudyStrings';
 import { textStyle, controlStyle, inputClass, primaryButtonClass, labelClass } from './newStudyStyles';
 import { useVerseRange, RangeSelects } from './verseRangeFields';
 import { readDefaultContentLanguage, rememberContentLanguage, readDefaultWorship, rememberWorship } from './contentLanguageDefault';
-import { CONTENT_LANGUAGES, DEFAULT_CONTENT_LANGUAGE, isContentLanguage } from '../studypack/principles';
+import { CONTENT_LANGUAGES, DEFAULT_CONTENT_LANGUAGE, isContentLanguage } from '../../shared/studypack/principles';
 import { FIRST_STUDY, NextStudy } from './nextStudy';
 import type { LoadedGuide } from './guide/loadGuide';
 import { GuideBanner } from './guide/GuideEntry';

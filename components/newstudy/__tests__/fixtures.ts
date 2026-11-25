@@ -2,7 +2,7 @@
  * fixtures.ts — one valid model reply for John 3:22–36, shared by the unit
  * tests and the Playwright spec (R3: the shape lives here once). Pure module.
  */
-import { LIFE_AREAS } from '../../studypack/principles';
+import { LIFE_AREAS } from '../../../shared/studypack/principles';
 import { StudyRequest } from '../packAssembly';
 
 /** The bilingual request: JOHN3_GENERATED below is a "中文 · English" reply. */

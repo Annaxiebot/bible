@@ -5,7 +5,7 @@
  * imports it. The page title / link text is FEEDBACK_LABEL (shared with the
  * emails, supabase/functions/_shared/feedback.ts).
  */
-import { bilingual, bilingualLine } from '../studypack/principles';
+import { bilingual, bilingualLine } from '../../shared/studypack/principles';
 import type { FeedbackProblem } from '../../supabase/functions/_shared/feedback';
 import { FEEDBACK_MAX_CHARS } from '../../supabase/functions/_shared/feedback';
 

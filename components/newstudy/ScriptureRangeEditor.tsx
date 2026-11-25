@@ -8,11 +8,11 @@
  * The outcome is a bilingual status line: updated, or the loadPassage error.
  */
 import React, { useState } from 'react';
-import { StudyPack } from '../studypack/packTypes';
+import { StudyPack } from '../../shared/studypack/packTypes';
 import { VerseRange } from './packAssembly';
 import { packRange, applyScriptureRange } from './scriptureRange';
 import { useVerseRange, RangeSelects } from './verseRangeFields';
-import { NS_RANGE_APPLY, NS_RANGE_UPDATED, NS_RANGE_UPDATING } from './newStudyStrings';
+import { NS_RANGE_APPLY, NS_RANGE_UPDATED, NS_RANGE_UPDATING } from '../../shared/newstudy/newStudyStrings';
 import { textStyle, controlStyle, secondaryButtonClass } from './newStudyStyles';
 
 type Status = { kind: 'idle' } | { kind: 'loading' } | { kind: 'updated' } | { kind: 'error'; message: string };

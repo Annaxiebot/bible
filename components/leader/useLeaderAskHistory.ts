@@ -7,7 +7,7 @@
  * delete keeps the row on screen.
  */
 import { useCallback, useEffect, useState } from 'react';
-import { getSignupClient } from '../signup/signupClient';
+import { getSignupClient } from '../../shared/signup/signupClient';
 import {
   SavedExchange, listAskHistory, deleteAskExchange, deleteAllAskHistory, fetchReplaceOldest, setReplaceOldest,
 } from '../studypack/askHistory';

@@ -15,7 +15,7 @@
  * generated pack (scrollToTop) brings the editor's top into view.
  */
 import React, { useEffect, useRef, useState } from 'react';
-import { StudyPack, SectionKind, packContentLanguage } from '../studypack/packTypes';
+import { StudyPack, SectionKind, packContentLanguage } from '../../shared/studypack/packTypes';
 import SectionEditor from './SectionEditor';
 import SectionToolbar from './SectionToolbar';
 import ScriptureRangeEditor from './ScriptureRangeEditor';
@@ -31,9 +31,9 @@ import SharingControl from '../sharing/SharingControl';
 import type { AutoSaveStatus } from './useAutoSave';
 import {
   NS_EDIT_TITLE, NS_EDIT_HINTS, NS_PACK_TITLE, NS_AUTOSAVED, NS_SAVING, NS_BACK,
-} from './newStudyStrings';
+} from '../../shared/newstudy/newStudyStrings';
 import { textStyle, controlStyle, headingStyle, inputClass, quietButtonClass, labelClass } from './newStudyStyles';
-import { AI_CAVEAT } from '../studypack/principles';
+import { AI_CAVEAT } from '../../shared/studypack/principles';
 
 interface Props {
   pack: StudyPack;

@@ -8,10 +8,10 @@
  * (packEdits.withAddedSection). Large type, ≥48px targets.
  */
 import React, { useState } from 'react';
-import { PackSection, SectionKind } from '../studypack/packTypes';
+import { PackSection, SectionKind } from '../../shared/studypack/packTypes';
 import { SECTION_HEADINGS } from './packAssembly';
 import { ADDABLE_KINDS, canAdd } from './sectionRules';
-import { NS_SECTION_ADD, NS_CANCEL } from './newStudyStrings';
+import { NS_SECTION_ADD, NS_CANCEL } from '../../shared/newstudy/newStudyStrings';
 import { controlStyle, secondaryButtonClass, quietButtonClass } from './newStudyStyles';
 
 interface Props {

@@ -20,12 +20,12 @@
  * lastRelatedVerses / window.__RELATED_VERSES__ in dev) — never a silent
  * empty list passed off as "no related verses" (R5, R14).
  */
-import { StudyPack } from './packTypes';
+import { StudyPack } from '../../shared/studypack/packTypes';
 import { VerseRef, findVerseRefs, packBookId, packChapter, packVerseIndex } from './verseRefs';
 import { loadExternalVerses } from './externalVerses';
 import { bilingualRefLabel } from './refLabel';
-import { crossRefChapterUrl } from '../../services/bibleDataSource';
-import { getBookIndex } from '../../services/bibleBookData';
+import { crossRefChapterUrl } from '../../shared/services/bibleDataSource';
+import { getBookIndex } from '../../shared/services/bibleBookData';
 import type { RelatedVerseText } from '../../supabase/functions/_shared/aiPrompts';
 
 /** The switch (ADR-0015 release step 4). Off: Ask AI fetches no cross-references and sends today's request. */

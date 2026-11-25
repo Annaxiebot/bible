@@ -8,14 +8,14 @@
  * privacy line, QR sign-up line, closing lead line) are fixed here (ADR-0003
  * §7); the QR itself is drawn per pack from its id (signupRoute).
  */
-import { StudyPack, PackSection, PackVerse, PassageRange, parseStudyPack } from '../studypack/packTypes';
-import { bilingual, bilingualLine, contentLine, ContentLanguage, TRANSLATIONS } from '../studypack/principles';
+import { StudyPack, PackSection, PackVerse, PassageRange, parseStudyPack } from '../../shared/studypack/packTypes';
+import { bilingual, bilingualLine, contentLine, ContentLanguage, TRANSLATIONS } from '../../shared/studypack/principles';
 import { bilingualRefLabel } from '../studypack/refLabel';
 import { HEADING_DETAIL_SEPARATOR } from '../studypack/slideText';
 import { makeLocalPackId } from '../studypack/packSource';
-import { getBookById } from '../../services/bibleBookData';
+import { getBookById } from '../../shared/services/bibleBookData';
 import { GeneratedContent } from './generatedPack';
-import { SU_QR_BODY, SU_QR_HEADING } from '../signup/signupStrings';
+import { SU_QR_BODY, SU_QR_HEADING } from '../../shared/signup/signupStrings';
 import { halfWithoutKindLabel } from '../../supabase/functions/send-checkins/promptText';
 import type { LoadedGuide } from './guide/loadGuide';
 

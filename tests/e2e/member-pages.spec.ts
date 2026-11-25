@@ -10,15 +10,15 @@
  * Backend mocked as in signup.spec.ts (helpers/signup); no live Supabase.
  */
 import { test, expect, Page } from '@playwright/test';
-import { SAMPLE_PACK_ID } from '../../components/landing/landingRoute';
-import { signupHash, qrHash } from '../../components/signup/signupRoute';
-import { checkinHash, checkinStopHash } from '../../components/checkin/checkinRoute';
-import { SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../../components/setup/setupStrings';
+import { SAMPLE_PACK_ID } from '../../shared/landing/landingRoute';
+import { signupHash, qrHash } from '../../shared/signup/signupRoute';
+import { checkinHash, checkinStopHash } from '../../shared/checkin/checkinRoute';
+import { SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../../shared/setup/setupStrings';
 import { routeOwnedSamplePack, mockBackend, E2E_SIGNUP_ID } from './helpers/signup';
 import { mockOptOut } from './helpers/optout';
 import { PAPER_HOME_TEST_ID } from '../../components/shared/PaperHeader';
-import { LANDING_HASH } from '../../components/landing/landingRoute';
-import { HOME_LINK_LABEL, BRAND_ZH } from '../../components/landing/landingStrings';
+import { LANDING_HASH } from '../../shared/landing/landingRoute';
+import { HOME_LINK_LABEL, BRAND_ZH } from '../../shared/landing/landingStrings';
 
 const PHONE = { width: 390, height: 844 };
 const WENKAI = 'LXGW WenKai';

@@ -7,10 +7,10 @@
  * bilingual demo line.
  */
 import React from 'react';
-import type { StudyPack } from '../studypack/packTypes';
+import type { StudyPack } from '../../shared/studypack/packTypes';
 import { packSignupState } from '../studypack/packSource';
 import UnclaimedSignIn from './UnclaimedSignIn';
-import { SU_DEMO_LINE } from './signupStrings';
+import { SU_DEMO_LINE } from '../../shared/signup/signupStrings';
 
 interface Props {
   pack?: Pick<StudyPack, 'id' | 'leaderId'>;

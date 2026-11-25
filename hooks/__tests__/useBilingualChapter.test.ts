@@ -10,10 +10,10 @@ const fetchChapter = vi.fn();
 const getChapter = vi.fn();
 const saveChapter = vi.fn();
 
-vi.mock('../../services/bibleDataSource', () => ({
+vi.mock('../../shared/services/bibleDataSource', () => ({
   fetchChapter: (...args: unknown[]) => fetchChapter(...args),
 }));
-vi.mock('../../services/bibleStorage', () => ({
+vi.mock('../../shared/services/bibleStorage', () => ({
   bibleStorage: {
     getChapter: (...args: unknown[]) => getChapter(...args),
     saveChapter: (...args: unknown[]) => saveChapter(...args),

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BIBLE_BOOKS } from '../constants';
-import { verseDataStorage } from '../services/verseDataStorage';
+import { verseDataStorage } from '../shared/services/verseDataStorage';
 import { Dialog } from './Dialog';
 import { createMediaAttachment } from '../utils/mediaUtils';
 
@@ -89,7 +89,7 @@ const SaveResearchModal: React.FC<SaveResearchModalProps> = ({
       );
 
       // Update reading history to indicate this chapter has AI research
-      const { readingHistory } = await import('../services/readingHistory');
+      const { readingHistory } = await import('../shared/services/readingHistory');
       await readingHistory.updateChapterStatus(
         selectedBook,
         selectedChapter,

@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useRef } from 'react';
 import { BIBLE_BOOKS } from '../constants';
-import { bibleStorage } from '../services/bibleStorage';
+import { bibleStorage } from '../shared/services/bibleStorage';
 import { backgroundBibleDownload } from '../services/backgroundBibleDownload';
-import { fetchChapter as fetchChapterData } from '../services/bibleDataSource';
-import { BibleTranslation } from '../services/bibleStorage';
+import { fetchChapter as fetchChapterData } from '../shared/services/bibleDataSource';
+import { BibleTranslation } from '../shared/services/bibleStorage';
 import { DOWNLOAD, TIMING } from '../constants/appConfig';
 
 interface UseBibleDownloadParams {

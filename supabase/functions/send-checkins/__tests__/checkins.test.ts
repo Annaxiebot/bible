@@ -17,12 +17,12 @@ import {
 import {
   selectRecipients, testRecipientRow, verifyLeader, memberContext, welcomeAllowed, WELCOME_WINDOW_MS, SignupRow,
 } from '../recipients.ts';
-import { checkinHash } from '../../../../components/checkin/checkinRoute';
+import { checkinHash } from '../../../../shared/checkin/checkinRoute';
 import { bodyLines } from './textBody';
 import { sendEmail, sendSms, emailConfig, resendBody, RESEND_EMAILS_URL, twilioMessagesUrl, EmailConfig } from '../senders.ts';
 import { loadCheckinPack, packFromSummary, PackSummaryRow, SUMMARY_COLUMNS } from '../packSource.ts';
-import { PACK_SCHEMA_VERSION as APP_SCHEMA_VERSION } from '../../../../components/studypack/packTypes';
-import { TEST_PACK_PATH } from '../../../../components/studypack/__tests__/fixtures';
+import { PACK_SCHEMA_VERSION as APP_SCHEMA_VERSION } from '../../../../shared/studypack/packTypes';
+import { TEST_PACK_PATH } from '../../../../shared/studypack/__tests__/fixtures';
 
 const PACK: CheckinPack = {
   id: '2026-10-02-matt6',

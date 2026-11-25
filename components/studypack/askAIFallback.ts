@@ -11,11 +11,11 @@
  * Each attempt aborts if no token arrives within the first-token budget.
  * Invalid key, no credits, a content filter and a user cancel never retry.
  */
-import { askAIFallbackModels } from '../../services/aiDefaults';
-import { StudyPack, Slide } from './packTypes';
-import { AskAIMessage, resolveAskAIModel } from './askAI';
-import { buildRequestBody, streamChatCompletionDetailed, StreamOutcome } from './askAIStream';
-import { AskAIError, FALLBACK_KINDS, asAskAIError, emptyError, timeoutError } from './askAIErrors';
+import { askAIFallbackModels } from '../../shared/services/aiDefaults';
+import { StudyPack, Slide } from '../../shared/studypack/packTypes';
+import { AskAIMessage, resolveAskAIModel } from '../../shared/studypack/askAI';
+import { buildRequestBody, streamChatCompletionDetailed, StreamOutcome } from '../../shared/studypack/askAIStream';
+import { AskAIError, FALLBACK_KINDS, asAskAIError, emptyError, timeoutError } from '../../shared/studypack/askAIErrors';
 import { RELATED_VERSES_ENABLED, RelatedVerse, loadRelatedVerses } from './relatedVerses';
 import { QUESTION_AWARE_ENABLED, questionAwareChooser } from './relatedPick';
 import { ORIGINAL_WORDS_ENABLED, loadOriginalWords } from './originalWords';

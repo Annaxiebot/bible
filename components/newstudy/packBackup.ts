@@ -6,7 +6,7 @@
  * Restore also accepts a single-pack file from the old per-pack export, so
  * nothing anyone saved before becomes unreadable.
  */
-import type { StudyPack } from '../studypack/packTypes';
+import type { StudyPack } from '../../shared/studypack/packTypes';
 
 /** Marks the file as ours; a restore refuses anything else that is not a single pack. */
 export const BACKUP_KIND = 'scripturetolife-study-packs';

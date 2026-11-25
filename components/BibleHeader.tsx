@@ -1,7 +1,7 @@
 import React from 'react';
-import { Book } from '../types';
+import { Book } from '../shared/types';
 import { useSeasonTheme } from '../hooks/useSeasonTheme';
-import { useReaderPreferences } from '../services/readerPreferences';
+import { useReaderPreferences } from '../shared/services/readerPreferences';
 import { readerStrings, bookLabel } from './reader/readerStrings';
 import { ReaderEditions, ReaderTools, ReaderStatusPill, ReaderMoreMenu, ReaderDownloadStatus } from './reader/ReaderTools';
 

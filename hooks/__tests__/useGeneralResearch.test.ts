@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, waitFor } from '@testing-library/react';
 import { useGeneralResearch } from '../useGeneralResearch';
-import { verseDataStorage } from '../../services/verseDataStorage';
-import { VerseData } from '../../types/verseData';
+import { verseDataStorage } from '../../shared/services/verseDataStorage';
+import { VerseData } from '../../shared/types/verseData';
 
-vi.mock('../../services/verseDataStorage', () => ({
+vi.mock('../../shared/services/verseDataStorage', () => ({
   verseDataStorage: {
     getAllData: vi.fn(),
     deleteAIResearch: vi.fn(),

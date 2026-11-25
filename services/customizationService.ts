@@ -1,4 +1,4 @@
-import { STORAGE_KEYS } from '../constants/storageKeys';
+import { STORAGE_KEYS } from '../shared/constants/storageKeys';
 
 export interface Customization {
   id: string; description: string; css: string; config?: Record<string, any>;
@@ -58,10 +58,10 @@ class CustomizationService {
   clearAll(): void { this.customizations = []; this.persist(); }
 
   async syncToCloud(): Promise<void> {
-    try { const { supabase, canSync, authManager } = await import('./supabase'); if (!supabase || !canSync()) return; const uid = authManager.getUserId(); if (!uid) return; await supabase.from('user_settings').upsert({ user_id: uid, settings: { customizations: this.customizations }, updated_at: new Date().toISOString() }, { onConflict: 'user_id' }); } catch {}
+    try { const { supabase, canSync, authManager } = await import('../shared/services/supabase'); if (!supabase || !canSync()) return; const uid = authManager.getUserId(); if (!uid) return; await supabase.from('user_settings').upsert({ user_id: uid, settings: { customizations: this.customizations }, updated_at: new Date().toISOString() }, { onConflict: 'user_id' }); } catch {}
   }
   async loadFromCloud(): Promise<boolean> {
-    try { const { supabase, canSync, authManager } = await import('./supabase'); if (!supabase || !canSync()) return false; const uid = authManager.getUserId(); if (!uid) return false; const { data, error } = await supabase.from('user_settings').select('settings').eq('user_id', uid).single(); if (error || !data?.settings?.customizations) return false; const cloud = data.settings.customizations as Customization[]; if (Array.isArray(cloud) && cloud.length > 0) { const ids = new Set(this.customizations.map(c => c.id)); for (const c of cloud) { if (!ids.has(c.id)) this.customizations.push(c); } this.persist(); return true; } return false; } catch { return false; }
+    try { const { supabase, canSync, authManager } = await import('../shared/services/supabase'); if (!supabase || !canSync()) return false; const uid = authManager.getUserId(); if (!uid) return false; const { data, error } = await supabase.from('user_settings').select('settings').eq('user_id', uid).single(); if (error || !data?.settings?.customizations) return false; const cloud = data.settings.customizations as Customization[]; if (Array.isArray(cloud) && cloud.length > 0) { const ids = new Set(this.customizations.map(c => c.id)); for (const c of cloud) { if (!ids.has(c.id)) this.customizations.push(c); } this.persist(); return true; } return false; } catch { return false; }
   }
   exportMetadata(): CustomizationMetadata[] { return this.customizations.map(c => ({ id: c.id, description: c.description, css: c.css, config: c.config, createdAt: c.createdAt, updatedAt: c.updatedAt })); }
   importCustomization(m: CustomizationMetadata): Customization { return this.add(m.description, m.css, m.config); }

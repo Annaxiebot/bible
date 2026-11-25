@@ -1,23 +1,23 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo, lazy, Suspense } from 'react';
-import { JournalEntry } from '../services/idbService';
-import { journalStorage } from '../services/journalStorage';
+import { JournalEntry } from '../shared/services/idbService';
+import { journalStorage } from '../shared/services/journalStorage';
 import JournalEditor from './JournalEditor';
 import SimpleDrawingCanvas, { SimpleDrawingCanvasHandle } from './SimpleDrawingCanvas';
 import { navigationTouch, realTouches, findTouchById } from '../utils/touchClassification';
 import { compressImage, compressImageFromUrl } from '../services/imageCompressionService';
 import { BIBLE_BOOKS } from '../constants';
 import { usePaperType } from '../hooks/usePaperType';
-import LazyMarkdown from './LazyMarkdown';
+import LazyMarkdown from '../shared/components/LazyMarkdown';
 import type { PaperType } from '../services/strokeNormalizer';
-import { syncService } from '../services/syncService';
-import { spiritualMemory } from '../services/spiritualMemory';
-import type { SpiritualMemoryItem } from '../services/idbService';
+import { syncService } from '../shared/services/syncService';
+import { spiritualMemory } from '../shared/services/spiritualMemory';
+import type { SpiritualMemoryItem } from '../shared/services/idbService';
 import JournalBlockEditor, { useBlockHistory } from './JournalBlockEditor';
 import JournalPrintDialog from './JournalPrintDialog';
 import NotabilityEditor from './NotabilityEditor';
 import { printJournalEntriesByIds } from '../services/printService';
 import type { JournalPrintOptions } from '../utils/journalPrintRenderer';
-import { type JournalBlock, migrateToBlocks, flattenBlocks, createTextBlock, createImageBlock } from '../types/journalBlocks';
+import { type JournalBlock, migrateToBlocks, flattenBlocks, createTextBlock, createImageBlock } from '../shared/types/journalBlocks';
 import {
   getPrompt, getPromptWithIdentity, setPrompt, resetPrompt, DEFAULT_PROMPTS, type JournalPromptConfig,
   getAgentIdentity, setAgentIdentity, resetAgentIdentity,
@@ -37,7 +37,7 @@ import {
   TimelineGroup,
   ScriptureSuggestion,
 } from '../services/journalAIService';
-import { InlineAIError, useAIFailures } from './studypack/InlineAIError';
+import { InlineAIError, useAIFailures } from '../shared/studypack/InlineAIError';
 
 /** The journal's user-triggered AI actions; each failure shows next to its own control. */
 type ToolbarAIAction = 'reflect' | 'extend' | 'summary' | 'scripture';

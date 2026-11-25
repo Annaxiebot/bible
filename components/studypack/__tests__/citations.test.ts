@@ -7,13 +7,13 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'fs';
-import { parseStudyPack, StudyPack } from '../packTypes';
+import { parseStudyPack, StudyPack } from '../../../shared/studypack/packTypes';
 import { findVerseRefs } from '../verseRefs';
 import { clearExternalVerseCache } from '../externalVerses';
 import {
   checkRef, checkAnswerRefs, precheckRef, pickCitedRefs, loadCitedRefs, MAX_CITED_REFS, MAX_CITED_VERSES,
 } from '../citations';
-import { TEST_PACK_PATH } from './fixtures';
+import { TEST_PACK_PATH } from '../../../shared/studypack/__tests__/fixtures';
 import { stubBundledFetch } from './bundledFetch';
 
 // The sample pack: 马太福音 6:25–34 embedded.

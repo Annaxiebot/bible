@@ -14,10 +14,10 @@
 import { test, expect, Page } from '@playwright/test';
 import {
   AI_SIGN_IN_NEEDED, AI_TIMEOUT, AI_STREAM_ERROR, TV_RETRY, modelLine, thinkingLine,
-} from '../../components/studypack/tvHints';
-import { SETUP_OPEN_BUTTON } from '../../components/setup/setupStrings';
-import { ASK_AI_MODEL } from '../../services/aiDefaults';
-import { LEGACY_CONTENT_LANGUAGE } from '../../components/studypack/principles';
+} from '../../shared/studypack/tvHints';
+import { SETUP_OPEN_BUTTON } from '../../shared/setup/setupStrings';
+import { ASK_AI_MODEL } from '../../shared/services/aiDefaults';
+import { LEGACY_CONTENT_LANGUAGE } from '../../shared/studypack/principles';
 import { RELATED_VERSES_HEADING } from '../../supabase/functions/_shared/aiPrompts';
 import { openTV, goToSlide, DEMO_SLIDE, setAskAITimeout, sseBody } from './helpers/tv';
 import { signInAsLeader, mockAISequence, mockAIHang } from './helpers/hostedAI';

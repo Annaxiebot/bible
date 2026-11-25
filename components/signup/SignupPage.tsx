@@ -28,13 +28,13 @@ import SignupForm from './SignupForm';
 import UnclaimedSignIn from './UnclaimedSignIn';
 import {
   SignupForm as SignupFormValues, getSignupClient, submitSignup, practiceLines, ownVersionOf, ReplaceResult, WelcomeResult,
-} from './signupClient';
-import { checkinUrl } from '../checkin/checkinRoute';
-import { CK_YOUR_LINK } from '../checkin/checkinStrings';
+} from '../../shared/signup/signupClient';
+import { checkinUrl } from '../../shared/checkin/checkinRoute';
+import { CK_YOUR_LINK } from '../../shared/checkin/checkinStrings';
 import {
   SU_TITLE, SU_INTRO, SU_PACK_LOADING, SU_ERR_PACK, SU_ERR_NOT_CONFIGURED, SU_THANKS, SU_NEXT, SU_NEXT_NO_CHECKINS,
   SU_DEMO_LINE, SU_REPLACED, commitmentLine,
-} from './signupStrings';
+} from '../../shared/signup/signupStrings';
 import { textStyle, headingStyle, pageTitleStyle, controlStyle } from '../newstudy/newStudyStyles';
 import {
   PAPER_PAGE_CLASS, PAPER_COLUMN_CLASS, PAPER_HEAD_CLASS, PAPER_MUTED_CLASS, PAPER_ACCENT_CLASS, PAPER_ERROR_CLASS, PAPER_CARD_CLASS,

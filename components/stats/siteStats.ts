@@ -11,7 +11,7 @@
  */
 import { useEffect, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { getSignupClient } from '../signup/signupClient';
+import { getSignupClient } from '../../shared/signup/signupClient';
 import { SITE_STATS_FN, SITE_STATS_KEYS, SiteStats } from './statsRules';
 
 export type SiteStatsState =

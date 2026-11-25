@@ -1,7 +1,7 @@
-import { annotationStorage } from '../annotationStorage';
-import { bookmarkStorage } from '../bookmarkStorage';
-import { readingHistory } from '../readingHistory';
-import { readingPlanStorage } from '../readingPlanStorage';
+import { annotationStorage } from '../../shared/services/annotationStorage';
+import { bookmarkStorage } from '../../shared/services/bookmarkStorage';
+import { readingHistory } from '../../shared/services/readingHistory';
+import { readingPlanStorage } from '../../shared/services/readingPlanStorage';
 import {
   CombinedImportResult,
   ChapterHistoryEntry,
@@ -10,7 +10,7 @@ import {
 } from './exportTypes';
 import { importFromJSON } from './notesImporter';
 import { importBibleTexts } from './bibleTextExportImport';
-import { STORAGE_KEYS } from '../../constants/storageKeys';
+import { STORAGE_KEYS } from '../../shared/constants/storageKeys';
 import { importPersonalBackup, isPersonalBackup } from './personalDataBackup';
 
 function createEmptyResult(): CombinedImportResult {

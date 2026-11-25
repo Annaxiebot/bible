@@ -11,7 +11,7 @@
  * motion (decided here, in JS, so wheel/touch scrolling stays native).
  */
 import React from 'react';
-import { NAV_LINKS, NAV_LABEL, NavSectionId, BRAND_ZH, BRAND_EN } from './landingStrings';
+import { NAV_LINKS, NAV_LABEL, NavSectionId, BRAND_ZH, BRAND_EN } from '../../shared/landing/landingStrings';
 import LandingLeaderLink from './LandingLeaderLink';
 
 const REDUCED_MOTION_QUERY = '(prefers-reduced-motion: reduce)';

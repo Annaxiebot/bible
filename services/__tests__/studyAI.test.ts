@@ -15,13 +15,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { OWN_OPENROUTER_KEY } from '../obsoleteStorageKeys';
 import { finalOfSent } from '../../tests/utils/hostedSeam';
-import { ASK_AI_MODEL } from '../aiDefaults';
+import { ASK_AI_MODEL } from '../../shared/services/aiDefaults';
 import { ROLE_MAX_TOKENS, MAX_MESSAGES, MAX_TOTAL_CHARS } from '../../supabase/functions/ai-proxy/policy';
 import { SCOPE_GUARD } from '../../supabase/functions/_shared/aiPrompts';
-import { AI_SIGN_IN_NEEDED } from '../../components/studypack/tvHints';
+import { AI_SIGN_IN_NEEDED } from '../../shared/studypack/tvHints';
 
 let session: { access_token: string } | null = null;
-vi.mock('../supabase', () => ({
+vi.mock('../../shared/services/supabase', () => ({
   supabase: { auth: { getSession: async () => ({ data: { session }, error: null }) } },
   authManager: {
     getState: () => ({ user: session ? { id: 'uid-1' } : null, session, isAuthenticated: !!session, isLoading: false }),
@@ -31,10 +31,10 @@ vi.mock('../supabase', () => ({
 }));
 
 import { streamStudyAI, chatStudyAI, fitHistory, buildStudyBody } from '../studyAI';
-import { AskAIError } from '../../components/studypack/askAIErrors';
+import { AskAIError } from '../../shared/studypack/askAIErrors';
 import { generateVibeCSS } from '../vibe';
 import { streamAI, suggestTags } from '../journalAIService';
-import type { JournalEntry } from '../idbService';
+import type { JournalEntry } from '../../shared/services/idbService';
 
 const getItemMock = window.localStorage.getItem as ReturnType<typeof vi.fn>;
 const SERVED = 'google/gemini-2.5-flash';

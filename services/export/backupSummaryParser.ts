@@ -1,4 +1,4 @@
-import { VerseData } from '../../types/verseData';
+import { VerseData } from '../../shared/types/verseData';
 import { BackupSummaryData, EMPTY_SUMMARY } from './exportTypes';
 import { isPersonalBackup, type PersonalBackup } from './personalDataBackup';
 

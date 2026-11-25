@@ -6,14 +6,14 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { readFileSync } from 'fs';
-import { parseStudyPack } from '../packTypes';
-import { questionForSelection } from '../askAI';
+import { parseStudyPack } from '../../../shared/studypack/packTypes';
+import { questionForSelection } from '../../../shared/studypack/askAI';
 import {
   ORIGINAL_WORDS_ENABLED, ORIGINAL_WORDS_MAX_VERSES, clearOriginalWordsCache, lastOriginalWords, loadOriginalWords,
   selectionOf, targetVerses, unpackWord, withLexicon,
 } from '../originalWords';
 import { ORIGINAL_WORDS_HEADING, formatOriginalWordsBlock } from '../../../supabase/functions/_shared/aiPrompts';
-import { TEST_PACK_PATH } from './fixtures';
+import { TEST_PACK_PATH } from '../../../shared/studypack/__tests__/fixtures';
 import { stubBundledFetch } from './bundledFetch';
 import { packWord } from '../../../scripts/lib/stepWords.mjs';
 

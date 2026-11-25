@@ -14,11 +14,11 @@ import {
 } from '../seo/prerender';
 import { OG_IMAGE_ALT } from '../seo/ogImage';
 import { ogCardHtml, OG_CARD_FONT_FAMILIES, OG_CARD_COLORS } from '../seo/ogCard';
-import { SAMPLE_PACK_ID } from '../../components/landing/landingRoute';
+import { SAMPLE_PACK_ID } from '../../shared/landing/landingRoute';
 import {
   HERO_SUB_EN, HERO_SUB_ZH, HERO_EYEBROW, GROUP_CTA, PERSONAL_CTA, NEW_STUDY_SIGNIN_NOTE, BRAND_ZH, BRAND_EN,
-} from '../../components/landing/landingStrings';
-import { MAIN_CONTENT_ID, SKIP_LINK_LABEL } from '../../components/shared/skipLinkStrings';
+} from '../../shared/landing/landingStrings';
+import { MAIN_CONTENT_ID, SKIP_LINK_LABEL } from '../../shared/components/skipLinkStrings';
 
 const ROOT = path.resolve(__dirname, '../..');
 const PACKS_DIR = path.join(ROOT, 'public/packs');

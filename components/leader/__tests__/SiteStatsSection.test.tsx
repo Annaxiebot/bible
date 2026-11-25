@@ -16,7 +16,7 @@ const rpc = vi.fn((fn: string) => {
   if (reply === 'pending') return new Promise(() => undefined);
   return Promise.resolve(fn === SITE_STATS_FN ? reply : { data: null, error: { message: 'unknown' } });
 });
-vi.mock('../../signup/signupClient', () => ({ getSignupClient: () => ({ rpc }) }));
+vi.mock('../../../shared/signup/signupClient', () => ({ getSignupClient: () => ({ rpc }) }));
 
 import SiteStatsSection from '../SiteStatsSection';
 import { resetSiteStatsCache } from '../../stats/siteStats';

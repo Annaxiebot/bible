@@ -9,12 +9,12 @@ import {
   PACK_COMPACT_JSON_RULE, PACK_LENGTH_LIMITS, PACK_CONTINUE_PROMPT,
 } from '../packPrompt';
 import { buildPackRequestBody, buildContinuationBody } from '../generatePack';
-import { BILINGUAL_SEPARATOR } from '../../studypack/principles';
+import { BILINGUAL_SEPARATOR } from '../../../shared/studypack/principles';
 import { JOHN3_REQUEST, JOHN3_REQUEST_ZH } from './fixtures';
 import {
   PACK_CONTENT_CONTRACT, ASK_AI_ANSWER_CONTRACT, LIFE_AREAS, TRANSLATIONS, CONTENT_LANGUAGE_CONTRACTS, CONTENT_LANGUAGES,
-} from '../../studypack/principles';
-import { PACK_GENERATION_MODEL } from '../../../services/aiDefaults';
+} from '../../../shared/studypack/principles';
+import { PACK_GENERATION_MODEL } from '../../../shared/services/aiDefaults';
 
 const verses = [
   { num: 22, cuv: '这事以后，耶稣和门徒到了犹太地', en: 'After this, Jesus and His disciples went into the Judean countryside' },

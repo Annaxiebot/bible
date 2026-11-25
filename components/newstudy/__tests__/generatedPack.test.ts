@@ -5,10 +5,10 @@
  */
 import { describe, it, expect } from 'vitest';
 import { extractJsonObject, validateGenerated, parseCrossRef, escapeStrayQuotes } from '../generatedPack';
-import { LIFE_AREAS } from '../../studypack/principles';
+import { LIFE_AREAS } from '../../../shared/studypack/principles';
 import {
   NS_ERR_NO_JSON, NS_ERR_INVALID, NS_ERR_NO_CROSS_REFS, NS_ERR_LIFE_AREAS,
-} from '../newStudyStrings';
+} from '../../../shared/newstudy/newStudyStrings';
 import {
   JOHN3_GENERATED, JOHN3_REPLY_JSON, JOHN3_VALID_CROSS_REF_COUNT, JOHN3_REQUEST,
   JOHN3_GENERATED_ZH, JOHN3_REPLY_JSON_ZH, JOHN3_REQUEST_ZH, JOHN3_KEYWORD_ZH,

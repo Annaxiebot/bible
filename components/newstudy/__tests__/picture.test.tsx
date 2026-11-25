@@ -10,13 +10,13 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { render, screen, fireEvent, cleanup, waitFor } from '@testing-library/react';
 import {
   parseStudyPack, isPackPicture, PackSection, StudyPack, PACK_SCHEMA_VERSION,
-} from '../../studypack/packTypes';
-import { buildSlides } from '../../studypack/packSlides';
+} from '../../../shared/studypack/packTypes';
+import { buildSlides } from '../../../shared/studypack/packSlides';
 import {
   canAdd, defaultSection, insertPosition, validateSectionOrder, MAX_PACK_PICTURES,
 } from '../sectionRules';
 import { downscaleImage, MAX_INPUT_BYTES, MAX_RESULT_CHARS } from '../imageResize';
-import { NS_IMG_TOO_BIG, NS_IMG_URL, NS_IMG_CAPTION, NS_IMG_PICK } from '../newStudyStrings';
+import { NS_IMG_TOO_BIG, NS_IMG_URL, NS_IMG_CAPTION, NS_IMG_PICK } from '../../../shared/newstudy/newStudyStrings';
 import SectionEditor from '../SectionEditor';
 
 const title: PackSection = { kind: 'title', heading: 't' };

@@ -4,11 +4,11 @@
 import { describe, it, expect } from 'vitest';
 import { sharingSection, withSharingSection } from '../sharingSection';
 import { SHARING_HEADING, practiceCountLine, isQuoteLine } from '../sharingStrings';
-import { buildSlides, parseStudyPack, PACK_SCHEMA_VERSION } from '../../studypack/packTypes';
-import { MAX_BODY_LINES_PER_SLIDE } from '../../studypack/slideFit';
+import { buildSlides, parseStudyPack, PACK_SCHEMA_VERSION } from '../../../shared/studypack/packTypes';
+import { MAX_BODY_LINES_PER_SLIDE } from '../../../shared/studypack/slideFit';
 import { validateEdited } from '../../newstudy/packEdits';
 import { validateSectionOrder, canMoveUp, canMoveDown, canRemove, canAdd, moveItem } from '../../newstudy/sectionRules';
-import { NS_ERR_SHARING_PLACE } from '../../newstudy/newStudyStrings';
+import { NS_ERR_SHARING_PLACE } from '../../../shared/newstudy/newStudyStrings';
 import { CURRENT } from './fixtures';
 
 const COUNTS = [{ area: '健康 Health', count: 3 }, { area: '家庭 Family', count: 2 }];

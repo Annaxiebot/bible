@@ -6,12 +6,12 @@
  * No sign-in, no AI request, no sign-up is ever made.
  */
 import { test, expect } from '@playwright/test';
-import { APP_HASH, SAMPLE_PACK_ID } from '../../components/landing/landingRoute';
+import { APP_HASH, SAMPLE_PACK_ID } from '../../shared/landing/landingRoute';
 import {
   GROUP_CTA, NEW_STUDY_SIGNIN_NOTE, PERSONAL_CTA,
-} from '../../components/landing/landingStrings';
+} from '../../shared/landing/landingStrings';
 import { blockExternalApis, openMatthew7, zhColumn, enColumn } from './helpers/reader';
-import { MAIN_CONTENT_ID } from '../../components/shared/skipLinkStrings';
+import { MAIN_CONTENT_ID } from '../../shared/components/skipLinkStrings';
 
 test.beforeEach(async ({ context }) => { await blockExternalApis(context); });
 

@@ -6,9 +6,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import SharingControl from '../SharingControl';
 import NewStudyEditor from '../../newstudy/NewStudyEditor';
-import type { StudyPack } from '../../studypack/packTypes';
+import type { StudyPack } from '../../../shared/studypack/packTypes';
 import { SH_PREPARE, SH_DONE, SH_DONE_COUNTS_ONLY, SH_NO_PREVIOUS, SHARING_HEADING } from '../sharingStrings';
-import { quotaLine } from '../../studypack/tvHints';
+import { quotaLine } from '../../../shared/studypack/tvHints';
 import { SIGNUPS_TABLE } from '../../signup/signupSchema';
 import { LEADER, PREVIOUS, CURRENT, IDENTIFIERS, GOOD_REPLY, SIGNUPS, defaultClient, fakeClient, sseResponse, makePack } from './fixtures';
 
@@ -20,7 +20,7 @@ const state = vi.hoisted(() => ({
   sent: [] as Array<{ role: string; body: string }>,
 }));
 
-vi.mock('../../../services/aiTransport', () => ({
+vi.mock('../../../shared/services/aiTransport', () => ({
   hostedUid: () => state.uid,
   sendAIRequest: async (role: string, body: string) => {
     state.sent.push({ role, body });
@@ -31,7 +31,7 @@ vi.mock('../../studypack/packSource', async importOriginal => ({
   ...(await importOriginal<object>()),
   listLocalPacks: async () => ({ packs: state.packs, invalid: [] }),
 }));
-vi.mock('../../signup/signupClient', () => ({ getSignupClient: () => state.client }));
+vi.mock('../../../shared/signup/signupClient', () => ({ getSignupClient: () => state.client }));
 
 beforeEach(() => {
   state.uid = LEADER;

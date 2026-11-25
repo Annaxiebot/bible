@@ -8,8 +8,8 @@ import React from 'react';
 import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import TVSlide from '../TVSlide';
-import type { Slide } from '../packTypes';
-import { TYPE_SCALE } from '../principles';
+import type { Slide } from '../../../shared/studypack/packTypes';
+import { TYPE_SCALE } from '../../../shared/studypack/principles';
 import { fitted } from '../slideTypography';
 import { SHARING_HEADING, practiceCountLine } from '../../sharing/sharingStrings';
 

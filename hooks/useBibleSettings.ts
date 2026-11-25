@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
-import { STORAGE_KEYS } from '../constants/storageKeys';
+import { STORAGE_KEYS } from '../shared/constants/storageKeys';
 import { preloadConverter } from '../services/chineseConverter';
-import { useReaderPreferences, setReaderPreference } from '../services/readerPreferences';
+import { useReaderPreferences, setReaderPreference } from '../shared/services/readerPreferences';
 
 /**
  * The reader's settings. Editions, script and interface language live in the

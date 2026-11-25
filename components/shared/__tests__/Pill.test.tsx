@@ -8,7 +8,7 @@ import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import Pill from '../Pill';
-import { bilingual, bilingualLine } from '../../studypack/principles';
+import { bilingual, bilingualLine } from '../../../shared/studypack/principles';
 
 const NEXT = bilingual('下一步', 'Next');
 

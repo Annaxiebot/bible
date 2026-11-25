@@ -20,7 +20,7 @@ import { localDateTime } from '../../leader/leaderTime';
 import { LD_EMPTY_CELL } from '../../leader/leaderStrings';
 import { FEEDBACK_SOURCE_LABELS, FEEDBACK_SOURCE_UNKNOWN } from '../../../supabase/functions/_shared/feedback';
 import { ADMIN_LEADERS, ADMIN_FEEDBACK, ADMIN_STATS, ADMIN_FUNNEL, OWNER_EMAIL } from './adminFixtures';
-import { ADMIN_FUNNEL_FN } from '../../stats/funnelRules';
+import { ADMIN_FUNNEL_FN } from '../../../shared/stats/funnelRules';
 
 const ADMIN_UID = 'uid-admin';
 let uid: string | null = ADMIN_UID;
@@ -33,7 +33,7 @@ const rpcMock = vi.fn(async (fn: string) => {
   return fn in replies ? { data: replies[fn], error: null } : { data: null, error: { message: `unknown ${fn}` } };
 });
 const authState = () => ({ user: uid ? { id: uid, email: OWNER_EMAIL } : null, session: null, isAuthenticated: !!uid, isLoading: false });
-vi.mock('../../../services/supabase', () => ({
+vi.mock('../../../shared/services/supabase', () => ({
   supabase: { rpc: (fn: string) => rpcMock(fn) },
   isSupabaseConfigured: () => true,
   authManager: {

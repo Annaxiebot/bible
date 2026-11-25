@@ -8,7 +8,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { OBSOLETE_AI_STORAGE_KEYS, OWN_OPENROUTER_KEY } from '../../services/obsoleteStorageKeys';
-import { STORAGE_KEYS } from '../../constants/storageKeys';
+import { STORAGE_KEYS } from '../../shared/constants/storageKeys';
 
 test('opening the site removes the old provider keys and the own OpenRouter key, and keeps other settings', async ({ page }) => {
   await page.goto('./');

@@ -23,7 +23,7 @@
  * AI_MODEL for a user who runs the full sync. Retire AI_MODEL from that list
  * in its own session.
  */
-import { supabase, authManager, type AuthState } from './supabase';
+import { supabase, authManager, type AuthState } from '../shared/services/supabase';
 import { signedInUid } from './sessionUid';
 import {
   LEADER_SYNCED_KEYS, type LeaderSyncedKey, setLeaderSettingListener, noteLeaderSettingChanged,

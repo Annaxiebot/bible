@@ -12,15 +12,15 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import CheckinPage from '../CheckinPage';
 import { PAPER_PAGE_CLASS } from '../../shared/paperStyles';
 import { PAPER_HOME_TEST_ID } from '../../shared/PaperHeader';
-import { LANDING_HASH } from '../../landing/landingRoute';
+import { LANDING_HASH } from '../../../shared/landing/landingRoute';
 import { CHECKIN_CONTEXT_FN, SHARE_ANSWER_FN } from '../../signup/signupSchema';
 import { privateAnswerKey, promptFor, kindForToday } from '../checkinClient';
 import {
   CK_TITLE, CK_KEEP_PRIVATE, CK_SHARE, CK_KEPT, CK_SHARED, CK_ERR_EMPTY, CK_ERR_SHARE, CK_ERR_LOAD, CK_DEFAULT_QUESTION, CK_KIND_LABEL, CK_QUESTION_LABEL,
-} from '../checkinStrings';
+} from '../../../shared/checkin/checkinStrings';
 
 const rpcMock = vi.fn();
-vi.mock('../../../services/supabase', () => ({ supabase: { rpc: (...args: unknown[]) => rpcMock(...args) } }));
+vi.mock('../../../shared/services/supabase', () => ({ supabase: { rpc: (...args: unknown[]) => rpcMock(...args) } }));
 
 const ID = '7d4e8b2a-1c3f-4a5b-9e6d-0f1a2b3c4d5e';
 const CONTEXT = {

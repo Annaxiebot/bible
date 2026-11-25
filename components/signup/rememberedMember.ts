@@ -6,8 +6,8 @@
  * never synced), so next week's QR scan opens with them filled in.
  * "不是你？· Not you?" forgets them (a shared or church phone).
  */
-import { STORAGE_KEYS } from '../../constants/storageKeys';
-import type { SignupForm } from './signupClient';
+import { STORAGE_KEYS } from '../../shared/constants/storageKeys';
+import type { SignupForm } from '../../shared/signup/signupClient';
 
 export type RememberedMember = Pick<SignupForm, 'name' | 'email' | 'phone' | 'consent'>;
 

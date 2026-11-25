@@ -1,8 +1,8 @@
-import { VerseData } from '../../types/verseData';
-import { AnnotationRecord } from '../annotationStorage';
-import { Bookmark } from '../bookmarkStorage';
-import { ReadingPlanState } from '../readingPlanStorage';
-import { ReadingPosition, ChapterHistory } from '../readingHistory';
+import { VerseData } from '../../shared/types/verseData';
+import { AnnotationRecord } from '../../shared/services/annotationStorage';
+import { Bookmark } from '../../shared/services/bookmarkStorage';
+import { ReadingPlanState } from '../../shared/services/readingPlanStorage';
+import { ReadingPosition, ChapterHistory } from '../../shared/services/readingHistory';
 
 /** @deprecated Use ReadingPosition from services/readingHistory */
 export type ReadingPositionData = ReadingPosition;
@@ -72,7 +72,7 @@ export interface FullBackupExport {
 }
 
 // Re-export v4 canonical backup type from backup/types.ts
-export type { FullBackupExport_v4 } from '../backup/types';
+export type { FullBackupExport_v4 } from '../../shared/services/backup/types';
 
 export interface BackupSummaryData {
   version?: string;

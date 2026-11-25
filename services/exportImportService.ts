@@ -1,10 +1,10 @@
-import { verseDataStorage } from './verseDataStorage';
-import { STORAGE_KEYS } from '../constants/storageKeys';
-import { annotationStorage } from './annotationStorage';
-import { bookmarkStorage } from './bookmarkStorage';
-import { readingHistory } from './readingHistory';
-import { readingPlanStorage } from './readingPlanStorage';
-import { downloadFile } from './export/fileDownloader';
+import { verseDataStorage } from '../shared/services/verseDataStorage';
+import { STORAGE_KEYS } from '../shared/constants/storageKeys';
+import { annotationStorage } from '../shared/services/annotationStorage';
+import { bookmarkStorage } from '../shared/services/bookmarkStorage';
+import { readingHistory } from '../shared/services/readingHistory';
+import { readingPlanStorage } from '../shared/services/readingPlanStorage';
+import { downloadFile } from '../shared/services/export/fileDownloader';
 import { exportToJSON, exportToMarkdown, exportToHTML } from './export/notesExporter';
 import { importFromJSON } from './export/notesImporter';
 import { exportBibleTexts, importBibleTexts } from './export/bibleTextExportImport';
@@ -45,7 +45,7 @@ class ExportImportService {
       bookmarkStorage.getAllBookmarks(),
       Promise.resolve(readingHistory.getHistory()),
       readingPlanStorage.getAllPlans(),
-      (await import('./bibleStorage')).bibleStorage.getAllChapters(),
+      (await import('../shared/services/bibleStorage')).bibleStorage.getAllChapters(),
     ]);
     return {
       notes: allData.filter(d => d.personalNote).length,

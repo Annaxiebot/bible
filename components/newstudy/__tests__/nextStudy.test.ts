@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
-import { parseStudyPack, StudyPack } from '../../studypack/packTypes';
-import { TEST_PACK_PATH } from '../../studypack/__tests__/fixtures';
+import { parseStudyPack, StudyPack } from '../../../shared/studypack/packTypes';
+import { TEST_PACK_PATH } from '../../../shared/studypack/__tests__/fixtures';
 import { packPassage } from '../../studypack/relatedVerses';
 import { FIRST_STUDY, chapterAfter, latestPack, rangeAfter, suggestNextStudy, VerseCounter } from '../nextStudy';
 

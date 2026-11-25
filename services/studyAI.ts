@@ -11,11 +11,11 @@
  * Requests always stream (the proxy passes OpenRouter's SSE through);
  * chatStudyAI simply collects the stream for callers that want the text.
  */
-import { streamChatCompletionDetailed } from '../components/studypack/askAIStream';
-import { emptyError } from '../components/studypack/askAIErrors';
+import { streamChatCompletionDetailed } from '../shared/studypack/askAIStream';
+import { emptyError } from '../shared/studypack/askAIErrors';
 import { ROLE_MAX_TOKENS } from '../supabase/functions/ai-proxy/policy';
-import { fitHistory, HistoryMessage } from './aiHistoryFit';
-import { askAIModel } from './aiDefaults';
+import { fitHistory, HistoryMessage } from '../shared/services/aiHistoryFit';
+import { askAIModel } from '../shared/services/aiDefaults';
 
 const STUDY_TEMPERATURE = 0.7;
 

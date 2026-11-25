@@ -9,7 +9,7 @@
  * thrown) becomes a typed failure that the status reports.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { STORAGE_KEYS } from '../../constants/storageKeys';
+import { STORAGE_KEYS } from '../../shared/constants/storageKeys';
 import { OWN_OPENROUTER_KEY } from '../obsoleteStorageKeys';
 
 let uid: string | null = null;
@@ -27,7 +27,7 @@ const fromMock = vi.fn(() => ({
   select: () => ({ eq: () => ({ maybeSingle: maybeSingleMock }) }),
   upsert: upsertMock,
 }));
-vi.mock('../supabase', () => ({
+vi.mock('../../shared/services/supabase', () => ({
   get supabase() { return configured ? { from: fromMock } : null; },
   authManager: {
     getState: () => authState(),

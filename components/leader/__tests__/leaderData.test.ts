@@ -9,7 +9,7 @@ import {
 } from '../leaderData';
 import { SIGNUPS_TABLE, CHECKIN_ANSWERS_TABLE } from '../../signup/signupSchema';
 import { LD_ERR_LOAD, LD_TEST_FAILED } from '../leaderStrings';
-import type { StudyPack } from '../../studypack/packTypes';
+import type { StudyPack } from '../../../shared/studypack/packTypes';
 
 const LEADER_ID = 'uid-lead';
 const ROWS: SignupRecord[] = [

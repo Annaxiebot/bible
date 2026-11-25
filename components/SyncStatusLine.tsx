@@ -10,12 +10,12 @@
  * (ADR-0010). Sign-out keeps every local record.
  */
 import React, { useEffect, useState } from 'react';
-import { authManager, syncManager, type SyncStatus } from '../services/supabase';
-import { useLeaderSession } from './leader/useLeaderSession';
-import { useGoogleSignIn } from './signup/useGoogleSignIn';
+import { authManager, syncManager, type SyncStatus } from '../shared/services/supabase';
+import { useLeaderSession } from '../shared/leader/useLeaderSession';
+import { useGoogleSignIn } from '../shared/signup/useGoogleSignIn';
 import { exportAndDownloadAll } from '../services/export/fullBackupExporter';
-import { SU_SIGN_IN_GOOGLE as SIGN_IN, SU_SIGNING_IN as SIGNING_IN } from './signup/signupStrings';
-import { SETUP_SIGN_OUT as SIGN_OUT } from './setup/setupStrings';
+import { SU_SIGN_IN_GOOGLE as SIGN_IN, SU_SIGNING_IN as SIGNING_IN } from '../shared/signup/signupStrings';
+import { SETUP_SIGN_OUT as SIGN_OUT } from '../shared/setup/setupStrings';
 import {
   SYNC_LINE_LOCAL, SYNC_LINE_SYNCED, SYNC_LINE_SYNCING, SYNC_LINE_ERROR,
   SYNC_LINE_EXPORT as EXPORT, SYNC_LINE_LAST_SYNC as LAST_SYNC,

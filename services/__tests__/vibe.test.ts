@@ -1,10 +1,10 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 // Vibe goes through the personal app's one AI path (services/studyAI → aiTransport, role 'study').
 vi.mock('../studyAI', () => ({ chatStudyAI: vi.fn() }));
-vi.mock('../aiTransport', () => ({ isAIAvailable: vi.fn(() => true) }));
+vi.mock('../../shared/services/aiTransport', () => ({ isAIAvailable: vi.fn(() => true) }));
 import { isVibeAvailable, generateVibeStyles, generateVibeCSS, saveVibeStyles, loadVibeStyles, clearVibeStyles, getEmptyStyles, saveVibeChatHistory, loadVibeChatHistory, clearVibeChatHistory, VIBE_PRESETS, VibeStyles, VibeChatMessage } from '../vibe';
 import { chatStudyAI } from '../studyAI';
-import { isAIAvailable } from '../aiTransport';
+import { isAIAvailable } from '../../shared/services/aiTransport';
 const reply = (text: string) => vi.mocked(chatStudyAI).mockResolvedValue({ text, model: 'google/gemini-2.5-flash' });
 
 function makeStorage(init: Record<string, string> = {}) {

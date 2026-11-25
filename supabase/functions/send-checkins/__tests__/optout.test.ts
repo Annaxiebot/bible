@@ -19,7 +19,7 @@ import { selectRecipients, SignupRow } from '../recipients.ts';
 import { renderCheckin, stopLine, stopPageUrl, SITE_ORIGIN, WELCOME_KIND, CheckinPack } from '../templates.ts';
 import { resendBody, EmailConfig } from '../senders.ts';
 import { packFromSummary, SUMMARY_COLUMNS } from '../packSource.ts';
-import { checkinStopHash } from '../../../../components/checkin/checkinRoute';
+import { checkinStopHash } from '../../../../shared/checkin/checkinRoute';
 import { bodyLines } from './textBody';
 import { SEND_CHECKINS_FUNCTION } from '../../../../components/signup/signupSchema';
 

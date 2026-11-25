@@ -13,9 +13,9 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { readFileSync } from 'fs';
 import React from 'react';
-import { TEST_PACK_PATH } from './fixtures';
-import { parseStudyPack, buildSlides, StudyPack } from '../packTypes';
-import { ASK_AI_MODEL } from '../../../services/aiDefaults';
+import { TEST_PACK_PATH } from '../../../shared/studypack/__tests__/fixtures';
+import { parseStudyPack, buildSlides, StudyPack } from '../../../shared/studypack/packTypes';
+import { ASK_AI_MODEL } from '../../../shared/services/aiDefaults';
 import { AH_FULL_NOTICE, AH_REPLACE, AH_DONT_SAVE, AH_CLEAR } from '../askHistoryStrings';
 
 const streamStudyAIMock = vi.fn();
@@ -26,7 +26,7 @@ const authState = () => ({
   user: signedInUid ? { id: signedInUid, email: 'leader@example.com' } : null,
   session: null, isAuthenticated: !!signedInUid, isLoading: false,
 });
-vi.mock('../../../services/supabase', () => ({
+vi.mock('../../../shared/services/supabase', () => ({
   supabase: null,
   isSupabaseConfigured: () => true,
   authManager: {
@@ -36,7 +36,7 @@ vi.mock('../../../services/supabase', () => ({
     subscribe: (l: (s: unknown) => void) => { l(authState()); return () => undefined; },
   },
 }));
-vi.mock('../../signup/signupClient', () => ({ getSignupClient: () => ({}) }));
+vi.mock('../../../shared/signup/signupClient', () => ({ getSignupClient: () => ({}) }));
 
 const listMock = vi.fn();
 const saveMock = vi.fn();
@@ -47,7 +47,7 @@ vi.mock('../askHistory', async importOriginal => ({
 }));
 
 import AskAIOverlay from '../AskAIOverlay';
-import { preloadMarkdown } from '../../LazyMarkdown';
+import { preloadMarkdown } from '../../../shared/components/LazyMarkdown';
 
 const OWNER = 'uid-owner';
 const SAVED = [

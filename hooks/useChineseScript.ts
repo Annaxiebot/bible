@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useReducer, useState } from 'react';
-import { Verse } from '../types';
+import { Verse } from '../shared/types';
 import { subscribeConverter, toScript, toScriptAsync } from '../services/chineseConverter';
 
 /** Re-render the caller whenever the converter becomes ready or caches new conversions. */

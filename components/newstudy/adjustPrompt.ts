@@ -10,9 +10,9 @@
  * adjustable — verses come from the bundled Bible (ADR-0003 §4). The life
  * menu keeps its seven areas in order; only the practices change.
  */
-import { PackSection, SectionKind, StudyPack } from '../studypack/packTypes';
-import { PACK_CONTENT_CONTRACT, CONTENT_LANGUAGE_CONTRACTS, ContentLanguage } from '../studypack/principles';
-import { packGenerationModel } from '../../services/aiDefaults';
+import { PackSection, SectionKind, StudyPack } from '../../shared/studypack/packTypes';
+import { PACK_CONTENT_CONTRACT, CONTENT_LANGUAGE_CONTRACTS, ContentLanguage } from '../../shared/studypack/principles';
+import { packGenerationModel } from '../../shared/services/aiDefaults';
 import { PACK_COMPACT_JSON_RULE, PACK_TEMPERATURE } from './packPrompt';
 
 /** Sections whose lines the model drafted; title (app-owned facts), scripture (bundled) and qr (fixed) are excluded. */

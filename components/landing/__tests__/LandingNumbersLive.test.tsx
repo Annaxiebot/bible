@@ -9,13 +9,13 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, within, waitFor } from '@testing-library/react';
-import { HONEST_NUMBERS } from '../landingStrings';
+import { HONEST_NUMBERS } from '../../../shared/landing/landingStrings';
 import { SITE_STATS_FN, SITE_STAT_FIGURES, PUBLIC_STATS_MIN_LEADERS, LIVE_NUMBERS_HEADING_ZH } from '../../stats/statsRules';
 
 const base = { packs: 30, meetings: 12, signups: 1200, practices: 2400, checkins_shared: 800, as_of: '2026-10-06T00:00:00Z' };
 let reply: { data: unknown; error: { message: string } | null } = { data: { ...base, leaders: 2 }, error: null };
 const rpc = vi.fn(async (fn: string) => (fn === SITE_STATS_FN ? reply : { data: null, error: { message: 'unknown' } }));
-vi.mock('../../signup/signupClient', () => ({ getSignupClient: () => ({ rpc }) }));
+vi.mock('../../../shared/signup/signupClient', () => ({ getSignupClient: () => ({ rpc }) }));
 
 import LandingNumbers from '../LandingNumbers';
 import { resetSiteStatsCache } from '../../stats/siteStats';

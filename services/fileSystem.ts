@@ -1,5 +1,5 @@
 
-import { NoteData } from '../types';
+import { NoteData } from '../shared/types';
 
 /**
  * Downloads a single note as a JSON file.

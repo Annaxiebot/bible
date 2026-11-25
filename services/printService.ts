@@ -1,12 +1,12 @@
-import { NoteData } from '../types';
-import type { JournalEntry } from './idbService';
-import { getChineseName, getBookIndex, BIBLE_BOOKS } from './bibleBookData';
-import { verseDataStorage } from './verseDataStorage';
-import { annotationStorage } from './annotationStorage';
-import { bibleStorage } from './bibleStorage';
+import { NoteData } from '../shared/types';
+import type { JournalEntry } from '../shared/services/idbService';
+import { getChineseName, getBookIndex, BIBLE_BOOKS } from '../shared/services/bibleBookData';
+import { verseDataStorage } from '../shared/services/verseDataStorage';
+import { annotationStorage } from '../shared/services/annotationStorage';
+import { bibleStorage } from '../shared/services/bibleStorage';
 import { PRINT, TIMING, DRAWING } from '../constants/appConfig';
 import { resizeBase64Image, isNonEmptyDrawing, migratePathDataToBase64 } from './simpleCanvasRenderer';
-import type { VerseData, AIResearchEntry } from '../types/verseData';
+import type { VerseData, AIResearchEntry } from '../shared/types/verseData';
 
 export interface PrintableNote {
   id: string;
@@ -902,7 +902,7 @@ export function printJournalEntries(entries: JournalEntry[]) {
 // =====================================================
 
 import { generateJournalBlockPrintHTML, type JournalPrintOptions } from '../utils/journalPrintRenderer';
-import { journalStorage } from './journalStorage';
+import { journalStorage } from '../shared/services/journalStorage';
 
 function openPrintWindow(html: string) {
   const printWindow = window.open('', '_blank');

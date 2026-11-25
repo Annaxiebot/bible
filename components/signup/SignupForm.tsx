@@ -12,15 +12,15 @@
  * inline (role=alert); the parent owns the insert.
  */
 import React, { useState } from 'react';
-import type { LifeMenuRow } from '../studypack/packTypes';
-import { SignupForm as SignupFormValues, EMPTY_SIGNUP, validateSignup, validatePractice, practiceLines, ownVersionOf } from './signupClient';
+import type { LifeMenuRow } from '../../shared/studypack/packTypes';
+import { SignupForm as SignupFormValues, EMPTY_SIGNUP, validateSignup, validatePractice, practiceLines, ownVersionOf } from '../../shared/signup/signupClient';
 import PracticeStep from './PracticeStep';
 import { readRememberedMember, forgetMember } from './rememberedMember';
 import {
   SU_NAME, SU_PHONE, SU_PHONE_HINT, SU_EMAIL, SU_CONSENT, SU_SUBMIT, SU_SUBMITTING, SU_PRIVACY,
   SU_PRIVACY_LINK, SU_PRIVACY_URL,
   SU_NEXT_STEP, SU_PREV_STEP, SU_CONTACT_TITLE, commitmentLine, suWelcomeBack, SU_DETAILS_FILLED, SU_EDIT_DETAILS, SU_NOT_YOU,
-} from './signupStrings';
+} from '../../shared/signup/signupStrings';
 import { textStyle, controlStyle, headingStyle } from '../newstudy/newStudyStyles';
 import {
   PAPER_HEAD_CLASS, PAPER_MUTED_CLASS, PAPER_ACCENT_CLASS, PAPER_ERROR_CLASS, PAPER_INPUT_CLASS, PAPER_LABEL_CLASS,

@@ -13,8 +13,8 @@
  * newest first. Nothing is cached or stored (ADR-0023 privacy).
  */
 import { useEffect, useState } from 'react';
-import { getSignupClient } from '../signup/signupClient';
-import { ADMIN_FUNNEL_FN, FUNNEL_DAYS, FUNNEL_EVENTS, isFunnelEvent, type FunnelEvent } from '../stats/funnelRules';
+import { getSignupClient } from '../../shared/signup/signupClient';
+import { ADMIN_FUNNEL_FN, FUNNEL_DAYS, FUNNEL_EVENTS, isFunnelEvent, type FunnelEvent } from '../../shared/stats/funnelRules';
 import { callRpc, AdminDeniedError, NOT_CONFIGURED } from './adminData';
 import { parseList, isCount } from './adminParse';
 

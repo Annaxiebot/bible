@@ -9,19 +9,19 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFileSync } from 'fs';
-import { STORAGE_KEYS } from '../../../constants/storageKeys';
+import { STORAGE_KEYS } from '../../../shared/constants/storageKeys';
 import { signInSeam, signOutSeam } from '../../../tests/utils/hostedSeam';
-import { parseStudyPack, buildSlides, StudyPack, Slide } from '../packTypes';
-import { ASK_AI_MAX_TOKENS } from '../askAI';
-import { ASK_AI_MODEL, ASK_AI_FALLBACK_MODELS } from '../../../services/aiDefaults';
-import { HTTP_PAYMENT_REQUIRED, HTTP_UNAUTHORIZED, HTTP_NOT_FOUND } from '../../../services/openrouterStatus';
-import { ASK_AI_RETRY_MAX_TOKENS } from '../askAIStream';
+import { parseStudyPack, buildSlides, StudyPack, Slide } from '../../../shared/studypack/packTypes';
+import { ASK_AI_MAX_TOKENS } from '../../../shared/studypack/askAI';
+import { ASK_AI_MODEL, ASK_AI_FALLBACK_MODELS } from '../../../shared/services/aiDefaults';
+import { HTTP_PAYMENT_REQUIRED, HTTP_UNAUTHORIZED, HTTP_NOT_FOUND } from '../../../shared/services/openrouterStatus';
+import { ASK_AI_RETRY_MAX_TOKENS } from '../../../shared/studypack/askAIStream';
 import { streamStudyAI, ASK_AI_FIRST_TOKEN_TIMEOUT_MS } from '../askAIFallback';
 import {
   AI_SIGN_IN_NEEDED, AI_CREDITS_MESSAGE, AI_REQUEST_FAILED,
   AI_STREAM_ERROR, AI_BUDGET_SPENT, AI_FILTERED, AI_EMPTY, AI_TIMEOUT, modelUnavailableLine, modelLine,
-} from '../tvHints';
-import { TEST_PACK_PATH } from './fixtures';
+} from '../../../shared/studypack/tvHints';
+import { TEST_PACK_PATH } from '../../../shared/studypack/__tests__/fixtures';
 
 // Retrieval is not under test here (relatedVerses / relatedPrompt tests cover it): with the
 // ADR-0015 switch on, the loader finds nothing, so every request below is today's request and

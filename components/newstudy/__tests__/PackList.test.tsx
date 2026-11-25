@@ -10,9 +10,9 @@ import { titleParts } from '../../shared/PackRowParts';
 import { assemblePack } from '../packAssembly';
 import { validateGenerated } from '../generatedPack';
 import { JOHN3_GENERATED, JOHN3_REQUEST } from './fixtures';
-import { NS_SIGNUPS, NS_EDIT, NS_DELETE, NS_BACKUP_TOGGLE, NS_BACKUP_DOWNLOAD } from '../newStudyStrings';
-import { leaderHash } from '../../leader/leaderRoute';
-import { newStudyHash } from '../../landing/landingRoute';
+import { NS_SIGNUPS, NS_EDIT, NS_DELETE, NS_BACKUP_TOGGLE, NS_BACKUP_DOWNLOAD } from '../../../shared/newstudy/newStudyStrings';
+import { leaderHash } from '../../../shared/leader/leaderRoute';
+import { newStudyHash } from '../../../shared/landing/landingRoute';
 import { fireEvent } from '@testing-library/react';
 import type { LocalPacks } from '../useLocalPacks';
 
