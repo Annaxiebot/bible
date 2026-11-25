@@ -11,7 +11,7 @@
  * NOT synced, on purpose: any API key (the removed own OpenRouter key was
  * never written to the row) and the provider (always OpenRouter for Ask AI).
  */
-import { STORAGE_KEYS } from '../../../shared/constants/storageKeys';
+import { STORAGE_KEYS } from '../constants/storageKeys';
 
 export const LEADER_SYNCED_KEYS = [
   STORAGE_KEYS.AI_MODEL,

@@ -24,10 +24,10 @@
  * in its own session.
  */
 import { supabase, authManager, type AuthState } from './supabase';
-import { signedInUid } from '../../apps/site/services/sessionUid';
+import { signedInUid } from './sessionUid';
 import {
   LEADER_SYNCED_KEYS, type LeaderSyncedKey, setLeaderSettingListener, noteLeaderSettingChanged,
-} from '../../apps/site/services/leaderSettingsKeys';
+} from './leaderSettingsKeys';
 
 export { LEADER_SYNCED_KEYS, noteLeaderSettingChanged };
 

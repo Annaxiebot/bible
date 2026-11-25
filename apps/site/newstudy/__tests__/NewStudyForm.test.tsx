@@ -8,7 +8,7 @@
  */
 import React from 'react';
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { setLeaderSettingListener } from '../../services/leaderSettingsKeys';
+import { setLeaderSettingListener } from '../../../../shared/services/leaderSettingsKeys';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { getBookById } from '../../../../shared/services/bibleBookData';
 import { TV_LOADING } from '../../../../shared/studypack/tvHints';

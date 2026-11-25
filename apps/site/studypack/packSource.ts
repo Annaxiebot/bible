@@ -11,7 +11,7 @@
  */
 import { idbService, LocalPackRecord } from '../../../shared/services/idbService';
 import { supabase } from '../../../shared/services/supabase';
-import { signedInUid } from '../services/sessionUid';
+import { signedInUid } from '../../../shared/services/sessionUid';
 import { fetchRemotePack } from '../../../shared/newstudy/packRemote';
 import { parseStudyPack, StudyPack, PACK_SCHEMA_VERSION } from '../../../shared/studypack/packTypes';
 

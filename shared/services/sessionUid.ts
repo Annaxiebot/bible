@@ -5,7 +5,7 @@
  * (ADR-0006): the uid when Supabase is configured and a session exists;
  * null otherwise, which every caller treats as "do nothing".
  */
-import { supabase, authManager } from '../../../shared/services/supabase';
+import { supabase, authManager } from './supabase';
 
 export function signedInUid(): string | null {
   if (!supabase) return null;

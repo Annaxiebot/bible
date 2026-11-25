@@ -21,7 +21,7 @@
  *   (PackSyncLine) shows (R5).
  */
 import { supabase } from '../../../shared/services/supabase';
-import { signedInUid } from '../services/sessionUid';
+import { signedInUid } from '../../../shared/services/sessionUid';
 import type { StudyPack } from '../../../shared/studypack/packTypes';
 import {
   listLocalPacks, saveSyncedPack, markPackSynced, deleteLocalPack, getLocalPack, type LocalPackList,

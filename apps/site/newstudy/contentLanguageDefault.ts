@@ -7,7 +7,7 @@
  * stored value. Storage is injectable for tests.
  */
 import { STORAGE_KEYS } from '../../../shared/constants/storageKeys';
-import { noteLeaderSettingChanged } from '../services/leaderSettingsKeys';
+import { noteLeaderSettingChanged } from '../../../shared/services/leaderSettingsKeys';
 import { ContentLanguage, DEFAULT_CONTENT_LANGUAGE, isContentLanguage } from '../../../shared/studypack/principles';
 
 type KeyStore = Pick<Storage, 'getItem' | 'setItem'>;
