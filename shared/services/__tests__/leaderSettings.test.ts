@@ -258,3 +258,23 @@ describe('sign-out (GPT review 2026-11-25)', () => {
     expect(storage.dump()[STORAGE_KEYS.AI_MODEL]).toBe('a/b');
   });
 });
+
+describe('stale-session safety (GPT review 2026-11-25 round 2)', () => {
+  it('a handshake response arriving after sign-out writes and pushes nothing', async () => {
+    let release!: (v: unknown) => void;
+    maybeSingleMock.mockReturnValue(new Promise(r => { release = r; }));
+    const pending = syncOnSignIn();      // leader A's fetch in flight
+    uid = null;                          // A signs out before it returns
+    release(serverRow({ [STORAGE_KEYS.LEADER_AI_INSTRUCTIONS]: 'A 的定制' }));
+    expect(await pending).toEqual({ ok: true, skipped: true });
+    expect(storage.dump()[STORAGE_KEYS.LEADER_AI_INSTRUCTIONS]).toBeUndefined();
+    expect(upsertMock).not.toHaveBeenCalled();
+  });
+
+  it('the initial anonymous emission does NOT clear a signed-in reload\'s local instructions', async () => {
+    uid = null;                          // session not yet restored at startup
+    storage.setItem(STORAGE_KEYS.LEADER_AI_INSTRUCTIONS, '重载前的定制');
+    stop = startLeaderSettingsSync();    // subscribe emits the anonymous state at once
+    expect(storage.dump()[STORAGE_KEYS.LEADER_AI_INSTRUCTIONS]).toBe('重载前的定制');
+  });
+});

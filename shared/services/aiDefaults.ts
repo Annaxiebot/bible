@@ -65,10 +65,14 @@ export const DEFAULT_AI_SETUP = {
 // The three constants above are DEFAULTS; a stored choice (see the TODO above)
 // wins when present and valid. Every caller reads through these readers (R3).
 
-/** Stored value when non-empty after trimming, else null. */
+/** Stored value when non-empty after trimming, else null. Blocked storage (throwing accessor) reads null: generation must never break on it. */
 function storedText(key: string): string | null {
-  const trimmed = (localStorage.getItem(key) ?? '').trim();
-  return trimmed || null;
+  try {
+    const trimmed = (localStorage.getItem(key) ?? '').trim();
+    return trimmed || null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -77,7 +81,7 @@ function storedText(key: string): string | null {
  * constant.
  */
 export function askAIModel(): string {
-  const provider = localStorage.getItem(STORAGE_KEYS.AI_PROVIDER);
+  const provider = storedText(STORAGE_KEYS.AI_PROVIDER);
   const stored = storedText(STORAGE_KEYS.AI_MODEL);
   return provider === DEFAULT_AI_SETUP.provider && stored ? stored : ASK_AI_MODEL;
 }

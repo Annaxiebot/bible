@@ -32,3 +32,5 @@ are honest counts); missing meta/OG (description + og:description exist).
   needs tombstones or per-key updates (GPT review 2026-11-25, rare multi-device case).
 - ViewPrefsPanel: full focus trap + focus return (Escape/close work; Tab can
   still reach background controls; Space on the focused button may advance a slide first).
+- Escape with the prefs panel AND a verse tooltip both open closes both (two
+  capture listeners on window; keyboard-only path, cosmetic) — GPT round 2.
