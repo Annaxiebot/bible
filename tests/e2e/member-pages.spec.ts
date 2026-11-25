@@ -16,7 +16,7 @@ import { checkinHash, checkinStopHash } from '../../shared/checkin/checkinRoute'
 import { SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../../shared/setup/setupStrings';
 import { routeOwnedSamplePack, mockBackend, E2E_SIGNUP_ID } from './helpers/signup';
 import { mockOptOut } from './helpers/optout';
-import { PAPER_HOME_TEST_ID } from '../../components/shared/PaperHeader';
+import { PAPER_HOME_TEST_ID } from '../../apps/site/shared/PaperHeader';
 import { LANDING_HASH } from '../../shared/landing/landingRoute';
 import { HOME_LINK_LABEL, BRAND_ZH } from '../../shared/landing/landingStrings';
 

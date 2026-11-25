@@ -22,7 +22,7 @@ import { SETUP_HASH, SAMPLE_PACK_ID } from '../../shared/landing/landingRoute';
 import { signupHash } from '../../shared/signup/signupRoute';
 import { routeOwnedSamplePack, expectedSignupUrl } from './helpers/signup';
 import { SETUP_TITLE, SETUP_SIGN_IN_TO_USE_AI } from '../../shared/setup/setupStrings';
-import { OWN_OPENROUTER_KEY } from '../../services/obsoleteStorageKeys';
+import { OWN_OPENROUTER_KEY } from '../../shared/services/obsoleteStorageKeys';
 
 const PHONE = { width: 390, height: 844 };
 const DESKTOP = { width: 1440, height: 900 };

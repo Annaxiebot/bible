@@ -9,7 +9,7 @@
  * same state, so the check-in page and the stop page agree.
  */
 import { Page } from '@playwright/test';
-import { CHECKIN_CONTEXT_FN } from '../../../components/signup/signupSchema';
+import { CHECKIN_CONTEXT_FN } from '../../../apps/site/signup/signupSchema';
 import { UNSUBSCRIBE_FN, RESUBSCRIBE_FN } from '../../../supabase/functions/send-checkins/optout';
 import { E2E_SUPABASE_PATH, E2E_CHECKIN_CONTEXT } from './signup';
 

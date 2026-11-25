@@ -12,7 +12,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { LIVE, runSql } from './liveSql';
-import { SITE_STATS_KEYS } from '../../components/stats/statsRules';
+import { SITE_STATS_KEYS } from '../../apps/site/stats/statsRules';
 
 const PROBE_SQL = `DO $do$ DECLARE
   v_pack text; v_pack2 text; v_leader2 uuid; r1 boolean; r2 boolean; unknown boolean; r3 boolean;

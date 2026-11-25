@@ -10,7 +10,7 @@ import React from 'react';
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render, screen, within, cleanup, fireEvent } from '@testing-library/react';
 import { resolveRootView, APP_HASH, SAMPLE_PACK_HASH, SETUP_HASH, NEW_STUDY_HASH, ADMIN_HASH, newStudyHash, getNewStudyPackIdFromHash } from '../landingRoute';
-import { AD_TITLE } from '../../../components/admin/adminStrings';
+import { AD_TITLE } from '../../../apps/site/admin/adminStrings';
 import {
   BRAND_EN, BRAND_ZH, GROUP_CTA, PERSONAL_CTA, GROUP_HEADING_EN, GROUP_PHOTOS, PHOTO_CREDIT,
   GROUP_TITLE_ZH, PERSONAL_TITLE_ZH, PERSONAL_TITLE_EN, LOOP_STEPS,
@@ -20,13 +20,13 @@ import { SETUP_TITLE, SETUP_CLOSE } from '../../setup/setupStrings';
 import { signupHash, qrHash } from '../../signup/signupRoute';
 import { leaderHash } from '../../leader/leaderRoute';
 import { SU_TITLE } from '../../signup/signupStrings';
-import { LD_TITLE } from '../../../components/leader/leaderStrings';
-import LandingGate, { preloadLandingPages } from '../../../components/landing/LandingGate';
-import { photoSrc } from '../../../components/landing/LandingGroup';
-import { clearExternalVerseCache } from '../../../components/studypack/externalVerses';
+import { LD_TITLE } from '../../../apps/site/leader/leaderStrings';
+import LandingGate, { preloadLandingPages } from '../../../apps/site/landing/LandingGate';
+import { photoSrc } from '../../../apps/site/landing/LandingGroup';
+import { clearExternalVerseCache } from '../../../apps/site/studypack/externalVerses';
 import { FEEDBACK_HASH, FEEDBACK_LABEL, feedbackHash } from '../../../supabase/functions/_shared/feedback';
-import { FEEDBACK_PAGE_TEST_ID } from '../../../components/feedback/FeedbackPage';
-import { SOURCE_REPO_URL, CONTRIBUTE_LABEL } from '../../../components/shared/sourceRepo';
+import { FEEDBACK_PAGE_TEST_ID } from '../../../apps/site/feedback/FeedbackPage';
+import { SOURCE_REPO_URL, CONTRIBUTE_LABEL } from '../../../apps/site/shared/sourceRepo';
 import { PRIVACY_LABEL, PRIVACY_PAGE } from '../landingStrings';
 
 // The pages are React.lazy; their first import is load-dependent (several

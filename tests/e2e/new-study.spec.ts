@@ -22,9 +22,9 @@ import {
   NS_CONTENT_LANGUAGE, NS_CONTENT_LANGUAGE_OPTIONS,
 } from '../../shared/newstudy/newStudyStrings';
 import { newStudyHash } from '../../shared/landing/landingRoute';
-import { ESCAPE_GRACE_MS } from '../../components/studypack/useTVFullscreen';
-import { PACK_CONTINUE_PROMPT } from '../../components/newstudy/packPrompt';
-import { JOHN3_REPLY_JSON } from '../../components/newstudy/__tests__/fixtures';
+import { ESCAPE_GRACE_MS } from '../../apps/site/studypack/useTVFullscreen';
+import { PACK_CONTINUE_PROMPT } from '../../apps/site/newstudy/packPrompt';
+import { JOHN3_REPLY_JSON } from '../../apps/site/newstudy/__tests__/fixtures';
 import { LIFE_AREAS, DEFAULT_CONTENT_LANGUAGE } from '../../shared/studypack/principles';
 import { sseBody } from './helpers/tv';
 import { AI_PROXY_FUNCTION } from '../../shared/services/aiProxyRoute';

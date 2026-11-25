@@ -11,8 +11,8 @@ import { Page } from '@playwright/test';
 import { E2E_SUPABASE_PATH, injectSupabaseOverride } from './signup';
 import {
   IS_SITE_ADMIN_FN, ADMIN_LEADERS_FN, ADMIN_FEEDBACK_FN, ADMIN_STATS_FN, ADMIN_DENIED_CODE,
-} from '../../../components/admin/adminRules';
-import { ADMIN_LEADERS, ADMIN_FEEDBACK, ADMIN_STATS, ADMIN_FUNNEL } from '../../../components/admin/__tests__/adminFixtures';
+} from '../../../apps/site/admin/adminRules';
+import { ADMIN_LEADERS, ADMIN_FEEDBACK, ADMIN_STATS, ADMIN_FUNNEL } from '../../../apps/site/admin/__tests__/adminFixtures';
 import { ADMIN_FUNNEL_FN } from '../../../shared/stats/funnelRules';
 
 export interface FakeAdminServer {

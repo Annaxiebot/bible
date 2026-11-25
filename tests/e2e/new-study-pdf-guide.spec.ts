@@ -19,7 +19,7 @@ import { test, expect, Request } from '@playwright/test';
 import { NS_GENERATE, NS_EDIT_TITLE, NS_AUTOSAVED } from '../../shared/newstudy/newStudyStrings';
 import {
   GD_PICK, GD_ERR_NO_TEXT, GD_FROM_GUIDE, GD_AI_DRAFTED, GD_ERR_NO_PASSAGE, notVerbatimLine, leaderAnswerLine,
-} from '../../components/newstudy/guide/guideStrings';
+} from '../../apps/site/newstudy/guide/guideStrings';
 import {
   NP_FILE, NP_PAGES, NP_REPLY_JSON, NP_QUESTIONS, LEAKED_ANSWER, JOHN_13_1_CUV, npReplyWith,
 } from '../../shared/newstudy/guide/__tests__/guideFixtureNoPassage';
@@ -27,7 +27,7 @@ import { STORAGE_KEYS } from '../../shared/constants/storageKeys';
 import {
   GUIDE_FIXTURE_PATH, GUIDE_REPLY_JSON, GUIDE_QUESTIONS, GUIDE_INTRO, GUIDE_LEADER_NOTE, TIDIED_QUESTION,
 } from '../../shared/newstudy/guide/__tests__/guideFixture';
-import { writePdf } from '../../components/newstudy/guide/__tests__/pdfWriter';
+import { writePdf } from '../../apps/site/newstudy/guide/__tests__/pdfWriter';
 import { PACK_FROM_GUIDE_SYSTEM_PROMPT } from '../../supabase/functions/_shared/aiPrompts';
 import { PDFJS_CMAPS_DIR } from '../../scripts/pdfjsCmapsDir';
 import { sseBody } from './helpers/tv';

@@ -12,7 +12,7 @@ import {
   callerMonthlyLimit, dailyCap, ownerLimitSecret, IS_SITE_ADMIN_FUNCTION, OWNER_LIMIT_MULTIPLIER, QUOTA_RESULT, DAILY_CAPS,
 } from '../caps.ts';
 import { quotaFailure } from '../responses.ts';
-import { IS_SITE_ADMIN_FN } from '../../../../components/admin/adminRules';
+import { IS_SITE_ADMIN_FN } from '../../../../apps/site/admin/adminRules';
 import { hostedErrorFromStatus } from '../../../../shared/studypack/askAIErrors';
 import { AI_DAILY_CAP_REACHED } from '../../../../shared/studypack/tvHints';
 

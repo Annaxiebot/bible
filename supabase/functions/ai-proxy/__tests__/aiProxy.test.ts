@@ -18,7 +18,7 @@ import {
 } from '../responses.ts';
 import { buildFinalMessages } from '../../_shared/aiPrompts.ts';
 import * as appDefaults from '../../../../shared/services/aiDefaults';
-import { PACK_MAX_TOKENS } from '../../../../components/newstudy/packPrompt';
+import { PACK_MAX_TOKENS } from '../../../../apps/site/newstudy/packPrompt';
 
 const USER = { role: 'user', content: '问题 question' };
 const envOf = (vars: Record<string, string>) => (name: string) => vars[name] ?? '';

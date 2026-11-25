@@ -9,7 +9,7 @@
  */
 import { test, expect } from '@playwright/test';
 import { NS_GENERATE, NS_EDIT_TITLE, NS_AUTOSAVED } from '../../shared/newstudy/newStudyStrings';
-import { JOHN3_REPLY_JSON } from '../../components/newstudy/__tests__/fixtures';
+import { JOHN3_REPLY_JSON } from '../../apps/site/newstudy/__tests__/fixtures';
 import { signupHash } from '../../shared/signup/signupRoute';
 import { checkinHash } from '../../shared/checkin/checkinRoute';
 import { SU_SUBMIT, SU_THANKS } from '../../shared/signup/signupStrings';

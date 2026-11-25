@@ -12,7 +12,7 @@
 import React from 'react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { OWN_OPENROUTER_KEY } from '../../../services/obsoleteStorageKeys';
+import { OWN_OPENROUTER_KEY } from '../../services/obsoleteStorageKeys';
 import { SU_SIGN_IN_GOOGLE } from '../../signup/signupStrings';
 import { SI_EMAIL_TOGGLE } from '../../signin/signInStrings';
 import { SETUP_HOSTED_READY, SETUP_SIGN_IN_TO_USE_AI, SETUP_USAGE_FAILED, usageLine } from '../setupStrings';

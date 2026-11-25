@@ -10,7 +10,7 @@
  * proxy's final messages).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { OWN_OPENROUTER_KEY } from '../../../services/obsoleteStorageKeys';
+import { OWN_OPENROUTER_KEY } from '../obsoleteStorageKeys';
 import { signInSeam, signOutSeam, SEAM_BASE, SEAM_UID } from '../../../tests/utils/hostedSeam';
 
 let session: { access_token: string } | null = null;

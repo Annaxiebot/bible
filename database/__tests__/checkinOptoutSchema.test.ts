@@ -11,7 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'fs';
 import path from 'path';
-import { SIGNUPS_TABLE, CHECKIN_CONTEXT_FN } from '../../components/signup/signupSchema';
+import { SIGNUPS_TABLE, CHECKIN_CONTEXT_FN } from '../../apps/site/signup/signupSchema';
 import {
   UNSUBSCRIBED_COLUMN, UNSUBSCRIBED_BY_COLUMN, UNSUBSCRIBE_FN, RESUBSCRIBE_FN, LEADER_SUBSCRIPTION_FN, MEMBER_CHOICE_ERRCODE, PAUSED_COLUMN,
 } from '../../supabase/functions/send-checkins/optout';

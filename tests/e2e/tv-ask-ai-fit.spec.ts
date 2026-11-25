@@ -13,7 +13,7 @@ import { test, expect, Page } from '@playwright/test';
 import { openTV, DEMO_SLIDE, goToSlide } from './helpers/tv';
 import { signInAsLeader, mockAIStream } from './helpers/hostedAI';
 import { REALISTIC_ANSWER, HUGE_ANSWER, streamChunks } from './helpers/askAnswers';
-import { MIN_ANSWER_SCALE } from '../../components/studypack/fitScale';
+import { MIN_ANSWER_SCALE } from '../../apps/site/studypack/fitScale';
 
 /** TYPE_SCALE.verse / answerLong vh terms (principles.ts) — the floor and the unscaled long-answer size. */
 const FLOOR_VH = 3.6;

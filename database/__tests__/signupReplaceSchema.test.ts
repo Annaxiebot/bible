@@ -11,7 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import path from 'path';
-import { SIGNUPS_TABLE } from '../../components/signup/signupSchema';
+import { SIGNUPS_TABLE } from '../../apps/site/signup/signupSchema';
 import { MARK_REPLACED_FN, REPLACED_COLUMN } from '../../supabase/functions/send-checkins/replaced';
 import { WELCOME_WINDOW_MS } from '../../supabase/functions/send-checkins/recipients';
 

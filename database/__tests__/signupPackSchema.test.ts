@@ -11,7 +11,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import path from 'path';
-import { SIGNUP_PACK_FN, SIGNUP_PACK_KEYS } from '../../components/signup/signupSchema';
+import { SIGNUP_PACK_FN, SIGNUP_PACK_KEYS } from '../../apps/site/signup/signupSchema';
 
 const sql = readFileSync(path.resolve(__dirname, '../remove-forms-schema.sql'), 'utf-8');
 const code = sql.split('\n').filter(line => !line.trimStart().startsWith('--')).join('\n');

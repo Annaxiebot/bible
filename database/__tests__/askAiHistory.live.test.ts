@@ -17,7 +17,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { LIVE, runSql } from './liveSql';
-import { ASK_HISTORY_LIMIT, ASK_HISTORY_FULL_CODE } from '../../components/studypack/askHistoryRules';
+import { ASK_HISTORY_LIMIT, ASK_HISTORY_FULL_CODE } from '../../apps/site/studypack/askHistoryRules';
 
 const SEEDED = ASK_HISTORY_LIMIT - 1;
 

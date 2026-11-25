@@ -13,7 +13,7 @@
  * the typed failures the chat shows.
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { OWN_OPENROUTER_KEY } from '../../../../services/obsoleteStorageKeys';
+import { OWN_OPENROUTER_KEY } from '../../../../shared/services/obsoleteStorageKeys';
 import { finalOfSent } from '../../../../tests/utils/hostedSeam';
 import { ASK_AI_MODEL } from '../../../../shared/services/aiDefaults';
 import { ROLE_MAX_TOKENS, MAX_MESSAGES, MAX_TOTAL_CHARS } from '../../../../supabase/functions/ai-proxy/policy';

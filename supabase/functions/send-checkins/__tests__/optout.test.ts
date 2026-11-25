@@ -21,7 +21,7 @@ import { resendBody, EmailConfig } from '../senders.ts';
 import { packFromSummary, SUMMARY_COLUMNS } from '../packSource.ts';
 import { checkinStopHash } from '../../../../shared/checkin/checkinRoute';
 import { bodyLines } from './textBody';
-import { SEND_CHECKINS_FUNCTION } from '../../../../components/signup/signupSchema';
+import { SEND_CHECKINS_FUNCTION } from '../../../../apps/site/signup/signupSchema';
 
 const ID = '7d4e8b2a-1c3f-4a5b-9e6d-0f1a2b3c4d5e';
 const BASE = 'https://lafipstknsudjtfxbkkn.supabase.co';

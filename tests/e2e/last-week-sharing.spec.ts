@@ -10,9 +10,9 @@
  */
 import { test, expect, Page } from '@playwright/test';
 import { newStudyHash } from '../../shared/landing/landingRoute';
-import { SIGNUPS_TABLE, CHECKIN_ANSWERS_TABLE } from '../../components/signup/signupSchema';
+import { SIGNUPS_TABLE, CHECKIN_ANSWERS_TABLE } from '../../apps/site/signup/signupSchema';
 import { AI_PROXY_FUNCTION } from '../../shared/services/aiProxyRoute';
-import { SH_PREPARE, SH_DONE, SHARING_HEADING } from '../../components/sharing/sharingStrings';
+import { SH_PREPARE, SH_DONE, SHARING_HEADING } from '../../apps/site/sharing/sharingStrings';
 import { E2E_LEADER_ID, E2E_SUPABASE_PATH, seedLocalPack, fetchSamplePack, injectSupabaseOverride } from './helpers/signup';
 import { fakeLeaderSession } from './helpers/leader';
 import { sseBody, OPENROUTER_CHAT_URL } from './helpers/tv';

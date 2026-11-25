@@ -302,7 +302,7 @@ describe('syncService', () => {
     it('SYNCED_SETTINGS_KEYS holds no API key, and keys arriving from the server are refused', async () => {
       const { SYNCED_SETTINGS_KEYS, isSyncableSettingKey } = await import('../syncService');
       const { STORAGE_KEYS } = await import('../../constants/storageKeys');
-      const { OBSOLETE_AI_STORAGE_KEYS } = await import('../../../services/obsoleteStorageKeys');
+      const { OBSOLETE_AI_STORAGE_KEYS } = await import('../obsoleteStorageKeys');
       expect(SYNCED_SETTINGS_KEYS.filter(k => /api[_-]?key/i.test(k))).toEqual([]);
       // The live app stores no API key any more (ADR-0007, 2026-10-23); old browsers and old rows still carry them.
       const apiKeys = [...Object.values(STORAGE_KEYS), ...OBSOLETE_AI_STORAGE_KEYS].filter(k => /api[_-]?key/i.test(String(k)));

@@ -14,7 +14,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import path from 'path';
 import { LIVE, runSql } from './liveSql';
-import { SIGNUPS_TABLE } from '../../components/signup/signupSchema';
+import { SIGNUPS_TABLE } from '../../apps/site/signup/signupSchema';
 
 const sql = readFileSync(path.resolve(__dirname, '../signup-interim-guard.sql'), 'utf-8');
 const PER_PACK_HOUR = 60;

@@ -55,9 +55,9 @@ vi.mock('../../services/export/fullBackupExporter', () => ({ exportAndDownloadAl
 import SyncStatusLine from '../SyncStatusLine';
 import { SYNC_LINE_LOCAL, SYNC_LINE_SYNCED } from '../syncLineStrings';
 import { SETUP_SIGN_OUT } from '../../../../shared/setup/setupStrings';
-import { AuthPanel } from '../../../../components/AuthPanel';
+import { AuthPanel } from '../../../site/components/AuthPanel';
 import { authManager } from '../../../../shared/services/supabase';
-import { startSyncLifecycle, type SyncLifecycleDeps } from '../../../../services/syncLifecycle';
+import { startSyncLifecycle, type SyncLifecycleDeps } from '../../../../shared/services/syncLifecycle';
 
 function lifecycle() {
   const fullSync = vi.fn().mockResolvedValue(undefined);

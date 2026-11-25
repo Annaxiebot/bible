@@ -15,7 +15,7 @@ import { test, expect } from '@playwright/test';
 import { NAV_LEADER_SIGNIN } from '../../shared/landing/landingStrings';
 import { newStudyHash, packHash } from '../../shared/landing/landingRoute';
 import { LEADER_HOME_HASH } from '../../shared/leader/leaderRoute';
-import { LH_TITLE, LH_QR, packCountsLine } from '../../components/leader/leaderStrings';
+import { LH_TITLE, LH_QR, packCountsLine } from '../../apps/site/leader/leaderStrings';
 import { SETUP_MIN_TAP_PX } from '../../shared/setup/setupStrings';
 import { E2E_LEADER_ID, seedLocalPack, fetchSamplePack, expectedSignupUrl } from './helpers/signup';
 import { qrHash } from '../../shared/signup/signupRoute';

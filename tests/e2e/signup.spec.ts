@@ -32,9 +32,9 @@ import {
   SU_ERR_PACK, SU_PACK_ASK_LEADER, SU_REPLACED,
 } from '../../shared/signup/signupStrings';
 import { RATE_GUARD_PER_EMAIL_DAY, RATE_GUARD_EMAIL_MESSAGE } from '../utils/signupRateGuard';
-import { CHECKIN_ANSWERS_TABLE } from '../../components/signup/signupSchema';
+import { CHECKIN_ANSWERS_TABLE } from '../../apps/site/signup/signupSchema';
 import { LEADER_HOME_HASH } from '../../shared/leader/leaderRoute';
-import { packCountsLine } from '../../components/leader/leaderStrings';
+import { packCountsLine } from '../../apps/site/leader/leaderStrings';
 import { fakeLeaderSession, mockPackViews } from './helpers/leader';
 import { SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../../shared/setup/setupStrings';
 import {

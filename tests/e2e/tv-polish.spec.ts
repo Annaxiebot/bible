@@ -12,7 +12,7 @@
  */
 import { test, expect, Page } from '@playwright/test';
 import { ASK_AI_LABEL } from '../../shared/studypack/tvHints';
-import { FIT_VAR, MAX_SCALE } from '../../components/studypack/fitScale';
+import { FIT_VAR, MAX_SCALE } from '../../apps/site/studypack/fitScale';
 import { openTV, goToSlide, DEMO_SLIDE, waitForWenKai } from './helpers/tv';
 
 /** Overflow of the slide frame and its inner scroll areas, and how far text reaches below the pill's top. */

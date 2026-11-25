@@ -16,8 +16,8 @@ import path from 'path';
 import {
   IS_SITE_ADMIN_FN, ADMIN_LEADERS_FN, ADMIN_FEEDBACK_FN, ADMIN_STATS_FN, ADMIN_DENIED_CODE,
   ADMIN_LEADER_COLUMNS, ADMIN_FEEDBACK_COLUMNS, ADMIN_EXTRA_STATS_KEYS,
-} from '../../components/admin/adminRules';
-import { SITE_STATS_FN } from '../../components/stats/statsRules';
+} from '../../apps/site/admin/adminRules';
+import { SITE_STATS_FN } from '../../apps/site/stats/statsRules';
 
 const sql = readFileSync(path.resolve(__dirname, '..', 'admin-portal-schema.sql'), 'utf-8');
 const code = sql.split('\n').filter(l => !l.trim().startsWith('--')).join('\n');

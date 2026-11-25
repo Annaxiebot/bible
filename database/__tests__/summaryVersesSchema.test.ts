@@ -10,7 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import path from 'path';
-import { KEY_VERSE_PATTERN, PACK_SUMMARIES_TABLE } from '../../components/signup/packSummary';
+import { KEY_VERSE_PATTERN, PACK_SUMMARIES_TABLE } from '../../apps/site/signup/packSummary';
 import { SUMMARY_COLUMNS } from '../../supabase/functions/send-checkins/packSource.ts';
 
 const dir = path.resolve(__dirname, '..');

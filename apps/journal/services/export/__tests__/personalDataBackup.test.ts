@@ -11,7 +11,7 @@ import { idbService } from '../../../../../shared/services/idbService';
 import type { JournalEntry, ChatHistoryRecord, SpiritualMemoryItem } from '../../../../../shared/services/idbService';
 import { verseDataStorage } from '../../../../../shared/services/verseDataStorage';
 import { STORAGE_KEYS } from '../../../../../shared/constants/storageKeys';
-import { OWN_OPENROUTER_KEY } from '../../../../../services/obsoleteStorageKeys';
+import { OWN_OPENROUTER_KEY } from '../../../../../shared/services/obsoleteStorageKeys';
 import {
   buildPersonalBackup, importPersonalBackup, isPersonalBackup, exportableSettingsKeys,
   PERSONAL_BACKUP_VERSION, PERSONAL_BACKUP_KIND,
