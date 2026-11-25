@@ -186,3 +186,10 @@ export const NS_PRIVACY = bilingualLine(
   '查经包保存在这台设备的浏览器里；带领者登录后同步到你的账号（只有你能读取）',
   'Packs are saved in this browser; once a leader signs in they sync to that account (only you can read them)'
 );
+// ---- leader standing AI instructions (组长定制) ----
+export const NS_AI_INSTRUCTIONS = bilingual('给 AI 的定制要求', 'Standing instructions for the AI');
+export const NS_AI_INSTRUCTIONS_SHORT = bilingual('定制', 'Custom');
+export const NS_AI_INSTRUCTIONS_HINT = bilingualLine(
+  '每次生成都会遵循，例如「问题更贴近职场妈妈」「多联系旧约背景」',
+  'Honored on every generation, e.g. "questions for working moms" or "connect to Old Testament background"'
+);

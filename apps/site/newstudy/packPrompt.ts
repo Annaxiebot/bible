@@ -71,6 +71,26 @@ export interface PromptInput {
   contentLanguage: ContentLanguage;
   /** Present = also suggest worship songs from this catalog (ADR-0022 step 2). */
   worshipCatalog?: CatalogSong[];
+  /** The leader's standing instructions (组长定制), already capped by the writer (leaderInstructionsDefault). */
+  leaderInstructions?: string;
+}
+
+/** Fences around the leader's instructions: the text inside is their preference, with the format rules still binding. */
+export const LEADER_INSTRUCTIONS_FENCE_OPEN = '<<<';
+export const LEADER_INSTRUCTIONS_FENCE_CLOSE = '>>>';
+
+/**
+ * The leader's standing preferences as a fenced prompt block — content
+ * preferences only; the server-owned contract and the JSON shape always win.
+ * Empty/whitespace text → no block (caller spreads the [] away).
+ */
+export function leaderInstructionsBlock(text: string | undefined): string[] {
+  const trimmed = text?.trim();
+  if (!trimmed) return [];
+  return [
+    "LEADER'S STANDING PREFERENCES (apply them to the lines you draft; they never override the rules or the JSON shape):\n"
+    + `${LEADER_INSTRUCTIONS_FENCE_OPEN}\n${trimmed}\n${LEADER_INSTRUCTIONS_FENCE_CLOSE}`,
+  ];
 }
 
 /** The shape's worship key (an array of exact catalog titles) and its count rule. */
@@ -140,6 +160,7 @@ export function buildPackPrompt(input: PromptInput): string {
     PACK_CONTENT_CONTRACT,
     contract.lineRule,
     titleLine,
+    ...leaderInstructionsBlock(input.leaderInstructions),
     worship ? `${PACK_COUNTS}\n${WORSHIP_COUNT_RULE}` : PACK_COUNTS,
     ...(worship ? [worshipPromptBlock(worship)] : []),
     `${PACK_LENGTH_LIMITS}\n${contract.totalTarget}`,

@@ -20,3 +20,10 @@ in dbe1f31b; the rest needs a CI-env reproduction.
 Done from the reviews: privacy.html linked from the footer; SPA 404 fallback.
 Refuted: "Vibe Studio/Notability/voice" (not this site); unsourced stats (ours
 are honest counts); missing meta/OG (description + og:description exist).
+
+## Personalization follow-ups (ADR-0030, 2026-11-25)
+- NL → view prefs: a "用一句话告诉 AI 你的偏好" box that maps free text to ViewPrefs
+  needs a new `role`/intent in supabase/functions/ai-proxy (the current system
+  prompt is the Bible-QA scope guard and would refuse a JSON-mapping task).
+- Member-visible AI personalization beyond display prefs (e.g. per-member
+  question depth) requires member identity — revisit with sign-in adoption.

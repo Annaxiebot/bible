@@ -34,6 +34,8 @@ export interface StudyRequest extends VerseRange {
   findPassage?: boolean;
   /** Suggest worship songs from the catalog, as an opening section (ADR-0022 step 2). */
   worship?: boolean;
+  /** The leader's standing AI instructions (组长定制), injected as fenced data into the prompt. */
+  leaderInstructions?: string;
 }
 
 /** Section headings, as the sample pack writes them (Chinese first). */

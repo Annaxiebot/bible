@@ -14,7 +14,9 @@ import { StudyRequest } from './packAssembly';
 import {
   NS_BOOK, NS_LESSON_TITLE, NS_LESSON_NUMBER, NS_DATE, NS_GENERATE, NS_GENERATING, NS_ERR_RANGE, NS_ERR_CHAPTER,
   NS_CONTENT_LANGUAGE, NS_CONTENT_LANGUAGE_OPTIONS, NS_WORSHIP_OPTION,
+  NS_AI_INSTRUCTIONS, NS_AI_INSTRUCTIONS_HINT,
 } from '../../../shared/newstudy/newStudyStrings';
+import { readLeaderInstructions, rememberLeaderInstructions, LEADER_INSTRUCTIONS_MAX_CHARS } from './leaderInstructionsDefault';
 import { textStyle, controlStyle, inputClass, primaryButtonClass, labelClass } from './newStudyStyles';
 import { useVerseRange, RangeSelects } from './verseRangeFields';
 import { readDefaultContentLanguage, rememberContentLanguage, readDefaultWorship, rememberWorship } from './contentLanguageDefault';
@@ -63,6 +65,19 @@ const WorshipField: React.FC<{ req: StudyRequest; update: (patch: Partial<StudyR
   </label>
 );
 
+/** "给 AI 的定制要求": free text honored on every generation (组长定制), remembered + synced like the content language. */
+const InstructionsField: React.FC<{ req: StudyRequest; update: (patch: Partial<StudyRequest>) => void }> = ({ req, update }) => (
+  <label className={labelClass} style={textStyle}>
+    <span>{NS_AI_INSTRUCTIONS}</span>
+    <textarea value={req.leaderInstructions ?? ''} aria-label={NS_AI_INSTRUCTIONS} data-testid="ns-ai-instructions"
+      maxLength={LEADER_INSTRUCTIONS_MAX_CHARS} rows={2}
+      onChange={e => update({ leaderInstructions: e.target.value })} className={inputClass} style={controlStyle} />
+    <span className="text-slate-500" style={{ ...textStyle, fontSize: Number(textStyle.fontSize) * 0.75 }}>
+      {NS_AI_INSTRUCTIONS_HINT}
+    </span>
+  </label>
+);
+
 interface Props {
   busy: boolean;
   onGenerate: (req: StudyRequest) => void;
@@ -103,7 +118,7 @@ const LessonFields: React.FC<{ req: StudyRequest; update: (patch: Partial<StudyR
 const NewStudyForm: React.FC<Props> = ({ busy, onGenerate, suggestion = null, guide = null, onDropGuide, message }) => {
   const [req, setReq] = useState<StudyRequest>(() => ({
     ...DEFAULT_REQUEST, ...suggestion, ...guide?.passage.range, date: todayIso(), contentLanguage: readDefaultContentLanguage(),
-    worship: readDefaultWorship(),
+    worship: readDefaultWorship(), leaderInstructions: readLeaderInstructions(),
   }));
   const [error, setError] = useState<string | null>(message ?? null);
   const update = (patch: Partial<StudyRequest>) => { setReq(r => ({ ...r, ...patch })); setError(null); };
@@ -115,7 +130,11 @@ const NewStudyForm: React.FC<Props> = ({ busy, onGenerate, suggestion = null, gu
     if (problem) { setError(problem); return; }
     rememberContentLanguage(req.contentLanguage);
     rememberWorship(!!req.worship);
-    onGenerate({ ...req, lessonTitle: req.lessonTitle?.trim() || undefined, ...(guide ? { guide } : {}) });
+    rememberLeaderInstructions(req.leaderInstructions ?? '');
+    onGenerate({
+      ...req, lessonTitle: req.lessonTitle?.trim() || undefined,
+      leaderInstructions: req.leaderInstructions?.trim() || undefined, ...(guide ? { guide } : {}),
+    });
   };
 
   return (
@@ -135,6 +154,7 @@ const NewStudyForm: React.FC<Props> = ({ busy, onGenerate, suggestion = null, gu
       <MoreOptions summary={optionsSummary(req)}>
         <ContentLanguageField req={req} update={update} />
         <WorshipField req={req} update={update} />
+        <InstructionsField req={req} update={update} />
         <LessonFields req={req} update={update} />
       </MoreOptions>
       {error && <p role="alert" className="text-red-300" style={textStyle}>{error}</p>}

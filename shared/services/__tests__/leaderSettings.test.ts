@@ -69,10 +69,10 @@ beforeEach(() => {
 afterEach(() => { stop?.(); stop = null; vi.useRealTimers(); });
 
 describe('synced keys', () => {
-  it('are the four leader preferences — never the API key or the provider (ADR-0005)', () => {
+  it('are the leader preferences — never the API key or the provider (ADR-0005)', () => {
     expect([...LEADER_SYNCED_KEYS]).toEqual([
       STORAGE_KEYS.AI_MODEL, STORAGE_KEYS.AI_PACK_MODEL, STORAGE_KEYS.AI_FALLBACK_MODELS,
-      STORAGE_KEYS.CONTENT_LANGUAGE_DEFAULT,
+      STORAGE_KEYS.CONTENT_LANGUAGE_DEFAULT, STORAGE_KEYS.WORSHIP_SONGS_DEFAULT, STORAGE_KEYS.LEADER_AI_INSTRUCTIONS,
     ]);
     expect(LEADER_SYNCED_KEYS).not.toContain(OWN_OPENROUTER_KEY);
     expect(LEADER_SYNCED_KEYS).not.toContain(STORAGE_KEYS.AI_PROVIDER);

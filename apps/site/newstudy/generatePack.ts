@@ -79,6 +79,7 @@ export function buildPackRequestBody(req: StudyRequest, verses: PackVerse[], wor
           lessonTitle: req.lessonTitle,
           contentLanguage: req.contentLanguage,
           worshipCatalog,
+          leaderInstructions: req.leaderInstructions,
         }),
       },
     ],

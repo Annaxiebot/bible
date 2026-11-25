@@ -61,6 +61,7 @@ export async function generateGuidePack(req: StudyRequest, onProgress: ProgressR
   const body = buildGuideRequestBody({
     passage: known ? { ref: passageLabel(known.range).ref, verses: known.verses } : undefined,
     contentLanguage: req.contentLanguage, guideText: guide.text, lessonTitle: req.lessonTitle,
+    leaderInstructions: req.leaderInstructions,
   });
   const { text, outcome, received } = await streamPackReply(body, onProgress, signal);
   if (outcome.finishReason === FINISH_LENGTH) throw new Error(NS_ERR_OUTPUT_LIMIT.replace(/\{n\}/g, String(received)));

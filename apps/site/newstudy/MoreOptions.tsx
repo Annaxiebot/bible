@@ -9,7 +9,7 @@
  */
 import React, { useState } from 'react';
 import type { StudyRequest } from './packAssembly';
-import { NS_MORE_OPTIONS, NS_CONTENT_LANGUAGE_SHORT, NS_WORSHIP_SHORT } from '../../../shared/newstudy/newStudyStrings';
+import { NS_MORE_OPTIONS, NS_CONTENT_LANGUAGE_SHORT, NS_WORSHIP_SHORT, NS_AI_INSTRUCTIONS_SHORT } from '../../../shared/newstudy/newStudyStrings';
 import { textStyle, controlStyle } from './newStudyStyles';
 
 /** "中文为主 · 第4课 · 恩典 · 2026-10-07": the folded fields' current values, empty parts left out. */
@@ -17,7 +17,8 @@ export function optionsSummary(req: StudyRequest): string {
   const lesson = req.lessonNumber ? `第${req.lessonNumber}课` : '';
   const title = req.lessonTitle?.trim() ?? '';
   const worship = req.worship ? NS_WORSHIP_SHORT : '';
-  return [NS_CONTENT_LANGUAGE_SHORT[req.contentLanguage], worship, lesson, title, req.date].filter(Boolean).join(' · ');
+  const custom = req.leaderInstructions?.trim() ? NS_AI_INSTRUCTIONS_SHORT : '';
+  return [NS_CONTENT_LANGUAGE_SHORT[req.contentLanguage], worship, custom, lesson, title, req.date].filter(Boolean).join(' · ');
 }
 
 /** The header row: larger than body text so the fold is easy to see and tap (owner). */
