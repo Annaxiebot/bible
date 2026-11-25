@@ -7,11 +7,12 @@ import { BIBLE_SCHOLAR_SYSTEM_PROMPT } from '../systemPrompts';
 // Every other file that needs it must import — never copy. This test is the tripwire.
 // If this test ever fails, whoever duplicated the prompt needs to import it instead.
 
-const REPO_ROOT = resolve(__dirname, '..', '..');
+// The whole repo, not just apps/journal — a duplicate anywhere is the bug this trips on.
+const REPO_ROOT = resolve(__dirname, '..', '..', '..', '..');
 // Derive the marker from the imported constant so this test file itself doesn't
 // contain the literal — otherwise walk() would match the test and fail.
 const MARKER = BIBLE_SCHOLAR_SYSTEM_PROMPT.split('\n')[0].trim();
-const SOURCE_OF_TRUTH = join(REPO_ROOT, 'services/systemPrompts.ts');
+const SOURCE_OF_TRUTH = join(REPO_ROOT, 'apps/journal/services/systemPrompts.ts');
 
 function walk(dir: string, out: string[] = []): string[] {
   for (const name of readdirSync(dir)) {
@@ -34,11 +35,11 @@ const FILES_WITH_MARKER = walk(REPO_ROOT).filter(f => readFileSync(f, 'utf8').in
 
 describe('R3: BIBLE_SCHOLAR_SYSTEM_PROMPT single source of truth', () => {
   it('the prompt literal appears in exactly one source file (services/systemPrompts.ts)', () => {
-    expect(FILES_WITH_MARKER.map(f => relative(REPO_ROOT, f))).toEqual(['services/systemPrompts.ts']);
+    expect(FILES_WITH_MARKER.map(f => relative(REPO_ROOT, f))).toEqual(['apps/journal/services/systemPrompts.ts']);
   });
 
   it('the personal app chat imports BIBLE_SCHOLAR_SYSTEM_PROMPT from the shared module', () => {
-    const src = readFileSync(join(REPO_ROOT, 'components/ChatInterface.tsx'), 'utf8');
+    const src = readFileSync(join(REPO_ROOT, 'apps/journal/components/ChatInterface.tsx'), 'utf8');
     expect(src).toMatch(/import\s*\{[^}]*BIBLE_SCHOLAR_SYSTEM_PROMPT[^}]*\}\s*from\s*['"]\.\.\/services\/systemPrompts['"]/);
   });
 

@@ -8,7 +8,7 @@ import { LIFE_AREAS } from '../../../studypack/principles';
 
 export const GUIDE_FIXTURE_FILE = 'mark1-guide.pdf';
 /** Path from the repo root (the e2e spec uploads it). */
-export const GUIDE_FIXTURE_PATH = `components/newstudy/guide/__tests__/fixtures/${GUIDE_FIXTURE_FILE}`;
+export const GUIDE_FIXTURE_PATH = `apps/site/newstudy/guide/__tests__/fixtures/${GUIDE_FIXTURE_FILE}`;
 
 export const GUIDE_TITLE = '马可福音 1:1-15 查经讲义';
 export const GUIDE_INTRO = '马可用一句话开始他的福音书，直接宣告耶稣是谁。';

@@ -46,16 +46,16 @@ export async function loadAppModules() {
   });
   const load = p => server.ssrLoadModule(p);
   const [packTypes, askAI, askAIStream, aiFinalBody, relatedVerses, citations, relatedPick, originalWords, lexicalAccuracy, relatedSecondHop] = await Promise.all([
-    load('/components/studypack/packTypes.ts'),
-    load('/components/studypack/askAI.ts'),
-    load('/components/studypack/askAIStream.ts'),
-    load('/services/aiFinalBody.ts'),
-    load('/components/studypack/relatedVerses.ts'),
-    load('/components/studypack/citations.ts'),
-    load('/components/studypack/relatedPick.ts'),
-    load('/components/studypack/originalWords.ts'),
-    load('/components/studypack/lexicalAccuracy.ts'),
-    load('/components/studypack/relatedSecondHop.ts'),
+    load('/shared/studypack/packTypes.ts'),
+    load('/shared/studypack/askAI.ts'),
+    load('/shared/studypack/askAIStream.ts'),
+    load('/shared/services/aiFinalBody.ts'),
+    load('/apps/site/studypack/relatedVerses.ts'),
+    load('/apps/site/studypack/citations.ts'),
+    load('/apps/site/studypack/relatedPick.ts'),
+    load('/apps/site/studypack/originalWords.ts'),
+    load('/apps/site/studypack/lexicalAccuracy.ts'),
+    load('/apps/site/studypack/relatedSecondHop.ts'),
   ]);
   return {
     packTypes, askAI, askAIStream, aiFinalBody, relatedVerses, citations, relatedPick, originalWords, lexicalAccuracy, relatedSecondHop,
