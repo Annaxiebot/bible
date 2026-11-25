@@ -18,6 +18,9 @@ export const LEADER_SYNCED_KEYS = [
   STORAGE_KEYS.AI_PACK_MODEL,
   STORAGE_KEYS.AI_FALLBACK_MODELS,
   STORAGE_KEYS.CONTENT_LANGUAGE_DEFAULT,
+  // Was missing though rememberWorship already rang the bus — the toggle silently never synced.
+  STORAGE_KEYS.WORSHIP_SONGS_DEFAULT,
+  STORAGE_KEYS.LEADER_AI_INSTRUCTIONS,
 ] as const;
 
 export type LeaderSyncedKey = (typeof LEADER_SYNCED_KEYS)[number];

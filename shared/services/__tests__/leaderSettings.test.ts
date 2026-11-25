@@ -69,10 +69,10 @@ beforeEach(() => {
 afterEach(() => { stop?.(); stop = null; vi.useRealTimers(); });
 
 describe('synced keys', () => {
-  it('are the four leader preferences — never the API key or the provider (ADR-0005)', () => {
+  it('are the leader preferences — never the API key or the provider (ADR-0005)', () => {
     expect([...LEADER_SYNCED_KEYS]).toEqual([
       STORAGE_KEYS.AI_MODEL, STORAGE_KEYS.AI_PACK_MODEL, STORAGE_KEYS.AI_FALLBACK_MODELS,
-      STORAGE_KEYS.CONTENT_LANGUAGE_DEFAULT,
+      STORAGE_KEYS.CONTENT_LANGUAGE_DEFAULT, STORAGE_KEYS.WORSHIP_SONGS_DEFAULT, STORAGE_KEYS.LEADER_AI_INSTRUCTIONS,
     ]);
     expect(LEADER_SYNCED_KEYS).not.toContain(OWN_OPENROUTER_KEY);
     expect(LEADER_SYNCED_KEYS).not.toContain(STORAGE_KEYS.AI_PROVIDER);
@@ -242,5 +242,39 @@ describe('sign-in handshake', () => {
     noteLeaderSettingChanged(STORAGE_KEYS.AI_MODEL);
     await vi.advanceTimersByTimeAsync(PUSH_DEBOUNCE_MS * 2);
     expect(upsertMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('sign-out (GPT review 2026-11-25)', () => {
+  it('clears the standing AI instructions so they never seed the next leader; device defaults stay', async () => {
+    vi.useFakeTimers();
+    stop = startLeaderSettingsSync();
+    await vi.advanceTimersByTimeAsync(0);
+    storage.setItem(STORAGE_KEYS.LEADER_AI_INSTRUCTIONS, '问题更贴近职场妈妈');
+    storage.setItem(STORAGE_KEYS.AI_MODEL, 'a/b');
+    uid = null;
+    emitAuth();
+    expect(storage.dump()[STORAGE_KEYS.LEADER_AI_INSTRUCTIONS]).toBeUndefined();
+    expect(storage.dump()[STORAGE_KEYS.AI_MODEL]).toBe('a/b');
+  });
+});
+
+describe('stale-session safety (GPT review 2026-11-25 round 2)', () => {
+  it('a handshake response arriving after sign-out writes and pushes nothing', async () => {
+    let release!: (v: unknown) => void;
+    maybeSingleMock.mockReturnValue(new Promise(r => { release = r; }));
+    const pending = syncOnSignIn();      // leader A's fetch in flight
+    uid = null;                          // A signs out before it returns
+    release(serverRow({ [STORAGE_KEYS.LEADER_AI_INSTRUCTIONS]: 'A 的定制' }));
+    expect(await pending).toEqual({ ok: true, skipped: true });
+    expect(storage.dump()[STORAGE_KEYS.LEADER_AI_INSTRUCTIONS]).toBeUndefined();
+    expect(upsertMock).not.toHaveBeenCalled();
+  });
+
+  it('the initial anonymous emission does NOT clear a signed-in reload\'s local instructions', async () => {
+    uid = null;                          // session not yet restored at startup
+    storage.setItem(STORAGE_KEYS.LEADER_AI_INSTRUCTIONS, '重载前的定制');
+    stop = startLeaderSettingsSync();    // subscribe emits the anonymous state at once
+    expect(storage.dump()[STORAGE_KEYS.LEADER_AI_INSTRUCTIONS]).toBe('重载前的定制');
   });
 });

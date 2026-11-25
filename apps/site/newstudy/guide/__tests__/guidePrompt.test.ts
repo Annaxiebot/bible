@@ -87,3 +87,13 @@ describe('the request body', () => {
     expect(own.slice(1)).toEqual(body.messages);
   });
 });
+
+describe('leader standing instructions (组长定制)', () => {
+  it('present → the fenced block; absent → exactly the prompt without it', () => {
+    const bare = buildGuidePackPrompt(INPUT);
+    const withIt = buildGuidePackPrompt({ ...INPUT, leaderInstructions: '多联系旧约背景' });
+    expect(bare).not.toContain(`LEADER'S STANDING PREFERENCES`);
+    expect(withIt).toContain(`LEADER'S STANDING PREFERENCES`);
+    expect(withIt).toContain('多联系旧约背景');
+  });
+});

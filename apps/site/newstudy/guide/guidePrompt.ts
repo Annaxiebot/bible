@@ -18,7 +18,7 @@ import { packGenerationModel } from '../../../../shared/services/aiDefaults';
 import { GUIDE_TEXT_HEADING, GUIDE_SECTION_KINDS, GUIDE_PASSAGE_FIELD, type PackSource } from '../../../../supabase/functions/_shared/aiPrompts';
 import {
   PACK_COMPACT_JSON_RULE, PACK_COUNTS, PACK_LENGTH_LIMITS, PACK_MAX_TOKENS, PACK_TEMPERATURE,
-  formatPassage, generatedShape, lessonTitleLine, strictShapeLine,
+  formatPassage, generatedShape, leaderInstructionsBlock, lessonTitleLine, strictShapeLine,
 } from '../packPrompt';
 
 /** The request field value that selects the server's guide prompt. */
@@ -34,6 +34,8 @@ export interface GuidePromptInput {
   contentLanguage: ContentLanguage;
   guideText: string;
   lessonTitle?: string;
+  /** The leader's standing instructions (组长定制) — same fenced block as the passage path (packPrompt). */
+  leaderInstructions?: string;
 }
 
 /** The shape's extra line: which sections came from the guide (an example value). */
@@ -61,6 +63,7 @@ export function buildGuidePackPrompt(input: GuidePromptInput): string {
     PACK_CONTENT_CONTRACT,
     contract.lineRule,
     input.lessonTitle ? lessonTitleLine(input.lessonTitle) : 'Title: the guide\'s own title when it has one.',
+    ...leaderInstructionsBlock(input.leaderInstructions),
     PACK_COUNTS,
     `${PACK_LENGTH_LIMITS}\n${contract.totalTarget} (Lines copied from the guide do not count toward this total.)`,
     PACK_COMPACT_JSON_RULE,

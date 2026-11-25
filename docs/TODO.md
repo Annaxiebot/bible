@@ -20,3 +20,17 @@ in dbe1f31b; the rest needs a CI-env reproduction.
 Done from the reviews: privacy.html linked from the footer; SPA 404 fallback.
 Refuted: "Vibe Studio/Notability/voice" (not this site); unsourced stats (ours
 are honest counts); missing meta/OG (description + og:description exist).
+
+## Personalization follow-ups (ADR-0030, 2026-11-25)
+- NL → view prefs: a "用一句话告诉 AI 你的偏好" box that maps free text to ViewPrefs
+  needs a new `role`/intent in supabase/functions/ai-proxy (the current system
+  prompt is the Bible-QA scope guard and would refuse a JSON-mapping task).
+- Member-visible AI personalization beyond display prefs (e.g. per-member
+  question depth) requires member identity — revisit with sign-in adoption.
+- Leader-settings sync (all keys, pre-existing): whole-map push + "omit empty"
+  means a cleared value on device A can be resurrected by device B's next push;
+  needs tombstones or per-key updates (GPT review 2026-11-25, rare multi-device case).
+- ViewPrefsPanel: full focus trap + focus return (Escape/close work; Tab can
+  still reach background controls; Space on the focused button may advance a slide first).
+- Escape with the prefs panel AND a verse tooltip both open closes both (two
+  capture listeners on window; keyboard-only path, cosmetic) — GPT round 2.

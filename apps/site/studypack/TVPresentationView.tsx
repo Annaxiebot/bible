@@ -29,6 +29,10 @@ import { exitFullscreen } from './fullscreen';
 import { useSelectToAsk, selectionVerse } from './useSelectToAsk';
 import TVSlide from './TVSlide';
 import AskAIOverlay from './AskAIOverlay';
+import ViewPrefsPanel from './ViewPrefsPanel';
+import { useViewPrefs, type ViewPrefsState } from './useViewPrefs';
+import { applyViewPrefs } from '../../../shared/studypack/packPrefs';
+import { VP_BUTTON } from './prefsStrings';
 import { useMeetingTracker } from '../stats/useMeetingTracker';
 
 /**
@@ -84,8 +88,9 @@ interface TVChromeProps {
   onAskAI: () => void;
   /** The one-time full-screen / sideways hint, shown above the first-slide hint. */
   notice: string | null;
-  /** Member view (ADR-0026): no Ask AI pill. */
+  /** Member view (ADR-0026): no Ask AI pill. The 偏好 button shows for everyone. */
   member?: boolean;
+  viewPrefs: ViewPrefsState;
 }
 
 /** Accessible name of the progress bar (one use; 中文 first). */
@@ -111,7 +116,7 @@ const TVProgress: React.FC<{ slideCount: number; index: number }> = ({ slideCoun
 );
 
 /** Counter, progress bar, first-slide hints, and Ask AI button (exit stays in the view so it also shows on load/error). */
-const TVChrome: React.FC<TVChromeProps> = ({ slideCount, index, onAskAI, notice, member }) => {
+const TVChrome: React.FC<TVChromeProps> = ({ slideCount, index, onAskAI, notice, member, viewPrefs }) => {
   const compact = useCompactViewport();
   // Signed out, Ask AI opens a sign-in prompt — say so on the pill's line first.
   const needsSignIn = !useAIAccess().available;
@@ -129,6 +134,21 @@ const TVChrome: React.FC<TVChromeProps> = ({ slideCount, index, onAskAI, notice,
         {index === 0 && <p>{compact ? FIRST_SLIDE_HINT_SHORT : FIRST_SLIDE_HINT}</p>}
       </div>
     )}
+    <div className="absolute top-[2vh] left-[2vw] flex items-center gap-3 max-w-[70vw]">
+      <button
+        onClick={(e) => { e.stopPropagation(); viewPrefs.openPanel(); }}
+        data-testid="vp-open" aria-label={VP_BUTTON}
+        className="text-stl-text-3 hover:text-stl-gold-hover border border-stl-border rounded-full px-4 py-1"
+        style={{ fontSize: '2.2vh' }}
+      >
+        {VP_BUTTON}
+      </button>
+      {viewPrefs.hint && !compact && (
+        <span data-testid="vp-hint" role="status" className="text-stl-gold" style={{ fontSize: '1.8vh' }}>
+          {viewPrefs.hint}
+        </span>
+      )}
+    </div>
     {!member && <div className="absolute bottom-[2.5vh] left-1/2 -translate-x-1/2 flex items-center gap-[1vw] whitespace-nowrap max-w-[70vw]">
       <button
         onClick={(e) => { e.stopPropagation(); onAskAI(); }}
@@ -172,27 +192,30 @@ const TVPresentationView: React.FC<TVPresentationViewProps> = ({ packId, onExit,
   const [error, setError] = useState<string | null>(null);
   const [askOpen, setAskOpen] = useState(false);
   const [askInitial, setAskInitial] = useState<string | null>(null);
+  const viewPrefs = useViewPrefs();
   const contentRef = useRef<HTMLDivElement>(null);
-  const fullscreen = useTVFullscreen(!!slides, !askOpen);
+  const fullscreen = useTVFullscreen(!!slides, !askOpen && !viewPrefs.open);
   // Leaving TV mode leaves full screen too (it was entered for the deck).
   const leave = useCallback(() => { exitFullscreen(); onExit(); }, [onExit]);
   const { escapeOnlyLeavesFullscreen } = fullscreen;
   const onEscape = useCallback(() => { if (!escapeOnlyLeavesFullscreen()) leave(); }, [escapeOnlyLeavesFullscreen, leave]);
-  const nav = useTVNavigation(slides?.length ?? 0, onEscape, !askOpen);
+  const nav = useTVNavigation(slides?.length ?? 0, onEscape, !askOpen && !viewPrefs.open);
 
-  const slide = slides?.[nav.index];
+  // Hiding sections can shrink the deck below the current position — clamp, never a blank slide.
+  const index = slides?.length ? Math.min(nav.index, slides.length - 1) : nav.index;
+  const slide = slides?.[index];
   const openAsk = () => {
     setAskInitial(initialAskQuestion(slide));
     setAskOpen(true);
   };
-  useAskAIHotkey(askOpen || member, openAsk);
+  useAskAIHotkey(askOpen || member || viewPrefs.open, openAsk);
 
   // Selecting slide text with the mouse asks about it directly.
   const onSlideSelection = useCallback((text: string, verse: number | null) => {
     setAskInitial(questionForSelection(text, verse));
     setAskOpen(true);
   }, []);
-  useSelectToAsk(contentRef, !askOpen && !!slide && !member, onSlideSelection);
+  useSelectToAsk(contentRef, !askOpen && !viewPrefs.open && !!slide && !member, onSlideSelection);
 
   // Re-read after a sign-in claims this local pack (claimLocalPacks): the QR appears without a reload.
   const claim = useLocalPackClaim(packId);
@@ -209,13 +232,16 @@ const TVPresentationView: React.FC<TVPresentationViewProps> = ({ packId, onExit,
         // A unique tab / history title per pack (was the brand only).
         document.title = `${loaded.title} · ${BRAND_ZH} · ${BRAND_EN}`;
         setPack(loaded);
-        setSlides(buildSlides(loaded));
       })
       .catch((err: Error) => {
         if (!cancelled) setError(err.message);
       });
     return () => { cancelled = true; };
   }, [packId, shareToken, claim.version]);
+  // Slides follow the loaded pack AND this viewer's prefs (hide sections, 中/英 order) — view-time only.
+  useEffect(() => {
+    if (pack) setSlides(buildSlides(applyViewPrefs(pack, viewPrefs.prefs)));
+  }, [pack, viewPrefs.prefs]);
   // 10 minutes of visible presentation = one group meeting (ADR-0012; never the demo pack, never a member's phone).
   useMeetingTracker(packId, !!slides && !member);
 
@@ -242,7 +268,10 @@ const TVPresentationView: React.FC<TVPresentationViewProps> = ({ packId, onExit,
       </div>
 
       {slides && (
-        <TVChrome slideCount={slides.length} index={nav.index} onAskAI={openAsk} notice={fullscreen.hint} member={member} />
+        <TVChrome slideCount={slides.length} index={index} onAskAI={openAsk} notice={fullscreen.hint} member={member} viewPrefs={viewPrefs} />
+      )}
+      {viewPrefs.open && (
+        <ViewPrefsPanel prefs={viewPrefs.prefs} onChange={viewPrefs.change} onClose={viewPrefs.closePanel} />
       )}
       <button
         onClick={(e) => { e.stopPropagation(); leave(); }}

@@ -28,6 +28,7 @@ import { signedInUid } from './sessionUid';
 import {
   LEADER_SYNCED_KEYS, type LeaderSyncedKey, setLeaderSettingListener, noteLeaderSettingChanged,
 } from './leaderSettingsKeys';
+import { STORAGE_KEYS } from '../constants/storageKeys';
 
 export { LEADER_SYNCED_KEYS, noteLeaderSettingChanged };
 
@@ -173,6 +174,10 @@ export async function syncOnSignIn(): Promise<LeaderSettingsResult> {
   if (!uid) return { ok: true, skipped: true };
   setStatus({ state: 'syncing', failure: null });
   const fetched = await fetchServerSettings(uid);
+  // A superseded session's late response must write nothing: after sign-out or a
+  // user switch it could re-seed the cleared instructions — or push leader A's
+  // text into leader B's row (GPT review 2026-11-25 round 2).
+  if (signedInUid() !== uid) return { ok: true, skipped: true };
   if (fetched.ok === false) { const r = fail('pull', fetched.message); record(r); return r; }
   applyServerSettings(fetched.settings);
   const result = localHasMore(fetched.settings) ? await pushLeaderSettings() : { ok: true as const, skipped: false };
@@ -197,6 +202,14 @@ export function startLeaderSettingsSync(): () => void {
       lastUid = uid;
       void syncOnSignIn();
     } else if (!uid) {
+      // Content-bearing text must not carry over to the next leader on a shared
+      // browser (the sign-in handshake would seed their row with it). Device
+      // defaults like the model and content language stay on purpose. Only a
+      // real sign-OUT clears (lastUid set): the initial anonymous emission and a
+      // reload before session restoration must not delete the local copy.
+      if (lastUid) {
+        try { localStorage.removeItem(STORAGE_KEYS.LEADER_AI_INSTRUCTIONS); } catch { /* blocked storage: nothing stored to leak */ }
+      }
       lastUid = null;
       cancelPendingPush();
       if (status.state !== 'idle') setStatus({ state: 'idle', failure: null });

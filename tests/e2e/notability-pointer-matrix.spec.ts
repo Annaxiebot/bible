@@ -707,7 +707,7 @@ test.describe('NotabilityEditor palm rejection (iPad-simulated)', () => {
     // ESM-safe __dirname (Playwright specs run as ESM in this project).
     const here = path.dirname(url.fileURLToPath(import.meta.url));
     const src = fs.readFileSync(
-      path.resolve(here, '..', '..', 'components/NotabilityEditor.tsx'),
+      path.resolve(here, '..', '..', 'apps/journal/components/NotabilityEditor.tsx'),
       'utf8',
     );
     // The shared classifier must exist.
@@ -1384,7 +1384,7 @@ test.describe('NotabilityEditor F4/B2-A: continuous page-flip animation', () => 
     const path = await import('node:path');
     const here = path.dirname(url.fileURLToPath(import.meta.url));
     const src = fs.readFileSync(
-      path.resolve(here, '..', '..', 'components/NotabilityEditor.tsx'),
+      path.resolve(here, '..', '..', 'apps/journal/components/NotabilityEditor.tsx'),
       'utf8',
     );
     // Snapshot canvas in JSX with the testid.
@@ -1436,7 +1436,7 @@ test.describe('NotabilityEditor F5/B2-B: lasso drag perf + bounds clamping', () 
     const path = await import('node:path');
     const here = path.dirname(url.fileURLToPath(import.meta.url));
     const src = fs.readFileSync(
-      path.resolve(here, '..', '..', 'components/NotabilityEditor.tsx'),
+      path.resolve(here, '..', '..', 'apps/journal/components/NotabilityEditor.tsx'),
       'utf8',
     );
     // The live overlay canvas ref must exist.

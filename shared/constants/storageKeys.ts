@@ -36,6 +36,13 @@ export const STORAGE_KEYS = {
   // TV mode: the one-time "按 F 全屏 Press F for full screen" / "横屏 sideways" hint was shown on this device
   TV_FULLSCREEN_HINT_SEEN: 'tv_fullscreen_hint_seen',
 
+  // TV mode: this viewer's display preferences (studypack/packPrefs) and the one-time 偏好 button hint
+  STUDYPACK_VIEW_PREFS: 'studypack_view_prefs',
+  TV_PREFS_HINT_SEEN: 'tv_prefs_hint_seen',
+
+  // New study: the leader's standing AI instructions, injected into pack generation (synced, ADR-0005)
+  LEADER_AI_INSTRUCTIONS: 'leader_ai_instructions',
+
   // New study: the first-visit "三步 Three steps" card was dismissed with 知道了 Got it (this device only, not synced)
   NEW_STUDY_GUIDE_DISMISSED: 'new_study_guide_dismissed',
 
