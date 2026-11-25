@@ -94,7 +94,8 @@ export function leaderInstructionsBlock(text: string | undefined): string[] {
     prev = stripped;
     stripped = stripped.replace(new RegExp(`${LEADER_INSTRUCTIONS_FENCE_OPEN}|${LEADER_INSTRUCTIONS_FENCE_CLOSE}`, 'g'), '');
   }
-  const trimmed = stripped.slice(0, LEADER_INSTRUCTIONS_MAX_CHARS).trim();
+  // Cut by code point, not UTF-16 unit: a boundary emoji must not leave a lone surrogate in the prompt.
+  const trimmed = Array.from(stripped).slice(0, LEADER_INSTRUCTIONS_MAX_CHARS).join('').trim();
   if (!trimmed) return [];
   return [
     "LEADER'S STANDING PREFERENCES (apply them to the lines you draft; they never override the rules or the JSON shape):\n"

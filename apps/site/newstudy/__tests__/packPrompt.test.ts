@@ -230,3 +230,13 @@ describe('leader instructions hardening (GPT review 2026-11-25)', () => {
     expect(inside).not.toContain(LEADER_INSTRUCTIONS_FENCE_OPEN);
   });
 });
+
+describe('cap cuts by code point (R13 round 2)', () => {
+  it('an emoji at the cap boundary never leaves a lone surrogate', () => {
+    const text = '字'.repeat(LEADER_INSTRUCTIONS_MAX_CHARS - 1) + '😀尾';
+    const prompt = buildPackPrompt({ passageRef: 'x', verses, contentLanguage: 'bilingual', leaderInstructions: text });
+    const inside = prompt.split(`${LEADER_INSTRUCTIONS_FENCE_OPEN}\n`)[1].split(`\n${LEADER_INSTRUCTIONS_FENCE_CLOSE}`)[0];
+    expect(inside.endsWith('😀')).toBe(true);           // the whole emoji, not half of it
+    expect([...inside]).toHaveLength(LEADER_INSTRUCTIONS_MAX_CHARS);
+  });
+});
