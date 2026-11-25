@@ -5,8 +5,11 @@
  * shared/ may import neither app, so the pre-reorg mingling cannot recur.
  * Production code only: __tests__ files may cross (a journal test renders
  * the site AuthPanel), which the import graph of shipped code never does.
- * Known limits (heuristic scan): template-literal specifiers built at runtime
- * are invisible to it, and scripts/ (build-time, not shipped) is out of scope.
+ * Known limits (heuristic scan): template-literal specifiers built at runtime,
+ * and glob patterns judged by their written prefix (a /**-wide glob is not
+ * expanded against the filesystem); scripts/ (build-time, not shipped) is out
+ * of scope. new URL('…') with a non-import.meta.url base can false-positive,
+ * which fails loud, not silent.
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -22,12 +25,12 @@ const sources = (dir: string): string[] =>
   });
 
 /** Every quoted module specifier: static/dynamic import, export-from, import.meta.glob, new URL(…, import.meta.url). */
-const SPECIFIER = /(?:from\s*|import\s*\(\s*|import\s+|import\.meta\.glob\s*\(\s*|new\s+URL\s*\(\s*)['"`]([^'"`]+)['"`]/g;
+const SPECIFIER = /(?:from\s*|import\s*\(\s*|import\s+|require\s*\(\s*|import\.meta\.glob\s*\(\s*\[?\s*|new\s+URL\s*\(\s*)['"`]([^'"`]+)['"`]/g;
 
 /** Repo-relative form of a specifier: `@/x` and `/x` resolve from the root (Vite + tsconfig alias), `./x` from the importer. */
 const resolveSpec = (importer: string, spec: string): string => {
-  if (spec.startsWith('@/')) return spec.slice(2);
-  if (spec.startsWith('/')) return spec.slice(1);
+  if (spec.startsWith('@/')) return path.normalize(spec.slice(2));
+  if (spec.startsWith('/')) return path.normalize(spec.slice(1));
   return path.relative(ROOT, path.resolve(path.dirname(importer), spec));
 };
 
