@@ -33,3 +33,14 @@ describe('leaderInstructionsDefault', () => {
     expect(readLeaderInstructions(memoryStore())).toBe('');
   });
 });
+
+describe('blocked storage (GPT review 2026-11-25)', () => {
+  const throwing = {
+    getItem: () => { throw new Error('blocked'); },
+    setItem: () => { throw new Error('blocked'); },
+  };
+  it('a throwing store reads empty and writes without throwing', () => {
+    expect(readLeaderInstructions(throwing)).toBe('');
+    expect(() => rememberLeaderInstructions('x', throwing)).not.toThrow();
+  });
+});

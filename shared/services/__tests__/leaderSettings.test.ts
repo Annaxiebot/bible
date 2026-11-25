@@ -244,3 +244,17 @@ describe('sign-in handshake', () => {
     expect(upsertMock).not.toHaveBeenCalled();
   });
 });
+
+describe('sign-out (GPT review 2026-11-25)', () => {
+  it('clears the standing AI instructions so they never seed the next leader; device defaults stay', async () => {
+    vi.useFakeTimers();
+    stop = startLeaderSettingsSync();
+    await vi.advanceTimersByTimeAsync(0);
+    storage.setItem(STORAGE_KEYS.LEADER_AI_INSTRUCTIONS, '问题更贴近职场妈妈');
+    storage.setItem(STORAGE_KEYS.AI_MODEL, 'a/b');
+    uid = null;
+    emitAuth();
+    expect(storage.dump()[STORAGE_KEYS.LEADER_AI_INSTRUCTIONS]).toBeUndefined();
+    expect(storage.dump()[STORAGE_KEYS.AI_MODEL]).toBe('a/b');
+  });
+});

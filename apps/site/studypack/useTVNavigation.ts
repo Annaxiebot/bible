@@ -35,6 +35,11 @@ export function useTVNavigation(
   // the passive effect that would re-register it is still pending.
   const slideCountRef = useRef(slideCount);
   useLayoutEffect(() => { slideCountRef.current = slideCount; }, [slideCount]);
+  // The deck can shrink under the viewer (view prefs hide sections): clamp the
+  // stored index too, or ArrowLeft appears dead until it catches up.
+  useEffect(() => {
+    if (slideCount > 0) setIndex(i => Math.min(i, slideCount - 1));
+  }, [slideCount]);
 
   const next = useCallback(() => {
     setIndex(i => Math.min(i + 1, Math.max(slideCountRef.current - 1, 0)));

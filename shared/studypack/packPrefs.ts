@@ -33,10 +33,10 @@ function isHideable(kind: unknown): kind is HideableKind {
   return (HIDEABLE_KINDS as readonly string[]).includes(kind as string);
 }
 
-/** Stored prefs, with unknown kinds and shapes dropped; blocked storage → defaults. */
-export function loadViewPrefs(store: Pick<Storage, 'getItem'> = window.localStorage): ViewPrefs {
+/** Stored prefs, with unknown kinds and shapes dropped; blocked storage (even a throwing accessor) → defaults. */
+export function loadViewPrefs(store?: Pick<Storage, 'getItem'>): ViewPrefs {
   try {
-    const raw = store.getItem(STORAGE_KEYS.STUDYPACK_VIEW_PREFS);
+    const raw = (store ?? window.localStorage).getItem(STORAGE_KEYS.STUDYPACK_VIEW_PREFS);
     if (!raw) return DEFAULT_VIEW_PREFS;
     const parsed = JSON.parse(raw) as Partial<ViewPrefs>;
     return {
@@ -49,9 +49,9 @@ export function loadViewPrefs(store: Pick<Storage, 'getItem'> = window.localStor
   }
 }
 
-export function saveViewPrefs(prefs: ViewPrefs, store: Pick<Storage, 'setItem'> = window.localStorage): void {
+export function saveViewPrefs(prefs: ViewPrefs, store?: Pick<Storage, 'setItem'>): void {
   try {
-    store.setItem(STORAGE_KEYS.STUDYPACK_VIEW_PREFS, JSON.stringify(prefs));
+    (store ?? window.localStorage).setItem(STORAGE_KEYS.STUDYPACK_VIEW_PREFS, JSON.stringify(prefs));
   } catch {
     // Storage blocked: prefs still apply for this session via state.
   }

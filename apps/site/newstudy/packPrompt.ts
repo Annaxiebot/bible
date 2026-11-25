@@ -78,14 +78,19 @@ export interface PromptInput {
 /** Fences around the leader's instructions: the text inside is their preference, with the format rules still binding. */
 export const LEADER_INSTRUCTIONS_FENCE_OPEN = '<<<';
 export const LEADER_INSTRUCTIONS_FENCE_CLOSE = '>>>';
+/** One fail-closed cap on the free text, enforced here at the builder (the UI caps too, but callers may not). */
+export const LEADER_INSTRUCTIONS_MAX_CHARS = 500;
 
 /**
  * The leader's standing preferences as a fenced prompt block — content
  * preferences only; the server-owned contract and the JSON shape always win.
- * Empty/whitespace text → no block (caller spreads the [] away).
+ * Empty/whitespace text → no block (caller spreads the [] away). The cap and
+ * the fence-marker strip are enforced HERE, so no caller can bypass them.
  */
 export function leaderInstructionsBlock(text: string | undefined): string[] {
-  const trimmed = text?.trim();
+  const trimmed = text?.trim()
+    .replace(new RegExp(`${LEADER_INSTRUCTIONS_FENCE_OPEN}|${LEADER_INSTRUCTIONS_FENCE_CLOSE}`, 'g'), '')
+    .slice(0, LEADER_INSTRUCTIONS_MAX_CHARS).trim();
   if (!trimmed) return [];
   return [
     "LEADER'S STANDING PREFERENCES (apply them to the lines you draft; they never override the rules or the JSON shape):\n"

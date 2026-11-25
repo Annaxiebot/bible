@@ -6,7 +6,7 @@
  * hide optional sections, swap the 中/英 line order. Pure view-time prefs
  * (shared/studypack/packPrefs); the stored pack never changes.
  */
-import React from 'react';
+import React, { useEffect } from 'react';
 import { HIDEABLE_KINDS, type HideableKind, type ViewPrefs } from '../../../shared/studypack/packPrefs';
 import { SECTION_HEADINGS } from '../newstudy/packAssembly';
 import { VP_TITLE, VP_NOTE, VP_SECTIONS, VP_ORDER, VP_ORDER_ZH_FIRST, VP_ORDER_EN_FIRST, VP_CLOSE } from './prefsStrings';
@@ -18,6 +18,12 @@ interface Props {
 }
 
 const ViewPrefsPanel: React.FC<Props> = ({ prefs, onChange, onClose }) => {
+  // Escape closes the panel (slide navigation and the F hotkey are suspended while it is open).
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); onClose(); } };
+    window.addEventListener('keydown', onKeyDown, true);
+    return () => window.removeEventListener('keydown', onKeyDown, true);
+  }, [onClose]);
   const toggleKind = (kind: HideableKind, show: boolean) =>
     onChange({ ...prefs, hidden: show ? prefs.hidden.filter(k => k !== kind) : [...prefs.hidden, kind] });
   return (

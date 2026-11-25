@@ -57,10 +57,13 @@ test.describe('显示偏好 View preferences (TV)', () => {
     await page.getByTestId('vp-kind-reflection').uncheck();
     await page.getByTestId('vp-kind-lifeMenu').uncheck();
     await page.getByTestId('vp-close').click();
-    await expect(page.getByTestId('tv-counter')).toHaveText(/\/(\d+)$/);
+    await expect(page.getByTestId('tv-counter')).not.toContainText(`/${TOTAL}`); // deck really shrank
     const counter = await page.getByTestId('tv-counter').textContent();
     const [shown, of] = counter!.split('/').map(Number);
+    expect(of).toBeLessThan(TOTAL);
     expect(shown).toBe(of); // clamped to the last remaining slide
+    await page.keyboard.press('ArrowLeft'); // the stored index is clamped too: one press moves back immediately
+    await expect(page.getByText(`${of - 1}/${of}`)).toBeVisible();
   });
 
   test('英文在前 swaps bilingual body lines on the slides', async ({ page }) => {

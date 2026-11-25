@@ -28,6 +28,7 @@ import { signedInUid } from './sessionUid';
 import {
   LEADER_SYNCED_KEYS, type LeaderSyncedKey, setLeaderSettingListener, noteLeaderSettingChanged,
 } from './leaderSettingsKeys';
+import { STORAGE_KEYS } from '../constants/storageKeys';
 
 export { LEADER_SYNCED_KEYS, noteLeaderSettingChanged };
 
@@ -199,6 +200,10 @@ export function startLeaderSettingsSync(): () => void {
     } else if (!uid) {
       lastUid = null;
       cancelPendingPush();
+      // Content-bearing text must not carry over to the next leader on a shared
+      // browser (the sign-in handshake would seed their row with it). Device
+      // defaults like the model and content language stay on purpose.
+      try { localStorage.removeItem(STORAGE_KEYS.LEADER_AI_INSTRUCTIONS); } catch { /* blocked storage: nothing stored to leak */ }
       if (status.state !== 'idle') setStatus({ state: 'idle', failure: null });
     }
   });

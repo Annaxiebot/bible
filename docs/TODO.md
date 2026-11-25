@@ -27,3 +27,8 @@ are honest counts); missing meta/OG (description + og:description exist).
   prompt is the Bible-QA scope guard and would refuse a JSON-mapping task).
 - Member-visible AI personalization beyond display prefs (e.g. per-member
   question depth) requires member identity — revisit with sign-in adoption.
+- Leader-settings sync (all keys, pre-existing): whole-map push + "omit empty"
+  means a cleared value on device A can be resurrected by device B's next push;
+  needs tombstones or per-key updates (GPT review 2026-11-25, rare multi-device case).
+- ViewPrefsPanel: full focus trap + focus return (Escape/close work; Tab can
+  still reach background controls; Space on the focused button may advance a slide first).

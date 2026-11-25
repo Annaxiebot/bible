@@ -194,7 +194,7 @@ const TVPresentationView: React.FC<TVPresentationViewProps> = ({ packId, onExit,
   const [askInitial, setAskInitial] = useState<string | null>(null);
   const viewPrefs = useViewPrefs();
   const contentRef = useRef<HTMLDivElement>(null);
-  const fullscreen = useTVFullscreen(!!slides, !askOpen);
+  const fullscreen = useTVFullscreen(!!slides, !askOpen && !viewPrefs.open);
   // Leaving TV mode leaves full screen too (it was entered for the deck).
   const leave = useCallback(() => { exitFullscreen(); onExit(); }, [onExit]);
   const { escapeOnlyLeavesFullscreen } = fullscreen;
