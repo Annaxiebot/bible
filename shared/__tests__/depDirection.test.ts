@@ -42,6 +42,21 @@ const offenders = (dir: string, forbidden: RegExp): string[] =>
     return hits.length ? [`${path.relative(ROOT, f)} → ${hits.join(', ')}`] : [];
   });
 
+describe('the scanner itself (so the suite can never pass vacuously)', () => {
+  it('SPECIFIER matches each import form and resolveSpec maps it into the repo', () => {
+    const src = `import a from 'apps/x';
+      const b = await import('./y');
+      export { c } from '@/apps/journal/App';
+      const d = require('/shared/z');
+      const e = import.meta.glob(['/apps/site/studypack/*.ts']);
+      const f = new URL('../apps/site/w.png', import.meta.url);`;
+    const specs = [...src.matchAll(SPECIFIER)].map(m => resolveSpec(path.join(ROOT, 'shared/fake.ts'), m[1]));
+    expect(specs).toEqual(['shared/apps/x', 'shared/y', 'apps/journal/App', 'shared/z', 'apps/site/studypack/*.ts', 'apps/site/w.png']);
+    expect(resolveSpec(path.join(ROOT, 'shared/fake.ts'), '@/shared/../apps/site/studypack/packTypes'))
+      .toBe('apps/site/studypack/packTypes');
+  });
+});
+
 describe('dependency direction between apps/ and shared/', () => {
   it('apps/site never imports apps/journal', () => {
     expect(offenders('apps/site', /^apps\/journal\//)).toEqual([]);

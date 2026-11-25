@@ -101,9 +101,9 @@ function sourceFiles(dir: string): string[] {
 // Walking + reading every component file is >10 s under heavy CPU load (every
 // read is also scanned by the endpoint antivirus). Do it once at file
 // collection, which has no timeout, so the slow I/O never counts against it.
-// Scan every UI side of the repo (apps/*, shared/, and any components/ remnant).
+// Scan every UI side of the repo (apps/*, shared/).
 const REPO = join(__dirname, '..', '..', '..');
-const SIGN_IN_CALLERS = ['apps', 'shared', 'components']
+const SIGN_IN_CALLERS = ['apps', 'shared']
   .map(d => join(REPO, d)).filter(existsSync).flatMap(sourceFiles)
   .filter(f => !f.endsWith(join('services', 'supabase.ts')))   // the definition itself
   .map(path => ({ path, calls: readFileSync(path, 'utf8').match(/signInWithGoogle\([^)]*\)/g) ?? [] }))

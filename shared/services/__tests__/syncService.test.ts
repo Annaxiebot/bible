@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import path from 'node:path';
 import { verseDataRow, bookmarkRow } from '../syncRows';
 
 // ---------------------------------------------------------------------------
@@ -660,7 +659,7 @@ describe('egress mitigation — realtime subscription audit', () => {
     // explicitly disabled it; this test locks that decision in until the
     // architecture changes.
     const src = await import('fs').then((fs) =>
-      fs.readFileSync(path.resolve(__dirname, '../syncService.ts'), 'utf8')
+      fs.readFileSync(`${__dirname}/../syncService.ts`, 'utf8')
     );
     expect(src).toMatch(/\/\/ setupJournalRealtimeSync\(\)/); // commented out at call site
     // The sync_metadata channel stays live — it's the cross-device trigger.

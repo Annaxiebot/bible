@@ -34,7 +34,7 @@ function walk(dir: string, out: string[] = []): string[] {
 const FILES_WITH_MARKER = walk(REPO_ROOT).filter(f => readFileSync(f, 'utf8').includes(MARKER));
 
 describe('R3: BIBLE_SCHOLAR_SYSTEM_PROMPT single source of truth', () => {
-  it('the prompt literal appears in exactly one source file (services/systemPrompts.ts)', () => {
+  it('the prompt literal appears in exactly one source file (apps/journal/services/systemPrompts.ts)', () => {
     expect(FILES_WITH_MARKER.map(f => relative(REPO_ROOT, f))).toEqual(['apps/journal/services/systemPrompts.ts']);
   });
 
