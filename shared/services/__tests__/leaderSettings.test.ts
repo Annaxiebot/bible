@@ -278,3 +278,16 @@ describe('stale-session safety (GPT review 2026-11-25 round 2)', () => {
     expect(storage.dump()[STORAGE_KEYS.LEADER_AI_INSTRUCTIONS]).toBe('重载前的定制');
   });
 });
+
+describe('direct user switch (R13 round 1)', () => {
+  it('A → B with no sign-out between also drops A\'s standing instructions', async () => {
+    vi.useFakeTimers();
+    stop = startLeaderSettingsSync();      // signs in as uid-lead (A)
+    await vi.advanceTimersByTimeAsync(0);
+    storage.setItem(STORAGE_KEYS.LEADER_AI_INSTRUCTIONS, 'A 的定制');
+    uid = 'uid-other';
+    emitAuth();                            // direct switch to B
+    expect(storage.dump()[STORAGE_KEYS.LEADER_AI_INSTRUCTIONS]).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(0);
+  });
+});

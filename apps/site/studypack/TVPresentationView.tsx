@@ -29,10 +29,9 @@ import { exitFullscreen } from './fullscreen';
 import { useSelectToAsk, selectionVerse } from './useSelectToAsk';
 import TVSlide from './TVSlide';
 import AskAIOverlay from './AskAIOverlay';
-import ViewPrefsPanel from './ViewPrefsPanel';
+import ViewPrefsPanel, { TVPrefsButton } from './ViewPrefsPanel';
 import { useViewPrefs, type ViewPrefsState } from './useViewPrefs';
 import { applyViewPrefs } from '../../../shared/studypack/packPrefs';
-import { VP_BUTTON } from './prefsStrings';
 import { useMeetingTracker } from '../stats/useMeetingTracker';
 
 /**
@@ -134,21 +133,7 @@ const TVChrome: React.FC<TVChromeProps> = ({ slideCount, index, onAskAI, notice,
         {index === 0 && <p>{compact ? FIRST_SLIDE_HINT_SHORT : FIRST_SLIDE_HINT}</p>}
       </div>
     )}
-    <div className="absolute top-[2vh] left-[2vw] flex items-center gap-3 max-w-[70vw]">
-      <button
-        onClick={(e) => { e.stopPropagation(); viewPrefs.openPanel(); }}
-        data-testid="vp-open" aria-label={VP_BUTTON}
-        className="text-stl-text-3 hover:text-stl-gold-hover border border-stl-border rounded-full px-4 py-1"
-        style={{ fontSize: '2.2vh' }}
-      >
-        {VP_BUTTON}
-      </button>
-      {viewPrefs.hint && !compact && (
-        <span data-testid="vp-hint" role="status" className="text-stl-gold" style={{ fontSize: '1.8vh' }}>
-          {viewPrefs.hint}
-        </span>
-      )}
-    </div>
+    <TVPrefsButton viewPrefs={viewPrefs} compact={compact} />
     {!member && <div className="absolute bottom-[2.5vh] left-1/2 -translate-x-1/2 flex items-center gap-[1vw] whitespace-nowrap max-w-[70vw]">
       <button
         onClick={(e) => { e.stopPropagation(); onAskAI(); }}
@@ -185,6 +170,8 @@ async function loadSharedPack(token: string): Promise<StudyPack> {
   return pack;
 }
 
+// TODO(R4): TVPresentationView is ~108 lines — split seam: a usePackSlides(packId, shareToken, prefs)
+// hook owning load + title + prefs→slides, leaving the component render-only.
 const TVPresentationView: React.FC<TVPresentationViewProps> = ({ packId, onExit, shareToken }) => {
   const member = !!shareToken;
   const [pack, setPack] = useState<StudyPack | null>(null);

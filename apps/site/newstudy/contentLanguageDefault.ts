@@ -38,6 +38,7 @@ export function readDefaultWorship(store?: KeyStore): boolean {
   try {
     return (store ?? window.localStorage).getItem(STORAGE_KEYS.WORSHIP_SONGS_DEFAULT) === '1';
   } catch {
+    // Blocked storage: the first-visit default (off).
     return false;
   }
 }

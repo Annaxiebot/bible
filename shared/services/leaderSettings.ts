@@ -199,6 +199,11 @@ export function startLeaderSettingsSync(): () => void {
   const unsubscribe = authManager.subscribe((state: AuthState) => {
     const uid = state.isAuthenticated ? state.user?.id ?? null : null;
     if (uid && uid !== lastUid) {
+      // A direct user switch (A → B, no anonymous emission between) must also drop
+      // A's content-bearing text, or B's handshake pushes it to B's row (R13).
+      if (lastUid) {
+        try { localStorage.removeItem(STORAGE_KEYS.LEADER_AI_INSTRUCTIONS); } catch { /* blocked storage: nothing stored to leak */ }
+      }
       lastUid = uid;
       void syncOnSignIn();
     } else if (!uid) {

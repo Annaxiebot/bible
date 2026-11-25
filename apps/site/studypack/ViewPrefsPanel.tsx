@@ -9,7 +9,27 @@
 import React, { useEffect } from 'react';
 import { HIDEABLE_KINDS, type HideableKind, type ViewPrefs } from '../../../shared/studypack/packPrefs';
 import { SECTION_HEADINGS } from '../newstudy/packAssembly';
-import { VP_TITLE, VP_NOTE, VP_SECTIONS, VP_ORDER, VP_ORDER_ZH_FIRST, VP_ORDER_EN_FIRST, VP_CLOSE } from './prefsStrings';
+import { VP_BUTTON, VP_TITLE, VP_NOTE, VP_SECTIONS, VP_ORDER, VP_ORDER_ZH_FIRST, VP_ORDER_EN_FIRST, VP_CLOSE } from './prefsStrings';
+import type { ViewPrefsState } from './useViewPrefs';
+
+/** The 偏好 button (everyone, member incl.) with its one-time hint beside it (first-use guide rule). */
+export const TVPrefsButton: React.FC<{ viewPrefs: ViewPrefsState; compact: boolean }> = ({ viewPrefs, compact }) => (
+  <div className="absolute top-[2vh] left-[2vw] flex items-center gap-3 max-w-[70vw]">
+    <button
+      onClick={(e) => { e.stopPropagation(); viewPrefs.openPanel(); }}
+      data-testid="vp-open" aria-label={VP_BUTTON}
+      className="text-stl-text-3 hover:text-stl-gold-hover border border-stl-border rounded-full px-4 py-1"
+      style={{ fontSize: '2.2vh' }}
+    >
+      {VP_BUTTON}
+    </button>
+    {viewPrefs.hint && !compact && (
+      <span data-testid="vp-hint" role="status" className="text-stl-gold" style={{ fontSize: '1.8vh' }}>
+        {viewPrefs.hint}
+      </span>
+    )}
+  </div>
+);
 
 interface Props {
   prefs: ViewPrefs;

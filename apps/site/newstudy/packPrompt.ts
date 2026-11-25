@@ -71,7 +71,7 @@ export interface PromptInput {
   contentLanguage: ContentLanguage;
   /** Present = also suggest worship songs from this catalog (ADR-0022 step 2). */
   worshipCatalog?: CatalogSong[];
-  /** The leader's standing instructions (组长定制), already capped by the writer (leaderInstructionsDefault). */
+  /** The leader's standing instructions (组长定制); leaderInstructionsBlock caps and fence-strips them. */
   leaderInstructions?: string;
 }
 
