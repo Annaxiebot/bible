@@ -12,12 +12,12 @@ import { readFileSync } from 'fs';
 import path from 'path';
 import {
   PERSONAL_SYNC_TABLES, verseDataRow, bookmarkRow, chatHistoryRow, spiritualMemoryRow, syncMetadataRow,
-} from '../../services/syncRows';
-import type { VerseData } from '../../types/verseData';
+} from '../../shared/services/syncRows';
+import type { VerseData } from '../../shared/types/verseData';
 
 const sql = readFileSync(path.resolve(__dirname, '../personal-sync-schema.sql'), 'utf-8');
 const flat = sql.replace(/\s+/g, ' ');
-const syncSource = readFileSync(path.resolve(__dirname, '../../services/syncService.ts'), 'utf-8');
+const syncSource = readFileSync(path.resolve(__dirname, '../../shared/services/syncService.ts'), 'utf-8');
 const tables = Object.values(PERSONAL_SYNC_TABLES);
 
 /** The CREATE TABLE body for one table (up to its closing ");"). */

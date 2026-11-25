@@ -8,7 +8,7 @@
  * checkin_answers) under the same fake PostgREST base the sign-up specs use.
  */
 import { Page } from '@playwright/test';
-import { SIGNUPS_TABLE, CHECKIN_ANSWERS_TABLE, PACK_SUMMARIES_TABLE } from '../../../components/signup/signupSchema';
+import { SIGNUPS_TABLE, CHECKIN_ANSWERS_TABLE, PACK_SUMMARIES_TABLE } from '../../../apps/site/signup/signupSchema';
 import { STUDY_PACKS_TABLE } from '../../../supabase/functions/_shared/signup';
 import { E2E_LEADER_ID, E2E_SUPABASE_PATH, injectSupabaseOverride } from './signup';
 import { REPLACED_COLUMN } from '../../../supabase/functions/send-checkins/replaced';

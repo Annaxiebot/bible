@@ -12,10 +12,10 @@
  * scripture and QR sections never offer the box. No call reaches openrouter.ai.
  */
 import { test, expect, Page } from '@playwright/test';
-import { NS_GENERATE, NS_EDIT_TITLE } from '../../components/newstudy/newStudyStrings';
-import { AJ_OPEN, AJ_CHIPS, AJ_BUSY, AJ_UNDO } from '../../components/newstudy/adjustStrings';
-import { JOHN3_REPLY_JSON, JOHN3_GENERATED } from '../../components/newstudy/__tests__/fixtures';
-import { AI_PROXY_FUNCTION } from '../../services/aiProxyRoute';
+import { NS_GENERATE, NS_EDIT_TITLE } from '../../shared/newstudy/newStudyStrings';
+import { AJ_OPEN, AJ_CHIPS, AJ_BUSY, AJ_UNDO } from '../../apps/site/newstudy/adjustStrings';
+import { JOHN3_REPLY_JSON, JOHN3_GENERATED } from '../../apps/site/newstudy/__tests__/fixtures';
+import { AI_PROXY_FUNCTION } from '../../shared/services/aiProxyRoute';
 import { E2E_SUPABASE_PATH, injectSupabaseOverride } from './helpers/signup';
 import { fakeLeaderSession } from './helpers/leader';
 import { sseBody, OPENROUTER_CHAT_URL } from './helpers/tv';

@@ -14,7 +14,7 @@ import { E2E_SUPABASE_PATH, E2E_LEADER_ID } from './signup';
 import { STUDY_PACKS_TABLE } from '../../../supabase/functions/_shared/signup';
 import {
   ASK_HISTORY_LIMIT, ASK_HISTORY_TABLE, SAVE_ASK_EXCHANGE_FN, ASK_HISTORY_FULL_CODE, ASK_REPLACE_COLUMN,
-} from '../../../components/studypack/askHistoryRules';
+} from '../../../apps/site/studypack/askHistoryRules';
 
 export interface FakeExchange {
   id: string; leader_id: string; pack_id: string; question: string; answer: string; model: string | null; created_at: string;

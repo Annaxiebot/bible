@@ -10,9 +10,9 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import path from 'path';
-import { SIGNUPS_TABLE } from '../../components/signup/signupSchema';
-import { PACK_SUMMARIES_TABLE } from '../../components/signup/packSummary';
-import { CHECKIN_ANSWERS_TABLE, SHARE_ANSWER_FN, CHECKIN_CONTEXT_FN } from '../../components/signup/signupSchema';
+import { SIGNUPS_TABLE } from '../../apps/site/signup/signupSchema';
+import { PACK_SUMMARIES_TABLE } from '../../apps/site/signup/packSummary';
+import { CHECKIN_ANSWERS_TABLE, SHARE_ANSWER_FN, CHECKIN_CONTEXT_FN } from '../../apps/site/signup/signupSchema';
 import { PACK_SUMMARIES_TABLE as FN_SUMMARIES_TABLE } from '../../supabase/functions/send-checkins/packSource.ts';
 
 const sql = readFileSync(path.resolve(__dirname, '../signups-schema.sql'), 'utf-8');

@@ -11,14 +11,14 @@
  * Supabase.
  */
 import { test, expect } from '@playwright/test';
-import { LEADER_HOME_HASH } from '../../components/leader/leaderRoute';
-import { LH_TITLE } from '../../components/leader/leaderStrings';
-import { ADMIN_HASH } from '../../components/landing/landingRoute';
-import { IS_SITE_ADMIN_FN, ADMIN_DATA_FNS } from '../../components/admin/adminRules';
-import { ADMIN_FUNNEL_FN } from '../../components/stats/funnelRules';
-import { AD_TITLE, AD_DENIED, AD_SEARCH, ownerOnlyLine } from '../../components/admin/adminStrings';
+import { LEADER_HOME_HASH } from '../../shared/leader/leaderRoute';
+import { LH_TITLE } from '../../apps/site/leader/leaderStrings';
+import { ADMIN_HASH } from '../../shared/landing/landingRoute';
+import { IS_SITE_ADMIN_FN, ADMIN_DATA_FNS } from '../../apps/site/admin/adminRules';
+import { ADMIN_FUNNEL_FN } from '../../shared/stats/funnelRules';
+import { AD_TITLE, AD_DENIED, AD_SEARCH, ownerOnlyLine } from '../../apps/site/admin/adminStrings';
 import { FEEDBACK_SOURCE_LABELS } from '../../supabase/functions/_shared/feedback';
-import { ADMIN_LEADERS, ADMIN_FEEDBACK } from '../../components/admin/__tests__/adminFixtures';
+import { ADMIN_LEADERS, ADMIN_FEEDBACK } from '../../apps/site/admin/__tests__/adminFixtures';
 import { fakeLeaderSession, mockLeaderCounts, E2E_LEADER } from './helpers/leader';
 import { mockSiteStats } from './helpers/siteStats';
 import { mockAdminRpcs } from './helpers/admin';

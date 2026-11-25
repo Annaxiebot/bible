@@ -8,7 +8,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import path from 'path';
-import { SIGNUPS_TABLE, CHECKIN_CONTEXT_FN } from '../../components/signup/signupSchema';
+import { SIGNUPS_TABLE, CHECKIN_CONTEXT_FN } from '../../apps/site/signup/signupSchema';
 
 const sql = readFileSync(path.resolve(__dirname, '../signup-practices-schema.sql'), 'utf-8');
 

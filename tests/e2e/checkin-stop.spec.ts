@@ -10,8 +10,8 @@
  * only (components/leader/__tests__/LeaderOptOut.test.tsx). No live Supabase.
  */
 import { test, expect } from '@playwright/test';
-import { checkinHash, checkinStopHash } from '../../components/checkin/checkinRoute';
-import { CK_STOP, CK_STOPPED, CK_RESUME, CK_RESUMED, CK_ERR_LOAD } from '../../components/checkin/checkinStrings';
+import { checkinHash, checkinStopHash } from '../../shared/checkin/checkinRoute';
+import { CK_STOP, CK_STOPPED, CK_RESUME, CK_RESUMED, CK_ERR_LOAD } from '../../shared/checkin/checkinStrings';
 import { UNSUBSCRIBE_FN, RESUBSCRIBE_FN } from '../../supabase/functions/send-checkins/optout';
 import { E2E_SIGNUP_ID as SIGNUP_ID, mockBackend } from './helpers/signup';
 import { mockOptOut } from './helpers/optout';

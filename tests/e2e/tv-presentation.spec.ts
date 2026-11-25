@@ -7,17 +7,17 @@
  * in tv-phone.spec.ts. Shared helpers: helpers/tv.ts.
  */
 import { test, expect } from '@playwright/test';
-import { FIRST_SLIDE_HINT, ASK_AI_LABEL } from '../../components/studypack/tvHints';
-import { LIFE_AREAS } from '../../components/studypack/principles';
-import { SU_QR_HEADING } from '../../components/signup/signupStrings';
-import { DEFAULT_AI_SETUP, wireModelId } from '../../services/aiDefaults';
-import { SETUP_TITLE, SETUP_SIGN_IN_TO_USE_AI } from '../../components/setup/setupStrings';
+import { FIRST_SLIDE_HINT, ASK_AI_LABEL } from '../../shared/studypack/tvHints';
+import { LIFE_AREAS } from '../../shared/studypack/principles';
+import { SU_QR_HEADING } from '../../shared/signup/signupStrings';
+import { DEFAULT_AI_SETUP, wireModelId } from '../../shared/services/aiDefaults';
+import { SETUP_TITLE, SETUP_SIGN_IN_TO_USE_AI } from '../../shared/setup/setupStrings';
 import { openTV, DEMO_SLIDE, goToSlide } from './helpers/tv';
 import { signInAsLeader, mockAIStream } from './helpers/hostedAI';
 import QRCode from 'qrcode';
-import { QR_SVG_OPTIONS, qrModulesPath } from '../../components/signup/signupRoute';
-import { SU_QR_BODY, SU_DEMO_LINE, SU_UNCLAIMED_LINE } from '../../components/signup/signupStrings';
-import { packHash } from '../../components/landing/landingRoute';
+import { QR_SVG_OPTIONS, qrModulesPath } from '../../shared/signup/signupRoute';
+import { SU_QR_BODY, SU_DEMO_LINE, SU_UNCLAIMED_LINE } from '../../shared/signup/signupStrings';
+import { packHash } from '../../shared/landing/landingRoute';
 import { routeOwnedSamplePack, expectedSignupUrl, seedLocalPack, fetchSamplePack } from './helpers/signup';
 
 const TOTAL = DEMO_SLIDE.total;

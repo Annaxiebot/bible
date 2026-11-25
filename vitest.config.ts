@@ -28,12 +28,12 @@ export default defineConfig({
         'ios/',
         'coverage/',
         // Orchestration component — tested via sub-component tests
-        'components/BibleViewer.tsx',
+        'apps/journal/components/BibleViewer.tsx',
         // Integration-heavy hooks requiring real APIs/IndexedDB — not unit-testable
-        'hooks/useBibleDownload.ts',
-        'hooks/useBibleContextMenu.ts',
+        'apps/journal/hooks/useBibleDownload.ts',
+        'apps/journal/hooks/useBibleContextMenu.ts',
         // Large UI component with 40+ props — covered by sub-component tests
-        'components/BibleHeader.tsx',
+        'apps/journal/components/BibleHeader.tsx',
       ],
       // Thresholds are a FLOOR set ~1 pt below measured coverage on master as
       // of 2026-04-22 (lines 61.87, stmt 58.29, branches 49.57, functions 59.22).

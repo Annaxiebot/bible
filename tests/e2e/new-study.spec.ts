@@ -14,20 +14,20 @@
  * new-study-language.spec.ts; shared steps in helpers/newStudy.ts.
  */
 import { test, expect } from '@playwright/test';
-import { NEW_STUDY_LINE } from '../../components/landing/landingStrings';
-import { SETUP_TITLE, SETUP_SIGN_IN_TO_USE_AI } from '../../components/setup/setupStrings';
+import { NEW_STUDY_LINE } from '../../shared/landing/landingStrings';
+import { SETUP_TITLE, SETUP_SIGN_IN_TO_USE_AI } from '../../shared/setup/setupStrings';
 import {
   NS_TITLE, NS_BOOK, NS_GENERATE, NS_EDIT_TITLE, NS_AUTOSAVED, NS_PREVIEW, NS_BACKUP_TOGGLE, NS_BACKUP_DOWNLOAD, NS_MY_PACKS, NS_EDIT,
   NS_SCRIPTURE_NOTE, NS_RETRY, NS_ERR_NO_JSON, NS_RANGE_UPDATED, NS_SECTION_REMOVE_CONFIRM,
   NS_CONTENT_LANGUAGE, NS_CONTENT_LANGUAGE_OPTIONS,
-} from '../../components/newstudy/newStudyStrings';
-import { newStudyHash } from '../../components/landing/landingRoute';
-import { ESCAPE_GRACE_MS } from '../../components/studypack/useTVFullscreen';
-import { PACK_CONTINUE_PROMPT } from '../../components/newstudy/packPrompt';
-import { JOHN3_REPLY_JSON } from '../../components/newstudy/__tests__/fixtures';
-import { LIFE_AREAS, DEFAULT_CONTENT_LANGUAGE } from '../../components/studypack/principles';
+} from '../../shared/newstudy/newStudyStrings';
+import { newStudyHash } from '../../shared/landing/landingRoute';
+import { ESCAPE_GRACE_MS } from '../../apps/site/studypack/useTVFullscreen';
+import { PACK_CONTINUE_PROMPT } from '../../apps/site/newstudy/packPrompt';
+import { JOHN3_REPLY_JSON } from '../../apps/site/newstudy/__tests__/fixtures';
+import { LIFE_AREAS, DEFAULT_CONTENT_LANGUAGE } from '../../shared/studypack/principles';
 import { sseBody } from './helpers/tv';
-import { AI_PROXY_FUNCTION } from '../../services/aiProxyRoute';
+import { AI_PROXY_FUNCTION } from '../../shared/services/aiProxyRoute';
 import { signInAsLeader, mockAIStream, mockAISequence } from './helpers/hostedAI';
 import { PACK_ID, openNewStudy, fillJohn3, chunked, openMoreOptions } from './helpers/newStudy';
 

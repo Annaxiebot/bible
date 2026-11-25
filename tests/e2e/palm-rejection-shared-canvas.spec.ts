@@ -40,9 +40,9 @@
  */
 
 import { test, expect, type Locator, type Page } from '@playwright/test';
-import { APP_HASH } from '../../components/landing/landingRoute';
+import { APP_HASH } from '../../shared/landing/landingRoute';
 import { dispatchTouchFrames, type SynthContact } from './helpers/pointerSynth';
-import { PALM } from '../../constants/appConfig';
+import { PALM } from '../../apps/journal/constants/appConfig';
 
 // Radii around the thresholds the classifier actually reads, sourced from the one constant
 // that defines them (R3) so a change to PALM.* cannot leave this file asserting stale numbers.

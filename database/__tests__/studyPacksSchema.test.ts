@@ -9,7 +9,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import path from 'path';
-import { STUDY_PACKS_TABLE } from '../../components/newstudy/packRemote';
+import { STUDY_PACKS_TABLE } from '../../shared/newstudy/packRemote';
 
 const sql = readFileSync(path.resolve(__dirname, '../study-packs-schema.sql'), 'utf-8');
 const statements = (re: RegExp) => [...sql.matchAll(re)].map(m => m[0].replace(/\s+/g, ' '));

@@ -5,7 +5,7 @@
  * stay inside the viewport, and surface a load failure as a bilingual line.
  */
 import { test, expect, Page } from '@playwright/test';
-import { VERSE_LOAD_ERROR } from '../../components/studypack/tvHints';
+import { VERSE_LOAD_ERROR } from '../../shared/studypack/tvHints';
 import { openTV, goToSlide, DEMO_SLIDE } from './helpers/tv';
 
 test.describe('Interactive cross-references (bundled Bible data)', () => {

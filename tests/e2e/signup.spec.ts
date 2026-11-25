@@ -23,20 +23,20 @@
  * public_signup_pack RPC and its row carries that leader. No live Supabase.
  */
 import { test, expect, Page } from '@playwright/test';
-import { SAMPLE_PACK_ID } from '../../components/landing/landingRoute';
-import { signupHash } from '../../components/signup/signupRoute';
-import { checkinHash } from '../../components/checkin/checkinRoute';
+import { SAMPLE_PACK_ID } from '../../shared/landing/landingRoute';
+import { signupHash } from '../../shared/signup/signupRoute';
+import { checkinHash } from '../../shared/checkin/checkinRoute';
 import {
   SU_TITLE, SU_NAME, SU_EMAIL, SU_PHONE, SU_CONSENT, SU_SUBMIT, SU_ERR_NAME, SU_ERR_EMAIL_REQUIRED, SU_ERR_SUBMIT, SU_THANKS, SU_NEXT,
   SU_DEMO_LINE, SU_UNCLAIMED_LINE, SU_SIGN_IN_GOOGLE, SU_PRACTICE_TITLE, SU_ERR_PRACTICE, SU_NEXT_STEP, commitmentLine,
   SU_ERR_PACK, SU_PACK_ASK_LEADER, SU_REPLACED,
-} from '../../components/signup/signupStrings';
+} from '../../shared/signup/signupStrings';
 import { RATE_GUARD_PER_EMAIL_DAY, RATE_GUARD_EMAIL_MESSAGE } from '../utils/signupRateGuard';
-import { CHECKIN_ANSWERS_TABLE } from '../../components/signup/signupSchema';
-import { LEADER_HOME_HASH } from '../../components/leader/leaderRoute';
-import { packCountsLine } from '../../components/leader/leaderStrings';
+import { CHECKIN_ANSWERS_TABLE } from '../../apps/site/signup/signupSchema';
+import { LEADER_HOME_HASH } from '../../shared/leader/leaderRoute';
+import { packCountsLine } from '../../apps/site/leader/leaderStrings';
 import { fakeLeaderSession, mockPackViews } from './helpers/leader';
-import { SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../../components/setup/setupStrings';
+import { SETUP_MIN_FONT_PX, SETUP_MIN_TAP_PX } from '../../shared/setup/setupStrings';
 import {
   routeOwnedSamplePack, E2E_LEADER_ID, E2E_SUPABASE_PATH, seedLocalPack, fetchSamplePack, mockBackend,
   BackendMocks as Mocks, mockSignupPackRpc, E2E_CHECKIN_NOTE,

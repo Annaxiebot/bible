@@ -9,10 +9,10 @@
  * that counts (and aborts) any AI request — there must be none.
  */
 import { test, expect } from '@playwright/test';
-import { APP_HASH } from '../../components/landing/landingRoute';
-import { SETUP_TITLE, SETUP_SIGN_IN_TO_USE_AI, SETUP_OPEN_BUTTON } from '../../components/setup/setupStrings';
-import { AI_SIGN_IN_NEEDED } from '../../components/studypack/tvHints';
-import { AI_PROXY_FUNCTION } from '../../services/aiProxyRoute';
+import { APP_HASH } from '../../shared/landing/landingRoute';
+import { SETUP_TITLE, SETUP_SIGN_IN_TO_USE_AI, SETUP_OPEN_BUTTON } from '../../shared/setup/setupStrings';
+import { AI_SIGN_IN_NEEDED } from '../../shared/studypack/tvHints';
+import { AI_PROXY_FUNCTION } from '../../shared/services/aiProxyRoute';
 import { failOnOpenRouter } from './helpers/hostedAI';
 
 test('signed out: Reflect and Summarize show the sign-in line; 设置AI opens the AI service dialog; no AI request is made', async ({ page }) => {

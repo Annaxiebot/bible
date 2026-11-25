@@ -12,9 +12,9 @@ import { test, expect, Page } from '@playwright/test';
 import {
   FEEDBACK_FUNCTION, FEEDBACK_LABEL, HONEYPOT_FIELD, RATE_LIMIT_COUNT, feedbackHash, validateFeedback,
 } from '../../supabase/functions/_shared/feedback';
-import { FB_THANKS, FB_ERRORS } from '../../components/feedback/feedbackStrings';
+import { FB_THANKS, FB_ERRORS } from '../../apps/site/feedback/feedbackStrings';
 import { E2E_SUPABASE_PATH, injectSupabaseOverride } from './helpers/signup';
-import { SOURCE_REPO_URL, CONTRIBUTE_LABEL, CONTRIBUTE_PROMPT } from '../../components/shared/sourceRepo';
+import { SOURCE_REPO_URL, CONTRIBUTE_LABEL, CONTRIBUTE_PROMPT } from '../../apps/site/shared/sourceRepo';
 
 const MIN_TAP_PX = 48;
 

@@ -11,7 +11,7 @@ import { Page } from '@playwright/test';
 import { E2E_SUPABASE_PATH, injectSupabaseOverride } from './signup';
 import {
   SITE_STATS_FN, LOG_PRESENTATION_FN, MEETING_MIN_SECONDS, MEETING_MAX_SECONDS, SiteStats,
-} from '../../../components/stats/statsRules';
+} from '../../../apps/site/stats/statsRules';
 
 export interface FakeStatsServer {
   /** Every site_stats call seen. */

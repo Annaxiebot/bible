@@ -10,7 +10,7 @@
  * (the wordmark), Inter (English). Every word comes from landingStrings (R3).
  */
 import { createHash } from 'node:crypto';
-import { BRAND_EN, BRAND_ZH, HERO_EYEBROW } from '../../components/landing/landingStrings';
+import { BRAND_EN, BRAND_ZH, HERO_EYEBROW } from '../../shared/landing/landingStrings';
 import { DEFAULT_SITE_ORIGIN, escapeHtml, splitLine } from './prerender';
 import { OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT } from './ogImage';
 

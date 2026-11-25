@@ -15,9 +15,9 @@
 import { test, expect, Page } from '@playwright/test';
 import {
   SI_EMAIL_TOGGLE, SI_EMAIL_LABEL, SI_SEND, SI_SENT, SI_CODE_LABEL, SI_VERIFY, SI_SIGNED_IN, SI_ERR_CODE_WRONG, SI_ERR_RATE,
-} from '../../components/signin/signInStrings';
-import { SETUP_SIGN_IN_TO_USE_AI } from '../../components/setup/setupStrings';
-import { AUTH_RETURN_HASH_KEY } from '../../services/authReturnHash';
+} from '../../shared/signin/signInStrings';
+import { SETUP_SIGN_IN_TO_USE_AI } from '../../shared/setup/setupStrings';
+import { AUTH_RETURN_HASH_KEY } from '../../shared/services/authReturnHash';
 import { injectSupabaseOverride } from './helpers/signup';
 import { openNewStudy } from './helpers/newStudy';
 import { routeAuth, EMAIL, GOOD_CODE } from './helpers/emailAuth';

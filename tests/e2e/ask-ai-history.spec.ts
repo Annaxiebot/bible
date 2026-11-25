@@ -11,12 +11,12 @@
  * No live Supabase, no live AI.
  */
 import { test, expect, Page } from '@playwright/test';
-import { SAMPLE_PACK_ID } from '../../components/landing/landingRoute';
-import { leaderHash } from '../../components/leader/leaderRoute';
-import { ASK_HISTORY_LIMIT } from '../../components/studypack/askHistoryRules';
+import { SAMPLE_PACK_ID } from '../../shared/landing/landingRoute';
+import { leaderHash } from '../../shared/leader/leaderRoute';
+import { ASK_HISTORY_LIMIT } from '../../apps/site/studypack/askHistoryRules';
 import {
   AH_FULL_NOTICE, AH_REPLACE, AH_CLEAR, AH_DELETE, AH_DELETE_ALL, AH_NONE, AH_REPLACE_ON, AH_REPLACE_STOP, historyCountLine,
-} from '../../components/studypack/askHistoryStrings';
+} from '../../apps/site/studypack/askHistoryStrings';
 import { E2E_LEADER_ID, routeOwnedSamplePack, seedLocalPack, fetchSamplePack } from './helpers/signup';
 import { openTV, sseBody } from './helpers/tv';
 import { signInAsLeader, mockProxy, ProxyCall } from './helpers/hostedAI';

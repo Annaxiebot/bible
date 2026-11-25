@@ -23,9 +23,9 @@ import path from 'node:path';
 import {
   BRAND_EN, BRAND_ZH, HERO_SUB_ZH, HERO_SUB_EN, HERO_SOURCE_NOTE, GROUP_CTA,
   PERSONAL_CTA, NEW_STUDY_LINE, NEW_STUDY_SIGNIN_NOTE, AI_SIGNIN_NOTE, HERO_EYEBROW,
-} from '../../components/landing/landingStrings';
+} from '../../shared/landing/landingStrings';
 import { OG_IMAGE_FILE, OG_IMAGE_WIDTH, OG_IMAGE_HEIGHT, OG_IMAGE_ALT } from './ogImage';
-import { MAIN_CONTENT_ID, SKIP_LINK_LABEL } from '../../components/shared/skipLinkStrings';
+import { MAIN_CONTENT_ID, SKIP_LINK_LABEL } from '../../shared/components/skipLinkStrings';
 
 export const DEFAULT_SITE_ORIGIN = 'https://scripturetolife.org';
 export const STUDIES_DIR = 'studies';

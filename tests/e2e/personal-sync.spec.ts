@@ -8,9 +8,9 @@
  */
 import { test, expect, Page } from '@playwright/test';
 import { readFileSync } from 'fs';
-import { APP_HASH } from '../../components/landing/landingRoute';
-import { SYNC_LINE_LOCAL, SYNC_LINE_SYNCED } from '../../components/syncLineStrings';
-import { PERSONAL_BACKUP_KIND, PERSONAL_BACKUP_VERSION } from '../../services/export/personalBackupFormat';
+import { APP_HASH } from '../../shared/landing/landingRoute';
+import { SYNC_LINE_LOCAL, SYNC_LINE_SYNCED } from '../../apps/journal/components/syncLineStrings';
+import { PERSONAL_BACKUP_KIND, PERSONAL_BACKUP_VERSION } from '../../apps/journal/services/export/personalBackupFormat';
 import { fakeLeaderSession } from './helpers/leader';
 
 async function openSidebar(page: Page) {

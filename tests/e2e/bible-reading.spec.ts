@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { APP_HASH } from '../../components/landing/landingRoute';
+import { APP_HASH } from '../../shared/landing/landingRoute';
 
 test.describe('Bible Reading Flow', () => {
   test.beforeEach(async ({ page }) => {

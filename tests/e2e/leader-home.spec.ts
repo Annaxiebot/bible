@@ -12,14 +12,14 @@
  * page that shows the pack's sign-up QR. No live Supabase.
  */
 import { test, expect } from '@playwright/test';
-import { NAV_LEADER_SIGNIN } from '../../components/landing/landingStrings';
-import { newStudyHash, packHash } from '../../components/landing/landingRoute';
-import { LEADER_HOME_HASH } from '../../components/leader/leaderRoute';
-import { LH_TITLE, LH_QR, packCountsLine } from '../../components/leader/leaderStrings';
-import { SETUP_MIN_TAP_PX } from '../../components/setup/setupStrings';
+import { NAV_LEADER_SIGNIN } from '../../shared/landing/landingStrings';
+import { newStudyHash, packHash } from '../../shared/landing/landingRoute';
+import { LEADER_HOME_HASH } from '../../shared/leader/leaderRoute';
+import { LH_TITLE, LH_QR, packCountsLine } from '../../apps/site/leader/leaderStrings';
+import { SETUP_MIN_TAP_PX } from '../../shared/setup/setupStrings';
 import { E2E_LEADER_ID, seedLocalPack, fetchSamplePack, expectedSignupUrl } from './helpers/signup';
-import { qrHash } from '../../components/signup/signupRoute';
-import { SU_QR_PRINT, SU_ERR_NOT_CONFIGURED } from '../../components/signup/signupStrings';
+import { qrHash } from '../../shared/signup/signupRoute';
+import { SU_QR_PRINT, SU_ERR_NOT_CONFIGURED } from '../../shared/signup/signupStrings';
 import { fakeLeaderSession, mockLeaderCounts } from './helpers/leader';
 
 const PACK_ID = 'local-2026-10-09-matt6';

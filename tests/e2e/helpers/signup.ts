@@ -17,11 +17,11 @@
 import { Page } from '@playwright/test';
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
-import { SAMPLE_PACK_ID } from '../../../components/landing/landingRoute';
-import { signupUrl } from '../../../components/signup/signupRoute';
+import { SAMPLE_PACK_ID } from '../../../shared/landing/landingRoute';
+import { signupUrl } from '../../../shared/signup/signupRoute';
 import {
   SIGNUPS_TABLE, CHECKIN_CONTEXT_FN, SHARE_ANSWER_FN, SEND_CHECKINS_FUNCTION, SIGNUP_PACK_FN,
-} from '../../../components/signup/signupSchema';
+} from '../../../apps/site/signup/signupSchema';
 import { MARK_REPLACED_FN, REPLACED_COLUMN, signupEmailKey } from '../../../supabase/functions/send-checkins/replaced';
 import { WELCOME_UNTRUSTED } from '../../../supabase/functions/send-checkins/trust';
 import { SIGNUP_FUNCTION } from '../../../supabase/functions/_shared/signup';

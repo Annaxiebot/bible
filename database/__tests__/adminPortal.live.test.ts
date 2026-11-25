@@ -18,8 +18,8 @@ import { describe, it, expect } from 'vitest';
 import { LIVE, runSql } from './liveSql';
 import {
   IS_SITE_ADMIN_FN, ADMIN_LEADERS_FN, ADMIN_FEEDBACK_FN, ADMIN_STATS_FN, ADMIN_DENIED_CODE, ADMIN_EXTRA_STATS_KEYS,
-} from '../../components/admin/adminRules';
-import { SITE_STATS_KEYS } from '../../components/stats/statsRules';
+} from '../../apps/site/admin/adminRules';
+import { SITE_STATS_KEYS } from '../../apps/site/stats/statsRules';
 
 const OWNER_EMAIL = 'csheargm@gmail.com';
 const ADMIN_FNS = [ADMIN_LEADERS_FN, ADMIN_FEEDBACK_FN, ADMIN_STATS_FN];

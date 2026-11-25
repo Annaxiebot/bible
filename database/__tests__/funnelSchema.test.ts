@@ -16,7 +16,7 @@ import path from 'path';
 import {
   LOG_FUNNEL_FN, ADMIN_FUNNEL_FN, FUNNEL_EVENTS, FUNNEL_WAIT_EVENTS, FUNNEL_MAX_WAIT_SECONDS, FUNNEL_DAILY_CEILING,
   FUNNEL_MAX_DAYS, FUNNEL_DAYS,
-} from '../../components/stats/funnelRules';
+} from '../../shared/stats/funnelRules';
 import { CHECKIN_TIMEZONE } from '../../supabase/functions/send-checkins/templates';
 
 const sql = readFileSync(path.resolve(__dirname, '..', 'funnel-schema.sql'), 'utf-8');

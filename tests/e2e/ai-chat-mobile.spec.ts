@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { APP_HASH } from '../../components/landing/landingRoute';
+import { APP_HASH } from '../../shared/landing/landingRoute';
 import { openSignedInChat } from './helpers/hostedAI';
 
 // Emulate iPhone 12 with Chromium (WebKit not installed)

@@ -10,7 +10,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const BOOK_DATA_TS = path.join(REPO_ROOT, 'services', 'bibleBookData.ts');
+const BOOK_DATA_TS = path.join(REPO_ROOT, 'shared', 'services', 'bibleBookData.ts');
 
 const ENTRY_RE =
   /\{\s*name:\s*'([^']+)',\s*id:\s*'([A-Z0-9]{3})',\s*chapters:\s*(\d+)(?:,\s*totalVerses:\s*(\d+))?\s*\}/g;

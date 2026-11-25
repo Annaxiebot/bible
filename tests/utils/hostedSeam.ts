@@ -7,7 +7,7 @@
  * a test "signed in"; hosted AI then posts to the ai-proxy under SEAM_BASE
  * with E2E_ACCESS_TOKEN. Returns the undo for afterEach / finally.
  */
-import { finalAIBody } from '../../services/aiFinalBody';
+import { finalAIBody } from '../../shared/services/aiFinalBody';
 import type { AIRole } from '../../supabase/functions/ai-proxy/policy';
 
 export const SEAM_UID = 'e2e-uid';

@@ -10,8 +10,8 @@
 import { test, expect } from '@playwright/test';
 import {
   NS_GUIDE_TITLE, NS_MY_PACKS, NS_BACKUP_TOGGLE, NS_PRIVACY, NS_SIGN_IN_TO_KEEP,
-} from '../../components/newstudy/newStudyStrings';
-import { SETUP_SIGN_IN_TO_USE_AI } from '../../components/setup/setupStrings';
+} from '../../shared/newstudy/newStudyStrings';
+import { SETUP_SIGN_IN_TO_USE_AI } from '../../shared/setup/setupStrings';
 import { seedLocalPack, fetchSamplePack } from './helpers/signup';
 import { openNewStudy } from './helpers/newStudy';
 

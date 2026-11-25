@@ -1,0 +1,259 @@
+/**
+ * AskAIOverlay.tsx — Ask-AI panel over the TV slides · 问AI浮层
+ *
+ * Opens over the current slide without losing position. Escape (or ✕)
+ * closes the overlay only — slide navigation is suspended by the parent
+ * while the overlay is open. Q&A is in-memory per opening — except on a
+ * study the signed-in leader owns (ADR-0021, useAskHistory): its saved
+ * exchanges are restored on open, each answer is saved, the limit notice
+ * sits under the latest answer, and a quiet Clear empties the view.
+ */
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import { StudyPack, Slide } from '../../../shared/studypack/packTypes';
+import { AskAIMessage } from '../../../shared/studypack/askAI';
+import {
+  ASK_AI_LABEL, ASK_QUESTION_LABEL, ASK_INPUT_PLACEHOLDER, ASK_SUBMIT_LABEL, thinkingLine, BACKUP_MODEL_NOTE,
+  SOURCES_LABEL, OPENBIBLE_NAME, OPENBIBLE_URL, STEP_BIBLE_NAME, STEP_BIBLE_URL,
+} from '../../../shared/studypack/tvHints';
+import { RELATED_VERSES_ENABLED } from './relatedVerses';
+import { ORIGINAL_WORDS_ENABLED } from './originalWords';
+import { useAskAI, AskAI } from './useAskAI';
+import { useAskHistory, AskHistory } from './useAskHistory';
+import AskHistoryNotice, { AskClearButton } from './AskHistoryNotice';
+import AIErrorLine from '../../../shared/studypack/AIErrorLine';
+import AskAnswer from './AskAnswer';
+import { useAnswerFit } from './useAnswerFit';
+import { TYPE_SCALE, AI_CAVEAT_SHORT } from '../../../shared/studypack/principles';
+import { QuickAISetupForm } from '../../../shared/setup/QuickAISetup';
+import { askAIModel } from '../../../shared/services/aiDefaults';
+
+// Layout (ADR-0003 §10): the header, the latest question and the input are
+// pinned; the conversation area between them takes all remaining height.
+// The latest answer shrinks to fit it (useAnswerFit, down to the senior
+// floor); earlier turns may scroll out above. Scrolling — a thin themed bar
+// — is the last resort when even the floor does not fit.
+// Questions (and the form/notices) read at the answers' long-text size: the
+// fixed 2.5vh had no phone floor and sat visibly smaller than the answers.
+const questionStyle: React.CSSProperties = { fontSize: TYPE_SCALE.answerLong, lineHeight: 1.4 };
+
+/** Messages before the latest question, the latest question, and its answer (streaming or stored). */
+function splitTurns(ai: AskAI) {
+  const lastUser = ai.messages.map(m => m.role).lastIndexOf('user');
+  const stored = ai.messages.slice(lastUser + 1).find(m => m.role === 'assistant')?.content ?? null;
+  return {
+    earlier: lastUser < 0 ? ai.messages : ai.messages.slice(0, lastUser),
+    question: lastUser < 0 ? null : ai.messages[lastUser].content,
+    answer: ai.streamingText ?? (lastUser < 0 ? null : stored),
+    turn: lastUser,
+  };
+}
+
+/**
+ * A question in the conversation, right above its answer: all gold ("问 Q"
+ * label + the question), so questions stand apart from the white answers at
+ * a glance — and STICKY at the top of the scroll area, so while a long
+ * answer scrolls (or streams) its own question stays in view instead of the
+ * reader scrolling back up a chain of follow-ups to find it. The panel's
+ * surface background keeps the scrolled answer from showing through.
+ */
+const QuestionLine: React.FC<{ text: string; latest?: boolean }> = ({ text, latest = false }) => (
+  <p className="sticky top-0 z-10 bg-stl-surface py-[0.5vh] flex gap-[0.8vw] text-stl-gold" style={questionStyle}
+    data-testid={latest ? 'ask-question' : 'ask-earlier-question'}>
+    <span className="shrink-0 font-semibold">{ASK_QUESTION_LABEL}</span>
+    <span>{text}</span>
+  </p>
+);
+
+const Message: React.FC<{ m: AskAIMessage; pack: StudyPack }> = ({ m, pack }) =>
+  m.role === 'user' ? <QuestionLine text={m.content} /> : <AskAnswer text={m.content} pack={pack} />;
+
+const Conversation: React.FC<{ ai: AskAI; pack: StudyPack; history: AskHistory }> = ({ ai, pack, history }) => {
+  const areaRef = useRef<HTMLDivElement>(null);
+  const latestRef = useRef<HTMLDivElement>(null);
+  const [setupOpen, setSetupOpen] = useState(false);
+  const { earlier, question, answer, turn } = splitTurns(ai);
+  const streaming = ai.streamingText !== null;
+  // The latest turn (its question + answer) in view — after each fit too, since the block also changes
+  // height without a new token (lazy markdown, shrink, fonts). While a too-tall answer STREAMS, keep its
+  // newest text in view; once it finishes (and whenever it fits), show the turn from its question down,
+  // so the reader starts at the top of the answer instead of scrolling back up.
+  const scrollToLatest = useCallback(() => {
+    const block = latestRef.current;
+    const area = areaRef.current;
+    // Guarded: jsdom (vitest) does not implement scrollIntoView. No spacer after the block: it would add scroll height.
+    if (!block || typeof block.scrollIntoView !== 'function') return;
+    const fits = area && block.offsetHeight <= area.clientHeight;
+    block.scrollIntoView({ block: fits || !streaming ? 'start' : 'end' });
+  }, [streaming]);
+  useAnswerFit(areaRef, latestRef, { text: answer, streaming, turnKey: turn, onFitted: scrollToLatest });
+  useEffect(scrollToLatest, [scrollToLatest, ai.messages.length, ai.loading, ai.streamingText]);
+  return (
+    <div ref={areaRef} className="flex-1 min-h-0 overflow-y-auto tv-thin-scroll space-y-[2vh]" data-testid="ask-conversation">
+      {(!ai.configured || setupOpen) && (
+        // No AI yet (or opened from an error line): the AI form inline — the
+        // sign-in choices (ADR-0007). Signing in flips `configured`; a
+        // pending question then sends.
+        <div className="max-w-3xl">
+          <QuickAISetupForm onCancel={setupOpen ? () => setSetupOpen(false) : undefined} />
+        </div>
+      )}
+      {earlier.map((m, i) => <Message key={i} m={m} pack={pack} />)}
+      <div ref={latestRef} data-testid="ask-latest" className="space-y-[1.5vh]">
+        {question !== null && <QuestionLine text={question} latest />}
+        {answer !== null && (
+          <div data-testid={streaming ? 'streaming-answer' : undefined}>
+            <AskAnswer text={answer} pack={pack} fit complete={!streaming} />
+          </div>
+        )}
+        {ai.loading && !streaming && (
+          <p className="text-stl-text-3" style={questionStyle} data-testid="ask-thinking">
+            {thinkingLine(ai.model ?? '')}
+          </p>
+        )}
+        {ai.error && (
+          <AIErrorLine error={ai.error} style={questionStyle} onSetup={() => setSetupOpen(true)} onRetry={() => { void ai.retry(); }} />
+        )}
+        <AskHistoryNotice history={history} style={questionStyle} />
+      </div>
+    </div>
+  );
+};
+
+const QuestionForm: React.FC<{ ai: AskAI }> = ({ ai }) => {
+  const [draft, setDraft] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => { inputRef.current?.focus(); }, []);
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    void ai.ask(draft);
+    setDraft('');
+  };
+  return (
+    <form onSubmit={submit} className="flex gap-[1vw] mt-[1vh] shrink-0">
+      <input
+        ref={inputRef}
+        value={draft}
+        onChange={e => setDraft(e.target.value)}
+        disabled={!ai.configured || ai.loading}
+        placeholder={ASK_INPUT_PLACEHOLDER}
+        aria-label="问一问 Ask AI question"
+        className="flex-1 min-w-0 bg-stl-surface text-stl-text rounded-lg px-4 border border-stl-border focus:outline-none focus:border-stl-gold"
+        style={questionStyle}
+      />
+      <button
+        type="submit"
+        disabled={!ai.configured || ai.loading || draft.trim().length === 0}
+        className="bg-stl-gold disabled:bg-stl-surface-2 text-stl-bg disabled:text-stl-text-3 font-semibold rounded-lg px-6 whitespace-nowrap shrink-0"
+        style={questionStyle}
+      >
+        {ASK_SUBMIT_LABEL}
+      </button>
+    </form>
+  );
+};
+
+export interface AskAIOverlayProps {
+  pack: StudyPack;
+  slide: Slide | undefined;
+  /** Auto-sent as the first prompt on open (discussion question / selection). */
+  initialQuestion?: string | null;
+  onClose: () => void;
+}
+
+// TODO(R4): over the 50-line function budget — split the auto-send and Escape effects into a useAskOverlayKeys hook.
+const AskAIOverlay: React.FC<AskAIOverlayProps> = ({ pack, slide, initialQuestion, onClose }) => {
+  const history = useAskHistory(pack);
+  const ai = useAskAI(pack, slide, { restored: history.restored, onAnswered: history.save });
+  const autoSentRef = useRef(false);
+  const close = useCallback(() => {
+    ai.cancel(); // abort an in-flight stream before leaving
+    onClose();
+  }, [ai, onClose]);
+
+  // One-click smart open: submit the initial question immediately, once.
+  // While AI is unavailable the question stays pending; it is sent as soon
+  // as the leader signs in (ai.configured flips to true).
+  // On an owned study it also waits until the saved exchanges are in the conversation, so they come first.
+  const historyIn = history.ready && (history.restored === null || ai.restoredIn);
+  useEffect(() => {
+    if (!initialQuestion || autoSentRef.current || !ai.configured || !historyIn) return;
+    autoSentRef.current = true;
+    void ai.ask(initialQuestion);
+  }, [initialQuestion, ai, historyIn]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.stopPropagation();
+        close();
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [close]);
+
+  return (
+    <div
+      // select-text: the TV root is select-none (for swipes); answers must be selectable and copyable.
+      className="absolute inset-0 bg-stl-glass flex items-center justify-center cursor-default select-text"
+      data-testid="ask-ai-overlay"
+      onClick={e => e.stopPropagation()}
+      onTouchStart={e => e.stopPropagation()}
+      onTouchEnd={e => e.stopPropagation()}
+    >
+      {/* TV: the panel takes nearly the whole screen (2vh/2vw frame over the dim backdrop). */}
+      <div className="bg-stl-surface border border-stl-border rounded-xl absolute inset-y-[2vh] inset-x-[2vw] p-[2vh] flex flex-col" data-testid="ask-panel"
+        data-answer-state={ai.loading ? 'answering' : 'idle'}>
+        <div className="flex items-center gap-[1vw] mb-[1vh] shrink-0">
+          <h2 className="text-stl-gold font-bold mr-auto" style={{ fontSize: '3.5vh' }}>{ASK_AI_LABEL}</h2>
+          {/* Owner: the model id means nothing in a meeting; say only when a backup model answered. */}
+          {!ai.loading && ai.model && ai.model !== askAIModel() && ai.messages.some(m => m.role === 'assistant') && (
+            <p className="text-stl-text-3 truncate" style={questionStyle} data-testid="ask-backup-model">{BACKUP_MODEL_NOTE}</p>
+          )}
+          <AskClearButton ai={ai} history={history} style={questionStyle} />
+          <button
+            onClick={close}
+            className="text-stl-text-2 hover:text-stl-text px-3 py-1"
+            style={{ fontSize: '3vh' }}
+            aria-label="关闭问一问 Close Ask AI"
+          >
+            ✕
+          </button>
+        </div>
+        <Conversation ai={ai} pack={pack} history={history} />
+        <QuestionForm ai={ai} />
+        {/* The AI-limitations reminder (review 2026-11-02) shares the credits line — OUTSIDE the
+            fitted conversation (inside, its extra line pushed an at-the-floor answer past the fit)
+            and at zero extra height (its own footer line re-broke the fit at 1080p on CI fonts). */}
+        <SourcesCredit caveat={ai.messages.some(m => m.role === 'assistant')} />
+      </div>
+    </div>
+  );
+};
+
+/**
+ * The data sources in use, one short line, each name linked (CC BY); nothing when no source is
+ * switched on. With `caveat` (an answer exists) the AI-limitations reminder leads the same line,
+ * so it costs no extra height against the conversation's fit (review 2026-11-02).
+ */
+export const SourcesCredit: React.FC<{ caveat?: boolean }> = ({ caveat }) => {
+  const sources = [
+    RELATED_VERSES_ENABLED && { name: OPENBIBLE_NAME, url: OPENBIBLE_URL },
+    ORIGINAL_WORDS_ENABLED && { name: STEP_BIBLE_NAME, url: STEP_BIBLE_URL },
+  ].filter((x): x is { name: string; url: string } => Boolean(x));
+  if (sources.length === 0 && !caveat) return null;
+  return (
+    <p className="text-stl-text-3 shrink-0 mt-[0.5vh]" style={{ fontSize: '1.6vh' }} data-testid="ask-sources">
+      {caveat && <span data-testid="ask-ai-caveat">{AI_CAVEAT_SHORT}{sources.length > 0 && ' · '}</span>}
+      {sources.length > 0 && <>{SOURCES_LABEL}：</>}
+      {sources.map((src, i) => (
+        <React.Fragment key={src.name}>
+          {i > 0 && ' · '}
+          <a href={src.url} target="_blank" rel="noreferrer" className="underline">{src.name}</a>
+        </React.Fragment>
+      ))}
+    </p>
+  );
+};
+
+export default AskAIOverlay;

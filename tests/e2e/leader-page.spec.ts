@@ -11,10 +11,10 @@
  * overflow. No live Supabase.
  */
 import { test, expect, Page } from '@playwright/test';
-import { leaderHash } from '../../components/leader/leaderRoute';
-import { LD_EMPTY_CELL, LD_STOP, countLine } from '../../components/leader/leaderStrings';
-import { CK_KIND_LABEL } from '../../components/checkin/checkinStrings';
-import { SETUP_MIN_TAP_PX } from '../../components/setup/setupStrings';
+import { leaderHash } from '../../shared/leader/leaderRoute';
+import { LD_EMPTY_CELL, LD_STOP, countLine } from '../../apps/site/leader/leaderStrings';
+import { CK_KIND_LABEL } from '../../shared/checkin/checkinStrings';
+import { SETUP_MIN_TAP_PX } from '../../shared/setup/setupStrings';
 import { E2E_LEADER_ID, seedLocalPack, fetchSamplePack } from './helpers/signup';
 import { fakeLeaderSession, mockLeaderList, leaderSignupRow, leaderAnswerRow } from './helpers/leader';
 

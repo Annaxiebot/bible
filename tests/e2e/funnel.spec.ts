@@ -15,11 +15,11 @@
  * Supabase, no live AI.
  */
 import { test, expect } from '@playwright/test';
-import { SI_EMAIL_TOGGLE, SI_EMAIL_LABEL, SI_SEND, SI_CODE_LABEL, SI_VERIFY } from '../../components/signin/signInStrings';
-import { NS_GENERATE, NS_EDIT_TITLE, NS_CANCEL, NS_BACK } from '../../components/newstudy/newStudyStrings';
-import { ADMIN_HASH } from '../../components/landing/landingRoute';
-import { JOHN3_REPLY_JSON } from '../../components/newstudy/__tests__/fixtures';
-import { FUNNEL_MAX_WAIT_SECONDS } from '../../components/stats/funnelRules';
+import { SI_EMAIL_TOGGLE, SI_EMAIL_LABEL, SI_SEND, SI_CODE_LABEL, SI_VERIFY } from '../../shared/signin/signInStrings';
+import { NS_GENERATE, NS_EDIT_TITLE, NS_CANCEL, NS_BACK } from '../../shared/newstudy/newStudyStrings';
+import { ADMIN_HASH } from '../../shared/landing/landingRoute';
+import { JOHN3_REPLY_JSON } from '../../apps/site/newstudy/__tests__/fixtures';
+import { FUNNEL_MAX_WAIT_SECONDS } from '../../shared/stats/funnelRules';
 import { E2E_ANON_KEY } from './helpers/signup';
 import { mockFunnel, FakeFunnel } from './helpers/funnel';
 import { routeAuth, EMAIL, GOOD_CODE } from './helpers/emailAuth';

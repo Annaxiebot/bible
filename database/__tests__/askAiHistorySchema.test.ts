@@ -15,8 +15,8 @@ import path from 'path';
 import {
   ASK_HISTORY_LIMIT, ASK_HISTORY_TABLE, SAVE_ASK_EXCHANGE_FN, ASK_HISTORY_FULL_CODE, ASK_REPLACE_COLUMN,
   ASK_QUESTION_MAX_CHARS, ASK_ANSWER_MAX_CHARS,
-} from '../../components/studypack/askHistoryRules';
-import { STUDY_PACKS_TABLE } from '../../components/newstudy/packRemote';
+} from '../../apps/site/studypack/askHistoryRules';
+import { STUDY_PACKS_TABLE } from '../../shared/newstudy/packRemote';
 
 const sql = readFileSync(path.resolve(__dirname, '..', 'ask-ai-history-schema.sql'), 'utf-8');
 const code = sql.split('\n').filter(l => !l.trim().startsWith('--')).join('\n');

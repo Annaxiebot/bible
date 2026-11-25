@@ -14,8 +14,8 @@ import { readFileSync } from 'fs';
 import path from 'path';
 import { SIGNUPS_TABLE, RATE_GUARD_ERRCODE } from '../../supabase/functions/_shared/signup';
 import { MARK_REPLACED_FN } from '../../supabase/functions/send-checkins/replaced';
-import { SIGNUPS_TABLE as APP_SIGNUPS_TABLE } from '../../components/signup/signupSchema';
-import { STUDY_PACKS_TABLE } from '../../components/newstudy/packRemote';
+import { SIGNUPS_TABLE as APP_SIGNUPS_TABLE } from '../../apps/site/signup/signupSchema';
+import { STUDY_PACKS_TABLE } from '../../shared/newstudy/packRemote';
 
 const read = (file: string) => readFileSync(path.resolve(__dirname, '..', file), 'utf-8');
 const sql = read('signup-endpoint-schema.sql');

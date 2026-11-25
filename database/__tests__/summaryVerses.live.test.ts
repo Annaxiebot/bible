@@ -14,8 +14,8 @@ import { readFileSync, existsSync } from 'fs';
 import os from 'os';
 import https from 'https';
 import path from 'path';
-import { parseStudyPack } from '../../components/studypack/packTypes';
-import { packSummaryFrom } from '../../components/signup/packSummary';
+import { parseStudyPack } from '../../shared/studypack/packTypes';
+import { packSummaryFrom } from '../../apps/site/signup/packSummary';
 import { SUMMARY_COLUMNS, passageFromSummary, PackSummaryRow } from '../../supabase/functions/send-checkins/packSource';
 
 const TOKEN_FILE = path.join(os.homedir(), '.supabase', 'access-token');

@@ -9,7 +9,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { LIVE, runSql } from './liveSql';
-import { SHARE_ANSWER_FN, CHECKIN_ANSWERS_TABLE } from '../../components/signup/signupSchema';
+import { SHARE_ANSWER_FN, CHECKIN_ANSWERS_TABLE } from '../../apps/site/signup/signupSchema';
 
 const KIND = 'weekend';
 const PROBE_SQL = `DO $do$ DECLARE v_signup uuid; a uuid; b uuid; n int; txt text;

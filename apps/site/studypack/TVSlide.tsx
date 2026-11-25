@@ -1,0 +1,292 @@
+/**
+ * TVSlide.tsx — renders one StudyPack slide for the TV · 单页幻灯片
+ *
+ * Dark (colour tokens: styles/stlTheme.css), very large type (slideTypography.ts: vh-based on a
+ * TV so it scales with the screen, width-based on a portrait phone).
+ * Calm by design ("about the Word, not the graphics"): no images, one
+ * heading style, quiet verse numbers and counters, gold only for headings
+ * and the key phrase. How much text a slide carries is decided upstream
+ * (slideFit.ts via buildSlides). Layout only; navigation lives in
+ * useTVNavigation / TVPresentationView.
+ * When the pack is provided, verse references in body lines become
+ * interactive popups (ADR-0003 §8). Bilingual text is Chinese-first (§1).
+ * Headings, the title and the key phrase carry .stl-tv-head: Chinese in
+ * 霞鹜文楷 WenKai bold, the English half in the TV's Latin face (stlShared.css).
+ * Everything under the heading sits in a FitArea: it grows (or, when the
+ * built slide overflows, shrinks to the senior floor — fitScale.ts)
+ * to fill the slide down to the bottom safe zone (useFitScale); headings keep
+ * one size on every slide. Vertical gaps inside scale with the text.
+ */
+import React, { useRef } from 'react';
+import { Slide, StudyPack } from '../../../shared/studypack/packTypes';
+import { TRANSLATIONS, bilingual } from '../../../shared/studypack/principles';
+import { fitted, useSlideTypography } from './slideTypography';
+import { useFitScale } from './useFitScale';
+import { MIN_BODY_SLIDE_SCALE, MIN_VERSE_SLIDE_SCALE, MIN_SCALE } from './fitScale';
+import RefLinkedText from './RefLinkedText';
+import { HEADING_DETAIL_SEPARATOR, emphasisSegments, keyPhraseFragments, splitHeading } from './slideText';
+import SignupQr from '../signup/SignupQr';
+import NoSignupNotice from '../signup/NoSignupNotice';
+import { isQuoteLine } from '../sharing/sharingStrings';
+
+interface SlideProps {
+  slide: Slide;
+  pack?: StudyPack;
+}
+
+/** "n/m" when the section spans several slides, otherwise nothing. */
+function partCounter(index?: number, total?: number): string | undefined {
+  return index !== undefined && total !== undefined && total > 1 ? `${index}/${total}` : undefined;
+}
+
+/**
+ * The one heading style: gold name at TYPE_SCALE.heading, then a smaller,
+ * quieter tail: detail ("— 马太福音 6:25–34 Matthew") and counter ("· 2/3").
+ * The text content stays "<heading> · n/m" for selection and Ask AI.
+ */
+const Heading: React.FC<{ text: string; counter?: string }> = ({ text, counter }) => {
+  const t = useSlideTypography();
+  const { main, detail } = splitHeading(text);
+  return (
+    <h1 className="stl-tv-head font-bold text-stl-gold mb-[4vh]" style={t.heading}>
+      {main}
+      {(detail || counter) && (
+        // The space before the tail is the break point; inline-block keeps the tail whole on a
+        // narrow phone instead of splitting "马 / 太福音". Text stays "<main> — <detail> · n/m".
+        <>{' '}<span className="stl-tv-tail inline-block font-normal" style={t.headingTail}>
+          {detail && <span className="text-stl-text-2">{HEADING_DETAIL_SEPARATOR.trimStart()}{detail}</span>}
+          {counter && <span className="text-stl-text-3">{detail ? ` · ${counter}` : `· ${counter}`}</span>}
+        </span></>
+      )}
+    </h1>
+  );
+};
+
+/**
+ * The slide's content area: takes the rest of the slide below the heading and
+ * scales its content (--fit) to fill it — growing up to MAX_SCALE, or, when
+ * the built slide overflows at 1 (the row estimates are heuristic), shrinking
+ * to `minScale`, the senior floor for the slide's smallest role (fitScale.ts).
+ * overflow-y-auto stays so a slide that overflows even at the floor still
+ * shows up as scrolling (tv-polish e2e) rather than clipping.
+ */
+const FitArea: React.FC<{ fitKey: unknown; className?: string; minScale?: number; children: React.ReactNode }> = ({ fitKey, className = '', minScale = MIN_BODY_SLIDE_SCALE, children }) => {
+  const area = useRef<HTMLDivElement>(null);
+  const content = useRef<HTMLDivElement>(null);
+  useFitScale(area, content, fitKey, minScale);
+  return (
+    // scrollbar-gutter stable: otherwise a transient scrollbar during the fit search narrows the
+    // area, wraps the text taller, and locks in an overflowing scale (two self-consistent states).
+    <div ref={area} data-testid="tv-fit-area" className={`flex-1 min-h-0 overflow-y-auto ${className}`}
+      style={{ scrollbarGutter: 'stable' }}>
+      <div ref={content} data-testid="tv-fit-content">{children}</div>
+    </div>
+  );
+};
+
+/** `quietQuotes` (sharing slides, ADR-0008): 「…」 lines — members' paraphrased words — in the quieter text colour. */
+const BodyLines: React.FC<{ lines?: string[]; pack?: StudyPack; quietQuotes?: boolean; centered?: boolean }> = ({ lines, pack, quietQuotes, centered }) => {
+  const t = useSlideTypography();
+  return (
+    <div className="space-y-[calc(2.5vh*var(--fit,1))]">
+      {(lines || []).map((line, i) => {
+        const quiet = !!quietQuotes && isQuoteLine(line);
+        const tone = quiet ? 'text-stl-text-2' : 'text-stl-text';
+        // Centered lines (title, QR) balance their wrap: a grown title line otherwise broke "2026-10- / 02".
+        return (
+          <p key={i} className={centered ? `${tone} mx-auto` : tone} data-quote={quiet || undefined} style={centered ? { ...fitted(t.body), textWrap: 'balance' } : fitted(t.body)}>
+            {pack ? <RefLinkedText text={line} pack={pack} /> : line}
+          </p>
+        );
+      })}
+    </div>
+  );
+};
+
+const TitleSlide: React.FC<SlideProps> = ({ slide }) => {
+  const t = useSlideTypography();
+  return (
+    <div className="h-full flex flex-col">
+      <FitArea fitKey={slide} className="flex items-center justify-center text-center">
+        <h1 className="stl-tv-head font-bold text-stl-gold mb-[calc(5vh*var(--fit,1))] mx-auto" style={fitted(t.title)}>{slide.heading}</h1>
+        <BodyLines lines={slide.body} centered />
+      </FitArea>
+    </div>
+  );
+};
+
+/** Verse text with the key phrase (where it occurs) set in gold. */
+const VerseText: React.FC<{ num: number; text: string; emphasis: string[] }> = ({ num, text, emphasis }) => {
+  const t = useSlideTypography();
+  return (
+    <p className="text-stl-text" style={fitted(t.verse)}>
+      <span className="text-stl-text-3 mr-[0.35em]" style={t.verseNumber}>{num}</span>
+      {emphasisSegments(text, emphasis).map((seg, i) => seg.emphasis
+        ? <span key={i} data-testid="verse-emphasis" className="text-stl-gold">{seg.text}</span>
+        : <React.Fragment key={i}>{seg.text}</React.Fragment>)}
+    </p>
+  );
+};
+
+/** Bilingual passage from the pack's embedded verses, split into parts. */
+const ScriptureSlide: React.FC<SlideProps> = ({ slide, pack }) => {
+  const t = useSlideTypography();
+  const emphasis = keyPhraseFragments(slide.emphasis);
+  return (
+    <div className="h-full flex flex-col">
+      <Heading text={slide.heading} counter={partCounter(slide.partIndex, slide.partTotal)} />
+      <FitArea fitKey={slide} minScale={MIN_VERSE_SLIDE_SCALE}>
+        {slide.keyPhrase && (
+          <p data-testid="key-phrase" className="stl-tv-head text-stl-gold font-semibold mb-[calc(3.5vh*var(--fit,1))]" style={fitted(t.keyPhrase)}>{slide.keyPhrase}</p>
+        )}
+        <div className="grid grid-cols-1 md:grid-cols-2 md:gap-[4vw] text-stl-text-3 mb-[calc(1.5vh*var(--fit,1))]" style={fitted(t.columnLabel, false)}>
+          <span className="hidden md:block">{bilingual(TRANSLATIONS.zh.label, 'CUV')}</span>
+          <span className="hidden md:block">{pack?.enVersion ?? TRANSLATIONS.en.label}</span>
+          <span className="md:hidden">{`${bilingual(TRANSLATIONS.zh.label, 'CUV')} · ${pack?.enVersion ?? TRANSLATIONS.en.label}`}</span>
+        </div>
+        <div className="space-y-[calc(3vh*var(--fit,1))]">
+          {(slide.verses || []).map(v => (
+            <div key={v.num} data-verse={v.num} className="grid grid-cols-1 gap-[calc(0.5vh*var(--fit,1))] md:grid-cols-2 md:gap-[4vw]">
+              <VerseText num={v.num} text={v.cuv} emphasis={emphasis} />
+              <VerseText num={v.num} text={v.en} emphasis={emphasis} />
+            </div>
+          ))}
+        </div>
+      </FitArea>
+    </div>
+  );
+};
+
+const DiscussionSlide: React.FC<SlideProps> = ({ slide, pack }) => {
+  const t = useSlideTypography();
+  return (
+    <div className="h-full flex flex-col">
+      <Heading text={slide.heading} counter={partCounter(slide.questionNumber, slide.questionTotal)} />
+      <FitArea fitKey={slide} className="flex items-center">
+        <p className="text-stl-text font-semibold" style={fitted(t.question)}>
+          {pack && slide.question ? <RefLinkedText text={slide.question} pack={pack} /> : slide.question}
+        </p>
+      </FitArea>
+    </div>
+  );
+};
+
+const LifeMenuSlide: React.FC<SlideProps> = ({ slide, pack }) => {
+  const t = useSlideTypography();
+  return (
+  <div className="h-full flex flex-col">
+    <Heading text={slide.heading} counter={partCounter(slide.partIndex, slide.partTotal)} />
+    {/* Life-menu rows are AT their senior floor (3.4vh): never shrink; the row split owns overflow. */}
+    <FitArea fitKey={slide} minScale={MIN_SCALE}>
+      <table className="w-full border-collapse">
+        <tbody>
+          {(slide.rows || []).map((row, i) => (
+            <tr key={i} className="block border-b border-stl-border md:table-row">
+              <td className="block pt-[calc(1vh*var(--fit,1))] text-stl-gold font-semibold md:table-cell md:py-[calc(1vh*var(--fit,1))] md:pr-[2vw] md:whitespace-nowrap md:align-top" style={fitted(t.lifeMenu)}>
+                {row.area}
+              </td>
+              <td className="block pb-[calc(1vh*var(--fit,1))] text-stl-text md:table-cell md:py-[calc(1vh*var(--fit,1))]" style={fitted(t.lifeMenu)}>
+                {pack ? <RefLinkedText text={row.practice} pack={pack} /> : row.practice}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </FitArea>
+  </div>
+  );
+};
+
+/**
+ * QR sign-up slide: the pack's own sign-up URL drawn as a large centered
+ * code (SignupQr renders it on a white quiet zone), the URL printed under it
+ * for people who prefer typing, plus the one-line instruction. A pack with
+ * no owning leader (no signupUrl) shows the sign-in block or the demo line.
+ */
+const QrSlide: React.FC<SlideProps> = ({ slide, pack }) => {
+  const t = useSlideTypography();
+  return (
+  <div className="h-full flex flex-col items-center justify-center text-center">
+    <Heading text={slide.headingZh ? `${slide.heading} ${slide.headingZh}` : slide.heading} />
+    {slide.signupUrl ? (
+      <>
+        <SignupQr url={slide.signupUrl} size="46vh" className="mb-[3vh]" pack={pack} />
+        <a href={slide.signupUrl} target="_blank" rel="noopener noreferrer"
+          className="text-stl-gold font-semibold mb-[2vh] break-all underline underline-offset-4" style={t.body}>
+          {slide.signupUrl}
+        </a>
+        <BodyLines lines={slide.body} centered />
+      </>
+    ) : (
+      <NoSignupNotice pack={pack} lineStyle={t.body} buttonStyle={t.body} />
+    )}
+  </div>
+  );
+};
+
+/**
+ * Worship slide (ADR-0022 step 2): the songs to sing before the study, each
+ * a tappable YouTube link (linked, never re-hosted). Rows a leader left
+ * blank in the editor are skipped.
+ */
+const WorshipSlide: React.FC<SlideProps> = ({ slide }) => {
+  const t = useSlideTypography();
+  const songs = (slide.songs ?? []).filter(s => s.title.trim() && s.url.trim());
+  return (
+    <div className="h-full flex flex-col">
+      <Heading text={slide.heading} />
+      <FitArea fitKey={slide}>
+        {songs.map((song, i) => (
+          <p key={`${i}:${song.title}`} className="mb-[2vh]" style={fitted(t.body)}>
+            <a href={song.url} target="_blank" rel="noopener noreferrer"
+              className="text-stl-gold underline underline-offset-4" data-testid="tv-worship-song">
+              {song.title}
+            </a>
+            {song.channel && <span className="text-stl-text-3"> — {song.channel}</span>}
+          </p>
+        ))}
+      </FitArea>
+    </div>
+  );
+};
+
+/**
+ * Picture slide (ADR-0027): the leader's illustration, centered and contained
+ * (never cropped on the TV), its optional caption under it. packSlides skips
+ * blank-src sections, so src is always set here.
+ */
+const PictureSlide: React.FC<SlideProps> = ({ slide }) => {
+  const t = useSlideTypography();
+  return (
+    <div className="h-full flex flex-col">
+      <Heading text={slide.heading} />
+      <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-[2vh]">
+        <img src={slide.picture?.src} alt={slide.picture?.caption || slide.heading}
+          className="max-h-[78vh] max-w-full object-contain rounded-lg" data-testid="tv-picture" />
+        {slide.picture?.caption?.trim() && (
+          <p className="text-stl-text text-center" style={t.body} data-testid="tv-picture-caption">{slide.picture.caption}</p>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const TVSlide: React.FC<SlideProps> = ({ slide, pack }) => {
+  if (slide.kind === 'title') return <TitleSlide slide={slide} />;
+  if (slide.kind === 'worship') return <WorshipSlide slide={slide} />;
+  if (slide.kind === 'picture') return <PictureSlide slide={slide} />;
+  if (slide.kind === 'scripture') return <ScriptureSlide slide={slide} pack={pack} />;
+  if (slide.kind === 'discussion') return <DiscussionSlide slide={slide} pack={pack} />;
+  if (slide.kind === 'lifeMenu') return <LifeMenuSlide slide={slide} pack={pack} />;
+  if (slide.kind === 'qr') return <QrSlide slide={slide} pack={pack} />;
+  return (
+    <div className="h-full flex flex-col">
+      <Heading text={slide.heading} counter={partCounter(slide.partIndex, slide.partTotal)} />
+      <FitArea fitKey={slide}>
+        <BodyLines lines={slide.body} pack={pack} quietQuotes={slide.kind === 'sharing'} />
+      </FitArea>
+    </div>
+  );
+};
+
+export default TVSlide;

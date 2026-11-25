@@ -13,7 +13,7 @@ import { readFileSync } from 'fs';
 import path from 'path';
 import {
   SITE_STATS_FN, LOG_PRESENTATION_FN, SITE_STATS_KEYS, MEETING_MIN_SECONDS, MEETING_MAX_SECONDS, MEETING_RATE_HOURS,
-} from '../../components/stats/statsRules';
+} from '../../apps/site/stats/statsRules';
 
 const sql = readFileSync(path.resolve(__dirname, '..', 'site-stats-schema.sql'), 'utf-8');
 const code = sql.split('\n').filter(l => !l.trim().startsWith('--')).join('\n');

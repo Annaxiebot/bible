@@ -10,7 +10,7 @@
  * carries the card's sha256 in a tEXt chunk, so a copy change that is not
  * re-rendered fails ogImage.test instead of shipping a stale card (R3).
  */
-import { BRAND_EN, BRAND_ZH, HERO_EYEBROW } from '../../components/landing/landingStrings';
+import { BRAND_EN, BRAND_ZH, HERO_EYEBROW } from '../../shared/landing/landingStrings';
 
 export const OG_IMAGE_WIDTH = 1200;
 export const OG_IMAGE_HEIGHT = 630;
